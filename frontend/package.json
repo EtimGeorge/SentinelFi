@@ -1,0 +1,10 @@
+{
+  "name": "sentinelfi-ui-placeholder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Placeholder for Next.js Frontend. Real dependencies will be added in Phase 4.",
+  "scripts": {
+    "dev": "echo 'Frontend development not started yet'",
+    "build": "echo 'Frontend build not started yet'"
+  }
+}

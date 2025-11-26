@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database Service - REMOVED internal 'db' container
+  # The database connection is now external to a secure Neon instance.
+  
+  # Environment variable for the Neon DB URL (Add this to your actual execution environment)
+  # DB_URL=postgres://user:password@endpoint.neon.tech/dbname?sslmode=require
+
+  # 2. NestJS Backend Service (High-Performance Real-Time API Layer)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentinel_fi_api
+    restart: always
+    environment:
+      # CRITICAL: This now uses an EXTERNAL database URL (your Neon connection string)
+      DATABASE_URL: ${DB_URL} 
+      # CRITICAL: Load JWT Secret from environment (passed via .env file injection, see below)
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_EXPIRATION_TIME: ${JWT_EXPIRATION_TIME}
+    ports:
+      - "3000:3000"
+    # IMPORTANT: The backend no longer depends on an internal DB container, only the URL.
+    # The external DB must be running/available.
+    # Add a healthcheck-like command:
+    command: ["/bin/sh", "-c", "node dist/main"] # Use the default run command now
+  
+  # 3. Next.js Frontend Service (Type-Safe, SSR Financial UI)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sentinel_fi_ui
+    restart: always
+    ports:
+      - "3001:3001"
+    command: ["sleep", "infinity"]
