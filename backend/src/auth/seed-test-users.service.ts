@@ -19,28 +19,29 @@ export class SeedTestUsersService implements OnApplicationBootstrap {
   }
 
   async seedUsers() {
-    console.log('--- Phase 3: Seeding Test Users for RBAC Validation ---');
+    console.log('--- Phase 3: FINAL DESTRUCTIVE RE-SEED ---');
 
-    // Define the users to create (with a simple default password 'password')
+    // Define the users to create with the password 'P@ssw0rd'
     const usersToSeed = [
-      { email: 'admin@sentinelfi.com', role: Role.Admin, password: 'password' },
-      { email: 'finance@sentinelfi.com', role: Role.Finance, password: 'password' },
-      { email: 'projectuser@sentinelfi.com', role: Role.AssignedProjectUser, password: 'password' },
-      { email: 'ceo@sentinelfi.com', role: Role.CEO, password: 'password' },
-      { email: 'ophead@sentinelfi.com', role: Role.OperationalHead, password: 'password' },
+      { email: 'admin@sentinelfi.com', role: Role.Admin, password: 'P@ssw0rd' },
+      { email: 'finance@sentinelfi.com', role: Role.Finance, password: 'P@ssw0rd' },
+      { email: 'projectuser@sentinelfi.com', role: Role.AssignedProjectUser, password: 'P@ssw0rd' },
+      { email: 'ceo@sentinelfi.com', role: Role.CEO, password: 'P@ssw0rd' },
+      { email: 'ophead@sentinelfi.com', role: Role.OperationalHead, password: 'P@ssw0rd' },
     ];
 
     for (const user of usersToSeed) {
       const existing = await this.usersRepository.findOne({ where: { email: user.email } });
       
-      if (!existing) {
-        // The password is automatically hashed via the @BeforeInsert hook in UserEntity
-        await this.authService.registerTestUser(user.email, user.password, user.role);
-        console.log(`- Seeded user: ${user.email} with Role: ${user.role}`);
-      } else {
-        console.log(`- User ${user.email} already exists. Skipping.`);
+      if (existing) {
+        // DELETE existing user to force a fresh hash creation
+        await this.usersRepository.delete(existing.id);
       }
+      
+      // The password is automatically hashed via the @BeforeInsert hook in UserEntity
+      await this.authService.registerTestUser(user.email, user.password, user.role);
+      console.log(`- RE-SEEDED user: ${user.email} with Role: ${user.role} and PWD: P@ssw0rd`);
     }
-    console.log('--- Seeding Complete ---');
+    console.log('--- FINAL SEEDING COMPLETE ---');
   }
 }

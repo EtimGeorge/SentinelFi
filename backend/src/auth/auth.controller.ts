@@ -1,34 +1,76 @@
-import { Controller, Post, Body, UseGuards, Get, HttpStatus, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Post, Body, Get, UsePipes, ValidationPipe, HttpStatus, HttpCode, UseGuards, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
-import { LoginUserDto } from './dto/login-user.dto'; // <-- New Import
+import { LoginUserDto } from './dto/login-user.dto';
+import { Response } from 'express'; 
 
-@Controller('auth') // Base path is /api/v1/auth
+@Controller('auth') 
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
    * API Endpoint: POST /api/v1/auth/login
-   * Phase 3 Deliverable: User Login
+   * FINAL FIX: Proper response handling to avoid 401 conflict.
    */
   @Post('login')
+  @HttpCode(HttpStatus.OK) 
   @UsePipes(new ValidationPipe({ transform: true }))
-  async login(@Body() loginDto: LoginUserDto) {
-    return this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginUserDto, 
+    @Res({ passthrough: true }) response: Response
+  ) {
+    try {
+      // 1. Get user and validate credentials (AuthService handles validation)
+      const result = await this.authService.login(loginDto);
+      
+      // 2. Set the HttpOnly cookie
+      response.cookie('access_token', result.access_token, {
+        httpOnly: true, 
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict', // Using 'strict' as mandated by our security policy
+        maxAge: 3600000, // 1 hour (matches JWT lifetime)
+      });
+      
+      // 3. Return the success payload
+      return {
+        success: true, // New explicit success flag
+        user_role: result.user_role,
+      };
+    } catch (error) {
+      // Catch any validation error thrown by the AuthService and convert it to 401
+      // Note: NestJS's global exception filter should handle this, but explicit log is fine.
+      console.error('Login controller error:', error);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+  }
+
+  /**
+   * API Endpoint: POST /api/v1/auth/logout
+   * Clears the HttpOnly JWT cookie.
+   */
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Res({ passthrough: true }) response: Response) {
+    response.cookie('access_token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      expires: new Date(0), 
+    });
+    
+    return { message: 'Logout successful. Session cookie cleared.' };
   }
 
   /**
    * API Endpoint: GET /api/v1/auth/test-secure
-   * Utility for testing if the JWT is valid and user data is attached to the request.
+   * Used by frontend to verify HttpOnly cookie status and get user data.
    */
-  @UseGuards(AuthGuard('jwt')) // Protect this route using the JWT Strategy
+  @UseGuards(AuthGuard('jwt')) 
   @Get('test-secure')
-  // We use a custom decorator (to be created next) to get the user, but for now, we use a simple Body accessor
-  async getProfile(@Body() req: any) { 
-    // In a final implementation, user data would be extracted from the @Req() or a custom @User() decorator
+  async getProfile(@Req() req: any) { 
     return { 
-      message: 'Authentication successful. Token is valid.',
-      // Assuming the user data is available on the request after the guard runs (in development)
+      message: 'Authentication successful via HttpOnly cookie.',
+      user_data_from_token: req.user, 
     };
   }
 }

@@ -1,14 +1,34 @@
-# Placeholder for Next.js Frontend Development
-# This ensures the docker-compose build succeeds.
-
-FROM node:20-alpine AS development
+# Stage 1: Build the Next.js application
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# The frontend code and dependencies will be copied in a later phase (Phase 4)
-# For now, simply install a dummy package to establish the environment
-COPY package.json .
-RUN echo "{ \"name\": \"sentinelfi-ui-placeholder\", \"version\": \"1.0.0\" }" > package.json
+# Copy package.json and package-lock.json first to leverage Docker cache
+COPY package.json ./
+COPY package-lock.json ./
 
-# Keep the container running for development purposes
-CMD ["sleep", "infinity"]
+# Install dependencies
+RUN npm install
+
+# Copy the rest of the application code
+COPY . .
+
+# Build the Next.js application
+RUN npm run build
+
+# Stage 2: Serve the Next.js application in a lightweight production environment
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Copy necessary files from the builder stage
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+# Expose the port Next.js runs on
+EXPOSE 3001
+
+# Start the Next.js production server
+CMD ["npm", "run", "start"]

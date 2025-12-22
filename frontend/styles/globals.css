@@ -1,0 +1,51 @@
+/* Tailwind v4 CSS-first Theme Configuration */
+@theme {
+  --font-family-sans: 'Inter', sans-serif;
+
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  
+  /* SentinelFi Brand Color Palette */
+  --color-brand-primary: #0D9488;    /* Deep Vibrant Teal */
+  --color-brand-secondary: #6B46C1;   /* Rich Purple */
+  --color-brand-dark: #1E293B;       /* Dark Navy (for high contrast) */
+  --color-brand-charcoal: #2D3748;   /* Supporting Charcoal (for text/borders) */
+  
+  /* Functional/Alert Colors */
+  --color-alert-critical: #F59E0B;   /* Electric Orange (Negative Variance/Critical) */
+  --color-alert-positive: #059669;   /* Saturated Forest Green (Positive Variance/Good) */
+  
+  /* WBS Category Palette */
+  --color-wbs-green: #059669;
+  --color-wbs-blue: #2563EB;
+  --color-wbs-yellow: #FBBF24;
+  --color-wbs-magenta: #DB2777;
+  --color-wbs-cyan: #06B6D4;
+  --color-wbs-red: #DC2626;
+  --color-wbs-violet: #7C3AED;
+  --color-wbs-orange: #EA580C;
+}
+
+/* Import Tailwind CSS directives to be processed */
+
+@import "tailwindcss/preflight";
+@import "tailwindcss/utilities";
+
+/* Global application styles (optional, but good for base font/body) */
+body {
+  @apply bg-gray-50 text-brand-dark;
+  font-family: var(--font-family-sans);
+}
+
+/* Custom styles for functional elements if needed, but primarily use utilities */
+.card-shadow {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+}

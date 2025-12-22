@@ -35,5 +35,5 @@ services:
     container_name: sentinel_fi_ui
     restart: always
     ports:
-      - "3001:3001"
-    command: ["sleep", "infinity"]
+      - "3001:3000"
+

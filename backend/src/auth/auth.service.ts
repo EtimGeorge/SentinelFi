@@ -3,8 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity } from './user.entity';
 import { JwtService } from '@nestjs/jwt';
-import { LoginUserDto } from './dto/login-user.dto'; // DTO to be created next
-import { Role } from './enums/role.enum'; // For use in token payload
+import { LoginUserDto } from './dto/login-user.dto';
+import { Role } from './enums/role.enum';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
@@ -15,13 +16,11 @@ export class AuthService {
   ) {}
 
   /**
-   * Phase 3 Deliverable: User Login Logic
-   * Finds user, validates password, and generates a signed JWT token.
+   * User Login Logic (Final Production Version)
    */
   async login(loginDto: LoginUserDto): Promise<{ access_token: string, user_role: Role }> {
     
     // 1. Find User by Email
-    // Note: Must explicitly select the password_hash column for validation
     const user = await this.usersRepository.findOne({ 
       where: { email: loginDto.email },
       select: ['id', 'email', 'password_hash', 'role', 'is_active'], 
@@ -30,31 +29,49 @@ export class AuthService {
     if (!user || !user.is_active) {
       throw new UnauthorizedException('Invalid credentials or user is inactive.');
     }
+    
+    console.log('DEBUG 1: User found. Validating password.');
 
-    // 2. Secure Password Validation (using bcrypt)
-    const passwordValid = await user.validatePassword(loginDto.password);
+    // 2. CRITICAL SECURITY: Use direct bcrypt comparison against the loaded hash
+    const passwordValid = await bcrypt.compare(loginDto.password, user.password_hash);
+    
     if (!passwordValid) {
+      console.log('DEBUG 2: Password validation failed');
       throw new UnauthorizedException('Invalid credentials.');
     }
+    
+    console.log('DEBUG 2: Password validation passed.');
 
     // 3. Generate JWT Payload
     const payload = { 
       email: user.email, 
-      sub: user.id, // 'sub' is the standard subject/user ID claim
-      role: user.role, // CRITICAL: Embed the RBAC role for policy enforcement
+      sub: user.id, 
+      role: user.role, 
     };
     
     // 4. Generate and Return Token
+    console.log('DEBUG 3: Generating JWT token.');
     return { 
       access_token: this.jwtService.sign(payload),
       user_role: user.role
     };
   }
 
-  // Utility method: Creates a user for initial setup/testing (will be removed in final cleanup)
-  async registerTestUser(email: string, password_hash: string, role: Role): Promise<UserEntity> {
-    const newUser = this.usersRepository.create({ email, password_hash, role });
-    await newUser.hashPassword(); // Runs the @BeforeInsert hook if not already hashed
+  /**
+   * FIXED: User registration utility (hashes manually before save).
+   * @param plainPassword The plain text password to hash.
+   */
+  async registerTestUser(email: string, plainPassword: string, role: Role): Promise<UserEntity> {
+    // CRITICAL FIX: Manually hash the password here, preventing double-hashing.
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(plainPassword, salt);
+    
+    const newUser = this.usersRepository.create({ 
+      email, 
+      password_hash: hashedPassword, // The hashed value is explicitly assigned to the 'password_hash' field
+      role 
+    });
+    
     return this.usersRepository.save(newUser);
   }
 }

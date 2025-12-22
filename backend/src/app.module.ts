@@ -1,35 +1,43 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DataSourceOptions } from 'typeorm';
-import { ConfigModule } from '@nestjs/config'; // <-- New Import
+import { ConfigModule, ConfigService } from '@nestjs/config'; // <-- Import ConfigService
 import { WbsBudgetEntity } from './wbs/wbs-budget.entity';
 import { LiveExpenseEntity } from './wbs/live-expense.entity';
 import { WbsModule } from './wbs/wbs.module';
-import { AuthModule } from './auth/auth.module'; // <-- New Import (Module structure to be created next)
-import { UserEntity } from './auth/user.entity'; // <-- New Import (Entity to be created next)
-
-// Database connection configuration using the environment variable
-const dbConfig: DataSourceOptions = {
-  type: 'postgres',
-  url: process.env.DATABASE_URL, 
-  ssl: process.env.NODE_ENV === 'production', 
-  entities: [
-    WbsBudgetEntity,
-    LiveExpenseEntity,
-    UserEntity, // <-- New Entity Added
-  ],
-  synchronize: false, 
-  logging: true,
-};
+import { AuthModule } from './auth/auth.module';
+import { UserEntity } from './auth/user.entity';
 
 @Module({
   imports: [
-    // Must be first: Loads environment variables from .env file
+    // ConfigModule must be loaded first to make environment variables available globally
     ConfigModule.forRoot({ isGlobal: true }), 
     
-    TypeOrmModule.forRoot(dbConfig), 
+    // Use forRootAsync to ensure ConfigService is available for injection
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule], // Import ConfigModule here as well
+      inject: [ConfigService], // Inject ConfigService
+      useFactory: (configService: ConfigService) => {
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+        if (!databaseUrl) {
+          throw new Error('DATABASE_URL environment variable is not set');
+        }
+        return {
+          type: 'postgres',
+          url: databaseUrl,
+          // Conditionally enable SSL for Neon databases
+          ssl: databaseUrl.includes('neon.tech'),
+          entities: [
+            WbsBudgetEntity,
+            LiveExpenseEntity,
+            UserEntity,
+          ],
+          synchronize: false, 
+          logging: true,
+        };
+      },
+    }), 
     WbsModule,
-    AuthModule, // <-- New Feature Module Added
+    AuthModule,
   ],
   controllers: [],
   providers: [],

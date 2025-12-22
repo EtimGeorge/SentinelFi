@@ -1,4 +1,4 @@
-**TO:** Executive Leadership & Board of Directors
+[[**TO:** Executive Leadership & Board of Directors
 **FROM:** Chief Technology Officer (CTO) & Principal Financial Data Modeler
 **DATE:** November 22, 2025
 **SUBJECT:** Definitive Architectural Specification for WBS-Based Project Financial Control SaaS Platform (SentinelFi)
