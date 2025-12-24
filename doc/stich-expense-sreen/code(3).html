@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SentinelFi Executive Dashboard</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#12d3c3",
+                        "primary-dark": "#0ea89b",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#102220",
+                        "surface-dark": "#162e2b",
+                        "surface-light": "#1a3632",
+                        "accent-red": "#fa5c38",
+                        "accent-yellow": "#fbbf24",
+                        "accent-green": "#12d3c3",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px" },
+                    boxShadow: {
+                        "card": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                        "glow": "0 0 15px rgba(18, 211, 195, 0.15)",
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for dark theme */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #102220; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #234845; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #12d3c3; 
+        }
+        
+        .glass-panel {
+            background: linear-gradient(145deg, rgba(22, 46, 43, 0.9) 0%, rgba(16, 34, 32, 0.95) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(18, 211, 195, 0.1);
+        }
+
+        .wbs-row:hover {
+            background-color: rgba(18, 211, 195, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen overflow-hidden flex">
+<!-- Sidebar -->
+<aside class="hidden md:flex flex-col w-20 lg:w-64 h-screen border-r border-[#234845] bg-[#112221] flex-shrink-0 transition-all duration-300 z-20">
+<!-- Logo Area -->
+<div class="h-16 flex items-center justify-center lg:justify-start lg:px-6 border-b border-[#234845]">
+<div class="size-8 text-primary shrink-0">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M13.8261 30.5736C16.7203 29.8826 20.2244 29.4783 24 29.4783C27.7756 29.4783 31.2797 29.8826 34.1739 30.5736C36.9144 31.2278 39.9967 32.7669 41.3563 33.8352L24.8486 7.36089C24.4571 6.73303 23.5429 6.73303 23.1514 7.36089L6.64374 33.8352C8.00331 32.7669 11.0856 31.2278 13.8261 30.5736Z" fill="currentColor"></path>
+<path clip-rule="evenodd" d="M39.998 35.764C39.9944 35.7463 39.9875 35.7155 39.9748 35.6706C39.9436 35.5601 39.8949 35.4259 39.8346 35.2825C39.8168 35.2403 39.7989 35.1993 39.7813 35.1602C38.5103 34.2887 35.9788 33.0607 33.7095 32.5189C30.9875 31.8691 27.6413 31.4783 24 31.4783C20.3587 31.4783 17.0125 31.8691 14.2905 32.5189C12.0012 33.0654 9.44505 34.3104 8.18538 35.1832C8.17384 35.2075 8.16216 35.233 8.15052 35.2592C8.09919 35.3751 8.05721 35.4886 8.02977 35.589C8.00356 35.6848 8.00039 35.7333 8.00004 35.7388C8.00004 35.739 8 35.7393 8.00004 35.7388C8.00004 35.7641 8.0104 36.0767 8.68485 36.6314C9.34546 37.1746 10.4222 37.7531 11.9291 38.2772C14.9242 39.319 19.1919 40 24 40C28.8081 40 33.0758 39.319 36.0709 38.2772C37.5778 37.7531 38.6545 37.1746 39.3151 36.6314C39.9006 36.1499 39.9857 35.8511 39.998 35.764ZM4.95178 32.7688L21.4543 6.30267C22.6288 4.4191 25.3712 4.41909 26.5457 6.30267L43.0534 32.777C43.0709 32.8052 43.0878 32.8338 43.104 32.8629L41.3563 33.8352C43.104 32.8629 43.1038 32.8626 43.104 32.8629L43.1051 32.865L43.1065 32.8675L43.1101 32.8739L43.1199 32.8918C43.1276 32.906 43.1377 32.9246 43.1497 32.9473C43.1738 32.9925 43.2062 33.0545 43.244 33.1299C43.319 33.2792 43.4196 33.489 43.5217 33.7317C43.6901 34.1321 44 34.9311 44 35.7391C44 37.4427 43.003 38.7775 41.8558 39.7209C40.6947 40.6757 39.1354 41.4464 37.385 42.0552C33.8654 43.2794 29.133 44 24 44C18.867 44 14.1346 43.2794 10.615 42.0552C8.86463 41.4464 7.30529 40.6757 6.14419 39.7209C4.99695 38.7775 3.99999 37.4427 3.99999 35.7391C3.99999 34.8725 4.29264 34.0922 4.49321 33.6393C4.60375 33.3898 4.71348 33.1804 4.79687 33.0311C4.83898 32.9556 4.87547 32.8935 4.9035 32.8471C4.91754 32.8238 4.92954 32.8043 4.93916 32.7889L4.94662 32.777L4.95178 32.7688ZM35.9868 29.004L24 9.77997L12.0131 29.004C12.4661 28.8609 12.9179 28.7342 13.3617 28.6282C16.4281 27.8961 20.0901 27.4783 24 27.4783C27.9099 27.4783 31.5719 27.8961 34.6383 28.6282C35.082 28.7342 35.5339 28.8609 35.9868 29.004Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<span class="ml-3 font-bold text-white text-lg tracking-tight hidden lg:block">SentinelFi</span>
+</div>
+<!-- Navigation -->
+<nav class="flex-1 overflow-y-auto py-6 flex flex-col gap-2 px-3">
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg bg-primary/20 text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined text-[24px]">grid_view</span>
+<span class="text-sm font-medium hidden lg:block">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-[#234845] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[24px]">account_tree</span>
+<span class="text-sm font-medium hidden lg:block">WBS Management</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-[#234845] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[24px]">description</span>
+<span class="text-sm font-medium hidden lg:block">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-[#234845] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[24px]">group</span>
+<span class="text-sm font-medium hidden lg:block">Users</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-400 hover:text-white hover:bg-[#234845] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[24px]">settings</span>
+<span class="text-sm font-medium hidden lg:block">Settings</span>
+</a>
+</nav>
+<!-- Footer / Collapse -->
+<div class="p-4 border-t border-[#234845]">
+<button class="flex w-full items-center justify-center lg:justify-start gap-3 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">first_page</span>
+<span class="text-sm hidden lg:block">Collapse</span>
+</button>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col h-screen overflow-hidden relative">
+<!-- Header -->
+<header class="h-16 border-b border-[#234845] bg-[#112221] flex items-center justify-between px-6 lg:px-10 shrink-0 z-10">
+<div class="flex flex-col">
+<h1 class="text-xl font-bold text-white tracking-tight">Executive Overview</h1>
+<div class="flex items-center gap-2 mt-0.5">
+<div class="size-2 rounded-full bg-green-500 animate-pulse"></div>
+<span class="text-[11px] uppercase tracking-wider font-semibold text-green-500">Secure Live Connection</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3">
+<button class="flex items-center justify-center size-9 rounded-full bg-[#234845] text-slate-300 hover:text-white hover:bg-primary/20 hover:text-primary transition-all relative">
+<span class="absolute top-2 right-2.5 size-2 bg-red-500 rounded-full border border-[#112221]"></span>
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button class="flex items-center justify-center size-9 rounded-full bg-[#234845] text-slate-300 hover:text-white hover:bg-primary/20 hover:text-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">shield</span>
+</button>
+</div>
+<div class="h-8 w-px bg-[#234845]"></div>
+<div class="flex items-center gap-3 cursor-pointer group">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-medium text-white group-hover:text-primary transition-colors">Alex Morgan</p>
+<p class="text-xs text-slate-400">Chief Financial Officer</p>
+</div>
+<div class="size-9 rounded-full bg-cover bg-center border-2 border-[#234845] group-hover:border-primary transition-colors" data-alt="Professional headshot of a female executive in a suit" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCQiy6k49XUm-5x0IkoqAqvb8CXNj6FsqgsF1Y4LxkzqWbUo2WJTNuuP3kznQOwOYWOfF9c1QGC6brapAxydMLfNj0LzYmdmTe6O36vUvTTqfFeIj8Nr0eg3W18loeLvGyMfynMW6Kov3xPgv2dmjGkHCD9aNq5TXa5sBOkEyHsc19PVvKZo4bMu-soC3i0YNkdoTG9zl3EyR8vKCLBSSRL8efYhkk5rxoiXaLfTL2AElVRUHaJhi9MgGWdssdrqaMIzNa2S4D8tDo');">
+</div>
+</div>
+</div>
+</header>
+<!-- Main Scrollable Area -->
+<main class="flex-1 overflow-y-auto overflow-x-hidden p-6 lg:p-10 space-y-8">
+<!-- KPI Cards Section -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Card 1 -->
+<div class="glass-panel p-6 rounded-xl flex flex-col justify-between h-36 relative overflow-hidden group hover:shadow-glow transition-all duration-300 border border-t-primary/20">
+<div class="absolute right-0 top-0 w-24 h-24 bg-primary/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+<div>
+<p class="text-slate-400 text-sm font-medium mb-1">Total Budget</p>
+<h3 class="text-3xl font-bold text-white tracking-tight">$12,500,000</h3>
+</div>
+<div class="flex items-center gap-2 mt-auto z-10">
+<span class="text-primary text-xs font-semibold bg-primary/10 px-2 py-1 rounded">+5.2% vs Last Q</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="glass-panel p-6 rounded-xl flex flex-col justify-between h-36 relative overflow-hidden group hover:shadow-glow transition-all duration-300 border border-t-primary/20">
+<div class="absolute right-0 top-0 w-24 h-24 bg-blue-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+<div>
+<p class="text-slate-400 text-sm font-medium mb-1">Paid to Date</p>
+<h3 class="text-3xl font-bold text-white tracking-tight">$4,200,000</h3>
+</div>
+<div class="flex items-center gap-2 mt-auto z-10">
+<div class="w-full bg-[#234845] rounded-full h-1.5 max-w-[120px]">
+<div class="bg-blue-400 h-1.5 rounded-full" style="width: 33%"></div>
+</div>
+<span class="text-xs text-slate-400">33.6%</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="glass-panel p-6 rounded-xl flex flex-col justify-between h-36 relative overflow-hidden group hover:shadow-glow transition-all duration-300 border border-t-primary/20">
+<div class="absolute right-0 top-0 w-24 h-24 bg-purple-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+<div>
+<p class="text-slate-400 text-sm font-medium mb-1">Committed Costs</p>
+<h3 class="text-3xl font-bold text-white tracking-tight">$8,100,000</h3>
+</div>
+<div class="flex items-center gap-2 mt-auto z-10">
+<span class="text-purple-400 text-xs font-semibold bg-purple-500/10 px-2 py-1 rounded">64.8% Utilized</span>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="glass-panel p-6 rounded-xl flex flex-col justify-between h-36 relative overflow-hidden group hover:shadow-glow transition-all duration-300 border border-t-primary/20">
+<div class="absolute right-0 top-0 w-24 h-24 bg-red-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+<div>
+<p class="text-slate-400 text-sm font-medium mb-1">Variance %</p>
+<h3 class="text-3xl font-bold text-accent-red tracking-tight">-1.2%</h3>
+</div>
+<div class="flex items-center gap-2 mt-auto z-10">
+<span class="material-symbols-outlined text-accent-red text-sm">trending_down</span>
+<span class="text-accent-red text-xs font-medium">Over Budget Warning</span>
+</div>
+</div>
+</section>
+<!-- Main Content Grid: Charts and WBS Tree -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+<!-- WBS Tree Table -->
+<div class="xl:col-span-2 flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<h2 class="text-lg font-bold text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">account_tree</span>
+                            WBS Hierarchy
+                        </h2>
+<div class="flex gap-2">
+<button class="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-[#234845] rounded hover:bg-primary/20 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[16px]">filter_list</span> Filter
+                             </button>
+<button class="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-[#234845] rounded hover:bg-primary/20 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[16px]">download</span> Export
+                             </button>
+</div>
+</div>
+<div class="glass-panel rounded-xl overflow-hidden min-h-[500px]">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-[#162e2b] text-xs uppercase tracking-wider text-slate-400 border-b border-[#234845]">
+<th class="px-6 py-4 font-semibold w-24">Code</th>
+<th class="px-6 py-4 font-semibold">Description</th>
+<th class="px-6 py-4 font-semibold text-right">Budget</th>
+<th class="px-6 py-4 font-semibold text-right">Actual</th>
+<th class="px-6 py-4 font-semibold text-center w-24">Status</th>
+<th class="px-6 py-4 font-semibold w-12"></th>
+</tr>
+</thead>
+<tbody class="text-sm">
+<!-- Parent Row 1 -->
+<tr class="wbs-row border-b border-[#234845] group cursor-pointer transition-colors">
+<td class="px-6 py-4 font-mono text-slate-300">1.0</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="size-2.5 rounded-full bg-primary shadow-[0_0_8px_rgba(18,211,195,0.6)]"></div>
+<span class="font-bold text-white text-base">Engineering</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-mono text-slate-300">$5,200,000</td>
+<td class="px-6 py-4 text-right font-mono text-slate-300">$2,100,000</td>
+<td class="px-6 py-4 text-center">
+<span class="inline-block size-3 rounded-full bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]"></span>
+</td>
+<td class="px-6 py-4 text-center">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-primary">expand_more</span>
+</td>
+</tr>
+<!-- Child Row 1.1 -->
+<tr class="wbs-row border-b border-[#234845]/50 bg-[#162e2b]/30">
+<td class="px-6 py-3 font-mono text-slate-400 pl-10">1.1</td>
+<td class="px-6 py-3 text-slate-300 pl-12 border-l-2 border-primary/20 ml-6">Frontend Development</td>
+<td class="px-6 py-3 text-right font-mono text-slate-400">$2,000,000</td>
+<td class="px-6 py-3 text-right font-mono text-slate-400">$850,000</td>
+<td class="px-6 py-3 text-center">
+<span class="inline-block size-2.5 rounded-full bg-green-500/80"></span>
+</td>
+<td class="px-6 py-3"></td>
+</tr>
+<!-- Child Row 1.2 -->
+<tr class="wbs-row border-b border-[#234845] bg-[#162e2b]/30">
+<td class="px-6 py-3 font-mono text-slate-400 pl-10">1.2</td>
+<td class="px-6 py-3 text-slate-300 pl-12 border-l-2 border-primary/20 ml-6">Backend Infrastructure</td>
+<td class="px-6 py-3 text-right font-mono text-slate-400">$3,200,000</td>
+<td class="px-6 py-3 text-right font-mono text-slate-400">$1,250,000</td>
+<td class="px-6 py-3 text-center">
+<span class="inline-block size-2.5 rounded-full bg-yellow-500/80"></span>
+</td>
+<td class="px-6 py-3"></td>
+</tr>
+<!-- Parent Row 2 -->
+<tr class="wbs-row border-b border-[#234845] group cursor-pointer transition-colors">
+<td class="px-6 py-4 font-mono text-slate-300">2.0</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="size-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]"></div>
+<span class="font-bold text-white text-base">Product Design</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-mono text-slate-300">$3,100,000</td>
+<td class="px-6 py-4 text-right font-mono text-slate-300">$1,800,000</td>
+<td class="px-6 py-4 text-center">
+<span class="inline-block size-3 rounded-full bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]"></span>
+</td>
+<td class="px-6 py-4 text-center">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-primary">expand_more</span>
+</td>
+</tr>
+<!-- Parent Row 3 -->
+<tr class="wbs-row border-b border-[#234845] group cursor-pointer transition-colors">
+<td class="px-6 py-4 font-mono text-slate-300">3.0</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="size-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+<span class="font-bold text-white text-base">Marketing</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-mono text-slate-300">$2,400,000</td>
+<td class="px-6 py-4 text-right font-mono text-slate-300">$1,550,000</td>
+<td class="px-6 py-4 text-center">
+<span class="inline-block size-3 rounded-full bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.4)]"></span>
+</td>
+<td class="px-6 py-4 text-center">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-primary">expand_more</span>
+</td>
+</tr>
+<!-- Child Row 3.1 -->
+<tr class="wbs-row border-b border-[#234845]/50 bg-[#162e2b]/30">
+<td class="px-6 py-3 font-mono text-slate-400 pl-10">3.1</td>
+<td class="px-6 py-3 text-slate-300 pl-12 border-l-2 border-primary/20 ml-6">Digital Ad Spend</td>
+<td class="px-6 py-3 text-right font-mono text-slate-400">$1,200,000</td>
+<td class="px-6 py-3 text-right font-mono text-slate-400">$950,000</td>
+<td class="px-6 py-3 text-center">
+<span class="inline-block size-2.5 rounded-full bg-red-500/80"></span>
+</td>
+<td class="px-6 py-3"></td>
+</tr>
+<!-- Parent Row 4 -->
+<tr class="wbs-row border-b border-[#234845] group cursor-pointer transition-colors">
+<td class="px-6 py-4 font-mono text-slate-300">4.0</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="size-2.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]"></div>
+<span class="font-bold text-white text-base">Operations</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-mono text-slate-300">$1,800,000</td>
+<td class="px-6 py-4 text-right font-mono text-slate-300">$600,000</td>
+<td class="px-6 py-4 text-center">
+<span class="inline-block size-3 rounded-full bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]"></span>
+</td>
+<td class="px-6 py-4 text-center">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-primary">expand_more</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="flex items-center justify-between px-6 py-4 bg-[#162e2b] border-t border-[#234845]">
+<span class="text-xs text-slate-400">Showing 1-6 of 24 records</span>
+<div class="flex gap-2">
+<button class="size-8 flex items-center justify-center rounded bg-[#234845] text-slate-400 hover:text-white hover:bg-primary/20">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="size-8 flex items-center justify-center rounded bg-primary text-[#112221] font-bold">1</button>
+<button class="size-8 flex items-center justify-center rounded bg-[#234845] text-slate-400 hover:text-white hover:bg-primary/20">2</button>
+<button class="size-8 flex items-center justify-center rounded bg-[#234845] text-slate-400 hover:text-white hover:bg-primary/20">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Charts Side Panel -->
+<div class="xl:col-span-1 flex flex-col gap-6">
+<!-- Chart 1: Budget vs Actual -->
+<div class="glass-panel p-6 rounded-xl flex-1 flex flex-col">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-bold text-white">Budget Utilization</h3>
+<button class="text-slate-400 hover:text-primary">
+<span class="material-symbols-outlined text-[20px]">more_horiz</span>
+</button>
+</div>
+<!-- Legend -->
+<div class="flex gap-4 mb-4 text-xs">
+<div class="flex items-center gap-1.5">
+<div class="size-2.5 rounded-sm bg-[#3f6d68]"></div>
+<span class="text-slate-400">Budget</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="size-2.5 rounded-sm bg-primary"></div>
+<span class="text-slate-400">Actual Spent</span>
+</div>
+</div>
+<!-- Visualization Container -->
+<div class="flex-1 flex flex-col gap-6 justify-center py-2">
+<!-- Eng -->
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-medium">
+<span class="text-white">Engineering</span>
+<span class="text-slate-400">40%</span>
+</div>
+<div class="h-3 w-full bg-[#162e2b] rounded-full relative overflow-hidden">
+<div class="absolute top-0 left-0 h-full bg-[#3f6d68] rounded-full w-full opacity-30"></div>
+<!-- Budget Marker (Background Bar) -->
+<div class="absolute top-0 left-0 h-full bg-primary rounded-full shadow-[0_0_10px_rgba(18,211,195,0.4)]" style="width: 40%"></div>
+</div>
+</div>
+<!-- Prod -->
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-medium">
+<span class="text-white">Product</span>
+<span class="text-slate-400">58%</span>
+</div>
+<div class="h-3 w-full bg-[#162e2b] rounded-full relative overflow-hidden">
+<div class="absolute top-0 left-0 h-full bg-[#3f6d68] rounded-full w-full opacity-30"></div>
+<div class="absolute top-0 left-0 h-full bg-purple-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.4)]" style="width: 58%"></div>
+</div>
+</div>
+<!-- Mktg -->
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-medium">
+<span class="text-white">Marketing</span>
+<span class="text-red-400 font-bold">65%</span>
+</div>
+<div class="h-3 w-full bg-[#162e2b] rounded-full relative overflow-hidden">
+<div class="absolute top-0 left-0 h-full bg-[#3f6d68] rounded-full w-full opacity-30"></div>
+<div class="absolute top-0 left-0 h-full bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.4)]" style="width: 65%"></div>
+<!-- Warning Marker if needed -->
+<div class="absolute top-0 right-[35%] h-full w-0.5 bg-red-500 z-10"></div>
+</div>
+</div>
+<!-- Ops -->
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-medium">
+<span class="text-white">Operations</span>
+<span class="text-slate-400">33%</span>
+</div>
+<div class="h-3 w-full bg-[#162e2b] rounded-full relative overflow-hidden">
+<div class="absolute top-0 left-0 h-full bg-[#3f6d68] rounded-full w-full opacity-30"></div>
+<div class="absolute top-0 left-0 h-full bg-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.4)]" style="width: 33%"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Mini KPI / Alert -->
+<div class="glass-panel p-5 rounded-xl border-l-4 border-l-accent-yellow">
+<div class="flex items-start gap-4">
+<div class="bg-yellow-500/10 p-2 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-accent-yellow">warning</span>
+</div>
+<div>
+<h4 class="text-white font-bold text-sm">Approval Required</h4>
+<p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                                    Marketing budget modification request for Q4 pending your review.
+                                </p>
+<button class="mt-3 text-xs font-bold text-accent-yellow hover:text-white transition-colors">Review Request</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

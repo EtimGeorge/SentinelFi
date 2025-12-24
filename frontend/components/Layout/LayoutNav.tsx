@@ -1,73 +1,84 @@
 import React from 'react';
 import { useAuth, Role } from '../context/AuthContext';
 import Link from 'next/link';
-import Logo from '../common/Logo'; // <-- New Import
+import Logo from '../common/Logo';
+import { Bell, Search, Lock, Menu, X } from 'lucide-react';
+import Tooltip from '../common/Tooltip';
 
-const LayoutNav: React.FC = () => {
+interface LayoutNavProps {
+  isDarkTheme: boolean;
+  isSidebarOpen: boolean;
+  toggleSidebar: () => void;
+}
+
+const LayoutNav: React.FC<LayoutNavProps> = ({ isDarkTheme, isSidebarOpen, toggleSidebar }) => {
   const { user, logout } = useAuth();
-
-  // Define navigation links based on user role permissions (RBAC Matrix)
-  const navLinks = [
-    { 
-      label: 'Dashboard', 
-      href: '/dashboard/ceo', 
-      roles: [Role.Admin, Role.ITHead, Role.Finance, Role.CEO, Role.OperationalHead] 
-    },
-    { 
-      label: 'Expense Tracker', 
-      href: '/expense/tracker', 
-      roles: [Role.Admin, Role.AssignedProjectUser] 
-    },
-    { 
-      label: 'Budget Drafting', 
-      href: '/budget/draft', 
-      roles: [Role.Admin, Role.Finance, Role.AssignedProjectUser] 
-    },
-    { 
-      label: 'Reporting', 
-      href: '/reporting/variance', 
-      roles: [Role.Admin, Role.Finance, Role.OperationalHead] 
-    },
-  ];
-
-  const visibleLinks = navLinks.filter(link => user && link.roles.includes(user.role));
+  
+  // Dynamic classes based on theme
+  const bgColor = isDarkTheme ? 'bg-brand-dark' : 'bg-white';
+  const textColor = isDarkTheme ? 'text-white' : 'text-brand-dark';
+  const buttonColor = isDarkTheme ? 'hover:bg-brand-primary/20' : 'hover:bg-gray-100';
 
   return (
-    <nav className="bg-brand-dark p-4 shadow-lg fixed w-full z-10 top-0">
-      <div className="flex justify-between items-center max-w-7xl mx-auto">
+    <nav className={`p-4 shadow-lg fixed w-full z-30 top-0 ${bgColor} ${textColor}`}>
+      <div className="flex justify-between items-center max-w-full mx-auto px-4 sm:px-0">
         
-        {/* Logo and Brand Name */}
+        {/* Left Section: Logo, Toggle, and Brand */}
         <div className="flex items-center space-x-4">
-          <Link href="/" className="text-white text-xl font-bold tracking-wider flex items-center">
-            {/* LOGO FIX: Use the Centralized Logo Component (sm size) */}
+          
+          {/* Hamburger/Toggle Button (Visible on mobile/desktop for collapse) */}
+          <Tooltip content={isSidebarOpen ? 'Close Menu' : 'Open Menu'} position="bottom">
+            <button
+              onClick={toggleSidebar}
+              className={`p-2 rounded-full transition duration-150 ${buttonColor} lg:hidden`}
+            >
+              {isSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </Tooltip>
+
+          <Link href="/" className="text-xl font-bold tracking-wider flex items-center">
             <div className="mr-2">
               <Logo size="sm" />
             </div>
             SentinelFi
           </Link>
           
-          {/* Role-Based Links */}
-          <div className="hidden md:flex space-x-6">
-            {visibleLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="text-gray-300 hover:text-brand-primary transition duration-150 text-sm font-medium">
-                {link.label}
-              </Link>
-            ))}
+        </div>
+
+        {/* Center Section: Main Nav Links (Replaced by static links in the provided mockups) */}
+        {/* Keeping only a clean search bar and security status for the top nav */}
+        <div className="hidden md:flex items-center space-x-6">
+          <div className="flex items-center bg-brand-dark/50 rounded-full px-4 py-2 border border-gray-700">
+            <Search className="w-4 h-4 text-gray-400 mr-2" />
+            <input 
+                type="text" 
+                placeholder="Search projects, WBS, users..." 
+                className="bg-transparent text-sm focus:outline-none placeholder-gray-500 w-64"
+            />
           </div>
         </div>
 
-        {/* User Info and Logout */}
+        {/* Right Section: Alerts, Secure Status, User Profile */}
         <div className="flex items-center space-x-4">
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-medium text-white">{user?.email}</p>
-            <p className="text-xs text-brand-primary/80">{user?.role}</p>
+          
+          {/* Secure Connection Status */}
+          <div className="hidden sm:flex items-center text-xs font-medium text-alert-positive bg-green-900/50 p-2 rounded-full border border-alert-positive/30">
+            <Lock className="w-3 h-3 mr-1" />
+            Secure Connection Encrypted
           </div>
-          <button 
-            onClick={logout}
-            className="text-sm font-medium text-red-400 hover:text-red-300 transition duration-150"
-          >
-            Logout
-          </button>
+
+          {/* User Profile / Logout */}
+          <Tooltip content={`Logged in as ${user?.email}`} position="bottom">
+            <div className="flex items-center space-x-3 cursor-pointer">
+              <span className="text-sm font-semibold">{user?.email.split('@')[0]}</span>
+              <div className="w-8 h-8 rounded-full bg-brand-primary flex items-center justify-center text-sm font-bold border-2 border-white">
+                {user?.email[0].toUpperCase()}
+              </div>
+              <button onClick={logout} className="text-sm font-medium text-red-400 hover:text-red-300 transition duration-150">
+                &rarr;
+              </button>
+            </div>
+          </Tooltip>
         </div>
       </div>
     </nav>

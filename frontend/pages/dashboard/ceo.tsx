@@ -3,6 +3,9 @@ import SecuredLayout from '../../components/Layout/SecuredLayout';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth } from '../../components/context/AuthContext';
 import Head from 'next/head';
+import { formatCurrency } from '../../lib/utils';
+import WBSHierarchyTree from '../../components/dashboard/WBSHierarchyTree';
+import SpendingChart from '../../components/dashboard/SpendingChart';
 
 // Interface for the data returned from the production-ready Recursive CTE endpoint
 interface RollupData {
@@ -108,19 +111,19 @@ const CEODashboard: React.FC = () => {
             
             <KPICard 
               title="Total Budgeted Cost" 
-              value={`₦${kpis.totalBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              value={formatCurrency(kpis.totalBudget)}
               color="border-brand-primary"
             />
             
             <KPICard 
               title="Total Actual Paid" 
-              value={`₦${kpis.totalActualPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              value={formatCurrency(kpis.totalActualPaid)}
               color="border-brand-primary"
             />
             
             <KPICard 
               title="Total Committed (LPO)" 
-              value={`₦${kpis.totalCommittedLPO.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              value={formatCurrency(kpis.totalCommittedLPO)}
               color="border-brand-secondary"
             />
             
@@ -136,19 +139,15 @@ const CEODashboard: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* WBS Hierarchy Tree */}
-            <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg">
+            <div className="lg:col-span-1">
               <h2 className="text-xl font-semibold text-brand-dark mb-4">WBS Cost Structure</h2>
-              {/* NOTE: WBSHierarchyTree component needs to be created next for full display */}
-              <div className="text-sm text-gray-500">Hierarchical data visualization will go here (WBS Tree/Table).</div>
+              <WBSHierarchyTree data={data} />
             </div>
             
             {/* WBS Category Spending Chart */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg">
+            <div className="lg:col-span-2">
               <h2 className="text-xl font-semibold text-brand-dark mb-4">WBS Level 1 Spending vs. Budget</h2>
-              {/* NOTE: Chart Component Placeholder */}
-              <div className="h-96 flex items-center justify-center bg-gray-50 border border-dashed border-gray-300 rounded-lg">
-                <p className="text-gray-500">Chart Library (Recharts/Nivo) implementation for visual data.</p>
-              </div>
+              <SpendingChart data={data} />
             </div>
             
           </div>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Budget Drafting - SentinelFi</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0d968b",
+                        "secondary": "#6B46C1",
+                        "background-light": "#f8fcfb",
+                        "background-dark": "#102220",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a2e2c",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for WBS dropdown if needed */
+        .wbs-dropdown::-webkit-scrollbar {
+            width: 6px;
+        }
+        .wbs-dropdown::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#0d1b1a] dark:text-gray-100 font-display transition-colors duration-200">
+<div class="relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden">
+<!-- Top Navigation -->
+<header class="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-[#e7f3f2] dark:border-[#2a403d] px-10 py-3 bg-surface-light dark:bg-surface-dark">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4 text-primary">
+<div class="size-8 flex items-center justify-center rounded bg-primary/10">
+<span class="material-symbols-outlined text-primary">shield_lock</span>
+</div>
+<h2 class="text-[#0d1b1a] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">SentinelFi</h2>
+</div>
+<nav class="hidden md:flex items-center gap-9">
+<a class="text-[#0d1b1a] dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-colors text-sm font-medium leading-normal" href="#">Dashboard</a>
+<a class="text-[#0d1b1a] dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-colors text-sm font-medium leading-normal" href="#">Projects</a>
+<a class="text-primary dark:text-primary text-sm font-bold leading-normal" href="#">Budgeting</a>
+<a class="text-[#0d1b1a] dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-colors text-sm font-medium leading-normal" href="#">Reports</a>
+</nav>
+</div>
+<div class="flex flex-1 justify-end gap-8 items-center">
+<div class="hidden lg:flex items-center gap-2 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-full border border-emerald-100 dark:border-emerald-800">
+<span class="material-symbols-outlined text-[16px]">lock</span>
+                    Secure Connection Encrypted
+                </div>
+<label class="hidden sm:flex flex-col min-w-40 !h-10 max-w-64">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full border border-[#e7f3f2] dark:border-[#2a403d] focus-within:border-primary transition-colors">
+<div class="text-[#4c9a93] flex bg-transparent items-center justify-center pl-3">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[#0d1b1a] dark:text-white focus:outline-0 focus:ring-0 border-none bg-transparent focus:border-none h-full placeholder:text-[#4c9a93] px-3 text-sm font-normal leading-normal" placeholder="Search projects..."/>
+</div>
+</label>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ring-2 ring-white dark:ring-[#2a403d]" data-alt="User profile picture placeholder" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAW0xlmLb2Og-0-cNxv9ePvDr-WgcNdd6v94uHn3T63EotDFXZI88tqzypsaNrK7JHLQiqt1SORxEaAVNFEwKEf6Axi94IPszNKf-WYKILsPGYqfmtYnNX50lhhVhITB9gcRIf3hH9jF_pWsT1gtPTWG6ugKrxIyeRQobYIaQEGqzqeIs3lYWR-3_mCe1y2tE49Ne2PJyXnHhGIXtWzKgdM1s_pkUkqjRSgbpl4HMA6o8d43GjzP9ytTgl5kKqC1L2YlR930Fz-ad4");'></div>
+</div>
+</header>
+<main class="layout-container flex h-full grow flex-col px-4 md:px-10 lg:px-40 py-8">
+<div class="layout-content-container flex flex-col max-w-[1200px] mx-auto w-full flex-1 gap-6">
+<!-- Breadcrumbs -->
+<div class="flex flex-wrap gap-2 px-1">
+<a class="text-[#4c9a93] dark:text-[#4c9a93] hover:underline text-sm font-medium leading-normal" href="#">Alpha Project</a>
+<span class="text-[#4c9a93] dark:text-gray-500 text-sm font-medium leading-normal">/</span>
+<a class="text-[#4c9a93] dark:text-[#4c9a93] hover:underline text-sm font-medium leading-normal" href="#">Financial Control</a>
+<span class="text-[#4c9a93] dark:text-gray-500 text-sm font-medium leading-normal">/</span>
+<span class="text-[#0d1b1a] dark:text-white text-sm font-medium leading-normal">Budget Drafting</span>
+</div>
+<!-- Page Heading -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#e7f3f2] dark:border-[#2a403d] pb-6">
+<div class="flex flex-col gap-1">
+<h1 class="text-[#0d1b1a] dark:text-white text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em]">Create New Budget Item</h1>
+<p class="text-[#4c9a93] dark:text-gray-400 text-sm md:text-base font-normal leading-normal">Status: <span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full font-bold ml-1">Drafting</span></p>
+</div>
+<div class="flex gap-3">
+<button class="flex cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 border border-[#e7f3f2] dark:border-[#2a403d] bg-transparent hover:bg-gray-50 dark:hover:bg-[#2a403d] text-[#0d1b1a] dark:text-white text-sm font-bold leading-normal transition-all">
+                            Cancel
+                        </button>
+<button class="flex cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary hover:bg-teal-700 text-white shadow-md shadow-primary/20 text-sm font-bold leading-normal tracking-[0.015em] transition-all gap-2">
+<span class="material-symbols-outlined text-[18px]">save</span>
+                            Save Draft
+                        </button>
+</div>
+</div>
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Left Column: Primary Details -->
+<div class="lg:col-span-2 flex flex-col gap-6">
+<!-- WBS Selector Card -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-none border border-[#e7f3f2] dark:border-[#2a403d] overflow-hidden">
+<div class="p-6 border-b border-[#e7f3f2] dark:border-[#2a403d] bg-gray-50/50 dark:bg-white/5 flex justify-between items-center">
+<h3 class="text-lg font-bold text-[#0d1b1a] dark:text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">account_tree</span>
+                                    WBS Allocation
+                                </h3>
+<span class="text-xs text-gray-500 dark:text-gray-400">Select the parent element</span>
+</div>
+<div class="p-6">
+<label class="flex flex-col w-full gap-2">
+<span class="text-[#0d1b1a] dark:text-gray-300 text-sm font-bold leading-normal">Parent WBS Element <span class="text-red-500">*</span></span>
+<div class="relative">
+<select class="form-select flex w-full min-w-0 resize-none overflow-hidden rounded-lg text-[#0d1b1a] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#cfe7e5] dark:border-[#2a403d] bg-white dark:bg-[#1a2e2c] h-12 px-4 text-sm font-medium leading-normal shadow-sm">
+<option disabled="" selected="" value="">Search or select parent code...</option>
+<option value="1">1. Operations</option>
+<option value="1.1">  ├─ 1.1 HR</option>
+<option value="1.1.1">  │  └─ 1.1.1 Salaries</option>
+<option value="1.1.2">  │  └─ 1.1.2 Recruitment</option>
+<option value="1.2">  ├─ 1.2 Logistics</option>
+<option value="1.2.1">  │  └─ 1.2.1 Fleet Management</option>
+<option value="2">2. Marketing</option>
+<option value="2.1">  └─ 2.1 Digital Ads</option>
+</select>
+<div class="absolute right-3 top-3 pointer-events-none text-gray-400">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">This item will be nested under the selected hierarchy.</p>
+</label>
+</div>
+</div>
+<!-- General Information Card -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-none border border-[#e7f3f2] dark:border-[#2a403d]">
+<div class="p-6 border-b border-[#e7f3f2] dark:border-[#2a403d] bg-gray-50/50 dark:bg-white/5">
+<h3 class="text-lg font-bold text-[#0d1b1a] dark:text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">description</span>
+                                    General Information
+                                </h3>
+</div>
+<div class="p-6 flex flex-col gap-5">
+<label class="flex flex-col w-full gap-2">
+<span class="text-[#0d1b1a] dark:text-gray-300 text-sm font-bold leading-normal">Description <span class="text-red-500">*</span></span>
+<input class="form-input flex w-full min-w-0 resize-none overflow-hidden rounded-lg text-[#0d1b1a] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#cfe7e5] dark:border-[#2a403d] bg-white dark:bg-[#1a2e2c] h-12 px-4 text-sm font-normal leading-normal shadow-sm" placeholder="e.g., Q3 Marketing Campaign Assets" type="text"/>
+</label>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+<label class="flex flex-col w-full gap-2">
+<span class="text-[#0d1b1a] dark:text-gray-300 text-sm font-bold leading-normal">Vendor / Payee</span>
+<div class="relative">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+<span class="material-symbols-outlined text-[20px]">storefront</span>
+</div>
+<input class="form-input flex w-full min-w-0 resize-none overflow-hidden rounded-lg text-[#0d1b1a] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#cfe7e5] dark:border-[#2a403d] bg-white dark:bg-[#1a2e2c] h-12 pl-10 pr-4 text-sm font-normal leading-normal shadow-sm" placeholder="Search vendor database..." type="text"/>
+</div>
+</label>
+<label class="flex flex-col w-full gap-2">
+<span class="text-[#0d1b1a] dark:text-gray-300 text-sm font-bold leading-normal">Required Date</span>
+<input class="form-input flex w-full min-w-0 resize-none overflow-hidden rounded-lg text-[#0d1b1a] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#cfe7e5] dark:border-[#2a403d] bg-white dark:bg-[#1a2e2c] h-12 px-4 text-sm font-normal leading-normal shadow-sm text-gray-500" type="date"/>
+</label>
+</div>
+<label class="flex flex-col w-full gap-2">
+<span class="text-[#0d1b1a] dark:text-gray-300 text-sm font-bold leading-normal">Justification / Notes</span>
+<textarea class="form-textarea flex w-full min-w-0 resize-none overflow-hidden rounded-lg text-[#0d1b1a] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#cfe7e5] dark:border-[#2a403d] bg-white dark:bg-[#1a2e2c] min-h-[120px] p-4 text-sm font-normal leading-normal shadow-sm" placeholder="Provide context for this budget request..."></textarea>
+</label>
+</div>
+</div>
+</div>
+<!-- Right Column: Financials & Uploads -->
+<div class="lg:col-span-1 flex flex-col gap-6">
+<!-- Financials Card -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-none border border-[#e7f3f2] dark:border-[#2a403d] flex flex-col h-fit">
+<div class="p-6 border-b border-[#e7f3f2] dark:border-[#2a403d] bg-gray-50/50 dark:bg-white/5">
+<h3 class="text-lg font-bold text-[#0d1b1a] dark:text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">payments</span>
+                                    Financials
+                                </h3>
+</div>
+<div class="p-6 bg-gray-50/30 dark:bg-white/5 flex-1 flex flex-col gap-6">
+<div class="grid grid-cols-2 gap-4">
+<label class="flex flex-col w-full gap-2 col-span-2">
+<span class="text-[#0d1b1a] dark:text-gray-300 text-xs font-bold uppercase tracking-wider">Unit Cost</span>
+<div class="relative">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+<span class="text-sm font-semibold">$</span>
+</div>
+<input class="form-input flex w-full min-w-0 resize-none overflow-hidden rounded-lg text-[#0d1b1a] dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/20 border border-[#cfe7e5] dark:border-[#2a403d] bg-white dark:bg-[#1a2e2c] h-12 pl-8 pr-4 text-right text-base font-medium leading-normal shadow-sm font-mono" placeholder="0.00" type="number"/>
+<div class="absolute inset-y-0 right-0 flex items-center">
+<select class="h-full py-0 pl-2 pr-7 border-transparent bg-transparent text-gray-500 sm:text-sm rounded-md focus:ring-primary focus:border-primary">
+<option>USD</option>
+<option>EUR</option>
+<option>GBP</option>
+</select>
+</div>
+</div>
+</label>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<label class="flex flex-col w-full gap-2 col-span-2">
+<span class="text-[#0d1b1a] dark:text-gray-300 text-xs font-bold uppercase tracking-wider">Quantity</span>
+<div class="flex items-center rounded-lg border border-[#cfe7e5] dark:border-[#2a403d] bg-white dark:bg-[#1a2e2c] overflow-hidden shadow-sm h-12">
+<button class="w-12 h-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border-r border-[#cfe7e5] dark:border-[#2a403d]" type="button">
+<span class="material-symbols-outlined text-sm">remove</span>
+</button>
+<input class="form-input w-full border-none focus:ring-0 text-center text-[#0d1b1a] dark:text-white text-base font-medium font-mono p-0 h-full bg-transparent" placeholder="1" type="number" value="1"/>
+<button class="w-12 h-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border-l border-[#cfe7e5] dark:border-[#2a403d]" type="button">
+<span class="material-symbols-outlined text-sm">add</span>
+</button>
+</div>
+</label>
+</div>
+<div class="h-px w-full bg-[#e7f3f2] dark:bg-[#2a403d]"></div>
+<div class="flex flex-col gap-2 p-4 rounded-xl bg-secondary/5 border border-secondary/20">
+<span class="text-secondary dark:text-secondary/80 text-xs font-bold uppercase tracking-wider">Total Estimated Cost</span>
+<div class="flex items-baseline gap-1 text-secondary dark:text-purple-400">
+<span class="text-3xl font-black tracking-tight font-mono">$0.00</span>
+<span class="text-sm font-medium">USD</span>
+</div>
+<p class="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-emerald-500">check_circle</span>
+                                        Within budget allocation for 1.1.1
+                                    </p>
+</div>
+</div>
+</div>
+<!-- Attachments Card -->
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-none border border-[#e7f3f2] dark:border-[#2a403d] flex-1">
+<div class="p-4 border-b border-[#e7f3f2] dark:border-[#2a403d] flex justify-between items-center">
+<h3 class="text-base font-bold text-[#0d1b1a] dark:text-white">Attachments</h3>
+<button class="text-primary text-xs font-bold hover:underline">Add Link</button>
+</div>
+<div class="p-4">
+<div class="border-2 border-dashed border-[#cfe7e5] dark:border-[#2a403d] rounded-lg p-6 flex flex-col items-center justify-center text-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors cursor-pointer group">
+<div class="bg-primary/10 p-3 rounded-full text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">cloud_upload</span>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-medium text-[#0d1b1a] dark:text-white">Click to upload</span>
+<span class="text-xs text-gray-500">or drag and drop quotes/invoices</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Actions (Mobile Sticky) -->
+<div class="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-[#1a2e2c] border-t border-[#e7f3f2] dark:border-[#2a403d] flex justify-between items-center z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+<div class="flex flex-col">
+<span class="text-xs text-gray-500 font-medium uppercase">Total</span>
+<span class="text-lg font-bold text-secondary dark:text-purple-400 font-mono">$0.00</span>
+</div>
+<button class="flex cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-6 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] shadow-lg">
+                        Submit
+                    </button>
+</div>
+</div>
+</main>
+</div>
+</body></html>
