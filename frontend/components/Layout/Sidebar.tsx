@@ -4,6 +4,7 @@ import { ChevronLeft, LayoutDashboard, DollarSign, CheckSquare, BarChart3, Setti
 import { useAuth, Role } from '../context/AuthContext';
 import Tooltip from '../common/Tooltip';
 import { useRouter } from 'next/router';
+import Logo from '../common/Logo';
 
 // Define the content for the fixed Left Sidebar based on mockups and RBAC
 const getPrimaryNavLinks = (userRole: Role) => {
@@ -46,55 +47,61 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen, isDarkTheme }) => 
   };
 
   return (
-    // FINAL FIX: Use w-64 (256px) for expanded, w-20 (80px) for collapsed
-    <div 
-      className={`fixed top-0 left-0 h-full transition-transform duration-300 z-40 ${isDarkTheme ? 'bg-brand-dark' : 'bg-white'} ${isOpen ? 'w-64' : 'w-20'} pt-16 
-                 transform lg:-translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+    // Overhauled Sidebar: Flex-item, not fixed.
+    <aside
+      className={`relative flex-shrink-0 flex flex-col h-screen transition-all duration-300 ${isDarkTheme ? 'bg-brand-dark border-r border-brand-charcoal/50' : 'bg-white'} ${isOpen ? 'w-64' : 'w-20'}`}
     >
-      
-      {/* Collapse/Expand Button (Toggles sidebar width) */}
+      {/* Collapse/Expand Button */}
       <Tooltip content={isOpen ? 'Collapse Menu' : 'Expand Menu'}>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`absolute -right-3 top-20 p-1 rounded-full ${isDarkTheme ? 'bg-brand-dark text-white border-brand-primary/50' : 'bg-white text-brand-dark border-gray-300'} shadow-lg border-2 transition-all duration-300 hover:bg-brand-primary/90 hover:text-white
+          className={`absolute -right-3 top-8 p-1 rounded-full z-10 ${isDarkTheme ? 'bg-brand-dark text-white border-brand-primary/50' : 'bg-white text-brand-dark border-gray-300'} shadow-lg border-2 transition-all duration-300 hover:bg-brand-primary/90 hover:text-white
             ${isOpen ? 'rotate-0' : 'rotate-180'}`}
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
       </Tooltip>
       
-      <div className="flex flex-col h-full overflow-y-auto">
+      {/* Logo and Branding Area */}
+      <div className="p-4 h-16 flex items-center justify-center border-b border-brand-charcoal/50">
+        <Logo size='sm'/>
+        <span className={`text-xl font-bold transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
+          SentinelFi
+        </span>
+      </div>
+
+      <div className="flex flex-col flex-grow overflow-y-auto">
         {/* Main Navigation Area */}
-        <div className="p-4 space-y-4 flex-grow">
+        <nav className="p-4 space-y-4 flex-grow">
           {primaryNavLinks.map((link) => (
             <Tooltip key={link.href} content={link.label} enabled={!isOpen} position="right">
               <Link href={link.href} className={getLinkClasses(link.href)}>
-                <link.icon className={`w-5 h-5 ${isOpen ? 'mr-3' : ''}`} />
-                <span className={`whitespace-nowrap transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                <link.icon className={`w-5 h-5 flex-shrink-0 ${isOpen ? 'mr-3' : ''}`} />
+                <span className={`whitespace-nowrap transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
                   {link.label}
                 </span>
               </Link>
             </Tooltip>
           ))}
-        </div>
+        </nav>
         
-        {/* Footer Section (Budget Usage, Profile, etc. - based on mockups) */}
-        <div className={`p-4 border-t ${isDarkTheme ? 'border-gray-700' : 'border-gray-200'} transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
-          <h3 className="text-sm font-semibold text-gray-400 mb-2">Budget Usage</h3>
-          <div className="w-full bg-gray-700 rounded-full h-2.5">
+        {/* Footer Section */}
+        <div className={`p-4 border-t ${isDarkTheme ? 'border-gray-700' : 'border-gray-200'} transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
+          <h3 className={`text-sm font-semibold text-gray-400 mb-2 whitespace-nowrap ${isOpen ? '' : 'hidden'}`}>Budget Usage</h3>
+          <div className={`w-full bg-gray-700 rounded-full h-2.5 ${isOpen ? '' : 'hidden'}`}>
             <div className="bg-brand-primary h-2.5 rounded-full" style={{ width: '72%' }}></div>
           </div>
-          <p className="text-xs text-gray-400 mt-1">72% Utilized</p>
+          <p className={`text-xs text-gray-400 mt-1 whitespace-nowrap ${isOpen ? '' : 'hidden'}`}>72% Utilized</p>
           <div className="flex items-center mt-4 space-x-3">
-             <div className="w-8 h-8 rounded-full bg-gray-500"></div> {/* Placeholder for profile pic */}
-             <div>
-                <p className="text-sm font-semibold">{user?.email.split('@')[0]}</p>
-                <p className="text-xs text-brand-primary">{user?.role}</p>
+             <div className="w-8 h-8 rounded-full bg-gray-500 flex-shrink-0"></div> {/* Profile pic */}
+             <div className={`transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
+                <p className="text-sm font-semibold whitespace-nowrap">{user?.email.split('@')[0]}</p>
+                <p className="text-xs text-brand-primary whitespace-nowrap">{user?.role}</p>
              </div>
           </div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 };
 
