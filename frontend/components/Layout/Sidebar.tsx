@@ -4,21 +4,57 @@ import Image from 'next/image';
 import { useRouter } from 'next/router';
 import useUIStore from '../../store/uiStore';
 import { useAuth } from '../../components/context/AuthContext';
-import { getNavItemsForRole, NavItem } from '../../lib/navigationMap'; // CORRECT: Import new map
-import { X, ChevronsLeft, ChevronsRight } from 'lucide-react'; // CORRECT: Use lucide-react icons
+import { getNavItemsForRole, NavItem } from '../../lib/navigationMap';
+import { X, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp } from 'lucide-react'; // Added ChevronDown, ChevronUp
 
 // Helper component for rendering nav items, handles nesting
 const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, isCollapsed }) => {
   const router = useRouter();
   const isActive = item.exactMatch ? router.asPath === item.path : router.asPath.startsWith(item.path);
+  const [isExpanded, setIsExpanded] = useState(false); // State to manage expansion of children
 
-  // For now, render parent items as non-interactive headers
+  useEffect(() => {
+    // Expand parent if one of its children is active
+    if (item.children && item.children.some(child => router.asPath.startsWith(child.path))) {
+      setIsExpanded(true);
+    }
+  }, [item, router.asPath]);
+
   if (item.children && item.children.length > 0) {
     return (
-      <li className={`mt-4 mb-2 ${isCollapsed ? 'px-2' : 'px-1'}`}>
-        <span className={`text-xs font-bold uppercase text-gray-500 tracking-wider ${isCollapsed ? 'hidden' : 'block'}`}>
-          {item.name}
-        </span>
+      <li key={item.name}>
+        <div
+          className={`flex items-center p-2 rounded-md transition duration-200 cursor-pointer ${
+            isActive ? 'bg-brand-primary text-white' : 'hover:bg-brand-primary/20'
+          }`}
+          onClick={() => setIsExpanded(!isExpanded)} // Toggle expansion
+          title={isCollapsed ? item.name : ''}
+        >
+          <item.icon className={`${isCollapsed ? 'mx-auto' : 'mr-3'} h-5 w-5 flex-shrink-0`} />
+          <span className={`font-medium whitespace-nowrap overflow-hidden ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+            {item.name}
+          </span>
+          {!isCollapsed && (isExpanded ? <ChevronUp className="ml-auto h-4 w-4" /> : <ChevronDown className="ml-auto h-4 w-4" />)}
+        </div>
+        {isExpanded && item.children.length > 0 && (
+          <ul className={`ml-4 mt-1 space-y-1 ${isCollapsed ? 'hidden' : 'block'}`}>
+            {item.children.map(child => (
+              <li key={child.name}>
+                <Link
+                  href={child.path}
+                  className={`flex items-center p-2 rounded-md transition duration-200 ${
+                    router.asPath === child.path
+                      ? 'bg-brand-primary text-white'
+                      : 'hover:bg-brand-primary/20'
+                  }`}
+                >
+                  <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
+                  <span className="font-medium whitespace-nowrap overflow-hidden">{child.name}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </li>
     );
   }

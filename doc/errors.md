@@ -1,134 +1,256 @@
-[11:47:52 PM] File change detected. Starting incremental compilation...
+Unhandled Runtime Error
+ReferenceError: useState is not defined
 
-[11:47:52 PM] Found 0 errors. Watching for file changes.
+Source
+components\Layout\Sidebar.tsx (14:39) @ useState
 
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [NestFactory] Starting Nest application...
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] AppModule dependencies initialized +80ms
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +3ms   
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] PassportModule dependencies initialized +1ms  
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] HttpModule dependencies initialized +0ms      
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] ConfigHostModule dependencies initialized +1ms
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +1ms    
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +0ms    
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] JwtModule dependencies initialized +150ms
-[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] ThrottlerModule dependencies initialized +1ms
-query: SELECT version()
-query: SELECT * FROM current_schema()
-query: CREATE EXTENSION IF NOT EXISTS "uuid-ossp"
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmCoreModule dependencies initialized +3490ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +2ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] SearchModule dependencies initialized +15ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] WbsModule dependencies initialized +4ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TenantModule dependencies initialized +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] AuthModule dependencies initialized +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] WbsController {/api/v1/wbs}: +37ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/categories, GET} route +15ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/categories, POST} route +3ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/categories/:id, DELETE} route +3ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/categories/:id, PATCH} route +3ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-draft, POST} route +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-draft/batch, POST} route +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/expense/live-entry, POST} route +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget/rollup, GET} route +2ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-drafts/pending, GET} route +2ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-drafts/:id/approve, PATCH} route +1ms     
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-drafts/:id/reject, PATCH} route +5ms      
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/expense/exceptions/major-variance, GET} route +4ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] AiController {/api/v1/ai}: +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/ai/draft-budget, POST} route +2ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] DcsController {/api/v1/dcs}: +0ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/dcs/schedule-report, POST} route +2ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/dcs/test-data, GET} route +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] AuthController {/api/v1/auth}: +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/login, POST} route +2ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/register, POST} route +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/forgot-password-request, POST} route +1ms       
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/logout, POST} route +5ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/test-secure, GET} route +3ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/users, GET} route +2ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/users, POST} route +6ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/users/:id, PATCH} route +2ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/users/:id, DELETE} route +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] TenantController {/api/v1/admin/tenants}: +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants, POST} route +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants, GET} route +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants/:id, GET} route +5ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants/:id, PATCH} route +2ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants/:id, DELETE} route +1ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] SearchController {/api/v1/search}: +0ms
-[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/search, GET} route +2ms
---- Phase 3: FINAL DESTRUCTIVE RE-SEED ---
-query: SELECT "UserEntity"."id" AS "UserEntity_id", "UserEntity"."email" AS "UserEntity_email", "UserEntity"."role" AS "UserEntity_role", "UserEntity"."is_active" AS "UserEntity_is_active", "UserEntity"."created_at" AS "UserEntity_created_at", "UserEntity"."tenant_id" AS "UserEntity_tenant_id", "UserEntity"."reset_password_token" AS "UserEntity_reset_password_token", "UserEntity"."reset_password_expires" AS "UserEntity_reset_password_expires" FROM "public"."user" "UserEntity" WHERE (("UserEntity"."email" = $1)) LIMIT 1 -- PARAMETERS: ["admin@sentinelfi.com"]
-query failed: SELECT "UserEntity"."id" AS "UserEntity_id", "UserEntity"."email" AS "UserEntity_email", "UserEntity"."role" AS "UserEntity_role", "UserEntity"."is_active" AS "UserEntity_is_active", "UserEntity"."created_at" AS "UserEntity_created_at", "UserEntity"."tenant_id" AS "UserEntity_tenant_id", "UserEntity"."reset_password_token" AS "UserEntity_reset_password_token", "UserEntity"."reset_password_expires" AS "UserEntity_reset_password_expires" FROM "public"."user" "UserEntity" WHERE (("UserEntity"."email" = $1)) LIMIT 1 
--- PARAMETERS: ["admin@sentinelfi.com"]
-error: error: column UserEntity.reset_password_token does not exist
-C:\temp\SentinelFi\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325
-            throw new QueryFailedError(query, parameters, err)
-                  ^
+  12 |   const router = useRouter();
+  13 |   const isActive = item.exactMatch ? router.asPath === item.path : router.asPath.startsWith(item.path);
+> 14 |   const [isExpanded, setIsExpanded] = useState(false); // State to manage expansion of children
+     |                                       ^
+  15 |
+  16 |   useEffect(() => {
+  17 |     // Expand parent if one of its children is active
 
 
-QueryFailedError: column UserEntity.reset_password_token does not exist
-    at PostgresQueryRunner.query (C:\temp\SentinelFi\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)  
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    at async SelectQueryBuilder.loadRawResults (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
-    at async SelectQueryBuilder.executeEntitiesAndRawResults (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
-    at async SelectQueryBuilder.getRawAndEntities (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
-    at async SelectQueryBuilder.getOne (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
-    at async SeedTestUsersService.seedUsers (C:\temp\SentinelFi\backend\src\auth\seed-test-users.service.ts:46:24)
-    at async SeedTestUsersService.onApplicationBootstrap (C:\temp\SentinelFi\backend\src\auth\seed-test-users.service.ts:18:5)       
-    at async Promise.all (index 0)
-    at async callModuleBootstrapHook (C:\temp\SentinelFi\node_modules\@nestjs\core\hooks\on-app-bootstrap.hook.js:43:5) {
-  query: 'SELECT "UserEntity"."id" AS "UserEntity_id", "UserEntity"."email" AS "UserEntity_email", "UserEntity"."role" AS "UserEntity_role", "UserEntity"."is_active" AS "UserEntity_is_active", "UserEntity"."created_at" AS "UserEntity_created_at", "UserEntity"."tenant_id" AS "UserEntity_tenant_id", "UserEntity"."reset_password_token" AS "UserEntity_reset_password_token", "UserEntity"."reset_password_expires" AS "UserEntity_reset_password_expires" FROM "public"."user" "UserEntity" WHERE (("UserEntity"."email" = $1)) LIMIT 1',   
-  parameters: [ 'admin@sentinelfi.com' ],
-  driverError: error: column UserEntity.reset_password_token does not exist
-      at C:\temp\SentinelFi\node_modules\pg\lib\client.js:545:17
-      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-      at async PostgresQueryRunner.query (C:\temp\SentinelFi\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async SelectQueryBuilder.loadRawResults (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
-      at async SelectQueryBuilder.executeEntitiesAndRawResults (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
-      at async SelectQueryBuilder.getRawAndEntities (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
-      at async SelectQueryBuilder.getOne (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
-      at async SeedTestUsersService.seedUsers (C:\temp\SentinelFi\backend\src\auth\seed-test-users.service.ts:46:24)
-      at async SeedTestUsersService.onApplicationBootstrap (C:\temp\SentinelFi\backend\src\auth\seed-test-users.service.ts:18:5)     
-      at async Promise.all (index 0) {
-    length: 130,
-    severity: 'ERROR',
-    code: '42703',
-    detail: undefined,
-    hint: undefined,
-    position: '290',
-    internalPosition: undefined,
-    internalQuery: undefined,
-    where: undefined,
-    schema: undefined,
-    table: undefined,
-    column: undefined,
-    dataType: undefined,
-    constraint: undefined,
-    file: 'parse_relation.c',
-    line: '3716',
-    routine: 'errorMissingColumn'
-  },
-  length: 130,
-  severity: 'ERROR',
-  code: '42703',
-  detail: undefined,
-  hint: undefined,
-  position: '290',
-  internalPosition: undefined,
-  internalQuery: undefined,
-  where: undefined,
-  schema: undefined,
-  table: undefined,
-  column: undefined,
-  dataType: undefined,
-  constraint: undefined,
-  file: 'parse_relation.c',
-  line: '3716',
-  routine: 'errorMissingColumn'
-}
+  ### browser dev tool console log
 
-Node.js v22.20.0
+  Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+websocket.js:39 [HMR] connected
+AuthContext.tsx:105  GET http://localhost:3000/api/v1/auth/test-secure 401 (Unauthorized)
+dispatchXhrRequest @ xhr.js:209
+xhr @ xhr.js:26
+dispatchRequest @ dispatchRequest.js:61
+_request @ Axios.js:194
+request @ Axios.js:49
+Axios.<computed> @ Axios.js:220
+wrap @ bind.js:16
+checkAuthStatus @ AuthContext.tsx:105
+eval @ AuthContext.tsx:123
+commitHookEffectListMount @ react-dom.development.js:23184
+commitPassiveMountOnFiber @ react-dom.development.js:24960
+commitPassiveMountEffects_complete @ react-dom.development.js:24925
+commitPassiveMountEffects_begin @ react-dom.development.js:24912
+commitPassiveMountEffects @ react-dom.development.js:24900
+flushPassiveEffectsImpl @ react-dom.development.js:27073
+flushPassiveEffects @ react-dom.development.js:27018
+eval @ react-dom.development.js:26803
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533Understand this error
+AuthContext.tsx:116 checkAuthStatus: API call failed AxiosError {message: 'Request failed with status code 401', name: 'AxiosError', code: 'ERR_BAD_REQUEST', config: {…}, request: XMLHttpRequest, …}
+console.error @ hydration-error-info.js:63
+window.console.error @ setup-hydration-warning.js:18
+checkAuthStatus @ AuthContext.tsx:116
+await in checkAuthStatus
+eval @ AuthContext.tsx:123
+commitHookEffectListMount @ react-dom.development.js:23184
+commitPassiveMountOnFiber @ react-dom.development.js:24960
+commitPassiveMountEffects_complete @ react-dom.development.js:24925
+commitPassiveMountEffects_begin @ react-dom.development.js:24912
+commitPassiveMountEffects @ react-dom.development.js:24900
+flushPassiveEffectsImpl @ react-dom.development.js:27073
+flushPassiveEffects @ react-dom.development.js:27018
+eval @ react-dom.development.js:26803
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533Understand this error
+AuthContext.tsx:105  GET http://localhost:3000/api/v1/auth/test-secure 401 (Unauthorized)
+dispatchXhrRequest @ xhr.js:209
+xhr @ xhr.js:26
+dispatchRequest @ dispatchRequest.js:61
+_request @ Axios.js:194
+request @ Axios.js:49
+Axios.<computed> @ Axios.js:220
+wrap @ bind.js:16
+checkAuthStatus @ AuthContext.tsx:105
+eval @ AuthContext.tsx:123
+commitHookEffectListMount @ react-dom.development.js:23184
+invokePassiveEffectMountInDEV @ react-dom.development.js:25188
+invokeEffectsInDev @ react-dom.development.js:27385
+commitDoubleInvokeEffectsInDEV @ react-dom.development.js:27364
+flushPassiveEffectsImpl @ react-dom.development.js:27090
+flushPassiveEffects @ react-dom.development.js:27018
+eval @ react-dom.development.js:26803
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533Understand this error
+AuthContext.tsx:116 checkAuthStatus: API call failed AxiosError {message: 'Request failed with status code 401', name: 'AxiosError', code: 'ERR_BAD_REQUEST', config: {…}, request: XMLHttpRequest, …}
+console.error @ hydration-error-info.js:63
+window.console.error @ setup-hydration-warning.js:18
+checkAuthStatus @ AuthContext.tsx:116
+await in checkAuthStatus
+eval @ AuthContext.tsx:123
+commitHookEffectListMount @ react-dom.development.js:23184
+invokePassiveEffectMountInDEV @ react-dom.development.js:25188
+invokeEffectsInDev @ react-dom.development.js:27385
+commitDoubleInvokeEffectsInDEV @ react-dom.development.js:27364
+flushPassiveEffectsImpl @ react-dom.development.js:27090
+flushPassiveEffects @ react-dom.development.js:27018
+eval @ react-dom.development.js:26803
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533Understand this error
+warn-once.js:16 Image with src "/SentinelFi Logo Concept-bg-remv-logo-only.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+warnOnce @ warn-once.js:16
+eval @ image-component.js:110
+Promise.then
+handleLoading @ image-component.js:35
+onLoad @ image-component.js:196
+callCallback @ react-dom.development.js:4164
+invokeGuardedCallbackDev @ react-dom.development.js:4213
+invokeGuardedCallback @ react-dom.development.js:4277
+invokeGuardedCallbackAndCatchFirstError @ react-dom.development.js:4291
+executeDispatch @ react-dom.development.js:9041
+processDispatchQueueItemsInOrder @ react-dom.development.js:9073
+processDispatchQueue @ react-dom.development.js:9086
+dispatchEventsForPlugins @ react-dom.development.js:9097
+eval @ react-dom.development.js:9288
+batchedUpdates$1 @ react-dom.development.js:26174
+batchedUpdates @ react-dom.development.js:3991
+dispatchEventForPluginEventSystem @ react-dom.development.js:9287
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ react-dom.development.js:6465
+dispatchEvent @ react-dom.development.js:6457Understand this warning
+warn-once.js:16 Image with src "/SentinelFi Logo Concept-bg-remv-logo-only.png" was detected as the Largest Contentful Paint (LCP). Please add the "priority" property if this image is above the fold.
+Read more: https://nextjs.org/docs/api-reference/next/image#priority
+warnOnce @ warn-once.js:16
+eval @ get-img-props.js:349Understand this warning
+login:1 [Intervention] Slow network is detected. See https://www.chromestatus.com/feature/5636954674692096 for more details. Fallback font will be used while loading: chrome-extension://okfkdaglfjjjfefdcppliegebpoegaii/assets/PublicSans-VariableFont_wght.ttf
+hot-reloader-client.js:222 [Fast Refresh] rebuilding
+16Sidebar.tsx:14 Uncaught ReferenceError: useState is not defined
+    at NavItemLink (Sidebar.tsx:14:39)
+    at renderWithHooks (react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (react-dom.development.js:20098:13)
+    at beginWork (react-dom.development.js:21621:16)
+    at HTMLUnknownElement.callCallback (react-dom.development.js:4164:14)
+    at Object.invokeGuardedCallbackDev (react-dom.development.js:4213:16)
+    at invokeGuardedCallback (react-dom.development.js:4277:31)
+    at beginWork$1 (react-dom.development.js:27485:7)
+    at performUnitOfWork (react-dom.development.js:26591:12)
+    at workLoopConcurrent (react-dom.development.js:26577:5)
+    at renderRootConcurrent (react-dom.development.js:26539:7)
+    at performConcurrentWorkOnRoot (react-dom.development.js:25772:38)
+    at workLoop (scheduler.development.js:266:34)
+    at flushWork (scheduler.development.js:239:14)
+    at MessagePort.performWorkUntilDeadline (scheduler.development.js:533:21)
+NavItemLink @ Sidebar.tsx:14
+renderWithHooks @ react-dom.development.js:15486
+mountIndeterminateComponent @ react-dom.development.js:20098
+beginWork @ react-dom.development.js:21621
+callCallback @ react-dom.development.js:4164
+invokeGuardedCallbackDev @ react-dom.development.js:4213
+invokeGuardedCallback @ react-dom.development.js:4277
+beginWork$1 @ react-dom.development.js:27485
+performUnitOfWork @ react-dom.development.js:26591
+workLoopConcurrent @ react-dom.development.js:26577
+renderRootConcurrent @ react-dom.development.js:26539
+performConcurrentWorkOnRoot @ react-dom.development.js:25772
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533Understand this error
+Header.tsx:22 Warning: The result of getSnapshot should be cached to avoid an infinite loop
+    at Header (webpack-internal:///./components/Layout/Header.tsx:32:102)
+    at div
+    at div
+    at SecuredLayoutContent (webpack-internal:///./components/Layout/SecuredLayoutContent.tsx:16:11)
+    at Layout (webpack-internal:///./components/Layout/Layout.tsx:20:11)
+    at AuthProvider (webpack-internal:///./components/context/AuthContext.tsx:39:11)
+    at SentinelFiApp (webpack-internal:///./pages/_app.tsx:16:11)
+    at PathnameContextProviderAdapter (webpack-internal:///../node_modules/next/dist/shared/lib/router/adapters.js:81:11)
+    at ErrorBoundary (webpack-internal:///../node_modules/next/dist/client/components/react-dev-overlay/pages/ErrorBoundary.js:41:9)
+    at ReactDevOverlay (webpack-internal:///../node_modules/next/dist/client/components/react-dev-overlay/pages/ReactDevOverlay.js:33:11)
+    at Container (webpack-internal:///../node_modules/next/dist/client/index.js:81:1)
+    at AppContainer (webpack-internal:///../node_modules/next/dist/client/index.js:189:11)
+    at Root (webpack-internal:///../node_modules/next/dist/client/index.js:413:11)
+console.error @ hydration-error-info.js:63
+window.console.error @ setup-hydration-warning.js:18
+printWarning @ react-dom.development.js:86
+error @ react-dom.development.js:60
+mountSyncExternalStore @ react-dom.development.js:15987
+useSyncExternalStore @ react-dom.development.js:16908
+useSyncExternalStore @ react.development.js:1677
+useStore @ react.mjs:13
+useBoundStore @ react.mjs:23
+Header @ Header.tsx:22
+renderWithHooks @ react-dom.development.js:15486
+mountIndeterminateComponent @ react-dom.development.js:20098
+beginWork @ react-dom.development.js:21621
+beginWork$1 @ react-dom.development.js:27460
+performUnitOfWork @ react-dom.development.js:26591
+workLoopConcurrent @ react-dom.development.js:26577
+renderRootConcurrent @ react-dom.development.js:26539
+performConcurrentWorkOnRoot @ react-dom.development.js:25772
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533Understand this error
+16Sidebar.tsx:14 Uncaught ReferenceError: useState is not defined
+    at NavItemLink (Sidebar.tsx:14:39)
+    at renderWithHooks (react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (react-dom.development.js:20098:13)
+    at beginWork (react-dom.development.js:21621:16)
+    at HTMLUnknownElement.callCallback (react-dom.development.js:4164:14)
+    at Object.invokeGuardedCallbackDev (react-dom.development.js:4213:16)
+    at invokeGuardedCallback (react-dom.development.js:4277:31)
+    at beginWork$1 (react-dom.development.js:27485:7)
+    at performUnitOfWork (react-dom.development.js:26591:12)
+    at workLoopSync (react-dom.development.js:26500:5)
+    at renderRootSync (react-dom.development.js:26468:7)
+    at recoverFromConcurrentError (react-dom.development.js:25884:20)
+    at performConcurrentWorkOnRoot (react-dom.development.js:25784:22)
+    at workLoop (scheduler.development.js:266:34)
+    at flushWork (scheduler.development.js:239:14)
+    at MessagePort.performWorkUntilDeadline (scheduler.development.js:533:21)
+NavItemLink @ Sidebar.tsx:14
+renderWithHooks @ react-dom.development.js:15486
+mountIndeterminateComponent @ react-dom.development.js:20098
+beginWork @ react-dom.development.js:21621
+callCallback @ react-dom.development.js:4164
+invokeGuardedCallbackDev @ react-dom.development.js:4213
+invokeGuardedCallback @ react-dom.development.js:4277
+beginWork$1 @ react-dom.development.js:27485
+performUnitOfWork @ react-dom.development.js:26591
+workLoopSync @ react-dom.development.js:26500
+renderRootSync @ react-dom.development.js:26468
+recoverFromConcurrentError @ react-dom.development.js:25884
+performConcurrentWorkOnRoot @ react-dom.development.js:25784
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533Understand this error
+16hydration-error-info.js:63 The above error occurred in the <NavItemLink> component:
+
+    at NavItemLink (webpack-internal:///./components/Layout/Sidebar.tsx:28:11)
+    at ul
+    at nav
+    at div
+    at aside
+    at Sidebar (webpack-internal:///./components/Layout/Sidebar.tsx:170:94)
+    at div
+    at SecuredLayoutContent (webpack-internal:///./components/Layout/SecuredLayoutContent.tsx:16:11)
+    at Layout (webpack-internal:///./components/Layout/Layout.tsx:20:11)
+    at AuthProvider (webpack-internal:///./components/context/AuthContext.tsx:39:11)
+    at SentinelFiApp (webpack-internal:///./pages/_app.tsx:16:11)
+    at PathnameContextProviderAdapter (webpack-internal:///../node_modules/next/dist/shared/lib/router/adapters.js:81:11)
+    at ErrorBoundary (webpack-internal:///../node_modules/next/dist/client/components/react-dev-overlay/pages/ErrorBoundary.js:41:9)
+    at ReactDevOverlay (webpack-internal:///../node_modules/next/dist/client/components/react-dev-overlay/pages/ReactDevOverlay.js:33:11)
+    at Container (webpack-internal:///../node_modules/next/dist/client/index.js:81:1)
+    at AppContainer (webpack-internal:///../node_modules/next/dist/client/index.js:189:11)
+    at Root (webpack-internal:///../node_modules/next/dist/client/index.js:413:11)
+
+React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+console.error @ hydration-error-info.js:63
+window.console.error @ setup-hydration-warning.js:18
+logCapturedError @ react-dom.development.js:18704
+callback @ react-dom.development.js:18767
+callCallback @ react-dom.development.js:15036
+commitUpdateQueue @ react-dom.development.js:15057
+commitLayoutEffectOnFiber @ react-dom.development.js:23398
+commitLayoutMountEffects_complete @ react-dom.development.js:24722
+commitLayoutEffects_begin @ react-dom.development.js:24708
+commitLayoutEffects @ react-dom.development.js:24646
+commitRootImpl @ react-dom.development.js:26857
+commitRoot @ react-dom.development.js:26716
+finishConcurrentRender @ react-dom.development.js:25926
+performConcurrentWorkOnRoot @ react-dom.development.js:25843
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533Understand this error

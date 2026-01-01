@@ -11,7 +11,7 @@ import { TenantModule } from "./tenants/tenant.module";
 import { TenantEntity } from "./tenants/tenant.entity";
 import { SearchModule } from "./search/search.module";
 import { TenancyMiddleware } from './common/middleware/tenancy.middleware';
-import { TenantService } from "./tenants/tenant.service"; // Import TenantService
+import { NotificationsModule } from './notifications/notifications.module'; // NEW: Import NotificationsModule
 
 @Module({
   imports: [
@@ -44,14 +44,16 @@ import { TenantService } from "./tenants/tenant.service"; // Import TenantServic
     AuthModule,
     TenantModule,
     SearchModule,
+    NotificationsModule, // NEW: Add NotificationsModule
   ],
   controllers: [],
-  providers: [], // Remove TenantService from AppModule providers
+  providers: [],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(TenancyMiddleware)
-      .forRoutes('*'); // Apply TenancyMiddleware to all routes
+      .exclude('auth/(.*)') // Exclude all auth routes from this middleware
+      .forRoutes('*'); // Apply TenancyMiddleware to all other routes
   }
 }

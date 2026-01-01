@@ -2,16 +2,15 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { Strategy } from "passport-jwt";
 import { ConfigService } from "@nestjs/config";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { DataSource, Repository } from "typeorm";
 import { UserEntity } from "./user.entity";
-import { Request } from "express"; // <-- New Import for Request object
+import { Request } from "express";
+import { JwtPayload, UserPayload } from "../common/interfaces/request.interface";
 
 // Utility function to extract the JWT from the cookie
 const cookieExtractor = (req: Request) => {
   let token = null;
   if (req && req.cookies) {
-    // CRITICAL: Look for the 'access_token' cookie set by the AuthController
     token = req.cookies["access_token"];
   }
   return token;
@@ -19,30 +18,33 @@ const cookieExtractor = (req: Request) => {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private usersRepository: Repository<UserEntity>;
+
   constructor(
-    private configService: ConfigService,
-    @InjectRepository(UserEntity)
-    private usersRepository: Repository<UserEntity>,
+    private readonly configService: ConfigService,
+    private readonly dataSource: DataSource, // Inject the main DataSource
   ) {
     const secret = configService.get<string>("JWT_SECRET_KEY");
     if (!secret) {
       throw new Error(
-        "JWT_SECRET_KEY is not defined in the environment. Cannot start JWT Strategy.",
+        "JWT_SECRET_KEY is not defined. Cannot start JWT Strategy.",
       );
     }
-
     super({
-      // CRITICAL FIX: Extract the JWT from the cookie instead of the header
       jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
       secretOrKey: secret,
     });
+    // Get a repository that is not tied to the request-scoped query runner
+    this.usersRepository = this.dataSource.getRepository(UserEntity);
   }
 
-  async validate(payload: any) {
+  async validate(payload: JwtPayload): Promise<UserPayload> {
+    // This query will now reliably use the public schema because the repository
+    // is derived from the global DataSource, not a request-scoped manager.
     const user = await this.usersRepository.findOne({
       where: { id: payload.sub, is_active: true },
-      select: ["id", "email", "role"],
+      select: ["id", "email", "role", "tenant_id"],
     });
 
     if (!user) {
@@ -51,11 +53,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
+    // Return the payload that will be attached to req.user
     return {
       id: user.id,
       email: user.email,
       role: user.role,
-      tenantId: payload.tenant_id, // CRITICAL: Expose tenant_id for multi-tenancy
+      tenant_id: user.tenant_id,
     };
   }
 }

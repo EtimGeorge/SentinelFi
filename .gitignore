@@ -42,3 +42,8 @@ ehthumbs.db
 /frontend/dist
 /frontend/build
 .next/
+
+# AI Agent specific
+ai-agent/venv/
+ai-agent/__pycache__/
+ai-agent/.ruff_cache/

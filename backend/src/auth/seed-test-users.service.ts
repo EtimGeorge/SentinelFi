@@ -1,4 +1,4 @@
-import { Injectable, OnApplicationBootstrap } from "@nestjs/common";
+import { Injectable, OnApplicationBootstrap, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { UserEntity } from "./user.entity";
@@ -7,6 +7,8 @@ import { AuthService } from "./auth.service";
 
 @Injectable()
 export class SeedTestUsersService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(SeedTestUsersService.name);
+
   constructor(
     @InjectRepository(UserEntity)
     private usersRepository: Repository<UserEntity>,
@@ -19,7 +21,7 @@ export class SeedTestUsersService implements OnApplicationBootstrap {
   }
 
   async seedUsers() {
-    console.log("--- Phase 3: FINAL DESTRUCTIVE RE-SEED ---");
+    this.logger.log("--- Phase 3: FINAL DESTRUCTIVE RE-SEED ---");
 
     // Define the users to create with the password 'P@ssw0rd'
     const usersToSeed = [
@@ -38,7 +40,7 @@ export class SeedTestUsersService implements OnApplicationBootstrap {
       {
         email: "ophead@sentinelfi.com",
         role: Role.OperationalHead,
-        password: "P@ssw0rd",
+        password: "P@ssw0rd"
       },
     ];
 
@@ -59,10 +61,10 @@ export class SeedTestUsersService implements OnApplicationBootstrap {
         user.role,
         undefined, // Pass undefined for tenantId as these are not tenant-specific users
       );
-      console.log(
+      this.logger.log(
         `- RE-SEEDED user: ${user.email} with Role: ${user.role} and PWD: P@ssw0rd`,
       );
     }
-    console.log("--- FINAL SEEDING COMPLETE ---");
+    this.logger.log("--- FINAL SEEDING COMPLETE ---");
   }
 }

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
-import { TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle } from 'lucide-react'; // Added Edit3, Save, X, AlertTriangle
+import PageContainer from '../components/Layout/PageContainer';
+import { TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle } from 'lucide-react';
 import Card from '../components/common/Card';
 import { useSecuredApi } from '../components/hooks/useSecuredApi';
 import { WbsCategoryEntity } from '../../backend/src/wbs/wbs-category.entity';
-import { Role, useAuth } from '../components/context/AuthContext'; // Added useAuth and Role
+import { Role, useAuth } from '../components/context/AuthContext';
 
 // Interface matching the WBS Category Entity
 interface WbsCategoryEntity {
@@ -136,128 +137,127 @@ const WBSManagerPage: React.FC = () => {
   return (
     <>
       <Head><title>WBS Manager | SentinelFi</title></Head>
-      <h1 className="text-4xl font-bold text-white mb-6 flex items-center">
-        <TrendingUp className="w-8 h-8 mr-3 text-brand-primary" /> WBS Category Manager
-      </h1>
-      <p className="text-lg text-gray-400 mb-8">
-        Manage the foundational Level 1 WBS headers used for project structuring (NGN Template Fidelity).
-      </p>
+      <PageContainer 
+        title="WBS Category Manager"
+        subtitle="Manage the foundational Level 1 WBS headers used for project structuring (NGN Template Fidelity)."
+        headerContent={<TrendingUp className="w-8 h-8 text-brand-primary" />}
+      >
+        {successMessage && <div className="p-3 mb-4 text-sm text-alert-positive bg-green-900 rounded-lg border border-alert-positive/50">{successMessage}</div>}
+        {error && <div className="p-3 mb-4 text-sm text-red-400 bg-red-900 rounded-lg border border-red-700">{error}</div>}
 
-      {successMessage && <div className="p-3 mb-4 text-sm text-alert-positive bg-green-900 rounded-lg border border-alert-positive/50">{successMessage}</div>}
-      {error && <div className="p-3 mb-4 text-sm text-red-400 bg-red-900 rounded-lg border border-red-700">{error}</div>}
-
-      {/* Main Grid: Categories List and Creation Form */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left (Span 2): Current Categories List */}
-        <div className="lg:col-span-2">
-          <Card title="Current Master Categories (NGN Template)" subtitle="Manage top-level WBS categories. Edits and deletions impact all dependent projects." borderTopColor="secondary">
-            {loading && !categories.length ? <p className="text-brand-primary">Loading WBS structure...</p> : (
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                {categories.length === 0 ? (
-                  <p className="text-gray-400">No categories found. Start by creating one!</p>
-                ) : (
-                  categories.map(cat => (
-                    <div key={cat.id} className="flex justify-between items-center p-3 bg-brand-dark/50 rounded-lg border border-gray-700">
-                      {editingCategoryId === cat.id ? (
-                        <div className="flex-grow grid grid-cols-2 gap-2 mr-4">
-                          <input 
-                            type="text" 
-                            value={editedCode} 
-                            onChange={(e) => setEditedCode(e.target.value)} 
-                            className="bg-gray-700 border border-gray-600 rounded-lg p-1 text-white text-sm"
-                          />
-                          <input 
-                            type="text" 
-                            value={editedDescription} 
-                            onChange={(e) => setEditedDescription(e.target.value)} 
-                            className="bg-gray-700 border border-gray-600 rounded-lg p-1 text-white text-sm"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex-grow">
-                          <p className="font-bold text-lg text-brand-primary">{cat.code}</p>
-                          <p className="text-gray-300">{cat.description}</p>
-                        </div>
-                      )}
-                      
-                      {canManageCategories && (
-                        <div className="flex space-x-2">
-                          {editingCategoryId === cat.id ? (
-                            <>
+        {/* Main Grid: Categories List and Creation Form */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Left (Span 2): Current Categories List */}
+          <div className="lg:col-span-2">
+            <Card title="Current Master Categories (NGN Template)" subtitle="Manage top-level WBS categories. Edits and deletions impact all dependent projects." borderTopColor="secondary">
+              {loading && !categories.length ? <p className="text-brand-primary">Loading WBS structure...</p> : (
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                  {categories.length === 0 ? (
+                    <p className="text-gray-400">No categories found. Start by creating one!</p>
+                  ) : (
+                    categories.map(cat => (
+                      <div key={cat.id} className="flex justify-between items-center p-3 bg-brand-dark/50 rounded-lg border border-gray-700">
+                        {editingCategoryId === cat.id ? (
+                          <div className="flex-grow grid grid-cols-2 gap-2 mr-4">
+                            <input 
+                              type="text" 
+                              value={editedCode} 
+                              onChange={(e) => setEditedCode(e.target.value)} 
+                              className="bg-gray-700 border border-gray-600 rounded-lg p-1 text-white text-sm"
+                            />
+                            <input 
+                              type="text" 
+                              value={editedDescription} 
+                              onChange={(e) => setEditedDescription(e.target.value)} 
+                              className="bg-gray-700 border border-gray-600 rounded-lg p-1 text-white text-sm"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex-grow">
+                            <p className="font-bold text-lg text-brand-primary">{cat.code}</p>
+                            <p className="text-gray-300">{cat.description}</p>
+                          </div>
+                        )}
+                        
+                        {canManageCategories && (
+                          <div className="flex space-x-2">
+                            {editingCategoryId === cat.id ? (
+                              <>
+                                <button 
+                                  onClick={handleUpdateCategory}
+                                  disabled={loading}
+                                  className="text-alert-positive hover:text-green-300 transition"
+                                  title="Save Changes"
+                                >
+                                  <Save className="w-5 h-5" />
+                                </button>
+                                <button 
+                                  onClick={() => setEditingCategoryId(null)}
+                                  className="text-gray-400 hover:text-white transition"
+                                  title="Cancel Edit"
+                                >
+                                  <X className="w-5 h-5" />
+                                </button>
+                              </>
+                            ) : (
                               <button 
-                                onClick={handleUpdateCategory}
+                                onClick={() => handleEditClick(cat)}
                                 disabled={loading}
-                                className="text-alert-positive hover:text-green-300 transition"
-                                title="Save Changes"
+                                className="text-brand-primary hover:text-white transition"
+                                title="Edit Category"
                               >
-                                <Save className="w-5 h-5" />
+                                <Edit3 className="w-5 h-5" />
                               </button>
-                              <button 
-                                onClick={() => setEditingCategoryId(null)}
-                                className="text-gray-400 hover:text-white transition"
-                                title="Cancel Edit"
-                              >
-                                <X className="w-5 h-5" />
-                              </button>
-                            </>
-                          ) : (
+                            )}
                             <button 
-                              onClick={() => handleEditClick(cat)}
+                              onClick={() => handleDeleteClick(cat.id)}
                               disabled={loading}
-                              className="text-brand-primary hover:text-white transition"
-                              title="Edit Category"
+                              className="text-red-500 hover:text-red-300 transition"
+                              title="Delete Category"
                             >
-                              <Edit3 className="w-5 h-5" />
+                              <Trash2 className="w-5 h-5" />
                             </button>
-                          )}
-                          <button 
-                            onClick={() => handleDeleteClick(cat.id)}
-                            disabled={loading}
-                            className="text-red-500 hover:text-red-300 transition"
-                            title="Delete Category"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </Card>
-        </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </Card>
+          </div>
 
-        {/* Right (Span 1): Create New Category Form */}
-        <div className="lg:col-span-1">
-          <Card title="Create New Category" subtitle="Only use X.0 codes (e.g., 8.0, 9.0). Requires Admin or Finance role." borderTopColor="alert">
-            {!canManageCategories ? (
-              <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
-                <AlertTriangle className="w-5 h-5 mr-2" /> You do not have permission to create categories.
-              </p>
-            ) : (
-              <form onSubmit={handleCreateCategory} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-white">Code (e.g., 8.0)</label>
-                  <input type="text" value={newCode} onChange={(e) => setNewCode(e.target.value)} required
-                    placeholder="X.0"
-                    className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white">Description</label>
-                  <input type="text" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} required
-                    placeholder="e.g., New Projects / Unallocated"
-                    className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
-                </div>
-                <button type="submit" disabled={loading} className="w-full flex items-center justify-center p-2 rounded-lg font-semibold text-white bg-alert-critical hover:bg-alert-critical/90 transition">
-                  <Plus className="w-5 h-5 mr-2" /> Add Master Category
-                </button>
-              </form>
-            )}
-          </Card>
+          {/* Right (Span 1): Create New Category Form */}
+          <div className="lg:col-span-1">
+            <Card title="Create New Category" subtitle="Only use X.0 codes (e.g., 8.0, 9.0). Requires Admin or Finance role." borderTopColor="alert">
+              {!canManageCategories ? (
+                <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 mr-2" /> You do not have permission to create categories.
+                </p>
+              ) : (
+                <form onSubmit={handleCreateCategory} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white">Code (e.g., 8.0)</label>
+                    <input type="text" value={newCode} onChange={(e) => setNewCode(e.target.value)} required
+                      placeholder="X.0"
+                      className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white">Description</label>
+                    <input type="text" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} required
+                      placeholder="e.g., New Projects / Unallocated"
+                      className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                  </div>
+                  <button type="submit" disabled={loading} className="w-full flex items-center justify-center p-2 rounded-lg font-semibold text-white bg-alert-critical hover:bg-alert-critical/90 transition">
+                    <Plus className="w-5 h-5 mr-2" /> Add Master Category
+                  </button>
+                </form>
+              )}
+            </Card>
+          </div>
         </div>
-      </div>
+      </PageContainer>
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

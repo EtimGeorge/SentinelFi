@@ -6,7 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { useRouter } from "next/router";
-import api from "../../lib/api"; //
+import api from "../../lib/api";
 
 // Define the roles from the backend (must match backend/src/auth/enums/role.enum.ts)
 // The role enum should ideally be imported from a shared constants file or a backend API client
@@ -65,6 +65,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       router.pathname
     );
 
+    let targetPath = null;
+
     if (user) {
       // User is authenticated
       if (isAuthPage) {
@@ -75,31 +77,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           user.role === Role.Admin ||
           user.role === Role.ITHead
         ) {
-          router.replace('/dashboard/ceo');
+          targetPath = '/dashboard/ceo';
         } else if (user.role === Role.AssignedProjectUser) {
-          router.replace('/expense/tracker');
+          targetPath = '/expense/tracker';
         } else {
-          router.replace('/dashboard/home'); // Fallback
+          targetPath = '/dashboard/home'; // Fallback
         }
       }
     } else {
       // User is not authenticated
       if (!isAuthPage && router.pathname !== '/') {
         // If on a protected page (and not the root redirector), send to login
-        router.replace('/login');
+        targetPath = '/login';
       }
+    }
+
+    if (targetPath && router.pathname !== targetPath) { // NEW: Only navigate if targetPath is different
+      router.replace(targetPath);
     }
   }, [user, isInitialLoad, router]);
 
   // CRITICAL: New initial check. We need a secure API call to see if a valid cookie exists.
   useEffect(() => {
     const checkAuthStatus = async () => {
-      console.log('checkAuthStatus: started'); // Added log
       try {
-        console.log('checkAuthStatus: making API call to /auth/test-secure'); // Added log
         // Hitting a secured endpoint forces the cookie to be sent. If valid, user data returns.
         const response = await api.get('/auth/test-secure');
-        console.log('checkAuthStatus: API call successful', response.status); // Added log
 
         // Use a dummy decode to get the user data for context display without exposing the token
         const userFromApi = response.data.user_data_from_token;
@@ -110,13 +113,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           role: userFromApi.role,
         });
       } catch (error) {
-        console.error('checkAuthStatus: API call failed', error); // Added log
+        console.error('checkAuthStatus: API call failed', error); // Keeping this for actual errors
         // 401/403 (token expired/invalid) or network error
         setUser(null); // This is good, clears any old user state
       } finally {
-        console.log(
-          'checkAuthStatus: finally block executed, setting isInitialLoad to false'
-        ); // Added log
         setIsInitialLoad(false); // THIS SHOULD BE CALLED!
       }
     };

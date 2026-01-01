@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Get,
   BadRequestException,
+  UnauthorizedException, // NEW: Import UnauthorizedException
   Req, // Added
 } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
@@ -14,7 +15,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "shared/types/role.enum";
 import { WbsService } from "./wbs.service"; // Used to fetch data for the report
-import { AuthenticatedRequest } from "backend/src/common/interfaces/authenticated-request.interface"; // Added
+import { AuthenticatedRequest } from "../common/interfaces/request.interface"; // Corrected import path
 
 // DTO for the automated report request
 class AutomatedReportRequestDto {
@@ -78,11 +79,14 @@ export class DcsController {
   @Get("test-data")
   @Roles(Role.Admin, Role.Finance)
   async getReportDataTest(@Req() req: AuthenticatedRequest) { // Add AuthenticatedRequest
-    const clientSchemaFromToken = req.user.clientSchema;
-    if (!clientSchemaFromToken) {
-      throw new Error("Client schema not found in JWT payload.");
+    if (!req.user) { // NEW: User check
+      throw new UnauthorizedException('User not authenticated.');
+    }
+    const tenant_id = req.user.tenant_id;
+    if (!tenant_id) {
+      throw new BadRequestException("Tenant ID not found in authenticated user payload.");
     }
     // Just returning a sample of the full WBS data
-    return this.wbsService.findAllWbsBudgetsWithRollup(clientSchemaFromToken); // Pass clientSchema
+    return this.wbsService.findAllWbsBudgetsWithRollup(tenant_id); // Pass tenant_id
   }
 }

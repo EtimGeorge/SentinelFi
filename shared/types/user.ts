@@ -7,12 +7,14 @@ export interface User {
   email: string;
   role: Role;
   is_active: boolean;
+  tenant_id?: string | null; // NEW: User's assigned tenant ID
+  tenant_name?: string | null; // NEW: User's assigned tenant name (for display)
 }
 
 export interface JwtPayload extends User {
   iat: number; // Issued at (timestamp)
   exp: number; // Expiration time (timestamp)
-  clientSchema?: string; // Optional: The schema name associated with the authenticated user's tenant
+  // clientSchema?: string; // Removed, standardized to tenant_id
 }
 
 // List of all valid roles for validation - copied from backend DTO for convenience here
@@ -35,7 +37,7 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsUUID()
-  tenant_id?: string;
+  tenant_id?: string | null; // NEW: Optional tenant ID for creation
 }
 
 // DTO for updating an existing user (role change, status change) - Used by backend
@@ -48,4 +50,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  tenant_id?: string | null; // NEW: Optional tenant ID for update
 }

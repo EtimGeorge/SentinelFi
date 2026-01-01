@@ -5,8 +5,8 @@ interface UIState {
   isMobileSidebarOpen: boolean;
   isDesktopSidebarCollapsed: boolean;
   unreadNotificationsCount: number;
-  socket: WebSocket | null; // NEW: WebSocket instance
-  socketConnected: boolean; // NEW: WebSocket connection status
+  socket: WebSocket | null; // NEW: WebSocket instance - Re-enabled
+  socketConnected: boolean; // NEW: WebSocket connection status - Re-enabled
 
   toggleMobileSidebar: () => void;
   closeMobileSidebar: () => void;
@@ -14,7 +14,7 @@ interface UIState {
   setUnreadNotificationsCount: (count: number) => void;
   // fetchUnreadNotificationsCount: () => Promise<void>; // REMOVED: Replaced by WebSocket
 
-  // NEW: WebSocket actions
+  // NEW: WebSocket actions - Re-enabled
   connectWebSocket: () => void;
   disconnectWebSocket: () => void;
 }
@@ -23,8 +23,8 @@ const useUIStore = create<UIState>((set, get) => ({
   isMobileSidebarOpen: false,
   isDesktopSidebarCollapsed: false,
   unreadNotificationsCount: 0,
-  socket: null,
-  socketConnected: false,
+  socket: null, // Re-enabled
+  socketConnected: false, // Re-enabled
 
   toggleMobileSidebar: () => set((state) => ({ isMobileSidebarOpen: !state.isMobileSidebarOpen })),
   closeMobileSidebar: () => set({ isMobileSidebarOpen: false }),
@@ -42,14 +42,15 @@ const useUIStore = create<UIState>((set, get) => ({
   //   }
   // },
 
+  // Re-enabling WebSocket connection
   connectWebSocket: () => {
     if (get().socketConnected && get().socket?.readyState === WebSocket.OPEN) {
       console.log('WebSocket already connected.');
       return;
     }
 
-    // TODO: Replace with actual WebSocket URL from environment variables
-    const WS_URL = 'ws://localhost:3000/ws-notifications'; // Placeholder WebSocket URL
+    // Connect to backend WebSocket endpoint
+    const WS_URL = 'ws://localhost:3001/ws-notifications'; // Using port 3001 for backend
     const newSocket = new WebSocket(WS_URL);
 
     newSocket.onopen = () => {

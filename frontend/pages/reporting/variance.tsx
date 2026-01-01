@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { BarChart3, TrendingDown, TrendingUp, AlertTriangle, Loader2 } from 'lucide-react'; // Added Loader2
-import Card from '../../components/common/Card'; // <-- New Import
+import { BarChart3, TrendingDown, TrendingUp, AlertTriangle, Loader2, FileDown, Printer, SlidersHorizontal } from 'lucide-react'; // Added Printer, SlidersHorizontal
+import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { formatCurrency, getWBSColor } from '../../lib/utils';
-import { RollupData } from '../../components/dashboard/WBSHierarchyTree'; // Reusing for type
-import { WbsCategoryEntity } from '../../backend/src/wbs/wbs-category.entity'; // For categories dropdown
+import { RollupData } from '../../components/dashboard/WBSHierarchyTree';
+import { WbsCategoryEntity } from '../../backend/src/wbs/wbs-category.entity';
+import useToast from '../../store/toastStore';
+import PageContainer from '../../components/Layout/PageContainer';
+import { useAuth, Role } from '../../components/context/AuthContext';
 
 // Enum for Variance Status
 enum VarianceStatus {
@@ -16,12 +19,30 @@ enum VarianceStatus {
   Major = 'Major', // From Phase 6 AI Rule Engine
 }
 
+// Enum for Report Scope
+enum ReportScope {
+  IndividualProject = 'Individual Project',
+  AllProjects = 'All Projects',
+  WBSCategory = 'WBS Category',
+  // Add other scopes as needed
+}
+
+// Enum for Export Format
+enum ExportFormat {
+  PDF = 'PDF',
+  Excel = 'Excel',
+  CSV = 'CSV',
+}
+
 // Interface for report filters
 interface ReportFilters {
   startDate: string;
   endDate: string;
-  wbsCategory: string;
+  wbsCategory: string; // Filter by a Level 1 WBS Category
   varianceStatus: VarianceStatus;
+  reportScope: ReportScope; // NEW: Report Scope filter
+  selectedProjectId: string | null; // NEW: For individual project scope
+  exportFormat: ExportFormat; // Export format
 }
 
 // Interface for Live Expense Exceptions (assuming partial LiveExpenseEntity)
@@ -35,20 +56,28 @@ interface LiveExpenseException {
 }
 
 const VarianceReportPage: React.FC = () => {
+  const { user } = useAuth(); // Get current user for RBAC
   const api = useSecuredApi();
+  const addToast = useToast(state => state.addToast);
   const [reportData, setReportData] = useState<RollupData[]>([]);
   const [categories, setCategories] = useState<WbsCategoryEntity[]>([]);
+  const [projects, setProjects] = useState<RollupData[]>([]); // NEW: State for projects (root WBS items)
   const [majorVarianceAlerts, setMajorVarianceAlerts] = useState<LiveExpenseException[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingAlerts, setLoadingAlerts] = useState(true);
+  const [generatingReport, setGeneratingReport] = useState(false); // NEW: State for report generation loading
   const [filters, setFilters] = useState<ReportFilters>({
     startDate: '',
     endDate: '',
     wbsCategory: 'All',
     varianceStatus: VarianceStatus.All,
+    reportScope: ReportScope.AllProjects, // NEW: Default scope
+    selectedProjectId: null, // NEW: Default selected project
+    exportFormat: ExportFormat.PDF,
   });
   const [error, setError] = useState<string | null>(null);
 
+  const isAdminOrCEO = user?.role === Role.Admin || user?.role === Role.CEO;
 
   // Fetch all necessary data
   useEffect(() => {
@@ -56,20 +85,23 @@ const VarianceReportPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const [reportRes, categoryRes] = await Promise.all([
+        const [reportRes, categoryRes, projectRes] = await Promise.all([ // NEW: Fetch projects too
             api.get<RollupData[]>('/wbs/budget/rollup', { params: { startDate: filters.startDate, endDate: filters.endDate } }), 
-            api.get<WbsCategoryEntity[]>('/wbs/categories')
+            api.get<WbsCategoryEntity[]>('/wbs/categories'),
+            api.get<RollupData[]>('/wbs/budget/rollup') // Fetch all rollup data to identify root projects
         ]);
         setReportData(reportRes.data);
         setCategories(categoryRes.data);
+        setProjects(projectRes.data.filter(item => !item.parent_wbs_id)); // Filter for root projects
       } catch (e: any) {
         setError("Failed to fetch data: " + (e.response?.data?.message || e.message));
+        addToast({ title: 'Error', description: `Failed to fetch data: ${e.message || 'Unknown error'}`, type: 'error' });
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [api, filters.startDate, filters.endDate]);
+  }, [api, filters.startDate, filters.endDate, addToast]);
 
   // Fetch Major Variance Alerts
   useEffect(() => {
@@ -80,21 +112,92 @@ const VarianceReportPage: React.FC = () => {
         setMajorVarianceAlerts(response.data);
       } catch (e: any) {
         console.error("Failed to fetch major variance alerts:", e);
+        addToast({ title: 'Error', description: `Failed to fetch major variance alerts: ${e.message || 'Unknown error'}`, type: 'error' });
       } finally {
         setLoadingAlerts(false);
       }
     };
     fetchAlerts();
-  }, [api]);
+  }, [api, addToast]);
 
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
+    setFilters(prev => ({ 
+      ...prev, 
+      [name]: value as any, // Type assertion
+      // Reset selected project if scope changes
+      selectedProjectId: (name === 'reportScope' && value !== ReportScope.IndividualProject) ? null : prev.selectedProjectId
+    }));
   };
 
-  const exportReport = () => {
-    alert("Secure Report Export functionality (PDF/CSV) to be implemented in Phase 7.");
+  const generateReportPayload = () => {
+    // Construct payload based on selected filters
+    const payload = {
+      reportType: filters.reportType,
+      format: filters.exportFormat,
+      scope: filters.reportScope,
+      startDate: filters.startDate || null,
+      endDate: filters.endDate || null,
+      wbsCategory: filters.wbsCategory !== 'All' ? filters.wbsCategory : null,
+      varianceStatus: filters.varianceStatus !== VarianceStatus.All ? filters.varianceStatus : null,
+      projectId: filters.selectedProjectId, // Include selected project ID
+      // Additional RBAC check to ensure user can only request reports for accessible data
+      // This will primarily be handled by the backend.
+    };
+    return payload;
+  };
+
+  const exportReport = async () => {
+    setGeneratingReport(true);
+    addToast({ title: 'Report Export', description: `Generating ${filters.reportType} report in ${filters.exportFormat} format... (Backend Integration Needed)`, type: 'info' });
+
+    try {
+      const payload = generateReportPayload();
+      
+      // TODO: Replace with actual backend call to trigger report generation
+      // For now, simulate success and download
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+
+      // Simulate file download
+      const mockBlob = new Blob(["Mock report content for " + payload.reportType], { type: "text/plain" });
+      const url = URL.createObjectURL(mockBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sentinelfi_report_${payload.reportType}.${payload.format.toLowerCase()}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      addToast({ title: 'Report Ready', description: `Your ${payload.reportType} report has been generated and downloaded.`, type: 'success' });
+
+    } catch (e: any) {
+      addToast({ title: 'Export Failed', description: `Failed to generate report: ${e.message || 'Unknown error'}`, type: 'error' });
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  const printReport = async () => {
+    setGeneratingReport(true);
+    addToast({ title: 'Print Report', description: `Preparing ${filters.reportType} report for printing... (Backend Integration Needed)`, type: 'info' });
+
+    try {
+      const payload = generateReportPayload();
+      // TODO: Replace with actual backend call for print-friendly format
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      
+      // Simulate print dialog (in a real app, this would be a server-generated PDF opened in a new tab for printing)
+      window.open('about:blank', 'PrintWindow', 'width=800,height=600'); // Opens a blank window
+      // For now, just a message
+      addToast({ title: 'Print Ready', description: `Report ready for printing in a new window.`, type: 'success' });
+
+    } catch (e: any) {
+      addToast({ title: 'Print Failed', description: `Failed to prepare report for printing: ${e.message || 'Unknown error'}`, type: 'error' });
+    } finally {
+      setGeneratingReport(false);
+    }
   };
   
   // Filtered data for the table
@@ -104,18 +207,29 @@ const VarianceReportPage: React.FC = () => {
     const variance = budgeted - spent; // Positive means underrun, negative means overrun
     const variancePercent = budgeted > 0 ? (variance / budgeted) * 100 : 0;
     
-    // Filter by Variance Status
-    if (filters.varianceStatus === VarianceStatus.Negative && variancePercent >= 0) return false; // Only show negative variance
-    if (filters.varianceStatus === VarianceStatus.Positive && variancePercent <= 0) return false; // Only show positive variance
+    // Apply filters from filters state
+    if (filters.wbsCategory !== 'All' && !item.wbs_code.startsWith(filters.wbsCategory)) return false;
+    
+    if (filters.varianceStatus === VarianceStatus.Negative && variancePercent >= 0) return false;
+    if (filters.varianceStatus === VarianceStatus.Positive && variancePercent <= 0) return false;
     if (filters.varianceStatus === VarianceStatus.Major) {
-        // Only show items that have a major variance alert associated with their WBS code
-        // This is a simplification; a full implementation would match WBS IDs
         const isMajor = majorVarianceAlerts.some(alert => alert.wbs_code.startsWith(item.wbs_code));
         if (!isMajor) return false;
     }
-    
-    // Filter by Category
-    if (filters.wbsCategory !== 'All' && !item.wbs_code.startsWith(filters.wbsCategory)) return false;
+
+    // NEW: Filter by report scope and selected project
+    if (filters.reportScope === ReportScope.IndividualProject && filters.selectedProjectId) {
+      // Find the root WBS item for the selected project
+      const selectedProjectRoot = projects.find(p => p.wbs_id === filters.selectedProjectId);
+      if (selectedProjectRoot && !item.wbs_code.startsWith(selectedProjectRoot.wbs_code)) {
+        return false; // Only show items under the selected project's WBS code
+      } else if (!selectedProjectRoot) { // If project is selected but not found
+        return false;
+      }
+    } else if (filters.reportScope === ReportScope.IndividualProject && !filters.selectedProjectId) {
+      return false; // If scope is individual project but no project is selected
+    }
+
 
     return true;
   });
@@ -124,23 +238,21 @@ const VarianceReportPage: React.FC = () => {
   return (
     <>
       <Head><title>Variance Analysis | SentinelFi</title></Head>
-      <h1 className="text-4xl font-bold text-white mb-6 flex items-center">
-        <BarChart3 className="w-8 h-8 mr-3 text-brand-primary" /> Financial Variance Analysis
-      </h1>
-      <p className="text-lg text-gray-400 mb-8">
-        Proactive monitoring and filtering of all expenditure against the approved WBS budget.
-      </p>
-      
-      {error && <div className="p-3 mb-4 text-sm text-red-400 bg-red-900 rounded-lg border border-red-700">{error}</div>}
+      <PageContainer
+        title="Financial Variance Analysis"
+        subtitle="Proactive monitoring and filtering of all expenditure against the approved WBS budget."
+        headerContent={<BarChart3 className="w-8 h-8 text-brand-primary" />}
+      >
+        {error && <div className="p-3 mb-4 text-sm text-red-400 bg-red-900 rounded-lg border border-red-700">{error}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        
-        {/* Left Column (Span 3): Filters and Report Table */}
-        <div className="lg:col-span-3 space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          
+          {/* Left Column (Span 3): Filters and Report Table */}
+          <div className="lg:col-span-3 space-y-8">
             <Card title="Report Filters" borderTopColor="primary">
                 {/* Filter Controls */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    {/* Date Filters are placeholders */}
+                    {/* Date Filters */}
                     <div>
                       <label htmlFor="startDate" className="block text-sm font-medium text-gray-400 mb-1">Start Date</label>
                       <input type="date" name="startDate" id="startDate" value={filters.startDate} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white" />
@@ -169,11 +281,49 @@ const VarianceReportPage: React.FC = () => {
                           <option value={VarianceStatus.Major} className="bg-gray-800">Major Variance (AI Flag)</option>
                       </select>
                     </div>
+
+                    {/* NEW: Report Scope Filter */}
+                    <div>
+                      <label htmlFor="reportScope" className="block text-sm font-medium text-gray-400 mb-1">Report Scope</label>
+                      <select name="reportScope" id="reportScope" value={filters.reportScope} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white appearance-none">
+                          {/* RBAC: Admin/CEO can view All Projects */}
+                          {(user?.role === Role.Admin || user?.role === Role.CEO) && (
+                            <option value={ReportScope.AllProjects} className="bg-gray-800">All Projects</option>
+                          )}
+                          <option value={ReportScope.IndividualProject} className="bg-gray-800">Individual Project</option>
+                          <option value={ReportScope.WBSCategory} className="bg-gray-800">WBS Category</option>
+                      </select>
+                    </div>
+
+                    {/* NEW: Project Selector (conditionally rendered) */}
+                    {filters.reportScope === ReportScope.IndividualProject && (
+                      <div>
+                        <label htmlFor="selectedProjectId" className="block text-sm font-medium text-gray-400 mb-1">Select Project</label>
+                        <select name="selectedProjectId" id="selectedProjectId" value={filters.selectedProjectId || ''} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white appearance-none">
+                          <option value="">-- Select a Project --</option>
+                          {projects.map(p => (
+                            <option key={p.wbs_id} value={p.wbs_id}>{p.description} ({p.wbs_code})</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                 </div>
                 
-                <div className="text-right pt-4">
-                  <button onClick={exportReport} className="px-4 py-2 bg-brand-primary text-white rounded-lg shadow-md hover:bg-brand-primary/90 transition">
-                    Export Report (CSV/PDF)
+                <div className="text-right pt-4 flex items-center justify-end space-x-4">
+                  {/* Export Format Selector */}
+                  <div>
+                    <label htmlFor="exportFormat" className="sr-only">Export Format</label>
+                    <select name="exportFormat" id="exportFormat" value={filters.exportFormat} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white appearance-none">
+                        <option value="PDF">PDF</option>
+                        <option value="Excel">Excel</option>
+                        <option value="CSV">CSV</option>
+                    </select>
+                  </div>
+                  <button onClick={exportReport} disabled={generatingReport} className="px-4 py-2 bg-brand-primary text-white rounded-lg shadow-md hover:bg-brand-primary/90 transition flex items-center">
+                    {generatingReport ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <FileDown className="w-5 h-5 mr-2" />} Export Report
+                  </button>
+                  <button onClick={printReport} disabled={generatingReport} className="px-4 py-2 bg-brand-secondary text-white rounded-lg shadow-md hover:bg-brand-secondary/90 transition flex items-center">
+                    {generatingReport ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Printer className="w-5 h-5 mr-2" />} Print Report
                   </button>
                 </div>
             </Card>
@@ -243,14 +393,21 @@ const VarianceReportPage: React.FC = () => {
                     ))
                 )}
                 {majorVarianceAlerts.length > 0 && (
-                    <button className="w-full mt-4 py-2 bg-red-900/50 text-red-400 rounded-lg hover:bg-red-900 transition">Investigate All Anomalies</button>
+                    <Link href="/reporting/anomalies" className="w-full mt-4 py-2 bg-red-900/50 text-red-400 rounded-lg hover:bg-red-900 transition flex items-center justify-center">
+                      <AlertTriangle className="w-5 h-5 mr-2" /> Investigate All Anomalies
+                    </Link>
                 )}
             </Card>
-            <Link href="/reporting/schedule" className="block">
-                <Card title="Automated Reporting" borderTopColor="primary" className="hover:bg-gray-700/50 transition">
-                    <p className="text-sm text-gray-400">Setup daily/weekly reports to be automatically sent to project leads via the DCS Integration.</p>
-                </Card>
-            </Link>
+              <Link href="/reporting/schedule" className="block">
+                  <Card title="Automated Reporting" borderTopColor="primary" className="hover:bg-gray-700/50 transition">
+                      <p className="text-sm text-gray-400">Setup daily/weekly reports to be automatically sent to project leads via the DCS Integration.</p>
+                      <div className="text-gray-400 space-y-3 mt-4">
+                          <p className="flex items-center text-alert-positive font-semibold">API Endpoint: LIVE</p>
+                          <p className="text-sm">Sends secure PDF/CSV data to internal Document Control System (DCS) for external distribution.</p>
+                          <p className="text-sm">Requires Finance/Ops Head role to initiate the job.</p>
+                      </div>
+                  </Card>
+              </Link>
         </div>
               </div>
           </>

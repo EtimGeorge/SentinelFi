@@ -3,7 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import cookieParser from "cookie-parser";
 import { DataSource } from "typeorm"; // Import DataSource
-import { TenantInterceptor } from "./common/interceptors/tenant.interceptor"; // Import TenantInterceptor
+
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,10 +13,9 @@ async function bootstrap() {
   // CRITICAL FIX: Add Cookie Parser Middleware
   app.use(cookieParser());
 
-  // Get the TypeORM DataSource instance to inject into the interceptor
-  const dataSource = app.get(DataSource);
-  // Register the global interceptor
-  app.useGlobalInterceptors(new TenantInterceptor(dataSource));
+  
+  // The TenantInterceptor has been removed in favor of the TenancyMiddleware,
+  // which is correctly scoped in AppModule.
 
   // FINAL CORS: Ensure correct setup for cookie exchange
   app.enableCors({

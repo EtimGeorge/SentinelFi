@@ -2,12 +2,12 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
-  BadRequestException, // Added
-  InternalServerErrorException, // Added
-  Logger, // Added
+  BadRequestException,
+  InternalServerErrorException,
+  Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Not, DataSource } from "typeorm"; // Added DataSource
+import { Repository, Not, DataSource } from "typeorm";
 import { WbsBudgetEntity } from "./wbs-budget.entity";
 import { LiveExpenseEntity } from "./live-expense.entity";
 import { CreateWbsBudgetDto } from "./dto/create-wbs-budget.dto";
@@ -15,10 +15,12 @@ import { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
 import { WbsCategoryEntity } from "./wbs-category.entity";
 import { WbsBudgetRollupDto } from "./dto/wbs-budget-rollup.dto";
 import { UpdateWbsCategoryDto } from "./dto/update-wbs-category.dto";
+import { UpdateWbsBudgetDto } from "./dto/update-wbs-budget.dto";
+import { UpdateLiveExpenseDto } from "./dto/update-live-expense.dto";
 
 @Injectable()
 export class WbsService {
-  private readonly logger = new Logger(WbsService.name); // Added
+  private readonly logger = new Logger(WbsService.name);
 
   constructor(
     @InjectRepository(WbsBudgetEntity)
@@ -27,8 +29,55 @@ export class WbsService {
     private expenseRepository: Repository<LiveExpenseEntity>,
     @InjectRepository(WbsCategoryEntity)
     private categoryRepository: Repository<WbsCategoryEntity>,
-    private dataSource: DataSource, // Injected DataSource
+    private dataSource: DataSource,
   ) {}
+
+  /**
+   * NEW: Updates a WBS budget draft.
+   * @param id The ID of the WBS budget draft to update.
+   * @param updateWbsBudgetDto The data to update.
+   * @returns The updated WbsBudgetEntity.
+   */
+  async updateWbsBudget(
+    id: string,
+    updateWbsBudgetDto: UpdateWbsBudgetDto,
+  ): Promise<WbsBudgetEntity> {
+    // Because this method uses the standard repository, it will respect the
+    // search_path set by the TenancyMiddleware automatically.
+    const wbsBudget = await this.wbsRepository.findOne({ where: { wbs_id: id } });
+    if (!wbsBudget) {
+      throw new NotFoundException(`WBS Budget with ID ${id} not found.`);
+    }
+
+    // Merge the new data into the existing entity
+    const updatedWbsBudget = this.wbsRepository.merge(wbsBudget, updateWbsBudgetDto);
+
+    return this.wbsRepository.save(updatedWbsBudget);
+  }
+
+  /**
+   * NEW: Updates a live expense entry.
+   * @param id The ID (number) of the live expense to update.
+   * @param updateLiveExpenseDto The data to update.
+   * @returns The updated LiveExpenseEntity.
+   */
+  async updateLiveExpense(
+    id: number, // Corrected type to number
+    updateLiveExpenseDto: UpdateLiveExpenseDto,
+  ): Promise<LiveExpenseEntity> {
+    const liveExpense = await this.expenseRepository.findOne({ where: { expense_id: id } });
+    if (!liveExpense) {
+      throw new NotFoundException(`Live Expense with ID ${id} not found.`);
+    }
+
+    // Recalculation logic may be needed here if amounts change, for now, simple merge
+    // For a robust implementation, changing amounts should re-trigger variance calculation.
+    this.logger.warn(`Updating expense ${id}. Consider re-running variance calculations if amounts changed.`);
+
+    const updatedLiveExpense = this.expenseRepository.merge(liveExpense, updateLiveExpenseDto);
+
+    return this.expenseRepository.save(updatedLiveExpense);
+  }
 
   /**
    * NEW FEATURE: Retrieves all master WBS categories (Level 1)
@@ -237,9 +286,9 @@ export class WbsService {
    * This method executes the mandated variance calculation *on commit*.
    */
   async logLiveExpenseEntry(
-    clientSchema: string, // Injected dynamically from authenticated context
     expenseDto: CreateLiveExpenseDto,
     userId: string,
+    tenant_id: string,
   ): Promise<LiveExpenseEntity> {
     // 1. Business Constraint: Check if the WBS ID exists.
     const wbsBudget = await this.wbsRepository.findOne({
@@ -254,7 +303,7 @@ export class WbsService {
 
     // 2. Automated: Variance Calculation (MANDATORY REQUIREMENT)
     const varianceResult = await this.calculateLiveExpenseVariance(
-      clientSchema,
+      tenant_id,
       wbsBudget,
       expenseDto,
     );
@@ -276,13 +325,13 @@ export class WbsService {
    * of the WBS hierarchy and the total aggregated spending against each WBS item.
    */
   async findAllWbsBudgetsWithRollup(
-    clientSchema: string, // Injected dynamically from authenticated context
+    tenant_id: string,
     startDate?: string,
     endDate?: string,
   ): Promise<WbsBudgetRollupDto[]> {
-    // CRITICAL SECURITY FIX: Validate clientSchema to prevent SQL Injection
-    if (!/^[a-z0-9_]+$/.test(clientSchema)) {
-      throw new BadRequestException("Invalid client schema name provided.");
+    // CRITICAL SECURITY FIX: Validate tenant_id to prevent SQL Injection
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tenant_id)) {
+      throw new BadRequestException("Invalid tenant ID format.");
     }
 
     let dateFilter = "";
@@ -306,16 +355,16 @@ export class WbsService {
           -- Calculate Total Paid Amount for this specific WBS item
           COALESCE((
             SELECT SUM(le.actual_paid_amount)
-            FROM "${clientSchema}".live_expense le
+            FROM "${tenant_id}".live_expense le
             WHERE le.wbs_id = wb.wbs_id ${dateFilter}
           ), 0.00) AS total_paid_self,
           -- Calculate Total Committed (LPO) Amount for this specific WBS item
           COALESCE((
             SELECT SUM(le.commitment_lpo_amount)
-            FROM "${clientSchema}".live_expense le
+            FROM "${tenant_id}".live_expense le
             WHERE le.wbs_id = wb.wbs_id ${dateFilter}
           ), 0.00) AS total_committed_lpo_self
-        FROM "${clientSchema}".wbs_budget wb
+        FROM "${tenant_id}".wbs_budget wb
         WHERE wb.parent_wbs_id IS NULL
 
         UNION ALL
@@ -330,16 +379,16 @@ export class WbsService {
           -- Calculate Total Paid Amount for this specific WBS item
           COALESCE((
             SELECT SUM(le.actual_paid_amount)
-            FROM "${clientSchema}".live_expense le
+            FROM "${tenant_id}".live_expense le
             WHERE le.wbs_id = wb.wbs_id ${dateFilter}
           ), 0.00) AS total_paid_self,
           -- Calculate Total Committed (LPO) Amount for this specific WBS item
           COALESCE((
             SELECT SUM(le.commitment_lpo_amount)
-            FROM "${clientSchema}".live_expense le
+            FROM "${tenant_id}".live_expense le
             WHERE le.wbs_id = wb.wbs_id ${dateFilter}
           ), 0.00) AS total_committed_lpo_self
-        FROM "${clientSchema}".wbs_budget wb
+        FROM "${tenant_id}".wbs_budget wb
         JOIN wbs_tree wt ON wb.parent_wbs_id = wt.wbs_id
       )
       
@@ -375,7 +424,7 @@ export class WbsService {
    * Phase 6 Deliverable: Automated, live calculation for variance and MAJOR VARIANCE flag.
    */
   private async calculateLiveExpenseVariance(
-    clientSchema: string, // Injected dynamically from authenticated context
+    tenant_id: string,
     wbsBudget: WbsBudgetEntity,
     expenseDto: CreateLiveExpenseDto,
   ): Promise<{ variance: number; flag: string }> {
@@ -408,7 +457,7 @@ export class WbsService {
     // Check 2: Variance Threshold Breached (WBS Category Rollup)
     // NOTE: This check must be done AFTER the expense is committed, so we calculate the *new* total based on current data.
     const rollupTotals = await this.getCategoryRollupTotals(
-      clientSchema,
+      tenant_id,
       wbsBudget.wbs_id,
     );
     const totalBudget = rollupTotals.budgetedCategoryTotal;
@@ -436,16 +485,16 @@ export class WbsService {
    * @param wbsId The UUID of the line item being expensed.
    */
   private async getCategoryRollupTotals(
-    clientSchema: string, // Injected dynamically from authenticated context
+    tenant_id: string,
     wbsId: string,
   ): Promise<{
     budgetedCategoryTotal: number;
     actualPaidCategoryTotal: number;
     wbsCode: string;
   }> {
-    // CRITICAL SECURITY FIX: Validate clientSchema to prevent SQL Injection
-    if (!/^[a-z0-9_]+$/.test(clientSchema)) {
-      throw new BadRequestException("Invalid client schema name provided.");
+    // CRITICAL SECURITY FIX: Validate tenant_id to prevent SQL Injection
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tenant_id)) {
+      throw new BadRequestException("Invalid tenant ID format.");
     }
 
     // 1. Get the WBS Code and Category (Level 1) of the item being expensed
@@ -456,15 +505,14 @@ export class WbsService {
       throw new NotFoundException(`WBS ID ${wbsId} not found for rollup.`);
     }
     const categoryCode = expenseItem.wbs_code.split(".")[0];
-    // const clientSchema = "client_template"; // Removed hardcoded clientSchema
 
     // 2. Execute query to get the total budget/paid for the ENTIRE CATEGORY (WBS X.0)
     const rawQuery = `
         SELECT
             COALESCE(SUM(CAST(wb.total_cost_budgeted AS NUMERIC)), 0.00) AS "budgetedCategoryTotal",
             COALESCE(SUM(CAST(le.actual_paid_amount AS NUMERIC)), 0.00) AS "actualPaidCategoryTotal"
-        FROM ${clientSchema}.wbs_budget wb
-        LEFT JOIN ${clientSchema}.live_expense le ON wb.wbs_id = le.wbs_id
+        FROM "${tenant_id}".wbs_budget wb
+        LEFT JOIN "${tenant_id}".live_expense le ON wb.wbs_id = le.wbs_id
         WHERE wb.wbs_code LIKE $1 || '.%'
            OR wb.wbs_code = $1
     `;
@@ -481,17 +529,18 @@ export class WbsService {
   /**
    * NEW FEATURE: Seeds WBS budget data into a specific tenant's schema.
    * This is used during tenant provisioning after AI agent extracts data.
-   * @param clientSchema The schema name of the tenant.
+   * @param tenant_id The schema name of the tenant.
    * @param wbsData Array of WBS budget data from AI agent.
+   * @param userId User performing the action
    */
   async seedWbsDataForTenant(
-    clientSchema: string,
+    tenant_id: string,
     wbsData: any[], // Adjust this type to a specific DTO if AI agent output is structured
     userId: string, // User performing the action
   ): Promise<WbsBudgetEntity[]> {
-    // CRITICAL SECURITY FIX: Validate clientSchema to prevent SQL Injection
-    if (!/^[a-z0-9_]+$/.test(clientSchema)) {
-      throw new BadRequestException("Invalid client schema name provided.");
+    // CRITICAL SECURITY FIX: Validate tenant_id to prevent SQL Injection
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tenant_id)) {
+      throw new BadRequestException("Invalid tenant ID format.");
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -503,7 +552,7 @@ export class WbsService {
 
       for (const item of wbsData) {
         // Here we are creating new WbsBudgetEntity instances for the specific schema
-        // Ensure the table name is correctly qualified with the clientSchema
+        // Ensure the table name is correctly qualified with the tenant_id
         const newWbsBudget = queryRunner.manager.create(WbsBudgetEntity, {
           // Map properties from item to WbsBudgetEntity, ensure they match entity definition
           wbs_code: item.wbs_code,
@@ -519,7 +568,7 @@ export class WbsService {
 
         // Manually specify the schema for insertion
         const savedBudget = await queryRunner.manager.query(
-          `INSERT INTO "${clientSchema}".wbs_budget (wbs_id, parent_wbs_id, wbs_code, description, unit_cost_budgeted, quantity_budgeted, duration_days_budgeted, total_cost_budgeted, status, user_id, created_at)
+          `INSERT INTO "${tenant_id}".wbs_budget (wbs_id, parent_wbs_id, wbs_code, description, unit_cost_budgeted, quantity_budgeted, duration_days_budgeted, total_cost_budgeted, status, user_id, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
           [
             newWbsBudget.wbs_id,
@@ -543,7 +592,7 @@ export class WbsService {
     } catch (err) {
       await queryRunner.rollbackTransaction();
       this.logger.error(
-        `Failed to seed WBS data for schema ${clientSchema}:`,
+        `Failed to seed WBS data for schema ${tenant_id}:`,
         err,
       );
       if (err instanceof Error) {
