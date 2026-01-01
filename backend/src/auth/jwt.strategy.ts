@@ -1,18 +1,18 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, ExtractJwt } from 'passport-jwt';
-import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { UserEntity } from './user.entity';
-import { Request } from 'express'; // <-- New Import for Request object
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { PassportStrategy } from "@nestjs/passport";
+import { Strategy } from "passport-jwt";
+import { ConfigService } from "@nestjs/config";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { UserEntity } from "./user.entity";
+import { Request } from "express"; // <-- New Import for Request object
 
 // Utility function to extract the JWT from the cookie
 const cookieExtractor = (req: Request) => {
   let token = null;
   if (req && req.cookies) {
     // CRITICAL: Look for the 'access_token' cookie set by the AuthController
-    token = req.cookies['access_token']; 
+    token = req.cookies["access_token"];
   }
   return token;
 };
@@ -24,33 +24,38 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     @InjectRepository(UserEntity)
     private usersRepository: Repository<UserEntity>,
   ) {
-    const secret = configService.get<string>('JWT_SECRET_KEY');
+    const secret = configService.get<string>("JWT_SECRET_KEY");
     if (!secret) {
-      throw new Error('JWT_SECRET_KEY is not defined in the environment. Cannot start JWT Strategy.');
+      throw new Error(
+        "JWT_SECRET_KEY is not defined in the environment. Cannot start JWT Strategy.",
+      );
     }
-    
+
     super({
       // CRITICAL FIX: Extract the JWT from the cookie instead of the header
-      jwtFromRequest: cookieExtractor, 
+      jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
-      secretOrKey: secret, 
+      secretOrKey: secret,
     });
   }
 
   async validate(payload: any) {
-    const user = await this.usersRepository.findOne({ 
+    const user = await this.usersRepository.findOne({
       where: { id: payload.sub, is_active: true },
-      select: ['id', 'email', 'role'], 
+      select: ["id", "email", "role"],
     });
 
     if (!user) {
-      throw new UnauthorizedException('User no longer active or token invalid.');
+      throw new UnauthorizedException(
+        "User no longer active or token invalid.",
+      );
     }
 
-    return { 
-      id: user.id, 
-      email: user.email, 
-      role: user.role 
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      tenantId: payload.tenant_id, // CRITICAL: Expose tenant_id for multi-tenancy
     };
   }
 }

@@ -2,6 +2,7 @@ import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import '../styles/globals.css'; // <-- Import global CSS for Tailwind
 import { AuthProvider } from '../components/context/AuthContext'; // <-- Auth Provider to be created next
+import Layout from '../components/Layout/Layout'; // <-- Import the new Layout component
 
 function SentinelFiApp({ Component, pageProps }: AppProps) {
   return (
@@ -14,7 +15,9 @@ function SentinelFiApp({ Component, pageProps }: AppProps) {
       
       {/* CRITICAL: Wrap the entire application in the AuthProvider */}
       <AuthProvider>
-        <Component {...pageProps} />
+        <Layout> {/* Use the new Layout component */}
+          <Component {...pageProps} />
+        </Layout>
       </AuthProvider>
     </>
   );

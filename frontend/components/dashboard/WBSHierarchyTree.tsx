@@ -21,7 +21,7 @@ interface WBSHierarchyTreeProps {
 }
 
 // Helper component for a single WBS Node
-const WBSNode: React.FC<{ node: RollupData, level: number, children: RollupData[] }> = ({ node, level, children }) => {
+const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupData[] }> = ({ node, level, childNodes }) => {
   const [isExpanded, setIsExpanded] = useState(level === 0);
   const router = useRouter(); // Initialize useRouter here
   
@@ -51,7 +51,7 @@ const WBSNode: React.FC<{ node: RollupData, level: number, children: RollupData[
       >
         {/* Toggle Button/WBS Code */}
         <div className="w-1/6 flex items-center min-w-[70px]">
-          {children.length > 0 ? (
+          {childNodes.length > 0 ? (
             <button onClick={toggleExpand} className="p-1 text-gray-500 hover:text-brand-dark">
               {isExpanded ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             </button>
@@ -87,15 +87,15 @@ const WBSNode: React.FC<{ node: RollupData, level: number, children: RollupData[
         
       </div>
       
-      {/* Recursively render children */}
-      {isExpanded && children.length > 0 && (
+      {/* Recursively render childNodes */}
+      {isExpanded && childNodes.length > 0 && (
         <div className="pl-4">
-          {children.map(child => (
+          {childNodes.map(child => (
             <WBSNode 
               key={child.wbs_id} 
               node={child} 
               level={level + 1} 
-              children={data.filter(i => i.parent_wbs_id === child.wbs_id)} 
+              childNodes={data.filter(i => i.parent_wbs_id === child.wbs_id)} 
             />
           ))}
         </div>
@@ -146,7 +146,7 @@ const WBSHierarchyTree: React.FC<WBSHierarchyTreeProps> = ({ data }) => {
                 key={node.wbs_id} 
                 node={node} 
                 level={0} 
-                children={data.filter(i => i.parent_wbs_id === node.wbs_id)} 
+                childNodes={data.filter(i => i.parent_wbs_id === node.wbs_id)} 
               />
             );
           }

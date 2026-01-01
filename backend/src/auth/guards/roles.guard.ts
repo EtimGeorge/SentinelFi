@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { ROLES_KEY } from "../decorators/roles.decorator";
-import { Role } from "../enums/role.enum";
+import { Role } from "shared/types/role.enum";
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -33,7 +33,7 @@ export class RolesGuard implements CanActivate {
     if (!user || !user.role) {
       // This should ideally be caught by AuthGuard, but serves as a final check
       throw new ForbiddenException(
-        "User authentication failed or role is missing."
+        "User authentication failed or role is missing.",
       );
     }
 
@@ -43,7 +43,7 @@ export class RolesGuard implements CanActivate {
     if (!hasRequiredRole) {
       // Enforce forbidden access for unauthorized role
       throw new ForbiddenException(
-        `Access denied. Role '${user.role}' is not authorized for this action.`
+        `Access denied. Role '${user.role}' is not authorized for this action.`,
       );
     }
 

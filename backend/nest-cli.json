@@ -1,0 +1,13 @@
+{
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "webpack": false,
+    "tsConfigPath": "tsconfig.build.json",
+    "webpackConfig": "webpack-hmr.config",
+    "assets": [
+      { "include": "src/database/*.sql", "watch": true }
+    ],
+    "copyAssetsToDist": true
+  }
+}

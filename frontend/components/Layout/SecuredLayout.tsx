@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'next/router';
-import LayoutNav from './LayoutNav'; 
-import Sidebar from './Sidebar'; 
+import LayoutNav from './LayoutNav';
+import Sidebar from './Sidebar';
+import useUIStore from '../../store/uiStore'; // Import the global UI store
 
 interface SecuredLayoutProps {
   children: React.ReactNode;
@@ -11,60 +12,65 @@ interface SecuredLayoutProps {
 const SecuredLayout: React.FC<SecuredLayoutProps> = ({ children }) => {
   const { isAuthenticated, isInitialLoad } = useAuth();
   const router = useRouter();
-  
-  // CRITICAL FIX: isSidebarOpen state is back and responsive
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
+  // ---- STATE MANAGEMENT REFACTORED ----
+  // Remove local state: const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Use the global zustand store instead
+  const {
+    isDesktopSidebarCollapsed,
+    toggleMobileSidebar,
+    isMobileSidebarOpen,
+    closeMobileSidebar,
+  } = useUIStore();
+  // ---- END REFACTOR ----
+
+  const [searchTerm, setSearchTerm] = useState(''); // Keep search term local for now
 
   useEffect(() => {
-    if (isInitialLoad) return; 
+    if (isInitialLoad) return;
     if (!isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isInitialLoad, router]);
-  
-  // Toggle function passed to the top nav (for mobile/desktop control)
-  const toggleSidebar = () => setIsSidebarOpen(prev => !prev);
-  
-  // Dynamic Margins for Main Content
-  // Mobile: No margin (Sidebar goes over content)
-  // Desktop (lg+): Margin is 256px (w-64) if open, or 80px (w-20) if closed.
-  const mainMarginClass = isSidebarOpen ? 'lg:ml-64' : 'lg:ml-20';
 
   if (isInitialLoad) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-dark text-white">
+      <div className="flex h-screen w-full items-center justify-center bg-brand-dark text-white">
         <div className="text-xl">Checking SentinelFi Session Security...</div>
       </div>
     );
   }
-  
-  // FINAL THEME: Dark base for the entire application wrapper
+
+  // Calculate the dynamic margin-left for the main content area on desktop
+  const mainContentMarginClass = `md:ml-${
+    isDesktopSidebarCollapsed ? '20' : '64'
+  }`;
+
   return (
-    <div className="min-h-screen bg-brand-dark text-white font-sans">
-      
-      {/* 1. Top Header/Nav - Passes the toggle function */}
-      <LayoutNav 
-        isDarkTheme={true} 
-        toggleSidebar={toggleSidebar}
-        isSidebarOpen={isSidebarOpen}
-      /> 
-      
-      {/* 2. Left Sidebar - Passes state and setter */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        setIsOpen={setIsSidebarOpen} 
-        isDarkTheme={true} 
-      /> 
-      
-      {/* 3. Main Content Area - Uses dynamic padding-left class for smooth transition */}
-      <main 
-        className={`transition-all duration-300 min-h-screen pt-16 bg-brand-dark text-white ${mainMarginClass}`}
-        // Mobile view: Always pt-16, sidebar overlaps. Desktop: margin pushes content over.
+    <div className="flex h-screen bg-brand-dark font-sans">
+      {/* Sidebar no longer needs props for state management, it's self-contained with the store */}
+      <Sidebar />
+
+      {/* Backdrop for mobile sidebar - closes sidebar when clicked outside */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={closeMobileSidebar} // Close sidebar when backdrop is clicked
+          aria-hidden="true"
+        ></div>
+      )}
+
+      {/* Main content area dynamically adjusts its left margin on desktop */}
+      <div
+        className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${mainContentMarginClass}`}
       >
-        <div className="p-10">
+        {/* Pass the correct toggle function from the store to the Nav */}
+        <LayoutNav toggleSidebar={toggleMobileSidebar} />
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-brand-dark p-6">
+          {/* Removed cloning props for searchTerm as it's not a scalable pattern */}
+          {/* If child components need search term, it should be in a shared context/store */}
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };

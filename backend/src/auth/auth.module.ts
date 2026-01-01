@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, ValidationPipe, Logger } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { UserEntity } from "./user.entity";
 import { AuthService } from "./auth.service";
@@ -8,35 +8,61 @@ import { ConfigService } from "@nestjs/config";
 import { PassportModule } from "@nestjs/passport";
 import { JwtStrategy } from "./jwt.strategy";
 import * as ms from "ms";
-import { SeedTestUsersService } from "./seed-test-users.service"; // <-- New Import
+import { SeedTestUsersService } from "./seed-test-users.service";
+
+// Throttler imports
+import { ThrottlerModule, ThrottlerGuard, ThrottlerModuleOptions } from "@nestjs/throttler";
+import { APP_GUARD } from "@nestjs/core";
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([UserEntity]),
     PassportModule.register({ defaultStrategy: "jwt" }),
     JwtModule.registerAsync({
-
       useFactory: async (configService: ConfigService) => {
         const expiresInDuration =
           configService.get<string>("JWT_EXPIRATION_TIME") || "3600s";
 
-        // FINAL FIX: Access the .default property to correctly call the function
         const expiresInMs = (ms as any).default(expiresInDuration);
 
         return {
           secret: configService.get<string>("JWT_SECRET_KEY"),
           signOptions: {
-            // Use seconds (numeric) for expiresIn which is accepted by the library
             expiresIn: expiresInMs / 1000,
           },
         };
       },
       inject: [ConfigService],
     }),
+    // ThrottlerModule configuration
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): ThrottlerModuleOptions => ({ // Return a single options object
+        throttlers: [ // This object contains the throttlers array
+          {
+            ttl: Number(config.get('THROTTLE_TTL') || 60), // Use ttl
+            limit: Number(config.get('THROTTLE_LIMIT') || 10), // Use limit
+          },
+        ],
+      }),
+    }),
   ],
   controllers: [AuthController],
-  // MODIFICATION: Include the Seeder Service as a provider
-  providers: [AuthService, JwtStrategy, SeedTestUsersService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    SeedTestUsersService,
+    // Global ThrottlerGuard
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: "APP_PIPE",
+      useValue: new ValidationPipe({ whitelist: true }),
+    },
+    Logger, // Add Logger as a provider for injection
+  ],
   exports: [PassportModule, JwtStrategy, TypeOrmModule, JwtModule],
 })
 export class AuthModule {}

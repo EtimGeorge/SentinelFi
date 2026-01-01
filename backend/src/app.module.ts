@@ -1,45 +1,57 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config'; // <-- Import ConfigService
-import { WbsBudgetEntity } from './wbs/wbs-budget.entity';
-import { LiveExpenseEntity } from './wbs/live-expense.entity';
-import { WbsModule } from './wbs/wbs.module';
-import { AuthModule } from './auth/auth.module';
-import { UserEntity } from './auth/user.entity';
+import { Module, NestModule, MiddlewareConsumer } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { WbsBudgetEntity } from "./wbs/wbs-budget.entity";
+import { LiveExpenseEntity } from "./wbs/live-expense.entity";
+import { WbsModule } from "./wbs/wbs.module";
+import { AuthModule } from "./auth/auth.module";
+import { UserEntity } from "./auth/user.entity";
+import { WbsCategoryEntity } from "./wbs/wbs-category.entity";
+import { TenantModule } from "./tenants/tenant.module";
+import { TenantEntity } from "./tenants/tenant.entity";
+import { SearchModule } from "./search/search.module";
+import { TenancyMiddleware } from './common/middleware/tenancy.middleware';
+import { TenantService } from "./tenants/tenant.service"; // Import TenantService
 
 @Module({
   imports: [
-    // ConfigModule must be loaded first to make environment variables available globally
-    ConfigModule.forRoot({ isGlobal: true }), 
-    
-    // Use forRootAsync to ensure ConfigService is available for injection
+    ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule], // Import ConfigModule here as well
-      inject: [ConfigService], // Inject ConfigService
+      imports: [ConfigModule],
+      inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const databaseUrl = configService.get<string>('DATABASE_URL');
+        const databaseUrl = configService.get<string>("DATABASE_URL");
         if (!databaseUrl) {
-          throw new Error('DATABASE_URL environment variable is not set');
+          throw new Error("DATABASE_URL environment variable is not set");
         }
         return {
-          type: 'postgres',
+          type: "postgres",
           url: databaseUrl,
-          // Conditionally enable SSL for Neon databases
-          ssl: databaseUrl.includes('neon.tech'),
+          ssl: databaseUrl.includes("neon.tech"),
           entities: [
             WbsBudgetEntity,
             LiveExpenseEntity,
             UserEntity,
+            WbsCategoryEntity,
+            TenantEntity,
           ],
-          synchronize: false, 
+          synchronize: false,
           logging: true,
         };
       },
-    }), 
+    }),
     WbsModule,
     AuthModule,
+    TenantModule,
+    SearchModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [], // Remove TenantService from AppModule providers
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(TenancyMiddleware)
+      .forRoutes('*'); // Apply TenancyMiddleware to all routes
+  }
+}

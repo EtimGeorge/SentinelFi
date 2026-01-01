@@ -80,3 +80,13 @@ export const flattenWBSForDisplay = (nodes: WBSNode[], level: number = 0): { id:
     }
     return result;
 };
+
+// Interface for WBS items returned by the AI agent (mirrors Python's WBSItemBase)
+export interface WBSItemBase {
+  wbs_code: string;
+  description: string;
+  unit_cost_budgeted: number;
+  quantity_budgeted: number;
+  parent_wbs_id: string | null;
+  duration_days_budgeted: number | null;
+}

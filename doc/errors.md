@@ -1,275 +1,134 @@
-### STEP 125 - Refactor Budget Drafting Page (Professional Dark UI & Template Integration)
+[11:47:52 PM] File change detected. Starting incremental compilation...
 
-**GUIDANCE:** We are completely reworking the `BudgetDraftingPage` to align with the professional Dark Mode mockups (e.g., "Create New Budget Item"). We will use the structured categories from the **Comprehensive Project Budget (PDF/OCR)**—H/R, Material, Equipment/Tools, Logistics—to create default WBS options and enhance the form layout with cards and clear visual separation of financial fields.
+[11:47:52 PM] Found 0 errors. Watching for file changes.
 
-**FILE PATH:** `./frontend/pages/budget/draft.tsx` (REPLACE entire file content)
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] AppModule dependencies initialized +80ms
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +3ms   
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] PassportModule dependencies initialized +1ms  
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] HttpModule dependencies initialized +0ms      
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] ConfigHostModule dependencies initialized +1ms
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +1ms    
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +0ms    
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] JwtModule dependencies initialized +150ms
+[Nest] 8664  - 12/31/2025, 11:47:59 PM     LOG [InstanceLoader] ThrottlerModule dependencies initialized +1ms
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: CREATE EXTENSION IF NOT EXISTS "uuid-ossp"
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmCoreModule dependencies initialized +3490ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +2ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] SearchModule dependencies initialized +15ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] WbsModule dependencies initialized +4ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] TenantModule dependencies initialized +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [InstanceLoader] AuthModule dependencies initialized +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] WbsController {/api/v1/wbs}: +37ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/categories, GET} route +15ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/categories, POST} route +3ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/categories/:id, DELETE} route +3ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/categories/:id, PATCH} route +3ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-draft, POST} route +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-draft/batch, POST} route +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/expense/live-entry, POST} route +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget/rollup, GET} route +2ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-drafts/pending, GET} route +2ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-drafts/:id/approve, PATCH} route +1ms     
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/budget-drafts/:id/reject, PATCH} route +5ms      
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/wbs/expense/exceptions/major-variance, GET} route +4ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] AiController {/api/v1/ai}: +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/ai/draft-budget, POST} route +2ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] DcsController {/api/v1/dcs}: +0ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/dcs/schedule-report, POST} route +2ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/dcs/test-data, GET} route +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] AuthController {/api/v1/auth}: +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/login, POST} route +2ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/register, POST} route +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/forgot-password-request, POST} route +1ms       
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/logout, POST} route +5ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/test-secure, GET} route +3ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/users, GET} route +2ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/users, POST} route +6ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/users/:id, PATCH} route +2ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/auth/users/:id, DELETE} route +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] TenantController {/api/v1/admin/tenants}: +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants, POST} route +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants, GET} route +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants/:id, GET} route +5ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants/:id, PATCH} route +2ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/admin/tenants/:id, DELETE} route +1ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RoutesResolver] SearchController {/api/v1/search}: +0ms
+[Nest] 8664  - 12/31/2025, 11:48:03 PM     LOG [RouterExplorer] Mapped {/api/v1/search, GET} route +2ms
+--- Phase 3: FINAL DESTRUCTIVE RE-SEED ---
+query: SELECT "UserEntity"."id" AS "UserEntity_id", "UserEntity"."email" AS "UserEntity_email", "UserEntity"."role" AS "UserEntity_role", "UserEntity"."is_active" AS "UserEntity_is_active", "UserEntity"."created_at" AS "UserEntity_created_at", "UserEntity"."tenant_id" AS "UserEntity_tenant_id", "UserEntity"."reset_password_token" AS "UserEntity_reset_password_token", "UserEntity"."reset_password_expires" AS "UserEntity_reset_password_expires" FROM "public"."user" "UserEntity" WHERE (("UserEntity"."email" = $1)) LIMIT 1 -- PARAMETERS: ["admin@sentinelfi.com"]
+query failed: SELECT "UserEntity"."id" AS "UserEntity_id", "UserEntity"."email" AS "UserEntity_email", "UserEntity"."role" AS "UserEntity_role", "UserEntity"."is_active" AS "UserEntity_is_active", "UserEntity"."created_at" AS "UserEntity_created_at", "UserEntity"."tenant_id" AS "UserEntity_tenant_id", "UserEntity"."reset_password_token" AS "UserEntity_reset_password_token", "UserEntity"."reset_password_expires" AS "UserEntity_reset_password_expires" FROM "public"."user" "UserEntity" WHERE (("UserEntity"."email" = $1)) LIMIT 1 
+-- PARAMETERS: ["admin@sentinelfi.com"]
+error: error: column UserEntity.reset_password_token does not exist
+C:\temp\SentinelFi\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325
+            throw new QueryFailedError(query, parameters, err)
+                  ^
 
-```tsx
-import React, { useState, useEffect, useMemo } from 'react';
-import SecuredLayout from '../../components/Layout/SecuredLayout';
-import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import Head from 'next/head';
-import { WBSHierarchyTree, RollupData } from '../../components/dashboard/WBSHierarchyTree';
-import { buildWBSHierarchy, flattenWBSForDisplay } from '../../lib/wbsUtils';
-import { Minus, Plus, DollarSign, CloudUpload } from 'lucide-react';
-import Tooltip from '../../components/common/Tooltip';
-import { formatCurrency } from '../../lib/utils';
 
-// Defines the shape of data for the form (matching CreateWbsBudgetDto)
-interface WBSDraftForm {
-  parent_wbs_id: string | null;
-  wbs_code: string;
-  description: string;
-  unit_cost_budgeted: number;
-  quantity_budgeted: number;
-  duration_days_budgeted: number | null;
+QueryFailedError: column UserEntity.reset_password_token does not exist
+    at PostgresQueryRunner.query (C:\temp\SentinelFi\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)  
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async SelectQueryBuilder.loadRawResults (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async SeedTestUsersService.seedUsers (C:\temp\SentinelFi\backend\src\auth\seed-test-users.service.ts:46:24)
+    at async SeedTestUsersService.onApplicationBootstrap (C:\temp\SentinelFi\backend\src\auth\seed-test-users.service.ts:18:5)       
+    at async Promise.all (index 0)
+    at async callModuleBootstrapHook (C:\temp\SentinelFi\node_modules\@nestjs\core\hooks\on-app-bootstrap.hook.js:43:5) {
+  query: 'SELECT "UserEntity"."id" AS "UserEntity_id", "UserEntity"."email" AS "UserEntity_email", "UserEntity"."role" AS "UserEntity_role", "UserEntity"."is_active" AS "UserEntity_is_active", "UserEntity"."created_at" AS "UserEntity_created_at", "UserEntity"."tenant_id" AS "UserEntity_tenant_id", "UserEntity"."reset_password_token" AS "UserEntity_reset_password_token", "UserEntity"."reset_password_expires" AS "UserEntity_reset_password_expires" FROM "public"."user" "UserEntity" WHERE (("UserEntity"."email" = $1)) LIMIT 1',   
+  parameters: [ 'admin@sentinelfi.com' ],
+  driverError: error: column UserEntity.reset_password_token does not exist
+      at C:\temp\SentinelFi\node_modules\pg\lib\client.js:545:17
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async PostgresQueryRunner.query (C:\temp\SentinelFi\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async SelectQueryBuilder.loadRawResults (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+      at async SelectQueryBuilder.executeEntitiesAndRawResults (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+      at async SelectQueryBuilder.getRawAndEntities (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+      at async SelectQueryBuilder.getOne (C:\temp\SentinelFi\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+      at async SeedTestUsersService.seedUsers (C:\temp\SentinelFi\backend\src\auth\seed-test-users.service.ts:46:24)
+      at async SeedTestUsersService.onApplicationBootstrap (C:\temp\SentinelFi\backend\src\auth\seed-test-users.service.ts:18:5)     
+      at async Promise.all (index 0) {
+    length: 130,
+    severity: 'ERROR',
+    code: '42703',
+    detail: undefined,
+    hint: undefined,
+    position: '290',
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'parse_relation.c',
+    line: '3716',
+    routine: 'errorMissingColumn'
+  },
+  length: 130,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '290',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3716',
+  routine: 'errorMissingColumn'
 }
 
-const initialFormState: WBSDraftForm = {
-  parent_wbs_id: null,
-  wbs_code: '',
-  description: '',
-  unit_cost_budgeted: 0,
-  quantity_budgeted: 1,
-  duration_days_budgeted: null,
-};
-
-const BudgetDraftingPage: React.FC = () => {
-  const api = useSecuredApi();
-  const [formData, setFormData] = useState<WBSDraftForm>(initialFormState);
-  const [existingWbsData, setExistingWbsData] = useState<RollupData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  // Fetch existing WBS for context display (WBSHierarchyTree)
-  useEffect(() => {
-    const fetchWBS = async () => {
-      try {
-        const response = await api.get<RollupData[]>('/wbs/budget/rollup');
-        setExistingWbsData(response.data);
-      } catch (e) {
-        console.error("Failed to fetch WBS for context:", e);
-      }
-    };
-    fetchWBS();
-  }, [api, success]);
-
-  // Memoize the indented WBS list for the Parent WBS dropdown
-  const parentWBSOptions = useMemo(() => {
-    const hierarchy = buildWBSHierarchy(existingWbsData);
-    return flattenWBSForDisplay(hierarchy, 0); 
-  }, [existingWbsData]);
-
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: ['unit_cost_budgeted', 'quantity_budgeted', 'duration_days_budgeted'].includes(name) 
-              ? (value === '' ? null : Number(value)) 
-              : value,
-    }));
-  };
-
-  // Helper for Quantity Stepper
-  const handleQuantityChange = (delta: number) => {
-    setFormData(prev => ({
-      ...prev,
-      quantity_budgeted: Math.max(0.01, (prev.quantity_budgeted || 0) + delta),
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-    
-    // Final DTO preparation
-    const dataToSend = {
-      ...formData,
-      unit_cost_budgeted: formData.unit_cost_budgeted || 0,
-      quantity_budgeted: formData.quantity_budgeted || 0,
-      parent_wbs_id: formData.parent_wbs_id === '' ? null : formData.parent_wbs_id, 
-      duration_days_budgeted: formData.duration_days_budgeted || undefined
-    };
-
-    try {
-      await api.post('/wbs/budget-draft', dataToSend);
-      setSuccess(`WBS Line ${formData.wbs_code} drafted successfully. Awaiting Finance approval.`);
-      setFormData(initialFormState);
-    } catch (e: any) {
-      const msg = e.response?.data?.message || e.message;
-      setError(`Draft Failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const estimatedCost = (formData.unit_cost_budgeted || 0) * (formData.quantity_budgeted || 0);
-
-  return (
-    <SecuredLayout>
-      <Head><title>Budget Drafting | SentinelFi</title></Head>
-      
-      {/* HEADER SECTION (Aligned with Mockup) */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <p className="text-sm text-gray-400">Alpha Project / Financial Control / Budget Drafting</p>
-          <h1 className="text-4xl font-bold text-white mt-1">Create New Budget Item</h1>
-          <p className="text-sm text-brand-primary mt-1">Status: Drafting</p>
-        </div>
-        <div className="flex space-x-4">
-          <button className="text-gray-400 hover:text-white transition">Cancel</button>
-          <button
-            type="submit"
-            onClick={handleSubmit} // Use onClick here to allow form submission logic
-            disabled={loading}
-            className="px-6 py-2 rounded-lg font-semibold text-white bg-alert-positive hover:bg-alert-positive/90 disabled:opacity-50 transition shadow-md"
-          >
-            Save Draft
-          </button>
-        </div>
-      </div>
-      
-      {/* FORM LAYOUT (Two Columns - General Info / Financials) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column (Span 2): WBS Allocation and General Information */}
-        <div className="lg:col-span-2 space-y-8">
-          
-          {/* WBS ALLOCATION CARD (Card 1) */}
-          <div className="bg-gray-800 p-6 rounded-xl shadow-xl">
-            <h2 className="text-xl font-semibold text-brand-primary mb-4">WBS Allocation</h2>
-            <p className="text-sm text-gray-400 mb-4">Select the parent element</p>
-            
-            <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-white mb-1" htmlFor="wbs_code">WBS Code <span className="text-alert-critical">*</span></label>
-                  <input type="text" name="wbs_code" id="wbs_code" value={formData.wbs_code} onChange={handleChange} required 
-                    placeholder="e.g., 1.1.1 or 2.1"
-                    className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm focus:border-brand-primary focus:ring-brand-primary/50 text-white" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-1" htmlFor="parent_wbs_id">Parent WBS Element <span className="text-alert-critical">*</span></label>
-                  <select name="parent_wbs_id" id="parent_wbs_id" value={formData.parent_wbs_id || ''} onChange={handleChange}
-                    className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm focus:border-brand-primary focus:ring-brand-primary/50 text-white appearance-none">
-                      <option value="" className="bg-gray-800 text-gray-400">-- NO PARENT (New Level 1) --</option>
-                      {parentWBSOptions.map(wbs => (
-                        <option key={wbs.id} value={wbs.id} className="bg-gray-800 text-white">
-                          {wbs.label}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">This item will be nested under the selected hierarchy.</p>
-                </div>
-            </div>
-          </div>
-          
-          {/* GENERAL INFORMATION CARD (Card 2) */}
-          <div className="bg-gray-800 p-6 rounded-xl shadow-xl">
-            <h2 className="text-xl font-semibold text-brand-primary mb-4">General Information</h2>
-            
-            <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-white mb-1" htmlFor="description">Description <span className="text-alert-critical">*</span></label>
-                  <input type="text" name="description" id="description" value={formData.description} onChange={handleChange} required
-                    placeholder="e.g., Q3 Marketing Campaign Assets"
-                    className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
-                </div>
-                
-                <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-1">Vendor / Payee</label>
-                      <input type="text" placeholder="Search vendor database..." className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-1" htmlFor="duration_days_budgeted">Duration (Days)</label>
-                      <input type="number" name="duration_days_budgeted" id="duration_days_budgeted" value={formData.duration_days_budgeted || ''} onChange={handleChange} min="0"
-                        className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-1">Required Date</label>
-                      <input type="date" placeholder="mm/dd/yyyy" className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
-                    </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white mb-1">Justification / Notes</label>
-                  <textarea placeholder="Provide context for this budget request..." rows={3}
-                    className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white"></textarea>
-                </div>
-            </div>
-          </div>
-          
-        </div>
-        
-        {/* Right Column (Span 1): Financials and Attachments */}
-        <div className="lg:col-span-1 space-y-8">
-          
-          {/* FINANCIALS CARD (Card 3) */}
-          <div className="bg-gray-800 p-6 rounded-xl shadow-xl">
-            <h2 className="text-xl font-semibold text-brand-primary mb-4">Financials</h2>
-            
-            <div className="space-y-4">
-                {/* Unit Cost */}
-                <div>
-                  <label className="block text-sm font-medium text-white mb-1" htmlFor="unit_cost_budgeted">Unit Cost</label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₦</span>
-                    <input type="number" name="unit_cost_budgeted" id="unit_cost_budgeted" value={formData.unit_cost_budgeted || ''} onChange={handleChange} required step="0.01" min="0"
-                      className="block w-full pl-8 p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
-                  </div>
-                </div>
-
-                {/* Quantity Stepper */}
-                <div>
-                  <label className="block text-sm font-medium text-white mb-1" htmlFor="quantity_budgeted">Quantity</label>
-                  <div className="flex items-center space-x-2">
-                    <button type="button" onClick={() => handleQuantityChange(-1)} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition">
-                      <Minus className="w-5 h-5 text-white" />
-                    </button>
-                    <input type="number" name="quantity_budgeted" id="quantity_budgeted" value={formData.quantity_budgeted || ''} onChange={handleChange} required step="0.01" min="0.01"
-                      className="block w-full text-center p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
-                    <button type="button" onClick={() => handleQuantityChange(1)} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition">
-                      <Plus className="w-5 h-5 text-white" />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Total Estimated Cost */}
-                <div className="p-4 bg-brand-dark/70 rounded-lg border border-brand-secondary/50 text-center">
-                    <p className="text-sm text-gray-400">TOTAL ESTIMATED COST</p>
-                    <p className="text-3xl font-bold text-white mt-1">
-                        {formatCurrency(estimatedCost)}
-                    </p>
-                    <p className="text-xs text-alert-positive mt-1">
-                        <CheckSquare className="w-3 h-3 inline mr-1" /> Within budget allocation for 1.1.1
-                    </p>
-                </div>
-            </div>
-          </div>
-
-          {/* ATTACHMENTS CARD (Card 4) */}
-          <div className="bg-gray-800 p-6 rounded-xl shadow-xl">
-            <h2 className="text-xl font-semibold text-brand-primary mb-4">Attachments</h2>
-            <div className="border-2 border-dashed border-gray-700 p-8 rounded-lg text-center cursor-pointer hover:border-brand-primary transition">
-              <CloudUpload className="w-10 h-10 mx-auto text-gray-500 mb-2" />
-              <p className="text-sm text-gray-400">Click to upload or drag and drop quotes/invoices</p>
-            </div>
-          </div>
-
-        </div>
-      </div>
-      
-    </SecuredLayout>
-  );
-};
-
-export default BudgetDraftingPage;
-```
-
-NEXT ACTION: Save and overwrite the existing `./frontend/pages/budget/draft.tsx`. We now proceed to implement the Expense Tracker page based on the new, professional mockup.
-
----
+Node.js v22.20.0

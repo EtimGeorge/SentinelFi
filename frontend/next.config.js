@@ -7,7 +7,7 @@ const nextConfig = {
       {
         // This makes all /api/v1 calls go to the local backend
         source: '/api/v1/:path*',
-        destination: 'http://127.0.0.1:3000/api/v1/:path*', // Use 127.0.0.1 for maximum local compatibility
+        destination: 'http://127.0.0.1:3001/api/v1/:path*', // Use 127.0.0.1 for maximum local compatibility
       },
     ]
   },
