@@ -5,26 +5,30 @@ interface UIState {
   isMobileSidebarOpen: boolean;
   isDesktopSidebarCollapsed: boolean;
   unreadNotificationsCount: number;
-  socket: WebSocket | null; // NEW: WebSocket instance - Re-enabled
-  socketConnected: boolean; // NEW: WebSocket connection status - Re-enabled
+  socket: WebSocket | null;
+  socketConnected: boolean;
 
   toggleMobileSidebar: () => void;
   closeMobileSidebar: () => void;
   toggleDesktopSidebar: () => void;
   setUnreadNotificationsCount: (count: number) => void;
-  // fetchUnreadNotificationsCount: () => Promise<void>; // REMOVED: Replaced by WebSocket
 
-  // NEW: WebSocket actions - Re-enabled
   connectWebSocket: () => void;
   disconnectWebSocket: () => void;
+
+  // NEW: Reconnection state
+  reconnectAttempts: number;
+  reconnectTimeoutId: NodeJS.Timeout | null;
 }
 
 const useUIStore = create<UIState>((set, get) => ({
   isMobileSidebarOpen: false,
   isDesktopSidebarCollapsed: false,
   unreadNotificationsCount: 0,
-  socket: null, // Re-enabled
-  socketConnected: false, // Re-enabled
+  socket: null,
+  socketConnected: false,
+  reconnectAttempts: 0, // Initialize
+  reconnectTimeoutId: null, // Initialize
 
   toggleMobileSidebar: () => set((state) => ({ isMobileSidebarOpen: !state.isMobileSidebarOpen })),
   closeMobileSidebar: () => set({ isMobileSidebarOpen: false }),
@@ -44,9 +48,17 @@ const useUIStore = create<UIState>((set, get) => ({
 
   // Re-enabling WebSocket connection
   connectWebSocket: () => {
-    if (get().socketConnected && get().socket?.readyState === WebSocket.OPEN) {
+    const state = get();
+    
+    if (state.socketConnected && state.socket?.readyState === WebSocket.OPEN) {
       console.log('WebSocket already connected.');
       return;
+    }
+
+    // Clear any existing reconnection timeout
+    if (state.reconnectTimeoutId) {
+      clearTimeout(state.reconnectTimeoutId);
+      set({ reconnectTimeoutId: null });
     }
 
     // Connect to backend WebSocket endpoint
@@ -55,9 +67,11 @@ const useUIStore = create<UIState>((set, get) => ({
 
     newSocket.onopen = () => {
       console.log('WebSocket connected');
-      set({ socket: newSocket, socketConnected: true });
-      // Optionally, fetch initial unread count via REST if not sent on connect
-      // get().fetchUnreadNotificationsCount();
+      set({ 
+        socket: newSocket, 
+        socketConnected: true,
+        reconnectAttempts: 0 // ✅ Reset on successful connection
+      });
     };
 
     newSocket.onmessage = (event) => {
@@ -76,16 +90,29 @@ const useUIStore = create<UIState>((set, get) => ({
     newSocket.onerror = (error) => {
       console.error('WebSocket error:', error);
       set({ socketConnected: false });
-      // Attempt to reconnect after a delay, but implement backoff
-      setTimeout(() => get().connectWebSocket(), 5000);
+      // Note: onclose will also be triggered after onerror, handling reconnection
     };
 
     newSocket.onclose = (event) => {
       console.log('WebSocket disconnected:', event.code, event.reason);
       set({ socket: null, socketConnected: false });
-      // Attempt to reconnect only if not intentionally disconnected
+      
+      // ✅ Only reconnect if not intentionally disconnected
       if (!event.wasClean) {
-        setTimeout(() => get().connectWebSocket(), 5000);
+        const currentAttempts = get().reconnectAttempts;
+        const nextAttempt = currentAttempts + 1;
+        
+        // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
+        const delay = Math.min(1000 * Math.pow(2, currentAttempts), 30000);
+        
+        console.log(`Reconnection attempt ${nextAttempt} in ${delay}ms`);
+        
+        const timeoutId = setTimeout(() => {
+          set({ reconnectAttempts: nextAttempt });
+          get().connectWebSocket();
+        }, delay);
+        
+        set({ reconnectTimeoutId: timeoutId });
       }
     };
 
@@ -93,11 +120,25 @@ const useUIStore = create<UIState>((set, get) => ({
   },
 
   disconnectWebSocket: () => {
-    const socket = get().socket;
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.close(1000, 'Client disconnected'); // 1000 is normal closure
+    const state = get();
+    
+    // Clear reconnection timeout
+    if (state.reconnectTimeoutId) {
+      clearTimeout(state.reconnectTimeoutId);
     }
-    set({ socket: null, socketConnected: false, unreadNotificationsCount: 0 });
+    
+    const socket = state.socket;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.close(1000, 'Client disconnected');
+    }
+    
+    set({ 
+      socket: null, 
+      socketConnected: false, 
+      unreadNotificationsCount: 0,
+      reconnectAttempts: 0, // Reset attempts on intentional disconnect
+      reconnectTimeoutId: null // Clear timeout id
+    });
   },
 }));
 

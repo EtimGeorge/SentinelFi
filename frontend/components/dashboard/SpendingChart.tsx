@@ -19,15 +19,19 @@ interface SpendingChartProps {
  * Transforms the flat rollup data into chart data, aggregating to WBS Level 1.
  */
 const transformDataForChart = (data: RollupData[]): ChartData[] => {
+  console.log('[SpendingChart] Received data for transformation:', data);
   // 1. Filter for only Level 1 WBS items (root nodes) for executive overview
   const level1Data = data.filter(item => !item.parent_wbs_id);
+  console.log('[SpendingChart] Filtered Level 1 data:', level1Data);
 
-  return level1Data.map(item => ({
+  const chartData = level1Data.map(item => ({
     name: `${item.wbs_code} ${item.description.substring(0, 15)}...`,
     Budget: Number(item.total_cost_budgeted),
     Spent: Number(item.total_paid_rollup),
     color: getWBSColor(item.wbs_code),
   }));
+  console.log('[SpendingChart] Generated chartData:', chartData);
+  return chartData;
 };
 
 /**
@@ -60,6 +64,7 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
   const chartData = transformDataForChart(data);
 
   if (chartData.length === 0) {
+    console.log('[SpendingChart] No chart data to render. Displaying empty state.');
     return (
       <div className="h-96 flex items-center justify-center text-gray-500 bg-gray-50 rounded-lg border border-dashed">
         No Level 1 WBS data to display in chart.
@@ -72,34 +77,36 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data }) => {
   const spentColor = '#0D9488'; // Teal for Actual Spent (Primary Brand Color)
   
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg h-[400px]">
+    <div className="bg-gray-900 p-6 rounded-xl shadow-lg h-[400px] border border-gray-700">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={chartData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" /> {/* Adjusted stroke color for dark theme */}
           <XAxis 
             dataKey="name" 
             angle={-20} 
             textAnchor="end" 
             height={60} 
-            stroke={budgetColor}
+            stroke="#9CA3AF" // Adjusted stroke color for dark theme
+            tick={{ fill: '#D1D5DB' }} // Adjusted tick color for dark theme
             interval={0}
             style={{ fontSize: '12px' }}
           />
           <YAxis 
-            tickFormatter={(value) => formatCurrency(value, 'NGN', false)} // Using updated formatCurrency
-            stroke={budgetColor}
+            tickFormatter={(value) => formatCurrency(value, 'USD', 'en-US', true)} // Using updated formatCurrency with omitCurrencySymbol
+            stroke="#9CA3AF" // Adjusted stroke color for dark theme
+            tick={{ fill: '#D1D5DB' }} // Adjusted tick color for dark theme
             style={{ fontSize: '12px' }}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ paddingTop: '10px' }} />
+          <Legend wrapperStyle={{ paddingTop: '10px', color: '#D1D5DB' }} /> {/* Adjusted legend color */}
           
           {/* Budget Bar - Static background for reference */}
           <Bar 
             dataKey="Budget" 
-            fill="#d1d5db" // Light gray/silver for the budgeted reference
+            fill="#4B5563" // Darker gray for the budgeted reference
             name="Budgeted Cost"
             radius={[4, 4, 0, 0]}
           />

@@ -1,8 +1,9 @@
 import { Entity, PrimaryGeneratedColumn, Column, Unique } from "typeorm";
+import { IWbsCategoryEntity } from "../../../shared/types/wbs"; // NEW: Import shared interface
 
 @Entity({ name: "wbs_category", schema: "public" }) // Master data, resides in public schema
 @Unique(["code"])
-export class WbsCategoryEntity {
+export class WbsCategoryEntity implements IWbsCategoryEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 

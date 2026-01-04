@@ -21,3 +21,11 @@ export interface WbsBudget {
   // Making it optional is safer for a shared type.
   user?: User; 
 }
+
+// NEW: Interface for WbsCategoryEntity (for frontend consumption)
+export interface IWbsCategoryEntity {
+  id: string;
+  code: string;
+  description: string;
+  created_at: Date;
+}

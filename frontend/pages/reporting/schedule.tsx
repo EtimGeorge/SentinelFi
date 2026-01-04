@@ -7,6 +7,7 @@ import { Send, Clock, SlidersHorizontal, FileDown } from 'lucide-react'; // Adde
 import { Role } from '../../components/context/AuthContext';
 import useToast from '../../store/toastStore';
 import { useAuth } from '../../components/context/AuthContext'; // NEW: Import useAuth
+import { RollupData } from '../../components/dashboard/WBSHierarchyTree';
 
 // Enum for Report Scope
 enum ReportScope {
@@ -65,7 +66,7 @@ const AutomatedReporting: React.FC = () => {
                 setProjects(projectRes.data.filter(item => !item.parent_wbs_id)); // Filter for root projects
             } catch (e: any) {
                 console.error("Failed to fetch data:", e);
-                addToast({ title: 'Error', description: `Failed to fetch data: ${e.message || 'Unknown error'}`, type: 'error' });
+                addToast(`Failed to fetch data: ${e.message || 'Unknown error'}`, 'error');
             }
         };
         fetchData();
@@ -91,13 +92,13 @@ const AutomatedReporting: React.FC = () => {
         setLoading(true);
 
         if (formData.emailRecipients.length === 0) {
-            addToast({ title: 'Validation Error', description: "Please enter at least one email address.", type: 'error' });
+            addToast("Please enter at least one email address.", 'error');
             setLoading(false);
             return;
         }
 
         if (!validateEmails(formData.emailRecipients)) {
-          addToast({ title: 'Validation Error', description: "One or more email addresses are invalid.", type: 'error' });
+          addToast("One or more email addresses are invalid.", 'error');
           setLoading(false);
           return;
         }
@@ -106,10 +107,10 @@ const AutomatedReporting: React.FC = () => {
             // CRITICAL: Call the DCS Integration API
             await api.post('/dcs/schedule-report', formData);
             
-            addToast({ title: 'Report Scheduled', description: `Report generation successfully scheduled to run ${formData.schedule} in ${formData.exportFormat} format for ${formData.emailRecipients.length} recipients.`, type: 'success' });
+            addToast(`Report generation successfully scheduled to run ${formData.schedule} in ${formData.exportFormat} format for ${formData.emailRecipients.length} recipients.`, 'success');
         } catch (e: any) {
             const msg = e.response?.data?.message || e.message;
-            addToast({ title: 'Scheduling Failed', description: `Scheduling Failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, type: 'error' });
+            addToast(`Scheduling Failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error');
         } finally {
             setLoading(false);
         }

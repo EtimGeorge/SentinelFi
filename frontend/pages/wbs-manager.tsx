@@ -4,20 +4,16 @@ import PageContainer from '../components/Layout/PageContainer';
 import { TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle } from 'lucide-react';
 import Card from '../components/common/Card';
 import { useSecuredApi } from '../components/hooks/useSecuredApi';
-import { WbsCategoryEntity } from '../../backend/src/wbs/wbs-category.entity';
+import { IWbsCategoryEntity } from '../../shared/types/wbs'; // Use IWbsCategoryEntity from shared
 import { Role, useAuth } from '../components/context/AuthContext';
+import useToast from '../store/toastStore';
 
-// Interface matching the WBS Category Entity
-interface WbsCategoryEntity {
-  id: string;
-  code: string;
-  description: string;
-}
 
 const WBSManagerPage: React.FC = () => {
   const { user } = useAuth(); // Get user for RBAC
   const api = useSecuredApi();
-  const [categories, setCategories] = useState<WbsCategoryEntity[]>([]);
+  const addToast = useToast(state => state.addToast); // Get addToast for toast messages
+  const [categories, setCategories] = useState<IWbsCategoryEntity[]>([]); // Use IWbsCategoryEntity
   const [loading, setLoading] = useState(true);
   const [newCode, setNewCode] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -41,14 +37,15 @@ const WBSManagerPage: React.FC = () => {
     setSuccessMessage(null);
     setError(null);
     try {
-      const response = await api.get<WbsCategoryEntity[]>('/wbs/categories');
+      const response = await api.get<IWbsCategoryEntity[]>('/wbs/categories'); // Use IWbsCategoryEntity
       setCategories(response.data);
     } catch (e: any) {
       setError("Failed to fetch categories: " + (e.response?.data?.message || e.message));
+      addToast(`Failed to fetch categories: ${e.response?.data?.message || e.message}`, 'error'); // Add toast
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, addToast]);
 
   useEffect(() => {
     fetchCategories();
@@ -58,6 +55,7 @@ const WBSManagerPage: React.FC = () => {
     e.preventDefault();
     if (!newCode || !newDescription) {
       setError("Code and Description cannot be empty.");
+      addToast("Code and Description cannot be empty.", 'error'); // Add toast
       return;
     }
 
@@ -69,16 +67,18 @@ const WBSManagerPage: React.FC = () => {
       setNewCode('');
       setNewDescription('');
       setSuccessMessage('Category created successfully!');
+      addToast('Category created successfully!', 'success'); // Add toast
       fetchCategories(); // Refresh list
     } catch (e: any) {
       const msg = e.response?.data?.message || e.message;
       setError(`Creation failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`);
+      addToast(`Creation failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error'); // Add toast
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditClick = (category: WbsCategoryEntity) => {
+  const handleEditClick = (category: IWbsCategoryEntity) => { // Use IWbsCategoryEntity
     setEditingCategoryId(category.id);
     setEditedCode(category.code);
     setEditedDescription(category.description);
@@ -90,6 +90,7 @@ const WBSManagerPage: React.FC = () => {
     e.preventDefault(); // Prevent form submission if this is part of a form
     if (!editingCategoryId || !editedCode || !editedDescription) {
       setError("Code and Description cannot be empty for update.");
+      addToast("Code and Description cannot be empty for update.", 'error'); // Add toast
       return;
     }
 
@@ -99,11 +100,13 @@ const WBSManagerPage: React.FC = () => {
     try {
       await api.patch(`/wbs/categories/${editingCategoryId}`, { code: editedCode.trim(), description: editedDescription.trim() });
       setSuccessMessage('Category updated successfully!');
+      addToast('Category updated successfully!', 'success'); // Add toast
       setEditingCategoryId(null); // Exit edit mode
       fetchCategories(); // Refresh list
     } catch (e: any) {
       const msg = e.response?.data?.message || e.message;
       setError(`Update failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`);
+      addToast(`Update failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error'); // Add toast
     } finally {
       setLoading(false);
     }
@@ -123,10 +126,12 @@ const WBSManagerPage: React.FC = () => {
     try {
       await api.delete(`/wbs/categories/${deletingCategoryId}`);
       setSuccessMessage('Category deleted successfully!');
+      addToast('Category deleted successfully!', 'success'); // Add toast
       fetchCategories(); // Refresh list
     } catch (e: any) {
       const msg = e.response?.data?.message || e.message;
       setError(`Deletion failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`);
+      addToast(`Deletion failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error'); // Add toast
     } finally {
       setLoading(false);
       setShowDeleteConfirm(false);

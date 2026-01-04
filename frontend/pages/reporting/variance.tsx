@@ -6,7 +6,7 @@ import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { formatCurrency, getWBSColor } from '../../lib/utils';
 import { RollupData } from '../../components/dashboard/WBSHierarchyTree';
-import { WbsCategoryEntity } from '../../backend/src/wbs/wbs-category.entity';
+import { IWbsCategoryEntity } from '../../../shared/types/wbs';
 import useToast from '../../store/toastStore';
 import PageContainer from '../../components/Layout/PageContainer';
 import { useAuth, Role } from '../../components/context/AuthContext';
@@ -43,6 +43,7 @@ interface ReportFilters {
   reportScope: ReportScope; // NEW: Report Scope filter
   selectedProjectId: string | null; // NEW: For individual project scope
   exportFormat: ExportFormat; // Export format
+  reportType: string; // NEW: Type of report to generate (e.g., 'Variance', 'WBS', 'Executive')
 }
 
 // Interface for Live Expense Exceptions (assuming partial LiveExpenseEntity)
@@ -60,7 +61,7 @@ const VarianceReportPage: React.FC = () => {
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
   const [reportData, setReportData] = useState<RollupData[]>([]);
-  const [categories, setCategories] = useState<WbsCategoryEntity[]>([]);
+  const [categories, setCategories] = useState<IWbsCategoryEntity[]>([]);
   const [projects, setProjects] = useState<RollupData[]>([]); // NEW: State for projects (root WBS items)
   const [majorVarianceAlerts, setMajorVarianceAlerts] = useState<LiveExpenseException[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +75,7 @@ const VarianceReportPage: React.FC = () => {
     reportScope: ReportScope.AllProjects, // NEW: Default scope
     selectedProjectId: null, // NEW: Default selected project
     exportFormat: ExportFormat.PDF,
+    reportType: 'Variance', // NEW: Default report type
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -87,7 +89,7 @@ const VarianceReportPage: React.FC = () => {
       try {
         const [reportRes, categoryRes, projectRes] = await Promise.all([ // NEW: Fetch projects too
             api.get<RollupData[]>('/wbs/budget/rollup', { params: { startDate: filters.startDate, endDate: filters.endDate } }), 
-            api.get<WbsCategoryEntity[]>('/wbs/categories'),
+            api.get<IWbsCategoryEntity[]>('/wbs/categories'),
             api.get<RollupData[]>('/wbs/budget/rollup') // Fetch all rollup data to identify root projects
         ]);
         setReportData(reportRes.data);
@@ -95,7 +97,7 @@ const VarianceReportPage: React.FC = () => {
         setProjects(projectRes.data.filter(item => !item.parent_wbs_id)); // Filter for root projects
       } catch (e: any) {
         setError("Failed to fetch data: " + (e.response?.data?.message || e.message));
-        addToast({ title: 'Error', description: `Failed to fetch data: ${e.message || 'Unknown error'}`, type: 'error' });
+        addToast(`Failed to fetch data: ${e.message || 'Unknown error'}`, 'error');
       } finally {
         setLoading(false);
       }
@@ -112,7 +114,7 @@ const VarianceReportPage: React.FC = () => {
         setMajorVarianceAlerts(response.data);
       } catch (e: any) {
         console.error("Failed to fetch major variance alerts:", e);
-        addToast({ title: 'Error', description: `Failed to fetch major variance alerts: ${e.message || 'Unknown error'}`, type: 'error' });
+        addToast(`Failed to fetch major variance alerts: ${e.message || 'Unknown error'}`, 'error');
       } finally {
         setLoadingAlerts(false);
       }
@@ -150,7 +152,7 @@ const VarianceReportPage: React.FC = () => {
 
   const exportReport = async () => {
     setGeneratingReport(true);
-    addToast({ title: 'Report Export', description: `Generating ${filters.reportType} report in ${filters.exportFormat} format... (Backend Integration Needed)`, type: 'info' });
+    addToast(`Generating ${filters.reportType} report in ${filters.exportFormat} format... (Backend Integration Needed)`, 'info');
 
     try {
       const payload = generateReportPayload();
@@ -170,10 +172,10 @@ const VarianceReportPage: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      addToast({ title: 'Report Ready', description: `Your ${payload.reportType} report has been generated and downloaded.`, type: 'success' });
+      addToast(`Your ${payload.reportType} report has been generated and downloaded.`, 'success');
 
     } catch (e: any) {
-      addToast({ title: 'Export Failed', description: `Failed to generate report: ${e.message || 'Unknown error'}`, type: 'error' });
+      addToast(`Failed to generate report: ${e.message || 'Unknown error'}`, 'error');
     } finally {
       setGeneratingReport(false);
     }
@@ -181,7 +183,7 @@ const VarianceReportPage: React.FC = () => {
 
   const printReport = async () => {
     setGeneratingReport(true);
-    addToast({ title: 'Print Report', description: `Preparing ${filters.reportType} report for printing... (Backend Integration Needed)`, type: 'info' });
+    addToast(`Preparing ${filters.reportType} report for printing... (Backend Integration Needed)`, 'info');
 
     try {
       const payload = generateReportPayload();
@@ -191,10 +193,10 @@ const VarianceReportPage: React.FC = () => {
       // Simulate print dialog (in a real app, this would be a server-generated PDF opened in a new tab for printing)
       window.open('about:blank', 'PrintWindow', 'width=800,height=600'); // Opens a blank window
       // For now, just a message
-      addToast({ title: 'Print Ready', description: `Report ready for printing in a new window.`, type: 'success' });
+      addToast(`Report ready for printing in a new window.`, 'success');
 
     } catch (e: any) {
-      addToast({ title: 'Print Failed', description: `Failed to prepare report for printing: ${e.message || 'Unknown error'}`, type: 'error' });
+      addToast(`Failed to prepare report for printing: ${e.message || 'Unknown error'}`, 'error');
     } finally {
       setGeneratingReport(false);
     }
@@ -408,9 +410,10 @@ const VarianceReportPage: React.FC = () => {
                       </div>
                   </Card>
               </Link>
-        </div>
-              </div>
-          </>
-        );
-      };
+          </div> {/* closes lg:col-span-1 */}
+        </div> {/* closes grid div */}
+      </PageContainer>
+    </>
+  );
+};
 export default VarianceReportPage;

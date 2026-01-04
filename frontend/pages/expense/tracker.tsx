@@ -6,7 +6,7 @@ import Card from '../../components/common/Card';
 import { RollupData } from '../../components/dashboard/WBSHierarchyTree'; // Keep RollupData as it's used
 import { formatCurrency } from '../../lib/utils';
 import { buildWBSHierarchy, flattenWBSForDisplay } from '../../lib/wbsUtils';
-import { Wifi, Calendar, Zap, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Wifi, Calendar, Zap, AlertTriangle, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
 import useToast from '../../store/toastStore'; // NEW: Import useToast
 import Link from 'next/link'; // NEW: Import Link
 
@@ -64,7 +64,7 @@ const LiveExpenseTracker: React.FC = () => {
         setWbsData(response.data);
       } catch (e: any) {
         console.error("Failed to fetch WBS options:", e);
-        addToast({ title: 'Error', description: `Failed to fetch WBS options: ${e.message || 'Unknown error'}`, type: 'error' });
+        addToast(`Failed to fetch WBS options: ${e.message || 'Unknown error'}`, 'error');
       }
     };
     fetchWBSOptions();
@@ -85,7 +85,7 @@ const LiveExpenseTracker: React.FC = () => {
         setRecentExpenses(mockRecentExpenses);
       } catch (e: any) {
         console.error("Failed to fetch recent expenses:", e);
-        addToast({ title: 'Error', description: `Failed to fetch recent expenses: ${e.message || 'Unknown error'}`, type: 'error' });
+        addToast(`Failed to fetch recent expenses: ${e.message || 'Unknown error'}`, 'error');
       } finally {
         setLoadingRecent(false);
       }
@@ -129,13 +129,13 @@ const LiveExpenseTracker: React.FC = () => {
     try {
       // API Call: Direct write operation for the Assigned Project User
       await api.post('/wbs/expense/live-entry', dataToSend); 
-      addToast({ title: 'Expense Logged', description: `Expense for WBS ${formData.wbs_id} successfully logged.`, type: 'success' });
+      addToast(`Expense for WBS ${formData.wbs_id} successfully logged.`, 'success');
       setFormData(initialFormState);
       // After logging, refresh recent expenses
       // TODO: Implement a better way to refresh recent expenses (e.g., refetch or add to state)
     } catch (e: any) {
       const msg = e.response?.data?.message || e.message;
-      addToast({ title: 'Expense Failed', description: `Expense Entry Failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, type: 'error' });
+      addToast(`Expense Entry Failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error');
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Head from 'next/head';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import { UploadCloud, FileText, CheckCircle, BrainCircuit, Loader2 } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, BrainCircuit, Loader2, CloudUpload } from 'lucide-react';
 import { WBSItemBase } from '../../lib/wbsUtils';
 import withAuth from '../../components/auth/withAuth';
 import { Role } from '../../components/context/AuthContext';
@@ -80,11 +80,11 @@ const AIBudgetDraftingPage: React.FC = () => {
 
     try {
       await api.post('/wbs/budget-draft/batch', draftResult.wbs_line_items);
-      addToast({ title: 'Draft Imported', description: 'Budget draft imported successfully!', type: 'success' }); // NEW: Use toast
+      addToast('Budget draft imported successfully!', 'success');
       setDraftResult(null); // Clear the draft after import
     } catch (error: any) {
       console.error('Failed to import draft:', error);
-      addToast({ title: 'Import Failed', description: `Failed to import draft: ${error.message || 'Unknown error'}`, type: 'error' }); // NEW: Use toast
+      addToast(`Failed to import draft: ${error.message || 'Unknown error'}`, 'error');
     }
   };
 

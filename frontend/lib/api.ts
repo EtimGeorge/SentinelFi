@@ -1,9 +1,7 @@
 import axios from "axios";
 
-// const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
-
-// CRITICAL FIX: Use environment variable for the base URL
-const BASE_URL = "/api/v1";
+// CRITICAL FIX: Base URL is now relative, as Next.js will handle proxying via next.config.js rewrites.
+const BASE_URL = "/api/v1"; 
 
 /**
  * Global, unsecured Axios instance.

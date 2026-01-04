@@ -22,16 +22,8 @@ const DashboardHome: React.FC = () => {
     <>
       <Head><title>Welcome | SentinelFi</title></Head>
       <PageContainer
-        title={
-          <>
-            Welcome, <span className="text-brand-primary">{user?.email.split('@')[0]}</span>!
-          </>
-        }
-        subtitle={
-          <>
-            You are logged in as a <span className="font-semibold text-brand-secondary">{user?.role}</span>.
-          </>
-        }
+        title={`Welcome, ${user?.email.split('@')[0]}!`}
+        subtitle={`You are logged in as a ${user?.role}.`}
       >
         <h2 className="text-2xl font-semibold text-white mb-6 border-b border-gray-700 pb-2">Quick Navigation</h2>
         

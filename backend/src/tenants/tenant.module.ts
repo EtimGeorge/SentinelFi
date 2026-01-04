@@ -14,6 +14,9 @@ import { WbsModule } from '../wbs/wbs.module'; // <-- New Import
   ],
   controllers: [TenantController],
   providers: [TenantService],
-  exports: [TenantService], // Export if other modules need to interact with tenants
+  exports: [
+    TenantService,
+    TypeOrmModule.forFeature([TenantEntity]), // Export the repository
+  ],
 })
 export class TenantModule {}

@@ -26,5 +26,6 @@ export interface UserPayload {
 export interface AuthenticatedRequest extends Request {
   user?: UserPayload;
   tenant_id?: string | null; // Corrected to allow null
+  schema_name?: string; // NEW: Added by TenancyMiddleware for convenience
   queryRunner?: QueryRunner; // Attached by TenancyMiddleware for the duration of the request
 }

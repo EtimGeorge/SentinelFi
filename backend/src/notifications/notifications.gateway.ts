@@ -1,4 +1,4 @@
-import { WebSocketGateway, WebSocketServer, SubscribeMessage, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/platform-ws'; // Use @nestjs/platform-ws for WebSocket support
+import { WebSocketGateway, WebSocketServer, SubscribeMessage, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets'; // Use @nestjs/websockets for WebSocket support
 import { Server, WebSocket } from 'ws'; // Import WebSocket and Server from 'ws'
 import { Logger } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
@@ -11,7 +11,7 @@ import { NotificationsService } from './notifications.service';
   },
 })
 export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  @WebSocketServer() server: Server;
+  @WebSocketServer() server!: Server;
   private readonly logger = new Logger(NotificationsGateway.name);
 
   constructor(private readonly notificationsService: NotificationsService) {}

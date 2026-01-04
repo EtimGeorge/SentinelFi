@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
@@ -110,7 +110,7 @@ const Sidebar: React.FC = () => {
       >
         <div className="flex flex-col h-full w-full p-4">
           <div className="flex-shrink-0 mb-8 mt-2 flex items-center justify-between">
-            <Image height={40} width={160} src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="SentinelFi Logo" />
+            <Image height={40} width={160} src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="SentinelFi Logo" priority={true} />
             <button
               onClick={closeMobileSidebar}
               className="text-white hover:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-primary p-2 rounded-md"
@@ -136,12 +136,13 @@ const Sidebar: React.FC = () => {
       >
         <div className="flex flex-col h-full w-full p-4">
             <div className={`flex-shrink-0 mb-8 mt-2 flex flex-col items-center ${isDesktopSidebarCollapsed ? 'justify-center' : ''}`}>
-              <Image
-                height={40}
-                width={160}
-                className={`transition-opacity duration-300 ease-in-out ${isDesktopSidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}
+            <Image
+                height={isDesktopSidebarCollapsed ? 0 : 40}
+                width={isDesktopSidebarCollapsed ? 0 : 160}
+                className={`transition-opacity duration-300 ease-in-out ${isDesktopSidebarCollapsed ? 'opacity-0' : 'opacity-100'}`}
                 src="/SentinelFi Logo Concept-bg-remv-logo-only.png"
                 alt="SentinelFi Logo"
+                priority={true}
               />
               <h1 className={`text-xl text-white font-semibold transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden text-center
                       ${isDesktopSidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>

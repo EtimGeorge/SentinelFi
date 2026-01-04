@@ -37,6 +37,7 @@ export class AuthService {
     const user = await this.usersRepository.findOne({
       where: { email: loginDto.email },
       select: ["id", "email", "password_hash", "role", "is_active", "tenant_id"],
+      relations: ['tenant'], // Also load the tenant relation
     });
 
     if (!user || !user.is_active) {
@@ -58,6 +59,8 @@ export class AuthService {
     }
 
     this.logger.log("Password validation passed.");
+    this.logger.log(`[AuthService:Login] User fetched from DB has tenant_id: ${user.tenant_id}`);
+
 
     const payload = {
       email: user.email,
@@ -65,6 +68,8 @@ export class AuthService {
       role: user.role,
       tenant_id: user.tenant_id,
     };
+    this.logger.log(`[AuthService:Login] JWT Payload generated with tenant_id: ${payload.tenant_id}`);
+
 
     this.logger.log("Generating JWT token and returning user object.");
     return {
@@ -74,6 +79,8 @@ export class AuthService {
         email: user.email,
         role: user.role,
         is_active: user.is_active,
+        tenant_id: user.tenant_id,
+        tenant_name: user.tenant ? user.tenant.name : null,
       },
     };
   }
@@ -143,22 +150,25 @@ export class AuthService {
   }
 
   /**
-   * Phase 7 Deliverable: Admin Function - Retrieves all users (for Admin/IT Head)
+   * Admin Function - Retrieves all users (for Admin/IT Head)
    */
   async findAllUsers(): Promise<UserResponseDto[]> {
     const users = await this.usersRepository.find({
-      select: ["id", "email", "role", "is_active"],
+      relations: ['tenant'], // Join with the tenant entity
+      select: ["id", "email", "role", "is_active", "tenant_id"],
     });
     return users.map((user) => ({
       id: user.id,
       email: user.email,
       role: user.role,
       is_active: user.is_active,
+      tenant_id: user.tenant_id,
+      tenant_name: user.tenant ? user.tenant.name : null, // Include tenant name
     }));
   }
 
   /**
-   * Phase 7 Deliverable: Admin Function - Creates a new user with initial role and password
+   * Admin Function - Creates a new user with initial role and password
    */
   async createUser(createUserDto: CreateUserDto): Promise<UserResponseDto> {
     const existing = await this.usersRepository.findOne({
@@ -181,16 +191,24 @@ export class AuthService {
 
     const savedUser = await this.usersRepository.save(newUser);
 
+    // Re-fetch with relation to get tenant name
+    const userWithTenant = await this.usersRepository.findOne({
+      where: { id: savedUser.id },
+      relations: ['tenant'],
+    });
+
     return {
-      id: savedUser.id,
-      email: savedUser.email,
-      role: savedUser.role,
-      is_active: savedUser.is_active,
+      id: userWithTenant!.id,
+      email: userWithTenant!.email,
+      role: userWithTenant!.role,
+      is_active: userWithTenant!.is_active,
+      tenant_id: userWithTenant!.tenant_id,
+      tenant_name: userWithTenant!.tenant ? userWithTenant!.tenant.name : null,
     };
   }
 
   /**
-   * Phase 7 Deliverable: Admin Function - Updates a user's role/status
+   * Admin Function - Updates a user's role, status, and tenant assignment
    */
   async updateUser(
     id: string,
@@ -201,17 +219,34 @@ export class AuthService {
       throw new NotFoundException("User not found.");
     }
 
-    if (updateUserDto.role) user.role = updateUserDto.role;
-    if (updateUserDto.is_active !== undefined)
+    // Update role if provided
+    if (updateUserDto.role) {
+      user.role = updateUserDto.role;
+    }
+    // Update active status if provided
+    if (updateUserDto.is_active !== undefined) {
       user.is_active = updateUserDto.is_active;
+    }
+    // Update tenant assignment if provided
+    if (updateUserDto.tenant_id !== undefined) {
+      user.tenant_id = updateUserDto.tenant_id;
+    }
 
-    const updatedUser = await this.usersRepository.save(user);
+    const savedUser = await this.usersRepository.save(user);
+
+    // Re-fetch with relation to get tenant name for the response
+    const updatedUserWithTenant = await this.usersRepository.findOne({
+        where: { id: savedUser.id },
+        relations: ['tenant'],
+    });
 
     return {
-      id: updatedUser.id,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      is_active: updatedUser.is_active,
+      id: updatedUserWithTenant!.id,
+      email: updatedUserWithTenant!.email,
+      role: updatedUserWithTenant!.role,
+      is_active: updatedUserWithTenant!.is_active,
+      tenant_id: updatedUserWithTenant!.tenant_id,
+      tenant_name: updatedUserWithTenant!.tenant ? updatedUserWithTenant!.tenant.name : null,
     };
   }
 

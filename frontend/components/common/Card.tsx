@@ -7,6 +7,7 @@ interface CardProps {
   className?: string;
   headerContent?: React.ReactNode; // For buttons/actions in the header
   borderTopColor?: 'primary' | 'secondary' | 'alert' | 'positive';
+  noPadding?: boolean; // NEW: Prop to control internal padding
 }
 
 const colorMap = {
@@ -19,11 +20,12 @@ const colorMap = {
 /**
  * Professional, high-contrast card component for the Dark Theme UI.
  */
-const Card: React.FC<CardProps> = ({ children, title, subtitle, className = '', headerContent, borderTopColor }) => {
+const Card: React.FC<CardProps> = ({ children, title, subtitle, className = '', headerContent, borderTopColor, noPadding }) => {
   const borderClass = borderTopColor ? `border-t-4 ${colorMap[borderTopColor]}` : '';
+  const paddingClass = noPadding ? '' : 'p-6'; // Conditionally apply padding
 
   return (
-    <div className={`bg-gray-800 p-6 rounded-xl shadow-2xl ${borderClass} ${className}`}>
+    <div className={`bg-gray-800 ${paddingClass} rounded-xl shadow-2xl ${borderClass} ${className}`}>
       
       {(title || headerContent) && (
         <div className={`mb-4 flex ${headerContent ? 'justify-between items-center' : 'flex-col'} border-b border-gray-700 pb-3`}>

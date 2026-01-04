@@ -1,11 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { NotificationsGateway } from './notifications.gateway';
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly notificationsGateway: NotificationsGateway) {}
+  constructor(@Inject(forwardRef(() => NotificationsGateway)) private readonly notificationsGateway: NotificationsGateway) {}
 
   /**
    * Simulates sending an unread notification count update to a specific user

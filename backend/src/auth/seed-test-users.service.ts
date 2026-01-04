@@ -21,9 +21,8 @@ export class SeedTestUsersService implements OnApplicationBootstrap {
   }
 
   async seedUsers() {
-    this.logger.log("--- Phase 3: FINAL DESTRUCTIVE RE-SEED ---");
+    this.logger.log("--- Starting Test User Seeding ---");
 
-    // Define the users to create with the password 'P@ssw0rd'
     const usersToSeed = [
       { email: "admin@sentinelfi.com", role: Role.Admin, password: "P@ssw0rd" },
       {
@@ -50,8 +49,10 @@ export class SeedTestUsersService implements OnApplicationBootstrap {
       });
 
       if (existing) {
-        // DELETE existing user to force a fresh hash creation
-        await this.usersRepository.delete(existing.id);
+        this.logger.log(
+          `- User already exists: ${user.email}. Skipping re-creation.`,
+        );
+        continue; // Skip if user already exists
       }
 
       // The password is automatically hashed via the @BeforeInsert hook in UserEntity
@@ -62,9 +63,9 @@ export class SeedTestUsersService implements OnApplicationBootstrap {
         undefined, // Pass undefined for tenantId as these are not tenant-specific users
       );
       this.logger.log(
-        `- RE-SEEDED user: ${user.email} with Role: ${user.role} and PWD: P@ssw0rd`,
+        `- Created new user: ${user.email} with Role: ${user.role} and PWD: P@ssw0rd`,
       );
     }
-    this.logger.log("--- FINAL SEEDING COMPLETE ---");
+    this.logger.log("--- Test User Seeding Complete ---");
   }
 }

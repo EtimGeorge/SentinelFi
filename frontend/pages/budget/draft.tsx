@@ -3,7 +3,7 @@ import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
-import { WBSHierarchyTree, RollupData } from '../../components/dashboard/WBSHierarchyTree'; // Keep WBSHierarchyTree and RollupData
+import WBSHierarchyTree, { RollupData } from '../../components/dashboard/WBSHierarchyTree'; // Keep WBSHierarchyTree and RollupData
 import { buildWBSHierarchy, flattenWBSForDisplay } from '../../lib/wbsUtils';
 import { Minus, Plus, DollarSign, CloudUpload, CheckSquare } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
@@ -44,7 +44,7 @@ const BudgetDraftingPage: React.FC = () => {
         setExistingWbsData(response.data);
       } catch (e: any) {
         console.error("Failed to fetch WBS for context:", e);
-        addToast({ title: 'Error', description: `Failed to fetch WBS options: ${e.message || 'Unknown error'}`, type: 'error' });
+        addToast(`Failed to fetch WBS options: ${e.message || 'Unknown error'}`, 'error');
       }
     };
     fetchWBS();
@@ -57,7 +57,7 @@ const BudgetDraftingPage: React.FC = () => {
 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | React.ChangeEvent<HTMLTextAreaElement> | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+    const { name, value } = e.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement; // Explicit cast
     setFormData(prev => ({
       ...prev,
       [name]: ['unit_cost_budgeted', 'quantity_budgeted', 'duration_days_budgeted'].includes(name) 
@@ -90,11 +90,11 @@ const BudgetDraftingPage: React.FC = () => {
 
     try {
       await api.post('/wbs/budget-draft', dataToSend);
-      addToast({ title: 'Draft Saved', description: `WBS Line ${formData.wbs_code} drafted successfully. Awaiting Finance approval.`, type: 'success' }); // NEW: Use toast
+      addToast(`WBS Line ${formData.wbs_code} drafted successfully. Awaiting Finance approval.`, 'success');
       setFormData(initialFormState);
     } catch (e: any) {
       const msg = e.response?.data?.message || e.message;
-      addToast({ title: 'Draft Failed', description: `Draft Failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, type: 'error' }); // NEW: Use toast
+      addToast(`Draft Failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error');
     } finally {
       setLoading(false);
     }

@@ -6,17 +6,38 @@ import Card from '../components/common/Card';
 import { formatCurrency } from '../lib/utils';
 import { useAuth, Role } from '../components/context/AuthContext';
 import { useSecuredApi } from '../components/hooks/useSecuredApi';
+import Link from 'next/link'; // NEW: Import Link
+import useToast from '../store/toastStore'; // NEW: Import useToast
 
 // ... (interfaces remain the same)
 
 const ApprovalsPage: React.FC = () => {
-    // ... (hooks and state remain the same)
+  const { user, isAuthenticated, hasRole } = useAuth(); // Destructure hasRole
+  const api = useSecuredApi(); // Initialize api
+  const addToast = useToast(state => state.addToast); // Get addToast
+  const [pendingDrafts, setPendingDrafts] = useState([]);
+  const [loadingDrafts, setLoadingDrafts] = useState(true);
+  const [majorExceptions, setMajorExceptions] = useState([]);
+  const [loadingExceptions, setLoadingExceptions] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  
+  const isFinanceOrAdmin = hasRole([Role.Finance, Role.Admin]);
 
-    const fetchPendingDrafts = useCallback(async () => {
-        // ... (function logic remains the same)
-    }, [api, isFinanceOrAdmin]);
+  const fetchPendingDrafts = useCallback(async () => {
+    setLoadingDrafts(true);
+    try {
+      const response = await api.get('/wbs/budget/drafts/pending'); // Assuming this endpoint
+      setPendingDrafts(response.data);
+    } catch (e: any) {
+      console.error("Failed to fetch pending drafts:", e);
+      addToast(`Failed to fetch pending drafts: ${e.message || 'Unknown error'}`, 'error');
+    } finally {
+      setLoadingDrafts(false);
+    }
+  }, [api, addToast]);
 
-    const fetchMajorExceptions = useCallback(async () => {
+  const fetchMajorExceptions = useCallback(async () => {
         // ... (function logic remains the same)
     }, [api]);
 
@@ -119,7 +140,7 @@ const ApprovalsPage: React.FC = () => {
                                   <p className="text-sm text-gray-400 mt-1 flex items-center">
                                     Amount: {formatCurrency(exp.actual_paid_amount)} ({exp.variance_flag.replace('_', ' ')})
                                     {/* Placeholder for future detailed expense link */}
-                                    <FileText className="w-4 h-4 ml-2 text-brand-primary cursor-pointer" title="View Expense Details" />
+                                    <FileText className="w-4 h-4 ml-2 text-brand-primary cursor-pointer" />
                                   </p>
                               </div>
                           ))}

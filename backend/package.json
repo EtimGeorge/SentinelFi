@@ -11,6 +11,11 @@
     "postbuild": "powershell -Command \"mkdir .\\dist\\database\\ -Force\" && copy /Y .\\src\\database\\tenant-schema.sql .\\dist\\database\\tenant-schema.sql"
   },
   "dependencies": {
-    "@nestjs/throttler": "^6.5.0"
+    "@nestjs/platform-ws": "^11.1.11",
+    "@nestjs/throttler": "^6.5.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
   }
 }

@@ -4,6 +4,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef, // NEW: Import useRef
 } from "react";
 import { useRouter } from "next/router";
 import api from "../../lib/api";
@@ -53,11 +54,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const router = useRouter();
+  const hasRedirectedRef = useRef(false); // NEW: Ref to track redirect
 
   // Centralized Redirect Logic
   useEffect(() => {
-    // Don't redirect until the initial auth check is complete.
-    if (isInitialLoad) {
+    // Don't redirect until the initial auth check is complete OR
+    // if we've already tried to redirect in this cycle.
+    if (isInitialLoad || hasRedirectedRef.current) {
       return;
     }
 
@@ -92,10 +95,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     }
 
-    if (targetPath && router.pathname !== targetPath) { // NEW: Only navigate if targetPath is different
+    if (targetPath && router.pathname !== targetPath) {
+      hasRedirectedRef.current = true; // Set flag before redirect
       router.replace(targetPath);
     }
-  }, [user, isInitialLoad, router]);
+  }, [user, isInitialLoad, router.pathname]); // ✅ Simpler dependencies - router.replace is stable
+
+  // NEW: Reset redirect flag when user or initial load status changes
+  useEffect(() => {
+    hasRedirectedRef.current = false;
+  }, [user, isInitialLoad]);
 
   // CRITICAL: New initial check. We need a secure API call to see if a valid cookie exists.
   useEffect(() => {
@@ -113,8 +122,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           role: userFromApi.role,
         });
       } catch (error) {
-        console.error('checkAuthStatus: API call failed', error); // Keeping this for actual errors
-        // 401/403 (token expired/invalid) or network error
+        // Only log verbose errors for unexpected issues, not expected 401/403
+        if ((error as any).response?.status === 401 || (error as any).response?.status === 403) {
+          console.log('checkAuthStatus: Not authenticated or session expired (expected)');
+        } else {
+          console.error('checkAuthStatus: API call failed with unexpected error', error);
+        }
         setUser(null); // This is good, clears any old user state
       } finally {
         setIsInitialLoad(false); // THIS SHOULD BE CALLED!

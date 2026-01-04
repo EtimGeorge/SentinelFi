@@ -89,8 +89,10 @@ export class TenantService {
    * Finds all tenants from the public schema.
    */
   async findAllTenants(): Promise<TenantEntity[]> {
-    // This now correctly uses the injected repository which points to the public schema.
-    return this.tenantRepository.find();
+    this.logger.log('Attempting to find all tenants...');
+    const tenants = await this.tenantRepository.find();
+    this.logger.log(`Found ${tenants.length} tenants. Data: ${JSON.stringify(tenants)}`);
+    return tenants;
   }
 
   /**
