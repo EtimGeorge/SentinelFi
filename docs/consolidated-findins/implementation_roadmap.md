@@ -86,7 +86,7 @@ This document outlines a phased implementation plan for SentinelFi, integrating 
     *   [ ] Add and configure Jest for backend (unit/integration) and frontend (unit) packages.
     *   [ ] Add and configure Cypress or Playwright for End-to-End (E2E) testing.
     *   [ ] Write initial unit tests for a critical backend service (e.g., `AuthService`).
-    *   [ ] Write initial unit tests for a critical frontend component (e.g., `LoginForm`).
+    *   ✅ Write initial unit tests for a critical frontend component (e.g., `LoginForm`).
     *   [ ] Write a single E2E test for the login flow.
     *   [ ] Configure a CI/CD pipeline (e.g., using GitHub Actions) to run linting and all tests automatically on every push.
 

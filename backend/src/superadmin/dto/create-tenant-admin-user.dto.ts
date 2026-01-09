@@ -1,7 +1,7 @@
 import { PickType } from '@nestjs/mapped-types';
-import { CreateUserDto } from 'shared/types/user';
-import { IsOptional, IsString, IsUUID } from 'class-validator';
-import { Role } from 'shared/types/role.enum'; // Ensure Role is imported
+import { CreateUserDto } from '@shared/types/user';
+import { IsOptional, IsString, IsUUID, IsEmail, IsNotEmpty, IsBoolean, IsIn } from 'class-validator';
+import { Role } from '@shared/types/role.enum'; // Ensure Role is imported
 
 export class CreateTenantAdminUserDto extends PickType(CreateUserDto, [
   'email',
@@ -11,6 +11,22 @@ export class CreateTenantAdminUserDto extends PickType(CreateUserDto, [
   'is_active',
   'tenant_id',
 ]) {
+  @IsEmail()
+  @IsNotEmpty()
+  email!: string;
+
+  @IsString()
+  @IsIn(Object.values(Role))
+  role!: Role;
+
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  tenant_id?: string | null;
+
   @IsOptional()
   @IsString()
   first_name?: string;
@@ -18,14 +34,4 @@ export class CreateTenantAdminUserDto extends PickType(CreateUserDto, [
   @IsOptional()
   @IsString()
   last_name?: string;
-
-  @IsOptional()
-  @IsUUID()
-  tenant_id?: string | null;
-
-  // The role is explicitly set for tenant admins, so it should be mandatory
-  // but if we extend from CreateUserDto, it will already be marked as mandatory
-  // For clarity, we can optionally override it here if needed.
-  // @IsIn(Object.values(Role)) // This should already be handled by CreateUserDto
-  // role!: Role;
 }

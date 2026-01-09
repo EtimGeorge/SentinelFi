@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "@shared/*": ["../shared/*"],
+      "@src/*": ["./src/*"],
+      "@app/*": ["./src/app/*"],
+      "@auth/*": ["./src/auth/*"],
+      "@common/*": ["./src/common/*"],
+      "@audit/*": ["./src/audit/*"],
+      "@tenants/*": ["./src/tenants/*"],
+      "@wbs/*": ["./src/wbs/*"],
+      "@projects/*": ["./src/projects/*"],
+      "@operational-budgets/*": ["./src/operational-budgets/*"],
+      "@superadmin/*": ["./src/superadmin/*"],
+      "@database/*": ["./src/database/*"]
+    }
+  }
+}

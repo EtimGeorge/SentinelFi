@@ -1,4 +1,4 @@
-[8:52:02 AM] File change detected. Starting incremental compilation...
+[4:34:41 PM] Starting compilation in watch mode...
 
 src/auth/auth.service.ts:16:58 - error TS2307: Cannot find module '@shared/types/user' or its corresponding type declarations.
 
@@ -56,4 +56,4 @@ src/superadmin/dto/create-tenant-admin-user.dto.ts:12:3 - error TS2322: Type 'st
 12   'tenant_id',
      ~~~~~~~~~~~
 
-[8:52:03 AM] Found 11 errors. Watching for file changes.
+[4:36:47 PM] Found 11 errors. Watching for file changes.
