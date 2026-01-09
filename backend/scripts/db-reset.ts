@@ -6,7 +6,7 @@ import { execSync } from 'child_process';
 
 async function dbReset() {
   // Load environment variables dynamically, prioritizing .env.local over .env for the backend context
-  dotenv.config({ path: [path.resolve(process.cwd(), '.env.local'), path.resolve(process.cwd(), '.env')] });
+  dotenv.config({ path: [path.resolve(process.cwd(), 'backend', '.env.local'), path.resolve(process.cwd(), 'backend', '.env')] });
 
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -78,10 +78,10 @@ async function dbReset() {
     console.error('Error during database reset:', error);
     process.exit(1);
   } finally {
-    if (adminClient._connected) {
+    if (adminClient) { // Ensure client object is initialized
       await adminClient.end();
     }
-    if (appClient._connected) {
+    if (appClient) { // Ensure client object is initialized
       await appClient.end();
     }
   }

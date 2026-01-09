@@ -20,6 +20,7 @@
     "lint:ai": "temporary-files\\run_ruff_ai.bat",
     "typeorm": "ts-node -r tsconfig-paths/register --project backend/tsconfig.json ./node_modules/typeorm/cli.js",
     "typeorm:generate": "npm run typeorm migration:generate -- -d ormconfig.ts",
+    "typeorm:generate:audit": "npm run typeorm migration:generate backend/src/migrations/public/AuditLogTable -- -d ormconfig.ts",
     "typeorm:run": "npm run typeorm migration:run -- -d ormconfig.ts",
     "typeorm:revert": "npm run typeorm migration:revert -- -d ormconfig.ts",
     "typeorm:create": "npm run typeorm migration:create",
@@ -70,7 +71,7 @@
     "tailwindcss": "~3.4.3",
     "ts-node-dev": "^2.0.0",
     "tsconfig-paths": "^4.2.0",
-    "typeorm": "^0.3.20",
+    "typeorm": "^0.3.28",
     "uuid": "^13.0.0",
     "zustand": "^5.0.9"
   },

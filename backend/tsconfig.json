@@ -9,13 +9,15 @@
     "allowSyntheticDefaultImports": true,
     "sourceMap": true,
     "outDir": "./dist",
+    "baseUrl": "./src",
 
     "typeRoots": [
       "./node_modules/@types",
       "../node_modules/@types"
     ],
     "paths": {
-      "shared/*": ["../shared/*"]
+      "shared/*": ["../../shared/*"],
+      "projects/*": ["./projects/*"] // Added path mapping for projects module
     },
     "incremental": true,
     "skipLibCheck": true,
@@ -24,8 +26,7 @@
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "strict": true,
-    "lib": ["es2020"],
-    "moduleResolution": "node"
+    "lib": ["es2020"]
   },
   "include": ["src/**/*"],
   "references": [{ "path": "../shared" }]

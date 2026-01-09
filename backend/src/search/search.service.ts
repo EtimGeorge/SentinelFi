@@ -29,7 +29,7 @@ export class SearchService {
     });
 
     const expenses = await this.expenseRepository.find({
-      where: { item_description: Like(`%${query}%`) },
+      where: { description: Like(`%${query}%`) },
     });
 
     return {

@@ -16,7 +16,7 @@ const config: DataSourceOptions = {
   migrations: [
     './backend/src/migrations/**/*.ts', // Discover all migrations in both public and client_template folders
   ],
-  migrationsTableName: 'public.migrations', // Explicitly specify where TypeORM's migration table is
+  migrationsTableName: 'migrations', // Corrected to just 'migrations'
   synchronize: false, // Should always be false for production
   logging: true,
   // For migration generation (optional, can be configured via CLI if needed)

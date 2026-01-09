@@ -172,19 +172,64 @@ For regularly scheduled reports:
 
 ## 6. Role-Based Access Control (RBAC) Summary
 
-SentinelFi rigorously enforces RBAC to ensure users only access and modify data relevant to their roles.
+SentinelFi rigorously enforces RBAC to ensure users only access and modify data relevant to their roles. This table reflects the updated administrative roles.
 
-| Feature Area             | Roles with Access                                                                                             |
-| :----------------------- | :------------------------------------------------------------------------------------------------------------ |
-| **Budget Drafting**      | Finance, Admin, Assigned Project User                                                                         |
-| **Budget Approval**      | Finance, Admin                                                                                                |
-| **Expense Tracking**     | Assigned Project User, Admin, CEO, Finance, IT Head, Operational Head                                           |
-| **WBS Category Mgmt.**   | Admin, Finance                                                                                                |
-| **Tenant Provisioning**  | Admin, Finance                                                                                                |
-| **User Management**      | Admin, IT Head                                                                                                |
-| **Executive Dashboard**  | CEO, Finance, Admin, IT Head, Operational Head                                                                |
-| **Variance Reporting**   | CEO, Finance, Admin, IT Head, Operational Head                                                                |
-| **Automated Reporting**  | Finance, Admin, Operational Head                                                                              |
+| Feature Area                  | Roles with Access                                                                                             |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------ |
+| **SuperAdmin Tenant Mgmt.**   | `SuperAdmin`                                                                                                  |
+| **Admin Audit Log**           | `SuperAdmin`, `Admin`                                                                                         |
+| **User Management**           | `SuperAdmin`, `Admin`, `IT Head`                                                                              |
+| **Tenant Assignment in User Mgmt.** | `SuperAdmin` (only)                                                                                         |
+| **Budget Drafting**           | `Finance`, `Admin`, `Assigned Project User`                                                                     |
+| **Budget Approval**           | `Finance`, `Admin`                                                                                              |
+| **Expense Tracking**          | `Assigned Project User`, `Admin`, `CEO`, `Finance`, `IT Head`, `Operational Head`                               |
+| **WBS Category Mgmt.**        | `Admin`, `Finance`                                                                                              |
+| **Executive Dashboard**       | `CEO`, `Finance`, `Admin`, `IT Head`, `Operational Head`                                                        |
+| **Variance Reporting**        | `CEO`, `Finance`, `Admin`, `IT Head`, `Operational Head`                                                        |
+| **Automated Reporting**       | `Finance`, `Admin`, `Operational Head`                                                                          |
+
+---
+
+## 7. Platform Administration
+
+This section covers features accessible to `SuperAdmin` and `Admin` roles for managing the platform, its tenants, and its users.
+
+### 7.1. SuperAdmin: Tenant Management
+
+Users with the `SuperAdmin` role have access to a dedicated dashboard for managing all client tenants on the platform.
+
+1.  **Login & Redirection**: Upon logging in, a `SuperAdmin` is automatically redirected to the **Tenant Management Dashboard** at `/super/tenants`.
+2.  **View All Tenants**: This page displays a comprehensive table of all tenants, showing their name, status, and other relevant details.
+3.  **Create New Tenant**:
+    *   Click the **"Create New Tenant"** button to open a modal form.
+    *   Enter the `Tenant Name` and an `Admin Email` for the new tenant's primary administrator.
+    *   Upon submission, the system automatically:
+        a. Creates the new `tenant` record.
+        b. Provisions a new, isolated database schema for that tenant.
+        c. Creates a new `user` account for the specified admin email, assigns them the `Admin` role, and links them to the new tenant. The new user will receive an email to set their password.
+
+### 7.2. Admin: User Management & Tenant Assignment
+
+The user management page is enhanced with tenant-assignment capabilities, strictly controlled by role.
+
+1.  **Navigation**: Navigate to **Admin > User Management** from the sidebar or access `/admin/users`.
+2.  **View Users**: The table lists all users. For `SuperAdmin` roles, it also displays which tenant each user belongs to.
+3.  **Tenant Assignment (SuperAdmin only)**:
+    *   When a `SuperAdmin` edits a user, a **"Tenant"** dropdown is enabled.
+    *   This allows the `SuperAdmin` to assign or re-assign a user to any existing tenant.
+    *   For all other roles (e.g., `Admin`), this dropdown is disabled to prevent unauthorized tenant changes.
+
+### 7.3. Admin: Audit Log Viewer
+
+For enhanced security and compliance, all key events are recorded in an audit log, which is viewable by `Admin` and `SuperAdmin` roles.
+
+1.  **Navigation**: Navigate to **Admin > Audit Log** from the sidebar or access `/admin/audit-log`.
+2.  **Data Visualization**: The page presents a bar chart visualizing the number of events per day, providing an at-a-glance overview of platform activity.
+3.  **Filtering**: You can refine the audit log data using the filter controls:
+    *   **Date Range**: Select a start and end date.
+    *   **User Email**: Filter for events performed by a specific user.
+    *   **Action Type**: Filter by the type of event (e.g., `LOGIN_SUCCESS`, `CREATE_TENANT`).
+4.  **Data Table**: Below the chart, a paginated table displays the detailed log entries, including timestamp, the user who performed the action, the action itself, the target of the action, and other relevant details.
 
 ---
 

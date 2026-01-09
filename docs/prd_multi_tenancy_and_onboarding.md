@@ -1,8 +1,8 @@
 # Product Requirements Document: SentinelFi Multi-Tenancy, Administration, and Onboarding
 
-**Version:** 1.0
-**Date:** 2026-01-02
-**Status:** In Progress
+**Version:** 1.1
+**Date:** 2026-01-05
+**Status:** In Progress (Significant Refactor & New Modules Implemented)
 
 ---
 
@@ -75,12 +75,12 @@ The vision is to create a system where multiple client companies ("Tenants") can
 
 ### Phase 1: Foundational Administration (Immediate Priority)
 
-- [ ] **Feature 1.1: SuperAdmin Manual Tenant Creation**
-    - [ ] **UI:** Create a new page at `/super/tenants`, accessible only to `SuperAdmin` roles.
-    - [ ] **UI:** The page should contain a table listing all tenants.
-    - [ ] **UI:** Implement a "Create New Tenant" button and form.
-    - [ ] **Backend:** Create a `SuperAdminController` with a `POST /super/tenants` endpoint.
-    - [ ] **Backend:** Implement `GET /super/tenants` and `PATCH /super/tenants/:id` endpoints.
+- [x] **Feature 1.1: SuperAdmin Manual Tenant Creation**
+    - [x] **UI:** Create a new page at `/super/tenants`, accessible only to `SuperAdmin` roles.
+    - [x] **UI:** The page should contain a table listing all tenants.
+    - [x] **UI:** Implement a "Create New Tenant" button and form.
+    - [x] **Backend:** Create a `SuperAdminController` with a `POST /super/tenants` endpoint.
+    - [x] **Backend:** Implement `GET /super/tenants` and `PATCH /super/tenants/:id` endpoints.
 - [x] **Feature 1.2: Enhanced User Management for Tenant Assignment**
     - [x] **UI:** Make the "Tenant" dropdown functional in the "Edit" mode on the `/admin/users` page.
     - [x] **Backend:** Update `auth.service.ts`'s `updateUser` method to handle saving the `tenant_id`.
@@ -123,11 +123,45 @@ The vision is to create a system where multiple client companies ("Tenants") can
 
 ---
 
-## 5.0 Non-Functional Requirements
+## 5.0 New: Admin Audit & Session History
+
+**Status:** Implemented
+
+### 5.1 Overview
+To enhance security, compliance, and administrative oversight, this feature introduces a comprehensive audit logging system and a user interface for `Admin` and `SuperAdmin` roles to review key activities within the platform.
+
+### 5.2 Backend Requirements
+- [x] **Database:** Create a new table `audit_log` in the `public` schema.
+  - **Columns:** `id` (PK), `timestamp` (with timezone), `userId` (FK to `user.id`), `userEmail`, `action` (string, e.g., 'LOGIN_SUCCESS', 'LOGIN_FAILURE', 'UPDATE_USER'), `targetType` (string, e.g., 'USER', 'TENANT'), `targetId` (string), `details` (JSONB for storing payload/context), `ipAddress` (string).
+- [x] **New Module:** Create a new `AuditModule` and `AuditService` in the backend.
+  - The `AuditService` will have a single method, `logEvent(event: AuditEvent)`.
+- [x] **Integration:** Inject `AuditService` into other services to log events:
+  - `AuthService`: Log successful logins, failed logins, user updates, and user creation.
+  - `TenantService`: Log tenant creation and updates.
+  - `TenancyMiddleware`: Log when a user's `search_path` is set (successful tenant context switch).
+- [x] **API Endpoint:** Create a new `AuditController` with a secure endpoint:
+  - `GET /api/v1/admin/audit-log`: Retrieves audit logs.
+  - **Protection:** Must be accessible only to `Admin` and `SuperAdmin` roles.
+  - **Functionality:** Supports pagination and filtering (by user email, action type, date range).
+
+### 5.3 Frontend Requirements
+- [x] **New Page:** Create a new page at `/admin/audit-log`.
+  - **Access Control:** This page must only be accessible to users with `Admin` or `SuperAdmin` roles. The navigation link should be conditionally rendered in the sidebar for these roles.
+- [x] **UI - Filtering:** Add UI controls to filter the audit log by:
+  - Date range (start and end date).
+  - User Email (text input with autocomplete).
+  - Action Type (dropdown).
+- [x] **UI - Data Display:**
+  - **Table View:** Display the filtered audit logs in a clear, paginated table.
+  - **Chart View:** Implement a bar chart (e.g., using `recharts` or `chart.js`) to visualize the number of events per day over the selected date range. This provides an at-a-glance view of activity levels.
+
+---
+
+## 6.0 Non-Functional Requirements
 
 -   **Security:** All new endpoints must be protected with `JwtAuthGuard` and `RolesGuard`. All user input must be validated using DTOs and `class-validator`.
 -   **Data Isolation:** The architecture must strictly enforce that no query can accidentally cross from one tenant's schema to another. All tenant-specific queries must be dynamically scoped to the `tenant_id` from the user's authenticated session.
--   **Scalability:** The automated tenant provisioning process must be robust and handle potential failures gracefully.
--   **Usability:** User flows, especially for registration and invitation, must be intuitive and minimize friction.
+-   **Scalability:** The automated tenant provisioning process must be robust and handle potential failures gracefully. The `audit_log` table should be indexed for efficient querying.
+-   **Usability:** User flows, especially for registration and invitation, must be intuitive and minimize friction. The new audit log UI should be easy to navigate and filter.
 
 This document will serve as our blueprint. The immediate next step is to begin implementation of **Phase 1**.
