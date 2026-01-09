@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
-import { Role } from "@shared/types/role.enum";
+import { Role } from "shared/types/role.enum";
 import { TenantEntity } from "../../src/tenants/tenant.entity"; // Relative path to TenantEntity
 
 @Entity({ name: "user", schema: "public" }) // NOTE: This entity lives in the MASTER DB/Schema, not a tenant schema
