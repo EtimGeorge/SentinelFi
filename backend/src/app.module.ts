@@ -1,6 +1,7 @@
-import { Module, NestModule, MiddlewareConsumer } from "@nestjs/common";
+import { Module, NestModule, MiddlewareConsumer, RequestMethod } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { APP_GUARD } from "@nestjs/core";
 import { WbsBudgetEntity } from "./wbs/wbs-budget.entity";
 import { LiveExpenseEntity } from "./wbs/live-expense.entity";
 import { WbsModule } from "./wbs/wbs.module";
@@ -10,8 +11,19 @@ import { WbsCategoryEntity } from "./wbs/wbs-category.entity";
 import { TenantModule } from "./tenants/tenant.module";
 import { TenantEntity } from "./tenants/tenant.entity";
 import { SearchModule } from "./search/search.module";
+import { NotificationsModule } from "./notifications/notifications.module";
+import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
+import { AuditModule } from "./audit/audit.module";
+import { AuditLogEntity } from "./audit/audit.entity";
+import { ProjectEntity } from "./projects/project.entity";
+import { ProjectsModule } from "./projects/projects.module";
+import { OperationalBudgetEntity } from "./operational-budgets/operational-budget.entity";
+import { OperationalBudgetsModule } from "./operational-budgets/operational-budgets.module";
+import { OperationalBudgetCategoryEntity } from "./operational-budgets/operational-budget-category.entity";
+import { OperationalExpenseEntity } from "./operational-budgets/operational-expense.entity";
+import { SuperAdminModule } from './superadmin/superadmin.module';
 import { TenancyMiddleware } from './common/middleware/tenancy.middleware';
-import { NotificationsModule } from './notifications/notifications.module'; // NEW: Import NotificationsModule
+import { TenantDatabaseModule } from "./database/tenant-database.module";
 
 @Module({
   imports: [
@@ -34,26 +46,41 @@ import { NotificationsModule } from './notifications/notifications.module'; // N
             UserEntity,
             WbsCategoryEntity,
             TenantEntity,
+            AuditLogEntity,
+            ProjectEntity,
+            OperationalBudgetEntity,
+            OperationalBudgetCategoryEntity,
+            OperationalExpenseEntity,
           ],
           synchronize: false,
           logging: true,
         };
       },
     }),
+    TenantDatabaseModule, // Add the TenantDatabaseModule here
     WbsModule,
     AuthModule,
     TenantModule,
     SearchModule,
-    NotificationsModule, // NEW: Add NotificationsModule
+    NotificationsModule,
+    AuditModule,
+    ProjectsModule,
+    OperationalBudgetsModule,
+    SuperAdminModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    // TenancyGuard removed from APP_GUARD as TenancyMiddleware handles search_path
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(TenancyMiddleware)
-      .exclude('auth/(.*)') // Exclude all auth routes from this middleware
-      .forRoutes('*'); // Apply TenancyMiddleware to all other routes
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }
