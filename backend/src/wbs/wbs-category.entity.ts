@@ -1,19 +1,32 @@
-import { Entity, PrimaryGeneratedColumn, Column, Unique } from "typeorm";
-import { IWbsCategoryEntity } from "../../../shared/types/wbs"; // NEW: Import shared interface
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+  Unique,
+} from "typeorm";
+import { WbsBudgetEntity } from "./wbs-budget.entity"; // NEW: Import WbsBudgetEntity
+import { LiveExpenseEntity } from "./live-expense.entity"; // NEW: Import LiveExpenseEntity
 
-@Entity({ name: "wbs_category", schema: "public" }) // Master data, resides in public schema
-@Unique(["code"])
-export class WbsCategoryEntity implements IWbsCategoryEntity {
+@Entity({ name: "wbs_category", schema: "client_template" })
+@Unique(["name", "tenant_id"]) // Categories should be unique per tenant
+export class WbsCategoryEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
-  // The WBS Code for Level 1 (e.g., '1.0', '2.0')
-  @Column({ length: 10, unique: true })
-  code!: string;
+  @Column({ type: "varchar", length: 255 })
+  name!: string; // Renamed from description
 
-  // The human-readable name (e.g., 'HUMAN RESOURCES', 'MATERIAL REQUIREMENTS')
-  @Column({ length: 255 })
-  description!: string;
+  @Column({ type: "uuid", nullable: false })
+  tenant_id!: string;
+
+  @OneToMany(() => WbsBudgetEntity, (wbsBudget) => wbsBudget.category)
+  wbsBudgets!: WbsBudgetEntity[];
+
+  @OneToMany(() => LiveExpenseEntity, (liveExpense) => liveExpense.category)
+  liveExpenses!: LiveExpenseEntity[];
 
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;

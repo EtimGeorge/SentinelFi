@@ -71,22 +71,4 @@ export class DcsController {
       recipients: requestDto.emailRecipients.length,
     };
   }
-
-  /**
-   * Endpoint: GET /api/v1/dcs/test-data
-   * Utility for frontend to see the kind of data the report consumes.
-   */
-  @Get("test-data")
-  @Roles(Role.Admin, Role.Finance)
-  async getReportDataTest(@Req() req: AuthenticatedRequest) { // Add AuthenticatedRequest
-    if (!req.user) { // NEW: User check
-      throw new UnauthorizedException('User not authenticated.');
-    }
-    const tenant_id = req.user.tenant_id;
-    if (!tenant_id) {
-      throw new BadRequestException("Tenant ID not found in authenticated user payload.");
-    }
-    // Just returning a sample of the full WBS data
-    return this.wbsService.findAllWbsBudgetsWithRollup(tenant_id); // Pass tenant_id
-  }
 }

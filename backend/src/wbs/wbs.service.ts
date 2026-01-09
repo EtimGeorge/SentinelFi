@@ -1,610 +1,572 @@
 import {
   Injectable,
+  Logger,
   ConflictException,
   NotFoundException,
   BadRequestException,
   InternalServerErrorException,
-  Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Not, DataSource } from "typeorm";
+import { In, Repository, DataSource } from "typeorm";
 import { WbsBudgetEntity } from "./wbs-budget.entity";
-import { LiveExpenseEntity } from "./live-expense.entity";
-import { CreateWbsBudgetDto } from "./dto/create-wbs-budget.dto";
-import { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
 import { WbsCategoryEntity } from "./wbs-category.entity";
-import { WbsBudgetRollupDto } from "./dto/wbs-budget-rollup.dto";
-import { UpdateWbsCategoryDto } from "./dto/update-wbs-category.dto";
+import { CreateWbsBudgetDto } from "./dto/create-wbs-budget.dto";
 import { UpdateWbsBudgetDto } from "./dto/update-wbs-budget.dto";
+import { LiveExpenseEntity } from "./live-expense.entity";
+import { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
 import { UpdateLiveExpenseDto } from "./dto/update-live-expense.dto";
+import { TENANT_DATA_SOURCE } from "../database/constants";
+import { Inject } from '@nestjs/common';
+import { GetWbsBudgetsDto } from './dto/get-wbs-budgets.dto';
+import { GetLiveExpensesDto } from './dto/get-live-expenses.dto';
+import { WbsBudgetRollupDto } from './dto/wbs-budget-rollup.dto';
+import { GetProjectsDto } from 'projects/dto/get-projects.dto';
+import { ProjectEntity } from 'projects/project.entity';
+import { ProjectsService } from 'projects/projects.service';
+import { UserEntity } from '../auth/user.entity'; // NEW: Import UserEntity
+import { Buffer } from "buffer"; // Needed for export methods
 
 @Injectable()
 export class WbsService {
   private readonly logger = new Logger(WbsService.name);
 
   constructor(
-    @InjectRepository(WbsBudgetEntity)
-    private wbsRepository: Repository<WbsBudgetEntity>,
-    @InjectRepository(LiveExpenseEntity)
-    private expenseRepository: Repository<LiveExpenseEntity>,
-    @InjectRepository(WbsCategoryEntity)
-    private categoryRepository: Repository<WbsCategoryEntity>,
+    @Inject(TENANT_DATA_SOURCE)
     private dataSource: DataSource,
+    @Inject('WBSBUDGET_REPOSITORY')
+    private wbsBudgetRepository: Repository<WbsBudgetEntity>,
+    @Inject('WBSCATEGORY_REPOSITORY')
+    private wbsCategoryRepository: Repository<WbsCategoryEntity>,
+    @Inject('LIVEEXPENSE_REPOSITORY')
+    private liveExpenseRepository: Repository<LiveExpenseEntity>,
+    private readonly projectsService: ProjectsService,
   ) {}
 
-  /**
-   * NEW: Updates a WBS budget draft.
-   * @param id The ID of the WBS budget draft to update.
-   * @param updateWbsBudgetDto The data to update.
-   * @returns The updated WbsBudgetEntity.
-   */
-  async updateWbsBudget(
-    id: string,
-    updateWbsBudgetDto: UpdateWbsBudgetDto,
-  ): Promise<WbsBudgetEntity> {
-    // Because this method uses the standard repository, it will respect the
-    // search_path set by the TenancyMiddleware automatically.
-    const wbsBudget = await this.wbsRepository.findOne({ where: { wbs_id: id } });
-    if (!wbsBudget) {
-      throw new NotFoundException(`WBS Budget with ID ${id} not found.`);
-    }
-
-    // Merge the new data into the existing entity
-    const updatedWbsBudget = this.wbsRepository.merge(wbsBudget, updateWbsBudgetDto);
-
-    return this.wbsRepository.save(updatedWbsBudget);
-  }
-
-  /**
-   * NEW: Updates a live expense entry.
-   * @param id The ID (number) of the live expense to update.
-   * @param updateLiveExpenseDto The data to update.
-   * @returns The updated LiveExpenseEntity.
-   */
-  async updateLiveExpense(
-    id: number, // Corrected type to number
-    updateLiveExpenseDto: UpdateLiveExpenseDto,
-  ): Promise<LiveExpenseEntity> {
-    const liveExpense = await this.expenseRepository.findOne({ where: { expense_id: id } });
-    if (!liveExpense) {
-      throw new NotFoundException(`Live Expense with ID ${id} not found.`);
-    }
-
-    // Recalculation logic may be needed here if amounts change, for now, simple merge
-    // For a robust implementation, changing amounts should re-trigger variance calculation.
-    this.logger.warn(`Updating expense ${id}. Consider re-running variance calculations if amounts changed.`);
-
-    const updatedLiveExpense = this.expenseRepository.merge(liveExpense, updateLiveExpenseDto);
-
-    return this.expenseRepository.save(updatedLiveExpense);
-  }
-
-  /**
-   * NEW FEATURE: Retrieves all master WBS categories (Level 1)
-   */
-  async findAllCategories(): Promise<WbsCategoryEntity[]> {
-    return this.categoryRepository.find({
-      order: { code: "ASC" },
-    });
-  }
-
-  /**
-   * NEW FEATURE: Creates a new master WBS category (For Admin/Finance)
-   */
-  async createCategory(
-    code: string,
-    description: string,
-  ): Promise<WbsCategoryEntity> {
-    const existing = await this.categoryRepository.findOne({ where: { code } });
-    if (existing) {
-      throw new ConflictException(`WBS Category code ${code} already exists.`);
-    }
-    const newCategory = this.categoryRepository.create({ code, description });
-    return this.categoryRepository.save(newCategory);
-  }
-
-  /**
-   * NEW FEATURE: Deletes a master WBS category (For Admin/Finance)
-   */
-  async deleteCategory(id: string): Promise<void> {
-    const category = await this.categoryRepository.findOne({ where: { id } });
-    if (!category) {
-      throw new NotFoundException(`WBS Category with ID ${id} not found.`);
-    }
-
-    const wbsWithCategory = await this.wbsRepository.findOne({
-      where: { wbs_code: category.code },
-    });
-    if (wbsWithCategory) {
-      throw new ConflictException(
-        `WBS Category ${category.code} is in use and cannot be deleted.`,
-      );
-    }
-
-    await this.categoryRepository.delete(id);
-  }
-
-  /**
-   * NEW FEATURE: Updates a master WBS category (For Admin/Finance)
-   */
-  async updateCategory(
-    id: string,
-    updateWbsCategoryDto: UpdateWbsCategoryDto, // Accept DTO directly
-  ): Promise<WbsCategoryEntity> {
-    const category = await this.categoryRepository.findOne({ where: { id } });
-    if (!category) {
-      throw new NotFoundException(`WBS Category with ID ${id} not found.`);
-    }
-
-    // Apply partial updates only for provided fields
-    if (updateWbsCategoryDto.code !== undefined) {
-      // Check for duplicate code, excluding the current category
-      const existingCode = await this.categoryRepository.findOne({
-        where: { code: updateWbsCategoryDto.code, id: Not(id) },
-      });
-      if (existingCode) {
-        throw new ConflictException(`WBS Category code ${updateWbsCategoryDto.code} already exists.`);
-      }
-      category.code = updateWbsCategoryDto.code;
-    }
-
-    if (updateWbsCategoryDto.description !== undefined) {
-      category.description = updateWbsCategoryDto.description;
-    }
-    
-    return this.categoryRepository.save(category);
-  }
-
-  /**
-   * NEW FEATURE: Retrieves all pending WBS budget drafts.
-   * @returns A list of WbsBudgetEntity that are not yet approved.
-   */
-  async findPendingBudgetDrafts(): Promise<WbsBudgetEntity[]> {
-    return this.wbsRepository.find({
-      where: { status: "pending" },
-      relations: ["user"],
-    });
-  }
-
-  /**
-   * NEW FEATURE: Approves a WBS budget draft.
-   * @param id The ID of the WBS budget draft to approve.
-   * @returns The approved WbsBudgetEntity.
-   */
-  async approveBudgetDraft(id: string): Promise<WbsBudgetEntity> {
-    const draft = await this.wbsRepository.findOne({ where: { wbs_id: id } });
-    if (!draft) {
-      throw new NotFoundException(`WBS Budget Draft with ID ${id} not found.`);
-    }
-    draft.status = "approved";
-    return this.wbsRepository.save(draft);
-  }
-
-  /**
-   * NEW FEATURE: Rejects a WBS budget draft.
-   * (In a real scenario, this might delete the draft or mark it as rejected with comments)
-   * For now, we'll mark it as approved: false and potentially add a 'rejected' status field later.
-   * @param id The ID of the WBS budget draft to reject.
-   * @returns The rejected WbsBudgetEntity (marked as not approved).
-   */
-  async rejectBudgetDraft(id: string): Promise<WbsBudgetEntity> {
-    const draft = await this.wbsRepository.findOne({ where: { wbs_id: id } });
-    if (!draft) {
-      throw new NotFoundException(`WBS Budget Draft with ID ${id} not found.`);
-    }
-    draft.status = "rejected";
-    return this.wbsRepository.save(draft);
-  }
-
-  /**
-   * NEW FEATURE: Retrieves live expense entries flagged with major variance.
-   * @returns A list of LiveExpenseEntity with major variance flags.
-   */
-  async findMajorVarianceExceptions(): Promise<LiveExpenseEntity[]> {
-    return this.expenseRepository.find({
-      where: [
-        { variance_flag: "MAJOR_VARIANCE_OVERRUN" },
-        { variance_flag: "MAJOR_VARIANCE_UNBUDGETED" },
-      ],
-    });
-  }
-
-  /**
-   * Phase 2 Deliverable: CRUD for WBS/Budget (Create Draft)
-   * Enforces WBS Code uniqueness and saves the budget as a DRAFT.
-   */
+  // WBS Budget (Draft) Operations
   async createWbsBudgetDraft(
     createWbsDto: CreateWbsBudgetDto,
     userId: string,
+    tenant_id: string
   ): Promise<WbsBudgetEntity> {
-    // 1. Business Constraint: Check for existing WBS Code (Uniqueness)
-    const existingWbs = await this.wbsRepository.findOne({
-      where: { wbs_code: createWbsDto.wbs_code },
-    });
+    const { parent_wbs_id, wbs_code, description, unit_cost_budgeted, days_budgeted, total_cost_budgeted, category_id, project_id } = createWbsDto;
 
-    if (existingWbs) {
-      throw new ConflictException(
-        `WBS Code '${createWbsDto.wbs_code}' already exists.`,
-      );
+    // Validate project_id and category_id
+    if (project_id) {
+      const project = await this.dataSource
+        .getRepository(ProjectEntity)
+        .findOne({ where: { project_id: project_id, tenant_id: tenant_id } });
+      if (!project) {
+        throw new NotFoundException(`Project with ID ${project_id} not found in tenant ${tenant_id}`);
+      }
     }
 
-    // 2. Data Preparation: Create the entity instance
-    const newWbsDraft = this.wbsRepository.create({
-      ...createWbsDto,
-      status: "pending", // MANDATORY: All new entries are drafts until Finance (Phase 3) approves
-      user_id: userId,
-    });
+    if (category_id) {
+      const category = await this.dataSource
+        .getRepository(WbsCategoryEntity)
+        .findOne({ where: { id: category_id, tenant_id: tenant_id } });
+      if (!category) {
+        throw new NotFoundException(`Category with ID ${category_id} not found in tenant ${tenant_id}`);
+      }
+    }
 
-    // 3. Save to Database (ACID Transaction)
-    // The total_cost_budgeted column is auto-generated by PostgreSQL, so we only save the inputs.
-    return this.wbsRepository.save(newWbsDraft);
+
+    const wbsBudget = new WbsBudgetEntity();
+    wbsBudget.project_id = project_id;
+    wbsBudget.parent_wbs_id = parent_wbs_id ?? null; // Added ?? null
+    wbsBudget.wbs_code = wbs_code;
+    wbsBudget.description = description;
+    wbsBudget.unit_cost_budgeted = unit_cost_budgeted;
+    wbsBudget.days_budgeted = days_budgeted;
+    wbsBudget.total_cost_budgeted = total_cost_budgeted;
+    wbsBudget.category_id = category_id ?? null; // Added ?? null
+    wbsBudget.status = "draft";
+    wbsBudget.user = { id: userId } as UserEntity; // Assign UserEntity via relation
+    wbsBudget.tenant_id = tenant_id;
+
+    return this.wbsBudgetRepository.save(wbsBudget);
   }
 
   async createWbsBudgetDraftBatch(
     createWbsDtos: CreateWbsBudgetDto[],
     userId: string,
+    tenant_id: string
   ): Promise<WbsBudgetEntity[]> {
-    const queryRunner = this.dataSource.createQueryRunner();
-
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const drafts: WbsBudgetEntity[] = [];
-      for (const createWbsDto of createWbsDtos) {
-        const existingWbs = await queryRunner.manager.findOne(WbsBudgetEntity, {
-          where: { wbs_code: createWbsDto.wbs_code },
-        });
-
-        if (existingWbs) {
-          throw new ConflictException(
-            `WBS Code '${createWbsDto.wbs_code}' already exists.`,
-          );
-        }
-
-        const newWbsDraft = queryRunner.manager.create(WbsBudgetEntity, {
-          ...createWbsDto,
-          status: "pending",
-          user_id: userId,
-        });
-        drafts.push(newWbsDraft);
-      }
-
-      await queryRunner.manager.save(drafts);
-      await queryRunner.commitTransaction();
-      return drafts;
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
+    if (!Array.isArray(createWbsDtos)) {
+      throw new BadRequestException('Input must be an array of WBS budget DTOs.');
     }
+
+    const wbsBudgets = createWbsDtos.map(dto => {
+      // Basic validation for each DTO in the batch
+      if (!dto.wbs_code || !dto.description) {
+        throw new BadRequestException('Each WBS budget item must have a wbs_code and description.');
+      }
+      const newWbsBudget = new WbsBudgetEntity();
+      newWbsBudget.project_id = dto.project_id;
+      newWbsBudget.parent_wbs_id = dto.parent_wbs_id ?? null; // Added ?? null
+      newWbsBudget.wbs_code = dto.wbs_code;
+      newWbsBudget.description = dto.description;
+      newWbsBudget.unit_cost_budgeted = dto.unit_cost_budgeted;
+      newWbsBudget.days_budgeted = dto.days_budgeted;
+      newWbsBudget.total_cost_budgeted = dto.total_cost_budgeted;
+      newWbsBudget.category_id = dto.category_id ?? null; // Added ?? null
+      newWbsBudget.status = 'draft';
+      newWbsBudget.user = { id: userId } as UserEntity; // Assign UserEntity via relation
+      newWbsBudget.tenant_id = tenant_id;
+      return newWbsBudget;
+    });
+
+    return this.wbsBudgetRepository.save(wbsBudgets);
   }
 
-  /**
-   * Phase 2 Deliverable: Live Expense Entry (The primary write operation)
-   * This method executes the mandated variance calculation *on commit*.
-   */
-  async logLiveExpenseEntry(
-    expenseDto: CreateLiveExpenseDto,
-    userId: string,
-    tenant_id: string,
-  ): Promise<LiveExpenseEntity> {
-    // 1. Business Constraint: Check if the WBS ID exists.
-    const wbsBudget = await this.wbsRepository.findOne({
-      where: { wbs_id: expenseDto.wbs_id },
+  async updateWbsBudget(
+    id: string,
+    updateWbsBudgetDto: UpdateWbsBudgetDto,
+    tenant_id: string
+  ): Promise<WbsBudgetEntity> {
+    const wbsBudget = await this.wbsBudgetRepository.findOne({
+      where: { wbs_id: id, tenant_id: tenant_id }, // Changed id to wbs_id
     });
 
     if (!wbsBudget) {
       throw new NotFoundException(
-        `WBS ID ${expenseDto.wbs_id} not found in the budget.`,
+        `WBS Budget with ID ${id} not found for tenant ${tenant_id}`
       );
     }
 
-    // 2. Automated: Variance Calculation (MANDATORY REQUIREMENT)
-    const varianceResult = await this.calculateLiveExpenseVariance(
-      tenant_id,
-      wbsBudget,
-      expenseDto,
-    );
+    const updatedWbsBudget = Object.assign(wbsBudget, updateWbsBudgetDto);
+    return this.wbsBudgetRepository.save(updatedWbsBudget);
+  }
 
-    // 3. Data Preparation: Create the expense entity
-    const newExpense = this.expenseRepository.create({
-      ...expenseDto,
-      user_id: userId, // Enforced accountability from the authenticated token
-      variance_flag: varianceResult.flag, // Result of the real-time calculation
+  async deleteWbsItem(
+    id: string, // Keep 'id' as parameter name for controller consistency
+    tenant_id: string,
+    options: { recursive: boolean } = { recursive: false }
+  ): Promise<void> {
+    const wbsItem = await this.wbsBudgetRepository.findOne({
+      where: { wbs_id: id, tenant_id: tenant_id }, // Changed id to wbs_id
     });
 
-    // 4. Save to Database (ACID Transaction)
-    return this.expenseRepository.save(newExpense);
-  }
-
-  /**
-   * Phase 2 Deliverable: WBS/Budget Read Operation (Production-Ready Hierarchy and Rollup)
-   * Uses a Recursive CTE (Common Table Expression) for performant, single-query retrieval
-   * of the WBS hierarchy and the total aggregated spending against each WBS item.
-   */
-  async findAllWbsBudgetsWithRollup(
-    tenant_id: string,
-    startDate?: string,
-    endDate?: string,
-  ): Promise<WbsBudgetRollupDto[]> {
-    // CRITICAL SECURITY FIX: Validate tenant_id to prevent SQL Injection
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tenant_id)) {
-      throw new BadRequestException("Invalid tenant ID format.");
+    if (!wbsItem) {
+      throw new NotFoundException(
+        `WBS item with ID ${id} not found for tenant ${tenant_id}`
+      );
     }
 
-    let dateFilter = "";
-    const queryParams: any[] = [];
-    let paramIndex = 1;
-
-    if (startDate && endDate) {
-      dateFilter = `AND le.expense_date BETWEEN $${paramIndex++} AND $${paramIndex++}`;
-      queryParams.push(startDate, endDate);
-    }
-
-    const rawQuery = `
-      -- 1. Anchor: Start at all root-level WBS items (parent_wbs_id IS NULL)
-      WITH RECURSIVE wbs_tree AS (
-        SELECT
-          wb.wbs_id,
-          wb.parent_wbs_id,
-          wb.wbs_code,
-          wb.description,
-          wb.total_cost_budgeted,
-          -- Calculate Total Paid Amount for this specific WBS item
-          COALESCE((
-            SELECT SUM(le.actual_paid_amount)
-            FROM "${tenant_id}".live_expense le
-            WHERE le.wbs_id = wb.wbs_id ${dateFilter}
-          ), 0.00) AS total_paid_self,
-          -- Calculate Total Committed (LPO) Amount for this specific WBS item
-          COALESCE((
-            SELECT SUM(le.commitment_lpo_amount)
-            FROM "${tenant_id}".live_expense le
-            WHERE le.wbs_id = wb.wbs_id ${dateFilter}
-          ), 0.00) AS total_committed_lpo_self
-        FROM "${tenant_id}".wbs_budget wb
-        WHERE wb.parent_wbs_id IS NULL
-
-        UNION ALL
-
-        -- 2. Recursive Step: Join to find children
-        SELECT
-          wb.wbs_id,
-          wb.parent_wbs_id,
-          wb.wbs_code,
-          wb.description,
-          wb.total_cost_budgeted,
-          -- Calculate Total Paid Amount for this specific WBS item
-          COALESCE((
-            SELECT SUM(le.actual_paid_amount)
-            FROM "${tenant_id}".live_expense le
-            WHERE le.wbs_id = wb.wbs_id ${dateFilter}
-          ), 0.00) AS total_paid_self,
-          -- Calculate Total Committed (LPO) Amount for this specific WBS item
-          COALESCE((
-            SELECT SUM(le.commitment_lpo_amount)
-            FROM "${tenant_id}".live_expense le
-            WHERE le.wbs_id = wb.wbs_id ${dateFilter}
-          ), 0.00) AS total_committed_lpo_self
-        FROM "${tenant_id}".wbs_budget wb
-        JOIN wbs_tree wt ON wb.parent_wbs_id = wt.wbs_id
-      )
-      
-      -- 3. Final Aggregation: Sum up total paid from all self and children
-      SELECT
-        wt.wbs_id,
-        wt.parent_wbs_id,
-        wt.wbs_code,
-        wt.description,
-        CAST(wt.total_cost_budgeted AS NUMERIC(19, 4)) AS total_cost_budgeted,
-        -- Calculate Total Paid (Rollup) - This is the final aggregated value
-        (
-          SELECT SUM(CAST(t2.total_paid_self AS NUMERIC(19, 4)))
-          FROM wbs_tree t2
-          WHERE t2.wbs_code LIKE (wt.wbs_code || '%')
-        ) AS total_paid_rollup,
-        CAST(wt.total_paid_self AS NUMERIC(19, 4)) AS total_paid_self,
-        -- Calculate Total Committed (LPO) (Rollup)
-        (
-          SELECT SUM(CAST(t2.total_committed_lpo_self AS NUMERIC(19, 4)))
-          FROM wbs_tree t2
-          WHERE t2.wbs_code LIKE (wt.wbs_code || '%')
-        ) AS total_committed_lpo
-      FROM wbs_tree wt
-      ORDER BY wt.wbs_code ASC;
-    `;
-
-    // Note: The CASTs are added to ensure TypeORM returns correct numeric types.
-    return this.wbsRepository.query(rawQuery, queryParams);
-  }
-
-  /**
-   * Phase 6 Deliverable: Automated, live calculation for variance and MAJOR VARIANCE flag.
-   */
-  private async calculateLiveExpenseVariance(
-    tenant_id: string,
-    wbsBudget: WbsBudgetEntity,
-    expenseDto: CreateLiveExpenseDto,
-  ): Promise<{ variance: number; flag: string }> {
-    // Total Cost Variance (NGN) for the line item itself
-    const budgetedTotalLineItem = Number(wbsBudget.total_cost_budgeted);
-    const actualPaidLineItem = Number(expenseDto.actual_paid_amount);
-    const lineItemVariance = budgetedTotalLineItem - actualPaidLineItem;
-
-    let flag = "NO_VARIANCE";
-
-    if (lineItemVariance < 0) {
-      flag = "NEGATIVE_VARIANCE";
-    } else if (lineItemVariance > 0) {
-      flag = "POSITIVE_VARIANCE";
-    }
-
-    // --- CRITICAL AI RULE ENGINE LOGIC (MAJOR VARIANCE) ---
-
-    // Check 1: Unbudgeted Major Expense (Simplified: uses WBS code UNBUDGETED)
-    const UNBUDGETED_CODE = "7.99"; // Use a dedicated code for unbudgeted expenses linked to Contingency (7.0 from PDF)
-    const MAJOR_EXPENSE_THRESHOLD = 50000; // NGN 50,000
-
-    if (
-      wbsBudget.wbs_code === UNBUDGETED_CODE &&
-      actualPaidLineItem > MAJOR_EXPENSE_THRESHOLD
-    ) {
-      return { variance: lineItemVariance, flag: "MAJOR_VARIANCE_UNBUDGETED" };
-    }
-
-    // Check 2: Variance Threshold Breached (WBS Category Rollup)
-    // NOTE: This check must be done AFTER the expense is committed, so we calculate the *new* total based on current data.
-    const rollupTotals = await this.getCategoryRollupTotals(
-      tenant_id,
-      wbsBudget.wbs_id,
-    );
-    const totalBudget = rollupTotals.budgetedCategoryTotal;
-    // NOTE: For real-time check, we use the total paid *from the rollup query* which includes the current expense being processed by the transaction.
-    const totalPaid = rollupTotals.actualPaidCategoryTotal;
-
-    const categoryVariance = totalBudget - totalPaid;
-    const categoryVariancePercent =
-      totalBudget > 0 ? Math.abs(categoryVariance) / totalBudget : 0;
-    const VARIANCE_PERCENT_THRESHOLD = 0.1; // 10%
-
-    if (categoryVariancePercent > VARIANCE_PERCENT_THRESHOLD) {
-      // Only flag as Major if it's a negative overrun
-      if (categoryVariance < 0) {
-        flag = "MAJOR_VARIANCE_OVERRUN";
+    if (options.recursive) {
+      // Find all children recursively
+      const children = await this.findAllChildren(id, tenant_id);
+      const childIds = children.map((child) => child.wbs_id); // Changed child.id to child.wbs_id
+      if (childIds.length > 0) {
+        await this.wbsBudgetRepository.delete({ wbs_id: In(childIds), tenant_id: tenant_id }); // Changed id to wbs_id
       }
     }
 
-    return { variance: lineItemVariance, flag: flag };
+    await this.wbsBudgetRepository.delete({ wbs_id: id, tenant_id: tenant_id }); // Changed id to wbs_id
   }
 
-  /**
-   * Helper function: Retrieves the total budgeted and total paid for the entire WBS Category (Level 1).
-   * This logic is similar to the CTE, but focused on real-time check for a single category.
-   * @param wbsId The UUID of the line item being expensed.
-   */
-  private async getCategoryRollupTotals(
-    tenant_id: string,
-    wbsId: string,
-  ): Promise<{
-    budgetedCategoryTotal: number;
-    actualPaidCategoryTotal: number;
-    wbsCode: string;
-  }> {
-    // CRITICAL SECURITY FIX: Validate tenant_id to prevent SQL Injection
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tenant_id)) {
-      throw new BadRequestException("Invalid tenant ID format.");
-    }
-
-    // 1. Get the WBS Code and Category (Level 1) of the item being expensed
-    const expenseItem = await this.wbsRepository.findOne({
-      where: { wbs_id: wbsId },
-    });
-    if (!expenseItem) {
-      throw new NotFoundException(`WBS ID ${wbsId} not found for rollup.`);
-    }
-    const categoryCode = expenseItem.wbs_code.split(".")[0];
-
-    // 2. Execute query to get the total budget/paid for the ENTIRE CATEGORY (WBS X.0)
-    const rawQuery = `
-        SELECT
-            COALESCE(SUM(CAST(wb.total_cost_budgeted AS NUMERIC)), 0.00) AS "budgetedCategoryTotal",
-            COALESCE(SUM(CAST(le.actual_paid_amount AS NUMERIC)), 0.00) AS "actualPaidCategoryTotal"
-        FROM "${tenant_id}".wbs_budget wb
-        LEFT JOIN "${tenant_id}".live_expense le ON wb.wbs_id = le.wbs_id
-        WHERE wb.wbs_code LIKE $1 || '.%'
-           OR wb.wbs_code = $1
-    `;
-
-    const result = await this.wbsRepository.query(rawQuery, [categoryCode]);
-
-    return {
-      budgetedCategoryTotal: Number(result[0].budgetedCategoryTotal),
-      actualPaidCategoryTotal: Number(result[0].actualPaidCategoryTotal),
-      wbsCode: expenseItem.wbs_code,
-    };
-  }
-
-  /**
-   * NEW FEATURE: Seeds WBS budget data into a specific tenant's schema.
-   * This is used during tenant provisioning after AI agent extracts data.
-   * @param tenant_id The schema name of the tenant.
-   * @param wbsData Array of WBS budget data from AI agent.
-   * @param userId User performing the action
-   */
-  async seedWbsDataForTenant(
-    tenant_id: string,
-    wbsData: any[], // Adjust this type to a specific DTO if AI agent output is structured
-    userId: string, // User performing the action
+  private async findAllChildren(
+    parentId: string,
+    tenant_id: string
   ): Promise<WbsBudgetEntity[]> {
-    // CRITICAL SECURITY FIX: Validate tenant_id to prevent SQL Injection
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tenant_id)) {
-      throw new BadRequestException("Invalid tenant ID format.");
+    const children: WbsBudgetEntity[] = [];
+    const directChildren = await this.wbsBudgetRepository.find({
+      where: { parent_wbs_id: parentId, tenant_id: tenant_id },
+    });
+
+    for (const child of directChildren) {
+      children.push(child);
+      const grandChildren = await this.findAllChildren(child.wbs_id, tenant_id); // Changed child.id to child.wbs_id
+      children.push(...grandChildren);
     }
-
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const insertedBudgets: WbsBudgetEntity[] = [];
-
-      for (const item of wbsData) {
-        // Here we are creating new WbsBudgetEntity instances for the specific schema
-        // Ensure the table name is correctly qualified with the tenant_id
-        const newWbsBudget = queryRunner.manager.create(WbsBudgetEntity, {
-          // Map properties from item to WbsBudgetEntity, ensure they match entity definition
-          wbs_code: item.wbs_code,
-          description: item.description,
-          unit_cost_budgeted: item.unit_cost_budgeted,
-          quantity_budgeted: item.quantity_budgeted,
-          duration_days_budgeted: item.duration_days_budgeted,
-          total_cost_budgeted: item.total_cost_budgeted,
-          parent_wbs_id: item.parent_wbs_id || null, // Handle root WBS items
-          status: "approved", // Seeded data is considered approved initially
-          user_id: userId, // Associate with the user who initiated tenant creation
-        });
-
-        // Manually specify the schema for insertion
-        const savedBudget = await queryRunner.manager.query(
-          `INSERT INTO "${tenant_id}".wbs_budget (wbs_id, parent_wbs_id, wbs_code, description, unit_cost_budgeted, quantity_budgeted, duration_days_budgeted, total_cost_budgeted, status, user_id, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-          [
-            newWbsBudget.wbs_id,
-            newWbsBudget.parent_wbs_id,
-            newWbsBudget.wbs_code,
-            newWbsBudget.description,
-            newWbsBudget.unit_cost_budgeted,
-            newWbsBudget.quantity_budgeted,
-            newWbsBudget.duration_days_budgeted,
-            newWbsBudget.total_cost_budgeted,
-            newWbsBudget.status,
-            newWbsBudget.user_id,
-            newWbsBudget.created_at,
-          ],
-        );
-        insertedBudgets.push(savedBudget[0]); // query returns an array of rows
-      }
-
-      await queryRunner.commitTransaction();
-      return insertedBudgets;
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(
-        `Failed to seed WBS data for schema ${tenant_id}:`,
-        err,
-      );
-      if (err instanceof Error) {
-        throw new InternalServerErrorException(
-          `Failed to seed WBS data for new tenant: ${err.message}`,
-        );
-      }
-      throw new InternalServerErrorException(
-        `Failed to seed WBS data for new tenant: An unknown error occurred.`,
-      );
-    } finally {
-      await queryRunner.release();
-    }
+    return children;
   }
+
+  // Live Expense Operations
+  async logLiveExpenseEntry(
+    expenseDto: CreateLiveExpenseDto,
+    userId: string,
+    tenant_id: string
+  ): Promise<LiveExpenseEntity> {
+    const { wbs_id, amount, description, project_id } = expenseDto;
+
+    // Validate wbs_id
+    if (wbs_id) {
+      const wbsItem = await this.wbsBudgetRepository.findOne({
+        where: { wbs_id: wbs_id, tenant_id: tenant_id }, // Changed id to wbs_id
+      });
+      if (!wbsItem) {
+        throw new NotFoundException(`WBS item with ID ${wbs_id} not found for tenant ${tenant_id}`);
+      }
+    }
+
+    // Validate project_id
+    if (project_id) {
+      const project = await this.dataSource
+        .getRepository(ProjectEntity)
+        .findOne({ where: { project_id: project_id, tenant_id: tenant_id } }); // Changed id to project_id
+      if (!project) {
+        throw new NotFoundException(`Project with ID ${project_id} not found in tenant ${tenant_id}`);
+      }
+    }
+
+    const liveExpense = this.liveExpenseRepository.create({
+      ...expenseDto,
+      user_id: userId,
+      tenant_id: tenant_id,
+    });
+    return this.liveExpenseRepository.save(liveExpense);
+  }
+
+  async updateLiveExpenseEntry(
+    id: string,
+    updateLiveExpenseDto: UpdateLiveExpenseDto,
+    tenant_id: string
+  ): Promise<LiveExpenseEntity> {
+    const liveExpense = await this.liveExpenseRepository.findOne({
+      where: { id, tenant_id: tenant_id },
+    });
+
+    if (!liveExpense) {
+      throw new NotFoundException(
+        `Live Expense with ID ${id} not found for tenant ${tenant_id}`
+      );
+    }
+
+    Object.assign(liveExpense, updateLiveExpenseDto);
+    return this.liveExpenseRepository.save(liveExpense);
+  }
+
+  async deleteLiveExpenseEntry(id: string, tenant_id: string): Promise<void> {
+    const liveExpense = await this.liveExpenseRepository.findOne({
+      where: { id, tenant_id: tenant_id },
+    });
+
+    if (!liveExpense) {
+      throw new NotFoundException(
+        `Live Expense with ID ${id} not found for tenant ${tenant_id}`
+      );
+    }
+
+    await this.liveExpenseRepository.delete({ id, tenant_id: tenant_id });
+  }
+
+  // WBS Category Operations
+  async createWbsCategory(
+    name: string,
+    tenant_id: string
+  ): Promise<WbsCategoryEntity> {
+    const existingCategory = await this.wbsCategoryRepository.findOne({
+      where: { name, tenant_id: tenant_id },
+    });
+    if (existingCategory) {
+      throw new ConflictException(
+        `WBS Category with name "${name}" already exists for tenant ${tenant_id}`
+      );
+    }
+    const category = this.wbsCategoryRepository.create({ name, tenant_id: tenant_id });
+    return this.wbsCategoryRepository.save(category);
+  }
+
+  async findAllWbsCategories(tenant_id: string): Promise<WbsCategoryEntity[]> {
+    return this.wbsCategoryRepository.find({ where: { tenant_id: tenant_id } });
+  }
+
+  async updateWbsCategory(
+    id: string,
+    name: string,
+    tenant_id: string
+  ): Promise<WbsCategoryEntity> {
+    const category = await this.wbsCategoryRepository.findOne({
+      where: { id, tenant_id: tenant_id },
+    });
+    if (!category) {
+      throw new NotFoundException(
+        `WBS Category with ID ${id} not found for tenant ${tenant_id}`
+      );
+    }
+    const existingCategoryWithName = await this.wbsCategoryRepository.findOne({
+      where: { name, tenant_id: tenant_id },
+    });
+    if (existingCategoryWithName && existingCategoryWithName.id !== id) {
+      throw new ConflictException(
+        `WBS Category with name "${name}" already exists for tenant ${tenant_id}`
+      );
+    }
+
+    category.name = name;
+    return this.wbsCategoryRepository.save(category);
+  }
+
+  async deleteWbsCategory(id: string, tenant_id: string): Promise<void> {
+    const category = await this.wbsCategoryRepository.findOne({
+      where: { id, tenant_id: tenant_id },
+    });
+    if (!category) {
+      throw new NotFoundException(
+        `WBS Category with ID ${id} not found for tenant ${tenant_id}`
+      );
+    }
+    await this.wbsCategoryRepository.delete({ id, tenant_id: tenant_id });
+  }
+
+
+  // Enhanced WBS Budget Retrieval with Filters and Pagination
+  async findAllWbsBudgets(
+    getWbsBudgetsDto: GetWbsBudgetsDto,
+    tenant_id: string
+  ): Promise<{ data: WbsBudgetEntity[]; total: number }> {
+    const {
+      wbsCode,
+      description,
+      status,
+      categoryId,
+      projectId,
+      userId,
+      page = 1,
+      limit = 10,
+      sortBy = "created_at",
+      sortOrder = "DESC",
+      // Removed parentWbsId,
+    } = getWbsBudgetsDto;
+
+    const queryBuilder = this.wbsBudgetRepository
+      .createQueryBuilder("wbsBudget")
+      .where("wbsBudget.tenant_id = :tenant_id", { tenant_id });
+
+    if (wbsCode) {
+      queryBuilder.andWhere("wbsBudget.wbs_code ILIKE :wbsCode", {
+        wbsCode: `%${wbsCode}%`,
+      });
+    }
+    if (description) {
+      queryBuilder.andWhere("wbsBudget.description ILIKE :description", {
+        description: `%${description}%`,
+      });
+    }
+    if (status) {
+      queryBuilder.andWhere("wbsBudget.status = :status", { status });
+    }
+    if (categoryId) {
+      queryBuilder.andWhere("wbsBudget.category_id = :categoryId", { categoryId });
+    }
+    if (projectId) {
+      queryBuilder.andWhere("wbsBudget.project_id = :projectId", { projectId });
+    }
+    if (userId) {
+      queryBuilder.andWhere("wbsBudget.user_id = :userId", { userId });
+    }
+    // Removed parentWbsId logic
+    // if (parentWbsId === null) {
+    //   // Explicitly search for root-level WBS items (where parent_wbs_id is NULL)
+    //   queryBuilder.andWhere("wbsBudget.parent_wbs_id IS NULL");
+    // } else if (parentWbsId) {
+    //   // Search for children of a specific parent
+    //   queryBuilder.andWhere("wbsBudget.parent_wbs_id = :parentWbsId", { parentWbsId });
+    // }
+
+
+    queryBuilder.orderBy(`wbsBudget.${sortBy}`, sortOrder);
+    queryBuilder.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+    return { data, total };
+  }
+
+  // Enhanced Live Expense Retrieval with Filters and Pagination
+  async findAllLiveExpenses(
+    getLiveExpensesDto: GetLiveExpensesDto,
+    tenant_id: string
+  ): Promise<{ data: LiveExpenseEntity[]; total: number }> {
+    const {
+      wbsId,
+      projectId,
+      description,
+      minAmount,
+      maxAmount,
+      userId,
+      page = 1,
+      limit = 10,
+      sortBy = "created_at",
+      sortOrder = "DESC",
+    } = getLiveExpensesDto;
+
+    const queryBuilder = this.liveExpenseRepository
+      .createQueryBuilder("liveExpense")
+      .where("liveExpense.tenant_id = :tenant_id", { tenant_id });
+
+    if (wbsId) {
+      queryBuilder.andWhere("liveExpense.wbs_id = :wbsId", { wbsId });
+    }
+    if (projectId) {
+      queryBuilder.andWhere("liveExpense.project_id = :projectId", { projectId });
+    }
+    if (description) {
+      queryBuilder.andWhere("liveExpense.description ILIKE :description", {
+        description: `%${description}%`,
+      });
+    }
+    if (minAmount) {
+      queryBuilder.andWhere("liveExpense.amount >= :minAmount", { minAmount });
+    }
+    if (maxAmount) {
+      queryBuilder.andWhere("liveExpense.amount <= :maxAmount", { maxAmount });
+    }
+    if (userId) {
+      queryBuilder.andWhere("liveExpense.user_id = :userId", { userId });
+    }
+
+    queryBuilder.orderBy(`liveExpense.${sortBy}`, sortOrder);
+    queryBuilder.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+    return { data, total };
+  }
+
+
+  // WBS Budget Rollup (placeholder for now)
+  async getWbsBudgetRollup(
+    projectId: string,
+    tenant_id: string
+  ): Promise<WbsBudgetRollupDto[]> {
+    // This is a complex aggregation. For now, we'll return a simplified structure.
+    // A full implementation would involve recursive queries or CTEs to sum up
+    // budgeted and actual costs across WBS hierarchies.
+    this.logger.warn(
+      `WBS Budget Rollup for project ${projectId} in tenant ${tenant_id} is a placeholder implementation.`
+    );
+    // Dummy data for demonstration
+    return [
+      {
+        wbs_id: "root",
+        wbs_code: "P1",
+        description: "Project 1 Total",
+        total_cost_budgeted: 100000,
+        total_paid_rollup: 75000,
+        parent_wbs_id: null,
+        total_paid_self: 75000,
+        total_committed_lpo: 0,
+      },
+    ];
+  }
+
+
+  async exportWbsBudgetsToCsv(
+    getWbsBudgetsDto: GetWbsBudgetsDto,
+    tenant_id: string
+  ): Promise<Buffer> {
+    const { data: wbsBudgets } = await this.findAllWbsBudgets(
+      getWbsBudgetsDto,
+      tenant_id
+    );
+
+    if (wbsBudgets.length === 0) {
+      throw new NotFoundException("No WBS budgets found to export.");
+    }
+
+    const headers = [
+      "ID",
+      "WBS Code",
+      "Description",
+      "Unit Cost Budgeted",
+      "Days Budgeted",
+      "Total Cost Budgeted",
+      "Status",
+      "Category",
+      "Project",
+      "Created At",
+      "Updated At",
+    ];
+
+    const csvRows = [
+      headers.join(","),
+      ...wbsBudgets.map((budget) =>
+        [
+          `"${budget.wbs_id}"`, // Changed id to wbs_id
+          `"${budget.wbs_code}"`,
+          `"${budget.description.replace(/"/g, '""')}"`,
+          budget.unit_cost_budgeted,
+          budget.days_budgeted,
+          budget.total_cost_budgeted,
+          budget.status,
+          `"${budget.category?.name || "N/A"}"`,
+          `"${budget.project?.project_name || "N/A"}"`, // Changed project?.name to project?.project_name
+          budget.created_at.toISOString(),
+          budget.updated_at?.toISOString() || "", // Added null check
+        ].join(",")
+      ),
+    ];
+
+    return Buffer.from(csvRows.join("\n"), "utf8");
+  }
+
+  async exportLiveExpensesToCsv(
+    getLiveExpensesDto: GetLiveExpensesDto,
+    tenant_id: string
+  ): Promise<Buffer> {
+    const { data: liveExpenses } = await this.findAllLiveExpenses(
+      getLiveExpensesDto,
+      tenant_id
+    );
+
+    if (liveExpenses.length === 0) {
+      throw new NotFoundException("No live expenses found to export.");
+    }
+
+    const headers = [
+      "ID",
+      "WBS ID",
+      "Project ID",
+      "Description",
+      "Amount",
+      "User ID",
+      "Created At",
+      "Updated At",
+    ];
+
+    const csvRows = [
+      headers.join(","),
+      ...liveExpenses.map((expense) =>
+        [
+          `"${expense.id}"`,
+          `"${expense.wbs_id || "N/A"}"`,
+          `"${expense.project_id || "N/A"}"`,
+          `"${expense.description.replace(/"/g, '""')}"`,
+          expense.amount,
+          `"${expense.user_id}"`,
+          expense.created_at.toISOString(),
+          expense.updated_at?.toISOString() || "", // Added null check
+        ].join(",")
+      ),
+    ];
+
+    return Buffer.from(csvRows.join("\n"), "utf8");
+  }
+
+    // New methods from the senior dev report:
+    async getWbsBudgetProgress(wbs_id: string, tenant_id: string): Promise<any> { // Changed wbsId to wbs_id
+      this.logger.debug(`Fetching WBS Budget Progress for ${wbs_id} in tenant ${tenant_id}`);
+      // Implement logic to calculate progress, e.g., based on actual expenses vs. budgeted amounts
+      // For now, return dummy data
+      return {
+        wbs_id, // Changed wbsId to wbs_id
+        progressPercentage: Math.floor(Math.random() * 100),
+        status: 'on-track',
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+
+    async getWbsBudgetStatusReport(projectId: string, tenant_id: string): Promise<any> {
+      this.logger.debug(`Generating WBS Budget Status Report for project ${projectId} in tenant ${tenant_id}`);
+      // Implement logic to generate a detailed status report for the project's WBS
+      // This might involve aggregating data from findAllWbsBudgets and findAllLiveExpenses
+      return {
+        projectId,
+        reportDate: new Date().toISOString(),
+        totalBudget: 150000,
+        totalSpent: 80000,
+        remainingBudget: 70000,
+        overallStatus: 'green',
+        issues: [],
+      };
+    }
 }

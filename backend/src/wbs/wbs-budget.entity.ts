@@ -7,27 +7,40 @@ import {
   OneToMany,
 } from "typeorm";
 import { UserEntity } from "../auth/user.entity";
+import { ProjectEntity } from "../projects/project.entity"; // NEW: Import ProjectEntity
+import { WbsCategoryEntity } from "./wbs-category.entity"; // NEW: Import WbsCategoryEntity
 
 @Entity({ name: "wbs_budget", schema: "client_template" })
 export class WbsBudgetEntity {
-  // ADDED ! NON-NULL ASSERTION OPERATOR
   @PrimaryGeneratedColumn("uuid")
   wbs_id!: string;
 
-  // ADDED ! NON-NULL ASSERTION OPERATOR
+  @Column({ type: "uuid", nullable: false })
+  project_id!: string;
+
+  @ManyToOne(() => ProjectEntity, (project) => project.wbsBudgets, {
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "project_id" })
+  project!: ProjectEntity;
+
   @Column({ type: "uuid", nullable: true })
   parent_wbs_id!: string | null;
 
-  // ADDED ! NON-NULL ASSERTION OPERATOR
   @ManyToOne(() => WbsBudgetEntity, (wbs) => wbs.children)
   @JoinColumn({ name: "parent_wbs_id" })
   parent!: WbsBudgetEntity;
 
-  // ADDED ! NON-NULL ASSERTION OPERATOR
   @OneToMany(() => WbsBudgetEntity, (wbs) => wbs.parent)
   children!: WbsBudgetEntity[];
 
-  // WBS Identifiers (ADDED ! NON-NULL ASSERTION OPERATOR to all)
+  @Column({ type: "uuid", nullable: true })
+  category_id!: string | null; // NEW: Category ID
+
+  @ManyToOne(() => WbsCategoryEntity, (category) => category.wbsBudgets)
+  @JoinColumn({ name: "category_id" })
+  category!: WbsCategoryEntity;
+
   @Column({ unique: true, length: 50 })
   wbs_code!: string;
 
@@ -42,24 +55,30 @@ export class WbsBudgetEntity {
   quantity_budgeted!: number;
 
   @Column({ type: "int", nullable: true })
-  duration_days_budgeted!: number | null;
+  days_budgeted!: number | null;
 
   @Column({ type: "numeric", precision: 19, scale: 4 })
   total_cost_budgeted!: number;
 
+  @Column({ type: "numeric", precision: 19, scale: 4, default: 0 })
+  total_cost_actual!: number; // NEW: To track actual spend
+
   // Status/Audit Fields
   @Column({
     type: "enum",
-    enum: ["pending", "approved", "rejected"],
+    enum: ["pending", "approved", "rejected", "draft"],
     default: "pending",
   })
-  status!: "pending" | "approved" | "rejected";
+  status!: "pending" | "approved" | "rejected" | "draft";
 
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
 
-  @Column({ type: "uuid" })
-  user_id!: string;
+  @Column({ type: "timestamptz", nullable: true })
+  updated_at!: Date | null;
+
+  @Column({ type: "uuid", nullable: false })
+  tenant_id!: string;
 
   @ManyToOne(() => UserEntity)
   @JoinColumn({ name: "user_id" })

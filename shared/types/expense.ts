@@ -1,3 +1,5 @@
+import { WbsBudget } from './wbs';
+
 /**
  * Represents a live expense entry.
  * This is a shared type, safe for use in both frontend and backend,
@@ -17,4 +19,5 @@ export interface LiveExpense {
   notes_justification: string | null;
   variance_flag: string;
   created_at: Date;
+  wbsBudget?: WbsBudget;
 }

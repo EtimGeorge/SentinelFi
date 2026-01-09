@@ -21,6 +21,10 @@ export class CreateLiveExpenseDto {
   })
   wbs_id!: string; // ADDED !
 
+  @IsOptional()
+  @IsUUID("4")
+  project_id?: string; // NEW: Project ID
+
   // User ID is NOT in the DTO body - it will be extracted from the JWT token (Phase 3) for security.
 
   @IsOptional()
@@ -29,17 +33,17 @@ export class CreateLiveExpenseDto {
 
   @IsNotEmpty()
   @IsString()
-  item_description!: string; // ADDED !
+  description!: string; // Renamed from item_description
 
   @IsNotEmpty()
   @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0, { message: "Actual unit cost must be a non-negative number." })
-  actual_unit_cost!: number; // ADDED !
+  @Min(0, { message: "Unit cost must be a non-negative number." })
+  unit_cost!: number; // Renamed from actual_unit_cost
 
   @IsNotEmpty()
   @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0.01, { message: "Actual quantity must be greater than zero." })
-  actual_quantity!: number; // ADDED !
+  @Min(0.01, { message: "Quantity must be greater than zero." })
+  quantity!: number; // Renamed from actual_quantity
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 4 })
@@ -48,8 +52,8 @@ export class CreateLiveExpenseDto {
 
   @IsNotEmpty()
   @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0, { message: "Actual paid amount must be a non-negative number." })
-  actual_paid_amount!: number; // ADDED !
+  @Min(0, { message: "Amount must be a non-negative number." })
+  amount!: number; // Renamed from actual_paid_amount
 
   @IsOptional()
   @IsString()

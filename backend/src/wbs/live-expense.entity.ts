@@ -6,21 +6,36 @@ import {
   JoinColumn,
 } from "typeorm";
 import { WbsBudgetEntity } from "./wbs-budget.entity";
+import { WbsCategoryEntity } from "./wbs-category.entity"; // NEW: Import WbsCategoryEntity
 
 @Entity({ name: "live_expense", schema: "client_template" })
 export class LiveExpenseEntity {
   // ADDED ! NON-NULL ASSERTION OPERATOR
-  @PrimaryGeneratedColumn("increment")
-  expense_id!: number; // BIGSERIAL primary key
+  @PrimaryGeneratedColumn("uuid")
+  id!: string;
 
-  // Foreign Key linking to the WBS item (ADDED !)
+  @Column({ type: "uuid", nullable: false })
+  tenant_id!: string;
+
+  @Column({ type: "uuid", nullable: true })
+  project_id!: string | null;
+
   @Column({ type: "uuid" })
   wbs_id!: string;
 
-  // ADDED ! NON-NULL ASSERTION OPERATOR
   @ManyToOne(() => WbsBudgetEntity)
   @JoinColumn({ name: "wbs_id" })
   wbsBudget!: WbsBudgetEntity;
+
+  @Column({ type: "uuid", nullable: true })
+  category_id!: string | null; // NEW: Category ID
+
+  @ManyToOne(() => WbsCategoryEntity, (category) => category.liveExpenses)
+  @JoinColumn({ name: "category_id" })
+  category!: WbsCategoryEntity;
+
+  @Column({ type: "timestamptz", nullable: true })
+  updated_at!: Date | null;
 
   // User and Transaction Details (ADDED ! to all)
   @Column({ type: "uuid" })
@@ -30,20 +45,20 @@ export class LiveExpenseEntity {
   expense_date!: Date;
 
   @Column({ type: "text" })
-  item_description!: string;
+  description!: string;
 
   // Financial Fields (ADDED ! to all)
   @Column({ type: "numeric", precision: 19, scale: 4 })
-  actual_unit_cost!: number;
+  unit_cost!: number;
 
   @Column({ type: "numeric", precision: 19, scale: 4 })
-  actual_quantity!: number;
+  quantity!: number;
 
   @Column({ type: "numeric", precision: 19, scale: 4, default: 0.0 })
   commitment_lpo_amount!: number;
 
   @Column({ type: "numeric", precision: 19, scale: 4 })
-  actual_paid_amount!: number;
+  amount!: number;
 
   @Column({ type: "varchar", length: 255, nullable: true })
   document_reference!: string | null;

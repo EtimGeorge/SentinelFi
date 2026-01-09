@@ -17,11 +17,11 @@ export interface RollupData {
 
 interface WBSHierarchyTreeProps {
   data: RollupData[];
-  onWBSClick: (wbsId: string, wbsCode: string, description: string) => void;
+  onWBSClick?: (wbsId: string, wbsCode: string, description: string) => void;
 }
 
 // Helper component for a single WBS Node
-const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupData[], data: RollupData[], onWBSClick: (wbsId: string, wbsCode: string, description: string) => void }> = ({ node, level, childNodes, data, onWBSClick }) => {
+const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupData[], data: RollupData[], onWBSClick?: (wbsId: string, wbsCode: string, description: string) => void }> = ({ node, level, childNodes, data, onWBSClick }) => {
   const [isExpanded, setIsExpanded] = useState(level === 0);
   
   const budgeted = Number(node.total_cost_budgeted);
@@ -60,7 +60,7 @@ const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupDat
           <span 
             className="ml-1 cursor-pointer hover:underline" 
             style={{ color: wbsColor }}
-            onClick={() => onWBSClick(node.wbs_id, node.wbs_code, node.description)}
+            onClick={() => onWBSClick && onWBSClick(node.wbs_id, node.wbs_code, node.description)}
           >
             {node.wbs_code}
           </span>
@@ -69,7 +69,7 @@ const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupDat
         {/* Description/Bar (Dynamic Element) */}
         <div 
           className="w-2/5 min-w-[120px] text-left whitespace-nowrap overflow-hidden text-ellipsis mr-2 cursor-pointer hover:underline text-gray-200"
-          onClick={() => onWBSClick(node.wbs_id, node.wbs_code, node.description)}
+          onClick={() => onWBSClick && onWBSClick(node.wbs_id, node.wbs_code, node.description)}
         >
           <Tooltip content={node.description}>
              {node.description}
