@@ -27,9 +27,10 @@ interface CreateUserModalProps extends ModalProps {
   error: string | null;
   roles: UserRoleEnum[];
   tenants: TenantOption[];
+  isSuperAdmin: boolean; // NEW: Added prop
 }
 
-const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onCreate, loading, error, roles, tenants }) => {
+const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onCreate, loading, error, roles, tenants, isSuperAdmin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRoleEnum>(UserRoleEnum.AssignedProjectUser);
@@ -67,7 +68,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onCr
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300">Assign Tenant (Optional)</label>
-            <select value={tenantId || ''} onChange={(e) => setTenantId(e.target.value || null)} className="mt-1 block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white appearance-none focus:ring-brand-primary focus:border-brand-primary">
+            <select value={tenantId || ''} onChange={(e) => setTenantId(e.target.value || null)} className="mt-1 block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white appearance-none focus:ring-brand-primary focus:border-brand-primary" disabled={!isSuperAdmin}>
               <option value="">-- No Tenant Assigned (System User) --</option>
               {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
@@ -172,7 +173,7 @@ const UserManagementPage: React.FC = () => {
   }, [api, addToast]);
 
   useEffect(() => {
-    if (currentUser?.role === UserRoleEnum.Admin || currentUser?.role === UserRoleEnum.ITHead) {
+    if (currentUser?.role === UserRoleEnum.Admin || currentUser?.role === UserRoleEnum.ITHead || currentUser?.role === UserRoleEnum.SuperAdmin) {
       fetchUsers();
       fetchTenants();
     } else {
@@ -306,7 +307,7 @@ const UserManagementPage: React.FC = () => {
 
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
 
-  if (!(currentUser?.role === UserRoleEnum.Admin || currentUser?.role === UserRoleEnum.ITHead)) {
+  if (!(currentUser?.role === UserRoleEnum.Admin || currentUser?.role === UserRoleEnum.ITHead || currentUser?.role === UserRoleEnum.SuperAdmin)) {
     return (
       <PageContainer title="User & Role Management" subtitle="Access Restricted">
         <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
@@ -401,7 +402,7 @@ const UserManagementPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                          {editingUserId === user.id ? (
-                            <select value={editedTenantId || ''} onChange={(e) => setEditedTenantId(e.target.value || null)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={user.role === UserRoleEnum.Admin || formLoading}>
+                            <select value={editedTenantId || ''} onChange={(e) => setEditedTenantId(e.target.value || null)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={! (currentUser?.role === UserRoleEnum.SuperAdmin) || formLoading}>
                               <option value="">-- System User --</option>
                               {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
@@ -439,7 +440,7 @@ const UserManagementPage: React.FC = () => {
         </Card>
       </PageContainer>
       
-      <CreateUserModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateUser} loading={formLoading} error={createError} roles={allRoles} tenants={tenants} />
+      <CreateUserModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateUser} loading={formLoading} error={createError} roles={allRoles} tenants={tenants} isSuperAdmin={currentUser?.role === UserRoleEnum.SuperAdmin} />
       
       <ConfirmationModal
           isOpen={showDeleteConfirm}
