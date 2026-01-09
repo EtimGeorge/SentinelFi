@@ -13,8 +13,8 @@ import { JwtService } from "@nestjs/jwt";
 import { LoginUserDto } from "./dto/login-user.dto";
 import * as bcrypt from "bcryptjs";
 import { UserResponseDto } from "./dto/admin-user.dto";
-import { CreateUserDto, UpdateUserDto, JwtPayload } from "shared/types/user";
-import { Role } from "shared/types/role.enum";
+import { CreateUserDto, UpdateUserDto, JwtPayload } from "@shared/types/user";
+import { Role } from "@shared/types/role.enum";
 import { CreateTenantAdminUserDto } from "../superadmin/dto/create-tenant-admin-user.dto"; // NEW
 import { RegisterUserDto } from "./dto/register-user.dto";
 import { ForgotPasswordRequestDto } from "./dto/forgot-password-request.dto";

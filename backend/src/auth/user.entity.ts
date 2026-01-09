@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
-import { Role } from "shared/types/role.enum";
+import { Role } from "@shared/types/role.enum";
 import { TenantEntity } from "../../src/tenants/tenant.entity"; // Relative path to TenantEntity
 
 @Entity({ name: "user", schema: "public" }) // NOTE: This entity lives in the MASTER DB/Schema, not a tenant schema
@@ -32,6 +32,9 @@ export class UserEntity {
 
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
+
+  @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" })
+  updated_at!: Date;
 
   // Multi-tenancy: Link user to a tenant
   @Column({ type: "uuid", nullable: true }) // nullable for system-level users or during initial setup

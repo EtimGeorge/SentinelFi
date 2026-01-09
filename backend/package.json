@@ -14,12 +14,14 @@
   "dependencies": {
     "@nestjs/platform-socket.io": "^11.1.11",
     "@nestjs/platform-ws": "^11.1.11",
+    "@nestjs/testing": "^11.1.11",
     "@nestjs/throttler": "^6.5.0",
     "cookie-parser": "^1.4.7",
     "docx": "^9.5.1",
     "exceljs": "^4.4.0",
     "jest": "^30.2.0",
     "pdf-lib": "^1.17.1",
+    "sentinelfi-monorepo": "file:..",
     "ts-jest": "^29.4.6",
     "tsconfig-paths": "^4.2.0",
     "ws": "^8.18.3"
@@ -31,6 +33,7 @@
     "@types/stack-utils": "^2.0.3",
     "@types/ws": "^8.18.1",
     "@types/yargs": "^17.0.35",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "tsconfig-paths-jest": "^0.0.1"
   }
 }

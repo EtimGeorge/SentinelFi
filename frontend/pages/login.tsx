@@ -47,7 +47,7 @@ const LoginPage: React.FC = () => {
           Sign in to SentinelFi
         </h2>
 
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleLogin} aria-label="Login Form">
           {error && (
             <div className="bg-alert-critical/20 border border-alert-critical text-alert-critical px-4 py-3 rounded relative mb-4" role="alert"> {/* Adapted error styles */}
               <span className="block sm:inline">{error}</span>

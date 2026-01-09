@@ -1,0 +1,45 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2020",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./", // Crucial: Base URL is the 'backend' directory
+    "typeRoots": [
+      "./node_modules/@types",
+      "../node_modules/@types"
+    ],
+    "paths": {
+      "@shared/*": ["../shared/*"], // Path from 'backend' dir to 'monorepo_root/shared'
+      "@src/*": ["./src/*"],       // Path from 'backend' dir to 'backend/src'
+      "@app/*": ["./src/app/*"],
+      "@auth/*": ["./src/auth/*"],
+      "@common/*": ["./src/common/*"],
+      "@audit/*": ["./src/audit/*"],
+      "@tenants/*": ["./src/tenants/*"],
+      "@wbs/*": ["./src/wbs/*"],
+      "@projects/*": ["./src/projects/*"],
+      "@operational-budgets/*": ["./src/operational-budgets/*"],
+      "@superadmin/*": ["./src/superadmin/*"],
+      "@database/*": ["./src/database/*"]
+    },
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictBindCallApply": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "lib": ["es2020"]
+  },
+  "include": [
+    "./src/**/*.ts",
+    "../shared/**/*.ts",
+    "./src/**/*.spec.ts"
+  ]
+}
