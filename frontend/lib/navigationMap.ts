@@ -6,9 +6,10 @@ import {
   Users,
   Building,
   Settings,
-  BarChart2,
+  BarChart2, // Ensure BarChart2 is imported for the Budgeting parent and AI Draft
   DollarSign,
-  LucideIcon
+  LucideIcon,
+  Crown, // NEW: Import Crown icon for SuperAdmin
 } from 'lucide-react';
 import { Role } from '../components/context/AuthContext';
 
@@ -33,17 +34,63 @@ export const navigationMap: NavItem[] = [
     exactMatch: true,
   },
   {
-    name: 'Projects',
+    name: 'CEO Dashboard',
+    icon: LayoutDashboard,
+    path: '/dashboard/ceo',
+    roles: [Role.CEO, Role.Finance, Role.SuperAdmin], // Added SuperAdmin
+    exactMatch: true,
+  },
+  {
+    name: 'Project Portfolio',
     icon: Folders,
     path: '/projects',
     roles: ALL_ROLES,
+    exactMatch: false,
   },
-  // --- WBS & Financials Section ---
+  // --- Budgeting & Financials Section ---
   {
-    name: 'WBS Manager',
-    icon: FileText,
-    path: '/wbs-manager',
-    roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead],
+    name: 'Budgeting',
+    icon: BarChart2,
+    path: '/budget',
+    roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead, Role.Finance, Role.AssignedProjectUser, Role.SuperAdmin],
+    children: [
+        {
+            name: 'WBS Manager',
+            icon: FileText,
+            path: '/wbs-manager',
+            roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead, Role.SuperAdmin],
+        },
+        {
+            name: 'Budget Management',
+            icon: DollarSign,
+            path: '/budget/manage',
+            roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead, Role.Finance, Role.AssignedProjectUser, Role.SuperAdmin],
+        },
+        {
+            name: 'Expense Management',
+            icon: DollarSign,
+            path: '/expense/manage',
+            roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead, Role.Finance, Role.AssignedProjectUser, Role.SuperAdmin],
+        },
+        {
+            name: 'AI Draft',
+            icon: BarChart2,
+            path: '/budget/ai-draft',
+            roles: [Role.Admin, Role.Finance, Role.SuperAdmin],
+        },
+        {
+            name: 'Manual Draft',
+            icon: FileText,
+            path: '/budget/draft',
+            roles: [Role.Admin, Role.Finance, Role.AssignedProjectUser, Role.SuperAdmin],
+        },
+        {
+            name: 'Operational Budgets',
+            icon: DollarSign,
+            path: '/operational-budgets/manage',
+            roles: [Role.Admin, Role.CEO, Role.Finance, Role.SuperAdmin],
+        },
+    ]
   },
   {
     name: 'Expense Tracker',
@@ -55,46 +102,67 @@ export const navigationMap: NavItem[] = [
     name: 'Approvals',
     icon: ClipboardCheck,
     path: '/approvals',
-    roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead],
+    roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead, Role.SuperAdmin],
   },
   {
     name: 'Reporting',
     icon: BarChart2,
-    path: '/reporting', // A parent route for reporting section
-    roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead],
+    path: '/reporting',
+    roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead, Role.SuperAdmin],
     children: [
         {
             name: 'Variance',
             icon: BarChart2,
             path: '/reporting/variance',
-            roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead],
+            roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead, Role.SuperAdmin],
         },
         {
             name: 'Schedule',
             icon: BarChart2,
             path: '/reporting/schedule',
-            roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead],
+            roles: [Role.Admin, Role.CEO, Role.ITHead, Role.OperationalHead, Role.SuperAdmin],
         }
+    ]
+  },
+  // --- Super Admin Section (NEW) ---
+  {
+    name: 'Super Admin',
+    icon: Crown,
+    path: '/super', // Parent route for super admin functionalities
+    roles: [Role.SuperAdmin], // Only SuperAdmin can see this section
+    children: [
+        {
+            name: 'Tenant Management',
+            icon: Building,
+            path: '/super/tenants',
+            roles: [Role.SuperAdmin],
+        },
     ]
   },
   // --- Administration Section ---
   {
     name: 'Admin',
     icon: Building,
-    path: '/admin', // A parent route
-    roles: [Role.Admin, Role.ITHead, Role.CEO],
+    path: '/admin',
+    roles: [Role.Admin, Role.ITHead, Role.CEO, Role.SuperAdmin],
     children: [
         {
             name: 'User Management',
             icon: Users,
             path: '/admin/users',
-            roles: [Role.Admin, Role.ITHead, Role.CEO],
+            roles: [Role.Admin, Role.ITHead, Role.CEO, Role.SuperAdmin],
         },
         {
             name: 'Tenant Setup',
             icon: Building,
             path: '/admin/tenant-setup',
-            roles: [Role.Admin, Role.ITHead],
+            roles: [Role.Admin, Role.ITHead, Role.SuperAdmin], // Added SuperAdmin
+        },
+        {
+            name: 'Audit Log',
+            icon: ClipboardCheck,
+            path: '/admin/audit-log',
+            roles: [Role.Admin, Role.ITHead, Role.SuperAdmin],
         }
     ]
   },

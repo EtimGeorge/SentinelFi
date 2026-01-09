@@ -4,29 +4,14 @@ import React, {
   useState,
   useEffect,
   useCallback,
-  useRef, // NEW: Import useRef
 } from "react";
 import { useRouter } from "next/router";
 import api from "../../lib/api";
+import type { User } from "shared/types/user";
+import { Role } from "shared/types/role.enum";
+import { toast } from 'react-hot-toast';
 
-// Define the roles from the backend (must match backend/src/auth/enums/role.enum.ts)
-// The role enum should ideally be imported from a shared constants file or a backend API client
-// For now, we define it here for clarity.
-export enum Role {
-  Admin = "Admin",
-  ITHead = "IT Head",
-  Finance = "Finance",
-  OperationalHead = "Operational Head",
-  CEO = "CEO",
-  AssignedProjectUser = "Assigned Project User",
-}
-
-interface User {
-  id: string;
-  email: string;
-  username: string; // Added for display in UI components
-  role: Role;
-}
+export { Role };
 
 interface AuthContextType {
   user: User | null;
@@ -35,7 +20,6 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isInitialLoad: boolean;
   hasRole: (roles: Role[]) => boolean;
-  // The 'token' property is removed because it is now HttpOnly
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,161 +38,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const router = useRouter();
-  const hasRedirectedRef = useRef(false); // NEW: Ref to track redirect
 
-  // Centralized Redirect Logic
-  useEffect(() => {
-    // Don't redirect until the initial auth check is complete OR
-    // if we've already tried to redirect in this cycle.
-    if (isInitialLoad || hasRedirectedRef.current) {
-      return;
+  const logout = useCallback(async (redirect = true) => {
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      console.warn('Logout endpoint failed, proceeding with client-side cleanup.');
+    } finally {
+      setUser(null);
+      if (redirect) {
+        window.location.href = '/login';
+      }
     }
+  }, []);
 
-    const isAuthPage = ['/login', '/register', '/forgot-password'].includes(
-      router.pathname
+  // Setup interceptors on initial load
+  useEffect(() => {
+    const interceptor = api.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401 && window.location.pathname !== '/login') {
+          toast.error('Session expired. Please log in again.');
+          logout();
+        }
+        return Promise.reject(error);
+      }
     );
 
-    let targetPath = null;
+    // Eject the interceptor when the component unmounts
+    return () => {
+      api.interceptors.response.eject(interceptor);
+    };
+  }, [logout]);
 
-    if (user) {
-      // User is authenticated
-      if (isAuthPage) {
-        // If on an auth page, redirect to the appropriate dashboard
-        if (
-          user.role === Role.CEO ||
-          user.role === Role.Finance ||
-          user.role === Role.Admin ||
-          user.role === Role.ITHead
-        ) {
-          targetPath = '/dashboard/ceo';
-        } else if (user.role === Role.AssignedProjectUser) {
-          targetPath = '/expense/tracker';
-        } else {
-          targetPath = '/dashboard/home'; // Fallback
-        }
-      }
-    } else {
-      // User is not authenticated
-      if (!isAuthPage && router.pathname !== '/') {
-        // If on a protected page (and not the root redirector), send to login
-        targetPath = '/login';
-      }
-    }
-
-    if (targetPath && router.pathname !== targetPath) {
-      hasRedirectedRef.current = true; // Set flag before redirect
-      router.replace(targetPath);
-    }
-  }, [user, isInitialLoad, router.pathname]); // ✅ Simpler dependencies - router.replace is stable
-
-  // NEW: Reset redirect flag when user or initial load status changes
-  useEffect(() => {
-    hasRedirectedRef.current = false;
-  }, [user, isInitialLoad]);
-
-  // CRITICAL: New initial check. We need a secure API call to see if a valid cookie exists.
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        // Hitting a secured endpoint forces the cookie to be sent. If valid, user data returns.
         const response = await api.get('/auth/test-secure');
-
-        // Use a dummy decode to get the user data for context display without exposing the token
-        const userFromApi = response.data.user_data_from_token;
-        setUser({
-          id: userFromApi.id,
-          email: userFromApi.email,
-          username: userFromApi.username || userFromApi.email, // Assume username is provided, fallback to email
-          role: userFromApi.role,
-        });
+        setUser(response.data.user_data_from_token);
       } catch (error) {
-        // Only log verbose errors for unexpected issues, not expected 401/403
-        if ((error as any).response?.status === 401 || (error as any).response?.status === 403) {
-          console.log('checkAuthStatus: Not authenticated or session expired (expected)');
-        } else {
-          console.error('checkAuthStatus: API call failed with unexpected error', error);
-        }
-        setUser(null); // This is good, clears any old user state
+        setUser(null);
       } finally {
-        setIsInitialLoad(false); // THIS SHOULD BE CALLED!
+        setIsInitialLoad(false);
       }
     };
     checkAuthStatus();
   }, []);
 
-  const hasRole = (roles: Role[]) => {
-    if (user) {
-      return roles.includes(user.role);
-    }
-    return false;
-  };
+  // Centralized Redirect Logic
+  useEffect(() => {
+    if (isInitialLoad) return;
+    const isAuthenticated = !!user;
+    const isAuthPage = ['/login', '/register', '/forgot-password'].includes(router.pathname);
 
-  // 2. Secure Login Function (Receives role, sets cookie on backend)
-  const login = useCallback(
-    async (email, password, rememberMe) => {
-      try {
-        const trimmedEmail = email.trim();
-        const trimmedPassword = password.trim();
-
-        // 1. POST sends credentials, backend sets HttpOnly cookie, and now returns the full user object
-        const response = await api.post<{ success: boolean; user: User }>(
-          '/auth/login',
-          { email: trimmedEmail, password: trimmedPassword, rememberMe }
-        );
-
-        if (!response.data.success || !response.data.user) {
-          throw new Error('Login failed. Invalid response from server.');
-        }
-
-        // 2. Set the REAL user object from the API response
-        const userFromApi = response.data.user;
-        setUser({
-          ...userFromApi,
-          // Derive username if not explicitly provided by backend
-          username: (userFromApi as any).username || userFromApi.email,
-        });
-        setIsInitialLoad(false); // Explicitly set loading to false after login
-
-      } catch (error) {
-        const errorMessage =
-          (error as any).response?.data?.message ||
-          'Login failed. Invalid credentials.';
-        console.error('Final Diagnosis Login Error:', errorMessage);
-        throw new Error(errorMessage);
+    if (isAuthenticated) {
+      if (user.isSuperAdmin) {
+        if (router.pathname !== '/super/tenants') router.replace('/super/tenants');
+      } else if (isAuthPage || router.pathname.startsWith('/super')) { // If SuperAdmin pages are accessed by non-SuperAdmin
+        router.replace('/dashboard/home');
       }
-    },
-    []
-  );
-
-  // CRITICAL: New logout endpoint to clear the HttpOnly cookie (endpoint to be created next)
-  const logout = useCallback(async () => {
-    try {
-      // Call a backend endpoint to clear the cookie
-      await api.post('/auth/logout');
-    } catch (e) {
-      console.warn(
-        'Logout endpoint failed, proceeding with client-side cleanup.'
-      );
-    } finally {
-      setUser(null);
-      router.push('/login');
+    } else {
+      if (!isAuthPage) router.replace('/login');
     }
-  }, [router]);
+  }, [user, isInitialLoad, router]);
 
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    login,
-    logout,
-    isInitialLoad,
-    hasRole,
-  };
+  const hasRole = (roles: Role[]) => !!user && roles.includes(user.role);
 
-  // Show a full page loading screen during the initial check
+  const login = useCallback(async (email, password, rememberMe) => {
+    try {
+      const response = await api.post('/auth/login', { email, password, rememberMe });
+      if (!response.data.success || !response.data.user) throw new Error('Login failed.');
+      setUser(response.data.user);
+      setIsInitialLoad(false);
+    } catch (error) {
+      const errorMessage = (error as any).response?.data?.message || 'Login failed.';
+      throw new Error(errorMessage);
+    }
+  }, []);
+
+  const value = { user, isAuthenticated: !!user, login, logout, isInitialLoad, hasRole };
+
   if (isInitialLoad) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-dark text-white">
-        <div className="text-xl">Checking SentinelFi Session Security...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+        <div className="text-xl animate-pulse">Initializing SentinelFi Session...</div>
       </div>
     );
   }

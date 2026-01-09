@@ -1,87 +1,80 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
+import { useSecuredApi } from '../components/hooks/useSecuredApi';
 import PageContainer from '../components/Layout/PageContainer';
-import { Folder, Percent, DollarSign, CheckCircle, ExternalLink, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'; // NEW: Added TrendingUp, TrendingDown, AlertTriangle
 import Card from '../components/common/Card';
 import { formatCurrency } from '../lib/utils';
-import { useSecuredApi } from '../components/hooks/useSecuredApi';
-import Link from 'next/link';
+import { Project } from '../../shared/types/project';
 
-// Interface for the data returned from the production-ready Recursive CTE endpoint
-interface RollupData {
-  wbs_id: string;
-  parent_wbs_id: string | null;
-  wbs_code: string;
-  description: string;
-  total_cost_budgeted: string;
-  total_paid_rollup: string;
-  total_paid_self: string;
-  total_committed_lpo: string;
+// Interface for data returned by /api/v1/projects (now including rollups)
+interface ProjectData extends Project {
+  total_budgeted_rollup: number;
+  total_paid_rollup: number;
 }
 
 // Derived Project Summary Interface (for display)
 interface ProjectSummary {
   name: string;
-  wbsId: string; // The root WBS ID for the project
+  projectId: string; // Use project_id now
   totalBudget: number;
   totalActual: number;
   variancePercent: number;
   status: string; // Derived status like "On Track", "Overrun", "Underrun"
   color: 'primary' | 'secondary' | 'alert' | 'positive';
-  statusIcon?: React.ReactNode; // NEW: Icon for status
+  statusIcon?: React.ReactNode;
 }
 
 const ProjectsPage: React.FC = () => {
   const api = useSecuredApi();
-  const [allWbsData, setAllWbsData] = useState<RollupData[]>([]);
+  const [projectRawData, setProjectRawData] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchWbsRollupData = async () => {
+    const fetchProjectData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await api.get<RollupData[]>('/wbs/budget/rollup');
-        setAllWbsData(response.data);
+        // Fetch from the new /api/v1/projects endpoint
+        const response = await api.get<{ projects: ProjectData[]; total: number }>('/projects'); 
+        setProjectRawData(response.data.projects);
       } catch (e: any) {
-        setError(`Failed to fetch project data: ${e.message}`);
+        setError(`Failed to fetch project data: ${e.response?.data?.message || e.message}`);
       } finally {
         setLoading(false);
       }
     };
-    fetchWbsRollupData();
+    fetchProjectData();
   }, [api]);
 
-  // Process raw WBS data into project summaries
+  // Process raw project data into project summaries
   const projectSummaries: ProjectSummary[] = useMemo(() => {
-    if (allWbsData.length === 0) return [];
+    if (projectRawData.length === 0) return [];
 
-    // Identify root WBS items (which represent top-level projects)
-    const rootWbsItems = allWbsData.filter(item => !item.parent_wbs_id);
-
-    return rootWbsItems.map(rootItem => {
-      const totalBudget = Number(rootItem.total_cost_budgeted);
-      const totalActual = Number(rootItem.total_paid_rollup);
-      const variance = totalBudget > 0 ? ((totalActual - totalBudget) / totalBudget) * 100 : 0; // Negative for underrun (spent less)
+    return projectRawData.map(project => {
+      const totalBudget = Number(project.total_budgeted_rollup);
+      const totalActual = Number(project.total_paid_rollup);
+      const variance = totalBudget > 0 ? ((totalActual - totalBudget) / totalBudget) * 100 : 0;
 
       let status: string;
       let color: 'primary' | 'secondary' | 'alert' | 'positive';
-      let statusIcon: React.ReactNode; // Initialize statusIcon
+      let statusIcon: React.ReactNode; 
 
-      if (variance < -5) { // More than 5% underrun (spent less)
+      // Logic adapted from previous implementation
+      if (variance < -5) {
         status = "Ahead of Budget";
         color = "positive";
         statusIcon = <TrendingUp className="w-4 h-4 mr-1" />;
-      } else if (variance < 0) { // Some underrun
+      } else if (variance < 0) {
         status = "On Track (Underrun)";
         color = "positive";
         statusIcon = <CheckCircle className="w-4 h-4 mr-1" />;
-      } else if (variance > 5) { // More than 5% overrun
+      } else if (variance > 5) {
         status = "Critical Overrun";
         color = "alert";
         statusIcon = <AlertTriangle className="w-4 h-4 mr-1" />;
-      } else if (variance > 0) { // Some overrun
+      } else if (variance > 0) {
         status = "Minor Overrun";
         color = "alert";
         statusIcon = <TrendingDown className="w-4 h-4 mr-1" />;
@@ -92,21 +85,20 @@ const ProjectsPage: React.FC = () => {
       }
 
       return {
-        name: rootItem.description, // Assuming root WBS description is project name
-        wbsId: rootItem.wbs_id,
+        name: project.project_name, 
+        projectId: project.project_id, // Use new project_id
         totalBudget,
         totalActual,
         variancePercent: variance,
         status,
         color,
-        statusIcon, // Assign the determined icon
+        statusIcon, 
       };
     });
-  }, [allWbsData]);
+  }, [projectRawData]);
 
   // Calculate KPIs
   const totalActiveProjects = projectSummaries.length;
-  // Adjusted logic: projects "ahead of budget" are those with a negative variancePercent (spent less)
   const totalProjectsAheadOfBudget = projectSummaries.filter(p => p.variancePercent < 0).length;
   const averagePortfolioVariance = totalActiveProjects > 0 
     ? projectSummaries.reduce((sum, p) => sum + p.variancePercent, 0) / totalActiveProjects
@@ -128,24 +120,28 @@ const ProjectsPage: React.FC = () => {
           <>
             {/* Project Status Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-              <Card title="Total Active Projects" borderTopColor="primary">
+              <Card title="Total Active Projects" borderTopColor="primary" className="border border-gray-700">
                   <p className="text-4xl font-bold text-white">{totalActiveProjects}</p>
                   <p className="text-sm text-gray-400 mt-1">Total under SentinelFi control</p>
               </Card>
-              <Card title="Average Portfolio Variance" borderTopColor={averagePortfolioVariance > 0 ? 'alert' : 'positive'}>
+              <Card 
+                title="Average Portfolio Variance" 
+                borderTopColor={averagePortfolioVariance > 0 ? 'alert' : 'positive'}
+                className="border border-gray-700"
+              >
                   <p className={`text-4xl font-bold flex items-center ${averagePortfolioVariance > 0 ? 'text-red-500' : 'text-alert-positive'}`}>
                       {averagePortfolioVariance.toFixed(2)}<Percent className="w-6 h-6 ml-2" />
                   </p>
                   <p className="text-sm text-gray-400 mt-1">Requires management review for overruns</p>
               </Card>
-              <Card title="Projects Ahead of Budget" borderTopColor="positive">
+              <Card title="Projects Ahead of Budget" borderTopColor="positive" className="border border-gray-700">
                   <p className="text-4xl font-bold text-alert-positive">{totalProjectsAheadOfBudget} / {totalActiveProjects}</p>
                   <p className="text-sm text-gray-400 mt-1">Cost Underrun Status</p>
               </Card>
             </div>
             
-            <Card title="Project List & Status" subtitle="Financial health summary of active projects." borderTopColor="secondary">
-              <div className="overflow-x-auto">
+            <Card title="Project List & Status" subtitle="Financial health summary of active projects." borderTopColor="secondary" className="border border-gray-700">
+              <div className="overflow-x-auto rounded-lg border border-gray-700">
                 <table className="min-w-full divide-y divide-gray-700">
                   <thead className="bg-brand-dark/50">
                     <tr>
@@ -162,7 +158,7 @@ const ProjectsPage: React.FC = () => {
                       <tr><td colSpan={6} className="p-4 text-center text-gray-500">No active projects found.</td></tr>
                     ) : (
                       projectSummaries.map((p) => (
-                        <tr key={p.wbsId} className="hover:bg-gray-700/50 transition">
+                        <tr key={p.projectId} className="hover:bg-gray-700/50 transition">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-primary">{p.name}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white flex items-center justify-end">
                             <DollarSign className="w-4 h-4 mr-1 text-gray-500" />{formatCurrency(p.totalBudget)}
@@ -180,8 +176,8 @@ const ProjectsPage: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <Link href={`/dashboard/ceo?wbsId=${p.wbsId}`} className="text-brand-primary hover:text-white flex items-center justify-end">
-                              View WBS <ExternalLink className="w-4 h-4 ml-1" />
+                            <Link href={`/projects/${p.projectId}/overview`} className="text-brand-primary hover:text-white flex items-center justify-end">
+                              View Project <ExternalLink className="w-4 h-4 ml-1" />
                             </Link>
                           </td>
                         </tr>

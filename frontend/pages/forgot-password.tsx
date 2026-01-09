@@ -60,7 +60,7 @@ const ForgotPasswordPage: React.FC = () => {
           {!emailSent ? ( // Only show email input if email hasn't been sent
             <>
               <p className="text-gray-400 mb-6 text-sm">
-                Enter your email address below and we'll send you a link to reset your password.
+                Enter your email address below and we&apos;ll send you a link to reset your password.
               </p>
               <div className="mb-4">
                 <label htmlFor="email" className="block text-sm font-medium text-gray-400 mb-2">

@@ -1,15 +1,50 @@
 import React from 'react';
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+// Extend the standard input attributes
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string; // Optional label
+  icon?: React.ReactNode; // Optional icon
+  containerClassName?: string; // Optional class for the container div
+}
 
-const Input: React.FC<InputProps> = ({ className, ...props }) => {
+const Input: React.FC<InputProps> = ({
+  className,
+  label,
+  icon,
+  id,
+  containerClassName,
+  ...props
+}) => {
+  const inputId = id || props.name;
+
   return (
-    <input
-      className={`block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm
-        focus:outline-none focus:ring-brand-primary focus:border-brand-primary
-        ${className}`}
-      {...props}
-    />
+    <div className={containerClassName}>
+      {label && (
+        <label
+          htmlFor={inputId}
+          className="block text-gray-300 text-sm font-bold mb-2"
+        >
+          {label}
+        </label>
+      )}
+      <div className="relative">
+        {icon && (
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+            {icon}
+          </span>
+        )}
+        <input
+          id={inputId}
+          className={`block w-full py-2 border border-gray-600 rounded-lg shadow-sm
+            focus:outline-none focus:ring-brand-primary focus:border-brand-primary
+            bg-brand-dark/50 text-white
+            ${icon ? 'pl-10' : 'px-4'} 
+            ${className}`}
+          {...props}
+        />
+      </div>
+    </div>
   );
 };
+
 export default Input;
