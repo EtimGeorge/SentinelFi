@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import { Folder, TrendingUp, CheckCircle, AlertTriangle, TrendingDown, Percent, DollarSign, ExternalLink } from 'lucide-react';
 import { useSecuredApi } from '../components/hooks/useSecuredApi';
 import PageContainer from '../components/Layout/PageContainer';
 import Card from '../components/common/Card';
