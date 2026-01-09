@@ -14,6 +14,12 @@ export class UserEntity {
   @Column({ select: false }) // CRITICAL: Never retrieve the password hash by default
   password_hash!: string;
 
+  @Column({ type: "varchar", length: 255, nullable: true }) // NEW: First name
+  first_name?: string;
+
+  @Column({ type: "varchar", length: 255, nullable: true }) // NEW: Last name
+  last_name?: string;
+
   @Column({
     type: "enum",
     enum: Role,

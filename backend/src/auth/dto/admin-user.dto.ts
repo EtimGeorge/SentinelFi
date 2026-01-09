@@ -23,4 +23,5 @@ export class UserResponseDto implements User {
   @IsOptional()
   @IsString()
   tenant_name?: string | null;
+  isSuperAdmin?: boolean; // NEW: Added for frontend checks
 }

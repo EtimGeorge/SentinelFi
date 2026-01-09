@@ -9,6 +9,7 @@ import { PassportModule } from "@nestjs/passport";
 import { JwtStrategy } from "./jwt.strategy";
 import * as ms from "ms";
 import { SeedTestUsersService } from "./seed-test-users.service";
+import { AuditModule } from '../audit/audit.module'; // NEW: Import AuditModule
 
 // Throttler imports
 import { ThrottlerModule, ThrottlerGuard, ThrottlerModuleOptions } from "@nestjs/throttler";
@@ -46,6 +47,7 @@ import { APP_GUARD } from "@nestjs/core";
         ],
       }),
     }),
+    AuditModule, // NEW: Import AuditModule
   ],
   controllers: [AuthController],
   providers: [
@@ -63,6 +65,6 @@ import { APP_GUARD } from "@nestjs/core";
     },
     Logger, // Add Logger as a provider for injection
   ],
-  exports: [PassportModule, JwtStrategy, TypeOrmModule, JwtModule],
+  exports: [PassportModule, JwtStrategy, TypeOrmModule, JwtModule, AuthService],
 })
 export class AuthModule {}

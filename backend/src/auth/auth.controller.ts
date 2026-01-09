@@ -55,6 +55,7 @@ export class AuthController {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax" as const, // CRITICAL FIX: Changed from 'strict' to 'lax' for local development
+        path: '/', // CRITICAL FIX: Ensure cookie is valid for all paths
         maxAge: maxAge,
         // Only set domain in production to allow `localhost` to `127.0.0.1` cookie sharing during development
         ...(process.env.NODE_ENV === "production" && { domain: process.env.COOKIE_DOMAIN }),
@@ -79,6 +80,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax" as const, // CRITICAL FIX: Changed from 'strict' to 'lax'
+      path: '/', // Ensure the path matches the cookie being cleared
       // Only set domain in production
       ...(process.env.NODE_ENV === "production" && { domain: process.env.COOKIE_DOMAIN }),
     });
@@ -113,31 +115,38 @@ export class AuthController {
   }
 
   @Post("users")
-  @Roles(Role.Admin, Role.ITHead)
+  @Roles(Role.Admin, Role.ITHead, Role.SuperAdmin) // Allow SuperAdmin to create users
   // @UseGuards(RolesGuard) // Already applied globally
   @HttpCode(HttpStatus.CREATED)
   @UsePipes(new ValidationPipe({ transform: true }))
-  async createUser(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
-    return this.authService.createUser(createUserDto);
+  async createUser(
+    @Req() req: { user: JwtPayload }, // Inject requesting user's data
+    @Body() createUserDto: CreateUserDto
+  ): Promise<UserResponseDto> {
+    return this.authService.createUser(req.user, createUserDto);
   }
 
   @Patch("users/:id") // Changed from Put to Patch as per previous discussions
-  @Roles(Role.Admin, Role.ITHead)
+  @Roles(Role.Admin, Role.ITHead, Role.SuperAdmin) // Allow SuperAdmin to update users
   // @UseGuards(RolesGuard) // Already applied globally
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateUser(
+    @Req() req: { user: JwtPayload }, // Inject requesting user's data
     @Param("id") id: string,
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<UserResponseDto> {
-    return this.authService.updateUser(id, updateUserDto);
+    return this.authService.updateUser(req.user, id, updateUserDto);
   }
 
   @Delete("users/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(Role.Admin, Role.ITHead)
   // @UseGuards(RolesGuard) // Already applied globally
-  async softDeleteUser(@Param("id") id: string): Promise<void> {
+  async softDeleteUser(
+    @Req() req: { user: JwtPayload },
+    @Param("id") id: string,
+  ): Promise<void> {
     // Assuming deleteUser in authService handles soft delete
-    await this.authService.updateUser(id, { is_active: false });
+    await this.authService.updateUser(req.user, id, { is_active: false });
   }
 }

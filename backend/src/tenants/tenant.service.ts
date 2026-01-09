@@ -2,9 +2,9 @@ import { Injectable, InternalServerErrorException, NotFoundException, ConflictEx
 import { DataSource, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantEntity } from './tenant.entity';
-import { CreateTenantDto } from './dto/create-tenant.dto';
-import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { CreateTenantDto, UpdateTenantDto } from '../superadmin/dto/create-tenant.dto';
 import { WbsService } from '../wbs/wbs.service'; // For seeding data
+import { AuditService } from '../audit/audit.service'; // NEW: Import AuditService
 
 @Injectable()
 export class TenantService {
@@ -15,6 +15,7 @@ export class TenantService {
     private tenantRepository: Repository<TenantEntity>,
     private readonly dataSource: DataSource,
     private readonly wbsService: WbsService, // Inject WbsService
+    private readonly auditService: AuditService, // NEW: Inject AuditService
   ) {}
 
   /**
@@ -40,6 +41,11 @@ export class TenantService {
         where: [{ name: createTenantDto.name }, { schema_name }],
       });
       if (existingTenant) {
+        await this.auditService.logEvent({
+          action: 'TENANT_CREATION_FAILED',
+          userEmail: 'SYSTEM', // Assuming system initiated or passed from SuperAdmin context
+          details: { reason: `Conflicting tenant name or schema name: ${createTenantDto.name}/${schema_name}` },
+        });
         throw new ConflictException('Tenant with this name or a conflicting schema name already exists.');
       }
 
@@ -55,8 +61,8 @@ export class TenantService {
       // 4. Create and save the tenant entity to the public schema
       const newTenant = queryRunner.manager.create(TenantEntity, {
         name: createTenantDto.name,
-        project_name: createTenantDto.projectName,
         schema_name: schema_name,
+        is_active: createTenantDto.is_active ?? true, // Set is_active from DTO or default
       });
       const savedTenant = await queryRunner.manager.save(newTenant);
       
@@ -71,6 +77,14 @@ export class TenantService {
       // If we get this far without errors, commit the transaction
       await queryRunner.commitTransaction();
       this.logger.log(`Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`);
+      
+      await this.auditService.logEvent({
+        action: 'TENANT_CREATED',
+        userId: 'SYSTEM', // Assuming system initiated or passed from SuperAdmin context
+        targetType: 'TENANT',
+        targetId: savedTenant.tenant_id,
+        details: { name: savedTenant.name, schema_name: savedTenant.schema_name },
+      });
       return savedTenant;
 
     } catch (error: unknown) { // Explicitly type error as unknown
@@ -99,7 +113,7 @@ export class TenantService {
    * Finds a single tenant by ID from the public schema.
    */
   async findOneTenant(id: string): Promise<TenantEntity> {
-    const tenant = await this.tenantRepository.findOne({ where: { id } });
+    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: id } });
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${id} not found.`);
     }
@@ -114,8 +128,29 @@ export class TenantService {
     const tenant = await this.findOneTenant(id);
     
     // Merge and save the changes
+    const oldTenant = { ...tenant }; // Snapshot old state for audit
     const updatedTenant = this.tenantRepository.merge(tenant, updateTenantDto);
-    return this.tenantRepository.save(updatedTenant);
+    const savedTenant = await this.tenantRepository.save(updatedTenant);
+
+    const changes: any = {};
+    if (updateTenantDto.name !== undefined && oldTenant.name !== savedTenant.name) {
+      changes.name = { from: oldTenant.name, to: savedTenant.name };
+    }
+    if (updateTenantDto.is_active !== undefined && oldTenant.is_active !== savedTenant.is_active) {
+      changes.is_active = { from: oldTenant.is_active, to: savedTenant.is_active };
+    }
+
+    if (Object.keys(changes).length > 0) {
+      await this.auditService.logEvent({
+        action: 'TENANT_UPDATED',
+        userId: 'SYSTEM', // Assuming system initiated or passed from SuperAdmin context
+        targetType: 'TENANT',
+        targetId: savedTenant.tenant_id,
+        details: { changes },
+      });
+    }
+
+    return savedTenant;
   }
 
   /**
@@ -127,9 +162,34 @@ export class TenantService {
     // This is a destructive operation and should be handled with care.
     this.logger.warn(`Schema dropping for tenant ${id} is not yet implemented.`);
 
-    const result = await this.tenantRepository.delete(id);
-    if (result.affected === 0) {
+    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: id } });
+    if (!tenant) {
+      await this.auditService.logEvent({
+        action: 'TENANT_DELETION_FAILED',
+        userEmail: 'SYSTEM',
+        details: { reason: `Tenant with ID ${id} not found for deletion.` },
+      });
       throw new NotFoundException(`Tenant with ID ${id} not found.`);
     }
+
+    const result = await this.tenantRepository.delete({ tenant_id: id });
+    if (result.affected === 0) { // Should not happen if tenant was found above
+      await this.auditService.logEvent({
+        action: 'TENANT_DELETION_FAILED',
+        userEmail: 'SYSTEM',
+        targetType: 'TENANT',
+        targetId: id,
+        details: { reason: `Failed to delete tenant record for ID ${id}.` },
+      });
+      throw new InternalServerErrorException(`Failed to delete tenant record for ID ${id}.`);
+    }
+
+    await this.auditService.logEvent({
+      action: 'TENANT_DELETED',
+      userId: 'SYSTEM',
+      targetType: 'TENANT',
+      targetId: id,
+      details: { name: tenant.name, schema_name: tenant.schema_name },
+    });
   }
 }

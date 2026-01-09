@@ -7,23 +7,19 @@ import { UserEntity } from '../auth/user.entity'; // Corrected import path
 import { JwtPayload, UserPayload } from '../common/interfaces/request.interface';
 import { Request } from 'express';
 
-// Enhanced cookie extractor with detailed logging
 const cookieExtractor = (req: Request): string | null => {
   const logger = new Logger('CookieExtractor');
-  
-  logger.log(`[Extract] Cookies present: ${JSON.stringify(Object.keys(req.cookies || {}))}`);
-  
   let token = null;
+
   if (req && req.cookies) {
     token = req.cookies['access_token'];
     if (token) {
-      logger.log(`[Extract] Token found in cookies (length: ${token.length})`);
+      logger.log('[Extract] ✅ JWT token found in `access_token` cookie.');
     } else {
-      logger.warn('[Extract] access_token cookie NOT FOUND');
-      logger.warn(`[Extract] Available cookies: ${JSON.stringify(req.cookies)}`);
+      logger.log('[Extract] 🟡 No `access_token` cookie found, will check Authorization header next.');
     }
   } else {
-    logger.warn('[Extract] No cookies object on request');
+    logger.warn('[Extract] ⚠️ No `req.cookies` object found on the request. This is unexpected.');
   }
   
   return token;

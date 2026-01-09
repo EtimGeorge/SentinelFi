@@ -6,4 +6,5 @@ export enum Role {
   OperationalHead = 'Operational Head',
   CEO = 'CEO',
   AssignedProjectUser = 'Assigned Project User',
+  SuperAdmin = 'SuperAdmin', // NEW: SuperAdmin role
 }

@@ -5,10 +5,13 @@ import { Role } from './role.enum'; // Updated path
 export interface User {
   id: string;
   email: string;
+  first_name?: string; // NEW
+  last_name?: string;  // NEW
   role: Role;
   is_active: boolean;
   tenant_id?: string | null; // NEW: User's assigned tenant ID
   tenant_name?: string | null; // NEW: User's assigned tenant name (for display)
+  isSuperAdmin?: boolean; // NEW: Added for frontend checks
 }
 
 export interface JwtPayload extends User {
@@ -31,9 +34,21 @@ export class CreateUserDto {
   @MinLength(8, { message: 'Password must be at least 8 characters long' }) // Enforce security standards
   password!: string;
 
+  @IsOptional() // NEW: First name can be optional during creation
+  @IsString()
+  first_name?: string; // NEW
+
+  @IsOptional() // NEW: Last name can be optional during creation
+  @IsString()
+  last_name?: string; // NEW
+
   @IsString()
   @IsIn(validRoles)
   role!: Role;
+
+  @IsOptional()
+  @IsBoolean() // NEW: is_active can be set during creation (e.g., by admin)
+  is_active?: boolean;
 
   @IsOptional()
   @IsUUID()
@@ -54,4 +69,12 @@ export class UpdateUserDto {
   @IsOptional()
   @IsUUID()
   tenant_id?: string | null; // NEW: Optional tenant ID for update
+
+  @IsOptional() // NEW
+  @IsString()
+  first_name?: string; // NEW
+
+  @IsOptional() // NEW
+  @IsString()
+  last_name?: string; // NEW
 }
