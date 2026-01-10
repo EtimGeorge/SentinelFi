@@ -6,11 +6,11 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from 'shared/types/user';
 import { TenantEntity } from '../../tenants/tenant.entity';
+import { ClsService } from 'nestjs-cls';
 
-// Augment the Request object with our custom properties
+// Augment the Request object type for controllers that still rely on it
 export interface AuthenticatedRequest extends Request {
   user?: JwtPayload;
-  schema_name?: string; // Attached by TenancyMiddleware for convenience
 }
 
 @Injectable()
@@ -22,6 +22,7 @@ export class TenancyMiddleware implements NestMiddleware {
     private auditService: AuditService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private readonly cls: ClsService,
   ) {}
 
   async use(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -41,19 +42,23 @@ export class TenancyMiddleware implements NestMiddleware {
         const decoded = this.jwtService.verify(accessToken, {
           secret: this.configService.get<string>('JWT_SECRET_KEY'),
         }) as JwtPayload;
-        req.user = decoded; // Attach user to request for guards/controllers
+        req.user = decoded; // Keep this for legacy controller compatibility
         tenantId = decoded.tenant_id || null;
         userEmail = decoded.email;
-        userId = decoded.id; // FIX: Use 'id' instead of 'sub'
+        userId = decoded.id;
         userRole = decoded.role;
       } catch (error) {
         this.logger.debug('Invalid or expired JWT in TenancyMiddleware. Proceeding without tenant context.');
       }
     }
 
-    let schemaName: string | null = null;
-    let queryRunner = this.dataSource.createQueryRunner(); // Get a query runner
-    await queryRunner.connect(); // Connect it
+    // 2. Determine Schema Name
+    let schemaName: string = 'public'; // Default
+
+    // We can use a separate query runner here just to look up the tenant schema name,
+    // avoiding polluting the main connection logic.
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
 
     try {
       if (tenantId) {
@@ -66,49 +71,42 @@ export class TenancyMiddleware implements NestMiddleware {
           schemaName = tenant.schema_name;
         } else {
           this.logger.warn(`Tenant not found for tenantId: ${tenantId}. Falling back to 'public' schema.`);
-          schemaName = 'public'; // Fallback to public for safety
         }
-      } else {
-        // No tenantId (e.g., SuperAdmin, or unauthenticated, or system user)
-        schemaName = 'public';
       }
 
-      req.schema_name = schemaName; // Attach schema_name to the request
+      // 3. Store Context in CLS
+      // This is the critical architectural fix. We store the values in the CLS context
+      // so they can be retrieved by the TenancyAwareDataSource later.
+      this.cls.set('TENANT_ID', tenantId);
+      this.cls.set('SCHEMA_NAME', schemaName);
+      this.cls.set('USER', req.user); // Store full user object for easy access
 
-      if (schemaName) {
-        await queryRunner.query(`SET search_path TO "${schemaName}", public;`);
-        this.logger.debug(`search_path set to "${schemaName}", public for user: ${userEmail || 'N/A'}`);
-        
-        await this.auditService.logEvent({
+      this.logger.debug(`[TenancyMiddleware] Context set. Tenant: ${tenantId || 'None'}, Schema: ${schemaName}`);
+
+      // Log the context set event (Audit)
+      if (schemaName !== 'public') {
+         await this.auditService.logEvent({
             action: 'SCHEMA_CONTEXT_SET',
             userId: userId,
             userEmail: userEmail,
             targetType: 'TENANT_SCHEMA',
-            targetId: tenantId || undefined, // FIX: Ensure null becomes undefined
+            targetId: tenantId || undefined,
             details: { schemaName: schemaName, userRole: userRole },
-            tenantId: tenantId || undefined, // FIX: Ensure null becomes undefined
+            tenantId: tenantId || undefined,
         });
-      } else {
-        // Default to public if no schemaName derived
-        await queryRunner.query(`SET search_path TO public;`);
-        this.logger.debug(`search_path set to public for user: ${userEmail || 'N/A'}`);
       }
 
-      next(); // Proceed to the next middleware/guard/controller
+      next();
     } catch (error) {
-      // FIX: Add type guard for error handling
-      if (error instanceof Error) {
+       if (error instanceof Error) {
         this.logger.error(`Error in TenancyMiddleware: ${error.message}`, error.stack);
       } else {
         this.logger.error('An unknown error occurred in TenancyMiddleware', error);
       }
-      // Pass the error to NestJS exception filters
-      next(error); 
+      next(error);
     } finally {
-      // ALWAYS release the query runner in the middleware.
-      if (queryRunner && !queryRunner.isReleased) { // Check if queryRunner was successfully created and not yet released
-        await queryRunner.release();
-      }
+      await queryRunner.release();
     }
   }
 }
+

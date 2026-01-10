@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useSecuredApi } from '../../../hooks/useSecuredApi';
-import { PageContainer } from '../../../components/Layout/PageContainer';
-import { Card } from '../../../components/common/Card';
+import { useSecuredApi } from '../../../components/hooks/useSecuredApi';
+import PageContainer from '../../../components/Layout/PageContainer';
+import Card from '../../../components/common/Card';
 import { formatCurrency } from '../../../lib/utils';
 import {
   ArrowLeft,
@@ -15,12 +15,12 @@ import {
   FileText, // For RFQ
   ClipboardList, // For SOW
 } from 'lucide-react';
-import { WbsBudgetEntity } from '../../../../shared/types/wbs';
-import { LiveExpenseEntity } from '../../../../shared/types/expense';
-import { ProjectEntity } from '../../../backend/src/projects/project.entity'; // Import ProjectEntity
+import { WbsBudget } from '@shared/types/wbs';
+import { LiveExpense } from '@shared/types/expense';
+import { Project } from '@shared/types/project';
 
 // Interface for Project details (from /projects/:id)
-interface ProjectDetail extends ProjectEntity {
+interface ProjectDetail extends Project { // Corrected base interface
   total_budgeted_rollup: number; // Aggregated from WBS budgets
   total_paid_rollup: number; // Aggregated from live expenses
 }
@@ -31,8 +31,8 @@ const ProjectOverviewPage: React.FC = () => {
   const api = useSecuredApi();
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
-  const [budgets, setBudgets] = useState<WbsBudgetEntity[]>([]);
-  const [expenses, setExpenses] = useState<LiveExpenseEntity[]>([]);
+  const [budgets, setBudgets] = useState<WbsBudget[]>([]);
+  const [expenses, setExpenses] = useState<LiveExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,11 +46,11 @@ const ProjectOverviewPage: React.FC = () => {
       setProject(projectResponse.data);
 
       // Fetch associated budgets using projectId filter
-      const budgetsResponse = await api.get<{ budgets: WbsBudgetEntity[], total: number }>(`/wbs/budgets?projectId=${id}&limit=1000`);
+      const budgetsResponse = await api.get<{ budgets: WbsBudget[], total: number }>(`/wbs/budgets?projectId=${id}&limit=1000`);
       setBudgets(budgetsResponse.data.budgets);
 
       // Fetch associated expenses using projectId filter
-      const expensesResponse = await api.get<{ expenses: LiveExpenseEntity[], total: number }>(`/wbs/expenses?projectId=${id}&limit=1000`);
+      const expensesResponse = await api.get<{ expenses: LiveExpense[], total: number }>(`/wbs/expenses?projectId=${id}&limit=1000`);
       setExpenses(expensesResponse.data.expenses);
 
     } catch (e: any) {
@@ -254,7 +254,7 @@ const ProjectOverviewPage: React.FC = () => {
                                           <tbody className="divide-y divide-gray-700">
                                             {expenses.map(expense => (
                                               <tr key={expense.expense_id} className="hover:bg-gray-700/50 transition">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-primary">{expense.item_description}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-primary">{expense.description}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{new Date(expense.expense_date).toLocaleDateString()}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white">{formatCurrency(expense.actual_paid_amount)}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.variance_flag}</td>

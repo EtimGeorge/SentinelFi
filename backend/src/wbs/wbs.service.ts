@@ -20,10 +20,11 @@ import { Inject } from '@nestjs/common';
 import { GetWbsBudgetsDto } from './dto/get-wbs-budgets.dto';
 import { GetLiveExpensesDto } from './dto/get-live-expenses.dto';
 import { WbsBudgetRollupDto } from './dto/wbs-budget-rollup.dto';
-import { GetProjectsDto } from 'projects/dto/get-projects.dto';
-import { ProjectEntity } from 'projects/project.entity';
-import { ProjectsService } from 'projects/projects.service';
+import { GetProjectsDto } from '../projects/dto/get-projects.dto';
+import { ProjectEntity } from '../projects/project.entity';
+import { ProjectsService } from '../projects/projects.service';
 import { UserEntity } from '../auth/user.entity'; // NEW: Import UserEntity
+import { WbsBudgetStatus } from "@shared/types/wbs-budget-status.enum"; // Import WbsBudgetStatus enum
 import { Buffer } from "buffer"; // Needed for export methods
 
 @Injectable()
@@ -79,7 +80,7 @@ export class WbsService {
     wbsBudget.days_budgeted = days_budgeted;
     wbsBudget.total_cost_budgeted = total_cost_budgeted;
     wbsBudget.category_id = category_id ?? null; // Added ?? null
-    wbsBudget.status = "draft";
+    wbsBudget.status = WbsBudgetStatus.DRAFT;
     wbsBudget.user = { id: userId } as UserEntity; // Assign UserEntity via relation
     wbsBudget.tenant_id = tenant_id;
 
@@ -109,13 +110,14 @@ export class WbsService {
       newWbsBudget.days_budgeted = dto.days_budgeted;
       newWbsBudget.total_cost_budgeted = dto.total_cost_budgeted;
       newWbsBudget.category_id = dto.category_id ?? null; // Added ?? null
-      newWbsBudget.status = 'draft';
+      newWbsBudget.status = WbsBudgetStatus.DRAFT;
       newWbsBudget.user = { id: userId } as UserEntity; // Assign UserEntity via relation
       newWbsBudget.tenant_id = tenant_id;
       return newWbsBudget;
     });
 
-    return this.wbsBudgetRepository.save(wbsBudgets);
+    const savedWbsBudgets = await this.wbsBudgetRepository.save(wbsBudgets);
+    return savedWbsBudgets;
   }
 
   async updateWbsBudget(
@@ -133,8 +135,8 @@ export class WbsService {
       );
     }
 
-    const updatedWbsBudget = Object.assign(wbsBudget, updateWbsBudgetDto);
-    return this.wbsBudgetRepository.save(updatedWbsBudget);
+    this.wbsBudgetRepository.merge(wbsBudget, updateWbsBudgetDto);
+    return this.wbsBudgetRepository.save(wbsBudget);
   }
 
   async deleteWbsItem(

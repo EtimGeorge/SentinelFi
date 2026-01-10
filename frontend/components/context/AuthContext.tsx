@@ -7,8 +7,8 @@ import React, {
 } from "react";
 import { useRouter } from "next/router";
 import api from "../../lib/api";
-import type { User } from "shared/types/user";
-import { Role } from "shared/types/role.enum";
+import type { User } from "@shared/types/user";
+import { Role } from "@shared/types/role.enum";
 import { toast } from 'react-hot-toast';
 
 export { Role };

@@ -105,7 +105,7 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
                 )}
                 {searchResults.expenses.map(expense => (
                   <a href="#" key={expense.expense_id} className="block px-4 py-2 text-sm text-gray-300 hover:bg-brand-primary hover:text-white">
-                    {expense.item_description}
+                    {expense.description}
                   </a>
                 ))}
               </div>

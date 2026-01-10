@@ -1,59 +1,28 @@
-[4:34:41 PM] Starting compilation in watch mode...
+[8:04:31 AM] Starting compilation in watch mode...
 
-src/auth/auth.service.ts:16:58 - error TS2307: Cannot find module '@shared/types/user' or its corresponding type declarations.
+src/superadmin/superadmin.service.ts:7:10 - error TS2305: Module '"shared/types/user"' has no exported member 'CreateUserDto'.
 
-16 import { CreateUserDto, UpdateUserDto, JwtPayload } from "@shared/types/user";
-                                                            ~~~~~~~~~~~~~~~~~~~~
+7 import { CreateUserDto } from 'shared/types/user'; // DTO for creating user
+           ~~~~~~~~~~~~~
 
-src/auth/auth.service.ts:17:22 - error TS2307: Cannot find module '@shared/types/role.enum' or its corresponding type declarations.  
+src/wbs/wbs.service.ts:23:32 - error TS2307: Cannot find module '@projects/dto/get-projects.dto' or its corresponding type declarations.
 
-17 import { Role } from "@shared/types/role.enum";
-                        ~~~~~~~~~~~~~~~~~~~~~~~~~
+23 import { GetProjectsDto } from '@projects/dto/get-projects.dto';
+                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-src/auth/user.entity.ts:2:22 - error TS2307: Cannot find module '@shared/types/role.enum' or its corresponding type declarations.    
+src/wbs/wbs.service.ts:24:31 - error TS2307: Cannot find module '@projects/project.entity' or its corresponding type declarations.   
 
-2 import { Role } from "@shared/types/role.enum";
-                       ~~~~~~~~~~~~~~~~~~~~~~~~~
+24 import { ProjectEntity } from '@projects/project.entity';
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-src/superadmin/dto/create-tenant-admin-user.dto.ts:2:31 - error TS2307: Cannot find module '@shared/types/user' or its corresponding 
-type declarations.
+src/wbs/wbs.service.ts:25:33 - error TS2307: Cannot find module '@projects/projects.service' or its corresponding type declarations. 
 
-2 import { CreateUserDto } from '@shared/types/user';
-                                ~~~~~~~~~~~~~~~~~~~~
+25 import { ProjectsService } from '@projects/projects.service';
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-src/superadmin/dto/create-tenant-admin-user.dto.ts:4:22 - error TS2307: Cannot find module '@shared/types/role.enum' or its corresponding type declarations.
+src/wbs/wbs.service.ts:138:5 - error TS2740: Type '(DeepPartial<WbsBudgetEntity> & WbsBudgetEntity)[]' is missing the following properties from type 'WbsBudgetEntity': wbs_id, project_id, project, parent_wbs_id, and 16 more.
 
-4 import { Role } from '@shared/types/role.enum'; // Ensure Role is imported
-                       ~~~~~~~~~~~~~~~~~~~~~~~~~
+138     return this.wbsBudgetRepository.save(updatedWbsBudget);
+        ~~~~~~
 
-src/superadmin/dto/create-tenant-admin-user.dto.ts:7:3 - error TS2322: Type 'string' is not assignable to type 'never'.
-
-7   'email',
-    ~~~~~~~
-
-src/superadmin/dto/create-tenant-admin-user.dto.ts:8:3 - error TS2322: Type 'string' is not assignable to type 'never'.
-
-8   'first_name',
-    ~~~~~~~~~~~~
-
-src/superadmin/dto/create-tenant-admin-user.dto.ts:9:3 - error TS2322: Type 'string' is not assignable to type 'never'.
-
-9   'last_name',
-    ~~~~~~~~~~~
-
-src/superadmin/dto/create-tenant-admin-user.dto.ts:10:3 - error TS2322: Type 'string' is not assignable to type 'never'.
-
-10   'role',
-     ~~~~~~
-
-src/superadmin/dto/create-tenant-admin-user.dto.ts:11:3 - error TS2322: Type 'string' is not assignable to type 'never'.
-
-11   'is_active',
-     ~~~~~~~~~~~
-
-src/superadmin/dto/create-tenant-admin-user.dto.ts:12:3 - error TS2322: Type 'string' is not assignable to type 'never'.
-
-12   'tenant_id',
-     ~~~~~~~~~~~
-
-[4:36:47 PM] Found 11 errors. Watching for file changes.
+[8:04:51 AM] Found 5 errors. Watching for file changes.

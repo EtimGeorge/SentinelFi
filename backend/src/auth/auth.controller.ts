@@ -24,8 +24,10 @@ import { ForgotPasswordRequestDto } from "./dto/forgot-password-request.dto";
 import { Response } from "express";
 import { RolesGuard } from "./guards/roles.guard";
 import { Roles } from "./decorators/roles.decorator";
-import { CreateUserDto, UpdateUserDto, JwtPayload } from "shared/types/user";
-import { Role } from "shared/types/role.enum";
+import { JwtPayload } from "@shared/types/user"; // Import shared interface for JwtPayload
+import { Role } from "@shared/types/role.enum"; // Import shared enum for Role
+import { CreateUserDto as BackendCreateUserDto } from "./dto/create-user.dto"; // Import backend-specific DTO class
+import { UpdateUserDto as BackendUpdateUserDto } from "./dto/update-user.dto"; // Import backend-specific DTO class
 import { UserResponseDto } from "./dto/admin-user.dto";
 import { Throttle } from "@nestjs/throttler";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
@@ -121,7 +123,7 @@ export class AuthController {
   @UsePipes(new ValidationPipe({ transform: true }))
   async createUser(
     @Req() req: { user: JwtPayload }, // Inject requesting user's data
-    @Body() createUserDto: CreateUserDto
+    @Body() createUserDto: BackendCreateUserDto
   ): Promise<UserResponseDto> {
     return this.authService.createUser(req.user, createUserDto);
   }
@@ -133,7 +135,7 @@ export class AuthController {
   async updateUser(
     @Req() req: { user: JwtPayload }, // Inject requesting user's data
     @Param("id") id: string,
-    @Body() updateUserDto: UpdateUserDto,
+    @Body() updateUserDto: BackendUpdateUserDto,
   ): Promise<UserResponseDto> {
     return this.authService.updateUser(req.user, id, updateUserDto);
   }

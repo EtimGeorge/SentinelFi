@@ -6,7 +6,9 @@ import {
   IsOptional,
   Min,
   MaxLength,
+  IsEnum, // NEW
 } from "class-validator";
+import { WbsBudgetStatus } from "../../../../shared/types/wbs-budget-status.enum"; // NEW
 
 /**
  * DTO for creating a new WBS/Budget Line Item Draft.
@@ -52,8 +54,8 @@ export class CreateWbsBudgetDto {
   total_cost_budgeted!: number; // NEW: Total cost budgeted
 
   @IsOptional()
-  @IsString()
-  status?: "pending" | "approved" | "rejected" | "draft";
+  @IsEnum(WbsBudgetStatus) // NEW
+  status?: WbsBudgetStatus; // NEW
 
   @IsOptional()
   @IsUUID("4")

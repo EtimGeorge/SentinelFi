@@ -1,5 +1,5 @@
 import { User } from './user';
-import { ProjectEntity } from '../../backend/src/projects/project.entity';
+import { Project } from './project'; // Corrected import
 
 /**
  * Represents a Work Breakdown Structure (WBS) budget item.
@@ -20,8 +20,8 @@ export interface WbsBudget {
   user_id: string;
   // The full user object might not always be populated depending on the query.
   // Making it optional is safer for a shared type.
-  user?: User; 
-  project?: ProjectEntity;
+  user?: User;
+  project?: Project; // Corrected type
 }
 
 // NEW: Interface for WbsCategoryEntity (for frontend consumption)

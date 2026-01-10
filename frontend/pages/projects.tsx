@@ -6,7 +6,7 @@ import { useSecuredApi } from '../components/hooks/useSecuredApi';
 import PageContainer from '../components/Layout/PageContainer';
 import Card from '../components/common/Card';
 import { formatCurrency } from '../lib/utils';
-import { Project } from '../../shared/types/project';
+import { Project } from '@shared/types/project';
 
 // Interface for data returned by /api/v1/projects (now including rollups)
 interface ProjectData extends Project {

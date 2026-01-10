@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -11,12 +12,14 @@ const config: DataSourceOptions = {
   ssl: process.env.DATABASE_URL?.includes('neon.tech'), // Conditionally enable SSL for Neon databases
   schema: 'public', // Default schema for this DataSource, where public entities and migrations reside
   entities: [
-    './backend/src/**/*.entity{.ts,.js}', // Discover all entities within backend/src
+    './src/tenants/tenant.entity.ts',
+    './src/auth/user.entity.ts',
+    './src/audit/audit.entity.ts',
   ],
   migrations: [
-    './backend/src/migrations/**/*.ts', // Discover all migrations in both public and client_template folders
+    path.resolve(__dirname, 'src/migrations/public/*.ts'), // Only public migrations
   ],
-  migrationsTableName: 'migrations', // Corrected to just 'migrations'
+  migrationsTableName: 'public_migrations', // Aligned with ormconfig.public.ts
   synchronize: false, // Should always be false for production
   logging: true,
   // For migration generation (optional, can be configured via CLI if needed)

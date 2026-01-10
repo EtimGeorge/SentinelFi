@@ -85,7 +85,7 @@ This document outlines a phased implementation plan for SentinelFi, integrating 
 *   **Tasks**:
     *   [ ] Add and configure Jest for backend (unit/integration) and frontend (unit) packages.
     *   [ ] Add and configure Cypress or Playwright for End-to-End (E2E) testing.
-    *   [ ] Write initial unit tests for a critical backend service (e.g., `AuthService`).
+    *   ✅ Write initial unit tests for a critical backend service (e.g., `AuthService`).
     *   ✅ Write initial unit tests for a critical frontend component (e.g., `LoginForm`).
     *   [ ] Write a single E2E test for the login flow.
     *   [ ] Configure a CI/CD pipeline (e.g., using GitHub Actions) to run linting and all tests automatically on every push.
@@ -284,7 +284,9 @@ This document outlines a phased implementation plan for SentinelFi, integrating 
 *   **Objective**: Dynamically adapt the UI based on the user's granular permissions.
 *   **Status**: [ ] **PENDING**
 *   **Tasks**:
-    *   [ ] Conditionally render UI elements (links, buttons, pages) based on the user's role (e.g., hide "Approve" buttons for `TeamMember` if they lack approval rights).
+    *   [ ] Conditionally render UI elements (links, buttons, pages) based on the user's role from the `AuthContext` to prevent unauthorized visibility.
+    *   [ ] Replace all instances of `any` in backend controllers (`e.g., @Req() req: any`) with strongly-typed request objects, ideally using `AuthenticatedRequest`.
+    *   [ ] Ensure all DTOs used for `update` operations (e.g., `UpdateWbsCategoryDto`) correctly use `@IsOptional()` decorators for fields that are not always provided.
 
 ### 5.7. Backend: Analytics Endpoints
 

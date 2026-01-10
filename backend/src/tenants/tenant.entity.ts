@@ -1,5 +1,6 @@
+import "reflect-metadata";
 import { Entity, PrimaryGeneratedColumn, Column, Unique, OneToMany } from "typeorm";
-import { UserEntity } from "../../src/auth/user.entity"; // Relative path to UserEntity
+import type { UserEntity } from "../../src/auth/user.entity";
 
 @Entity({ name: "tenants", schema: "public" }) // Master data, resides in public schema
 @Unique(["name"])
@@ -20,6 +21,9 @@ export class TenantEntity {
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
 
-  @OneToMany(() => UserEntity, (user) => user.tenant) // Revert to direct reference in function
+  @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" })
+  updated_at!: Date;
+
+  @OneToMany('UserEntity', 'tenant')
   users!: UserEntity[];
 }

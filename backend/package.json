@@ -8,7 +8,7 @@
     "start:dev": "nest start --watch --entryFile backend/src/main --exec \"node --require ts-node/register --require tsconfig-paths/register\"",
     "start:local": "nest start --debug --watch",
     "lint": "set NODE_OPTIONS=--max-old-space-size=4096 && eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "postbuild": "powershell -Command \"mkdir .\\dist\\database\\ -Force\" && copy /Y .\\src\\database\\tenant-schema.sql .\\dist\\database\\tenant-schema.sql",
+    "typecheck": "tsc --noEmit",
     "test": "jest"
   },
   "dependencies": {
@@ -19,7 +19,9 @@
     "cookie-parser": "^1.4.7",
     "docx": "^9.5.1",
     "exceljs": "^4.4.0",
+    "glob": "^13.0.0",
     "jest": "^30.2.0",
+    "nestjs-cls": "^6.2.0",
     "pdf-lib": "^1.17.1",
     "sentinelfi-monorepo": "file:..",
     "ts-jest": "^29.4.6",

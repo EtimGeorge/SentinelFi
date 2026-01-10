@@ -21,8 +21,9 @@
     "experimentalDecorators": true, // NEW
     "baseUrl": ".",
     "paths": {
-      "shared/*": ["../shared/*"]
-    }
+      "@shared/*": ["../shared/*"]
+    },
+    "types": ["jest", "@testing-library/jest-dom"]
   },
   "include": [
     "next-env.d.ts",

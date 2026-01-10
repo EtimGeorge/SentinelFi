@@ -1,4 +1,5 @@
 import { Module, NestModule, MiddlewareConsumer, RequestMethod } from "@nestjs/common";
+import { ClsModule } from 'nestjs-cls';
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
@@ -67,6 +68,10 @@ import { TenantDatabaseModule } from "./database/tenant-database.module";
     ProjectsModule,
     OperationalBudgetsModule,
     SuperAdminModule,
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
+    }),
   ],
   controllers: [],
   providers: [

@@ -25,3 +25,4 @@ function SentinelFiApp({ Component, pageProps }: AppProps) {
 }
 
 export default SentinelFiApp;
+

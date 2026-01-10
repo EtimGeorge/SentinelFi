@@ -7,7 +7,7 @@ import Card from "../../components/common/Card";
 import Input from "../../components/common/Input";
 import Button from "../../components/common/Button";
 import { formatCurrency } from "../../lib/utils";
-import { GetLiveExpensesDto, VarianceFlag } from "../../../backend/src/wbs/dto/get-live-expenses.dto"; // Import backend DTO
+import { GetLiveExpensesDto, VarianceFlag } from "@shared/types/get-live-expenses.dto"; // Corrected alias and shared interface
 import { LiveExpense } from "../../../shared/types/expense"; // Shared Live Expense Entity
 import { DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2 } from "lucide-react";
 import Select from "../../components/common/Select"; // Assuming a Select component exists
@@ -27,7 +27,7 @@ const ExpenseManagementPage: React.FC = () => {
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
   const [wbsIdFilter, setWbsIdFilter] = useState(""); // Not directly used in GetLiveExpensesDto, but if we want to filter specific WBS items
-  const [itemDescriptionFilter, setItemDescriptionFilter] = useState("");
+  const [descriptionFilter, setDescriptionFilter] = useState("");
   const [varianceFlagFilter, setVarianceFlagFilter] = useState<VarianceFlag | "">("");
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
@@ -55,7 +55,7 @@ const ExpenseManagementPage: React.FC = () => {
         page,
         limit,
         wbsId: wbsIdFilter || undefined,
-        itemDescription: itemDescriptionFilter || undefined,
+        description: descriptionFilter || undefined, // Fixed
         varianceFlag: varianceFlagFilter || undefined,
         startDate: startDateFilter || undefined,
         endDate: endDateFilter || undefined,
@@ -69,7 +69,7 @@ const ExpenseManagementPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [api, page, limit, wbsIdFilter, itemDescriptionFilter, varianceFlagFilter, startDateFilter, endDateFilter, projectIdFilter]);
+  }, [api, page, limit, wbsIdFilter, descriptionFilter, varianceFlagFilter, startDateFilter, endDateFilter, projectIdFilter]);
 
   useEffect(() => {
     fetchExpenses();
@@ -82,7 +82,7 @@ const ExpenseManagementPage: React.FC = () => {
 
   const handleClearFilters = () => {
     setWbsIdFilter("");
-    setItemDescriptionFilter("");
+    setDescriptionFilter("");
     setVarianceFlagFilter("");
     setStartDateFilter("");
     setEndDateFilter("");
@@ -95,7 +95,7 @@ const ExpenseManagementPage: React.FC = () => {
     try {
       const params: GetLiveExpensesDto = {
         wbsId: wbsIdFilter || undefined,
-        itemDescription: itemDescriptionFilter || undefined,
+        description: descriptionFilter || undefined, // Fixed
         varianceFlag: varianceFlagFilter || undefined,
         startDate: startDateFilter || undefined,
         endDate: endDateFilter || undefined,
@@ -150,8 +150,8 @@ const ExpenseManagementPage: React.FC = () => {
               <Input
                 label="Item Description"
                 placeholder="e.g., Software License"
-                value={itemDescriptionFilter}
-                onChange={(e) => setItemDescriptionFilter(e.target.value)}
+                value={descriptionFilter}
+                onChange={(e) => setDescriptionFilter(e.target.value)}
               />
               <Select
                 label="Variance Flag"
@@ -211,7 +211,7 @@ const ExpenseManagementPage: React.FC = () => {
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Project Name</th> {/* NEW */}
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">WBS Code</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Item Description</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Description</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Expense Date</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Amount Paid</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Variance Flag</th>
@@ -224,7 +224,7 @@ const ExpenseManagementPage: React.FC = () => {
                         <tr key={expense.expense_id} className="hover:bg-gray-700/50 transition">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-primary">{expense.wbsBudget?.project?.project_name || "N/A"}</td> {/* NEW */}
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.wbsBudget?.wbs_code || "N/A"}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.item_description}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-primary">{expense.description}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{new Date(expense.expense_date).toLocaleDateString()}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white">{formatCurrency(expense.actual_paid_amount)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.variance_flag}</td>

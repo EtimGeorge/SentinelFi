@@ -2,17 +2,17 @@ $ports = @(3000, 3001)
 
 foreach ($port in $ports) {
     try {
-        $pids = (netstat -ano | Select-String ":$port\s" | ForEach-Object { ($_ -split '\s+')[-1] } | Select-Object -Unique)
+        $processIds = (netstat -ano | Select-String ":$port\s" | ForEach-Object { ($_ -split '\s+')[-1] } | Select-Object -Unique)
         
-        if ($pids) {
-            Write-Host "Found processes on port $port with PIDs: $($pids -join ', ')"
-            foreach ($pid in $pids) {
+        if ($processIds) {
+            Write-Host "Found processes on port $port with PIDs: $($processIds -join ', ')"
+            foreach ($processId in $processIds) {
                 try {
-                    Stop-Process -Id $pid -Force -ErrorAction Stop
-                    Write-Host "Terminated process with PID $pid on port $port."
+                    Stop-Process -Id $processId -Force -ErrorAction Stop
+                    Write-Host "Terminated process with PID $processId on port $port."
                 } catch {
                     # This block catches errors specifically from Stop-Process
-                    Write-Warning "Could not terminate process with PID $pid. Error: $_"
+                    Write-Warning "Could not terminate process with PID $processId. Error: $_"
                 }
             }
         } else {

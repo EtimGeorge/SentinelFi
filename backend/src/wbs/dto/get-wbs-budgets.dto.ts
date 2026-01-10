@@ -1,12 +1,6 @@
 import { IsOptional, IsString, IsUUID, IsIn, IsEnum } from 'class-validator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-
-// Assuming WBS status can be an enum or a set of defined strings
-export enum WbsBudgetStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
-}
+import { PaginationDto } from '../../common/dto/pagination.dto'; // Reverted to backend-internal DTO
+import { WbsBudgetStatus } from '@shared/types/wbs-budget-status.enum'; // Import from shared
 
 export class GetWbsBudgetsDto extends PaginationDto {
   @IsOptional()

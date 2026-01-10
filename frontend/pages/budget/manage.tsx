@@ -6,7 +6,8 @@ import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { formatCurrency } from '../../lib/utils';
-import { GetWbsBudgetsDto, WbsBudgetStatus } from '../../../backend/src/wbs/dto/get-wbs-budgets.dto';
+import { GetWbsBudgetsDto } from '../../../backend/src/wbs/dto/get-wbs-budgets.dto';
+import { WbsBudgetStatus } from '@shared/types/wbs-budget-status.enum'; // Import directly from shared
 import { WbsBudget } from '../../../shared/types/wbs';
 import { DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2 } from 'lucide-react';
 import Select from '../../components/common/Select';

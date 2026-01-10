@@ -1,3 +1,4 @@
+import 'reflect-metadata'; // Must be imported first
 import { Client } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -60,7 +61,7 @@ async function dbReset() {
     console.log(`Successfully connected to database "${dbName}".`);
 
     // Run init.sql
-    const initSqlFilePath = path.resolve(__dirname, '../../database/init.sql');
+    const initSqlFilePath = path.resolve(__dirname, '../src/database/init.sql');
     const initSql = fs.readFileSync(initSqlFilePath, 'utf8');
     console.log(`Executing init.sql from ${initSqlFilePath}...`);
     await appClient.query(initSql);

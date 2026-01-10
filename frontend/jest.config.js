@@ -6,6 +6,14 @@ module.exports = {
     '!**/*.d.ts',
     '!**/node_modules/**',
   ],
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70,
+    },
+  },
   moduleNameMapper: {
     // Handle CSS imports (with CSS modules)
     // https://jestjs.io/docs/webpack#mocking-css-modules
@@ -25,6 +33,7 @@ module.exports = {
     '^@/store/(.*)$': '<rootDir>/store/$1',
     '^next/image$': '<rootDir>/__mocks__/next/image.js',
     '^next/link$': '<rootDir>/__mocks__/next/link.js',
+    '^@shared/(.*)$': '<rootDir>/../shared/$1', // Add this line
   },
   testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/'],
   testEnvironment: 'jsdom',

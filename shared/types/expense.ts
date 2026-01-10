@@ -10,7 +10,7 @@ export interface LiveExpense {
   wbs_id: string;
   user_id: string;
   expense_date: Date;
-  item_description: string;
+  description: string;
   actual_unit_cost: number;
   actual_quantity: number;
   commitment_lpo_amount: number;

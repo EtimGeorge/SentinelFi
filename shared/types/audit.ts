@@ -1,6 +1,15 @@
 // shared/types/audit.ts
-import { AuditLogEntity as AuditLogBackendEntity } from '../../backend/src/audit/audit.entity';
 
-// Re-exporting the backend entity as the shared type for frontend use
-// This ensures type consistency between frontend and backend.
-export type AuditLogEntity = AuditLogBackendEntity;
+export interface AuditLogEntity {
+  id: string;
+  timestamp: Date;
+  userId: string | null;
+  userEmail: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  details: object | null;
+  ipAddress: string | null;
+  tenantId: string | null;
+  actionType: string;
+}

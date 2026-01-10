@@ -4,7 +4,7 @@ import { Repository, DataSource } from 'typeorm';
 import { TenantEntity } from '../tenants/tenant.entity';
 import { CreateTenantDto, UpdateTenantDto, GetTenantsDto } from './dto/create-tenant.dto'; // Using combined DTO file for now
 import { AuthService } from '../auth/auth.service'; // To create the initial tenant admin user
-import { CreateUserDto } from 'shared/types/user'; // DTO for creating user
+import { ICreateUserPayload } from 'shared/types/user'; // DTO for creating user
 import { Role } from 'shared/types/role.enum'; // NEW: Import Role enum 
 import { CreateTenantAdminUserDto } from './dto/create-tenant-admin-user.dto'; // NEW: Import new DTO
 import { TenantProvisioningService } from '../tenants/tenant-provisioning.service'; // NEW: Import TenantProvisioningService

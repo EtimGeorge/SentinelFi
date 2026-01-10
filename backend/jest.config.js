@@ -3,13 +3,20 @@ module.exports = {
   rootDir: '.', // Relative to backend package root
   testRegex: '.*\.spec\.ts$',
   transform: {
-    '^.+\.(t|j)s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.jest.json', useTsconfigPaths: true }],
+    '^.+\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.jest.json', useTsconfigPaths: true }],
+  },
+  moduleNameMapper: {
+    '^@shared/(.*)$': '<rootDir>/../shared/$1', // Add this line
   },
   collectCoverageFrom: ['**/*.(t|j)s'],
   coverageDirectory: '../coverage',
-  testEnvironment: 'node',
-  moduleNameMapper: {
-    "^@shared/types/(.*)$": "<rootDir>/../shared/dist/types/$1.js"
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70,
+    },
   },
-  // moduleNameMapper will be removed as tsconfig.jest.json handles paths
+  testEnvironment: 'node',
 };

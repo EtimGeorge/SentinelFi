@@ -6,8 +6,8 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth } from '../../components/context/AuthContext';
-import { AuditLogEntity } from '../../../shared/types/audit';
-import { Role as UserRoleEnum } from '../../../shared/types/role.enum';
+import { AuditLogEntity } from '@shared/types/audit';
+import { Role as UserRoleEnum } from '@shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import { Users, Plus, X, Edit3, Save, Loader2, AlertTriangle, Trash2, Search, Calendar, Filter, Building } from 'lucide-react'; // Added Building icon
 

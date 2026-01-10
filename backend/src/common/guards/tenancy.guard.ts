@@ -5,14 +5,13 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
-} from "@nestjs/common"; // Removed InternalServerErrorException
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-// Removed DataSource, Repository, InjectRepository
-// Removed TenantEntity import
+import { ClsService } from 'nestjs-cls';
 import * as crypto from "crypto";
-import { AuthenticatedRequest } from "../middleware/tenancy.middleware"; // Changed import path for AuthenticatedRequest
+import { AuthenticatedRequest } from "../middleware/tenancy.middleware";
 import { IS_PUBLIC_KEY } from "../../auth/decorators/public.decorator";
-import { Role } from 'shared/types/role.enum'; // NEW: Import Role enum
+import { Role } from 'shared/types/role.enum';
 
 @Injectable()
 export class TenancyGuard implements CanActivate {
@@ -20,8 +19,7 @@ export class TenancyGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    // Removed: private readonly dataSource: DataSource,
-    // Removed: @InjectRepository(TenantEntity) private tenantsRepository: Repository<TenantEntity>,
+    private readonly cls: ClsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -38,9 +36,9 @@ export class TenancyGuard implements CanActivate {
     const reqId = crypto.randomBytes(6).toString("hex");
     this.logger.log(`[${reqId}] ========== TENANCY GUARD START (Simplified) ==========`);
 
-    // TenancyMiddleware should have already populated req.user and req.schema_name
+    // TenancyMiddleware should have already populated CLS context with user and schema
     const user = req.user;
-    const schemaName = req.schema_name;
+    const schemaName = this.cls.get('SCHEMA_NAME');
 
     // SuperAdmins can always proceed, they operate across tenants.
     if (user && user.role === Role.SuperAdmin) {

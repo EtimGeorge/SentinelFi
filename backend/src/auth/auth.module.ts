@@ -4,11 +4,11 @@ import { UserEntity } from "./user.entity";
 import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
 import { JwtModule } from "@nestjs/jwt";
-import { ConfigService } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { PassportModule } from "@nestjs/passport";
 import { JwtStrategy } from "./jwt.strategy";
 import * as ms from "ms";
-import { SeedTestUsersService } from "./seed-test-users.service";
+import { InitialSuperAdminSeederService } from "./initial-superadmin-seeder.service";
 import { AuditModule } from '../audit/audit.module'; // NEW: Import AuditModule
 
 // Throttler imports
@@ -48,12 +48,13 @@ import { APP_GUARD } from "@nestjs/core";
       }),
     }),
     AuditModule, // NEW: Import AuditModule
+    ConfigModule, // NEW: Add ConfigModule here
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
     JwtStrategy,
-    SeedTestUsersService,
+    InitialSuperAdminSeederService,
     // Global ThrottlerGuard
     {
       provide: APP_GUARD,

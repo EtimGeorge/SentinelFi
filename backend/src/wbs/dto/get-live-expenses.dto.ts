@@ -1,15 +1,6 @@
 import { IsOptional, IsString, IsUUID, IsEnum, IsDateString, IsNumber, IsIn } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-
-export enum VarianceFlag {
-  NO_VARIANCE = 'NO_VARIANCE',
-  NEGATIVE_VARIANCE = 'NEGATIVE_VARIANCE',
-  POSITIVE_VARIANCE = 'POSITIVE_VARIANCE',
-  MAJOR_VARIANCE_OVERRUN = 'MAJOR_VARIANCE_OVERRUN',
-  MAJOR_VARIANCE_UNBUDGETED = 'MAJOR_VARIANCE_UNBUDGETED',
-  OVER_BUDGET = 'OVER_BUDGET', // Added to align with service logic
-  WITHIN_BUDGET = 'WITHIN_BUDGET', // Added to align with service logic
-}
+import { VarianceFlag } from '@shared/types/get-live-expenses.dto'; // Import from shared
 
 export class GetLiveExpensesDto extends PaginationDto {
   @IsOptional()

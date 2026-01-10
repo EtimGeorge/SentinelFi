@@ -13,8 +13,10 @@ import { JwtService } from "@nestjs/jwt";
 import { LoginUserDto } from "./dto/login-user.dto";
 import * as bcrypt from "bcryptjs";
 import { UserResponseDto } from "./dto/admin-user.dto";
-import { CreateUserDto, UpdateUserDto, JwtPayload } from "shared/types/user";
-import { Role } from "shared/types/role.enum";
+import { JwtPayload, ICreateUserPayload, IUpdateUserPayload } from "@shared/types/user"; // Import shared interfaces and JwtPayload
+import { CreateUserDto } from "./dto/create-user.dto"; // Import backend-specific DTO class
+import { UpdateUserDto } from "./dto/update-user.dto"; // Import backend-specific DTO class
+import { Role } from "@shared/types/role.enum";
 import { CreateTenantAdminUserDto } from "../superadmin/dto/create-tenant-admin-user.dto"; // NEW
 import { RegisterUserDto } from "./dto/register-user.dto";
 import { ForgotPasswordRequestDto } from "./dto/forgot-password-request.dto";
@@ -333,6 +335,8 @@ export class AuthService {
       throw new NotFoundException("User not found.");
     }
 
+    const oldUser = { ...user }; // Moved this line up
+
     // Role-based tenant_id manipulation logic
     if (updateUserDto.tenant_id !== undefined) {
       // If a non-SuperAdmin tries to change tenant_id, it's forbidden.
@@ -343,8 +347,6 @@ export class AuthService {
       // If SuperAdmin, they can change tenant_id freely.
       user.tenant_id = updateUserDto.tenant_id;
     }
-
-    const oldUser = { ...user };
 
     if (updateUserDto.role) {
       user.role = updateUserDto.role;

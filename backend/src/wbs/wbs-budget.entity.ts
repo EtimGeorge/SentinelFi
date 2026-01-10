@@ -9,6 +9,7 @@ import {
 import { UserEntity } from "../auth/user.entity";
 import { ProjectEntity } from "../projects/project.entity"; // NEW: Import ProjectEntity
 import { WbsCategoryEntity } from "./wbs-category.entity"; // NEW: Import WbsCategoryEntity
+import { WbsBudgetStatus } from "../../../shared/types/wbs-budget-status.enum"; // NEW: Import WbsBudgetStatus
 
 @Entity({ name: "wbs_budget", schema: "client_template" })
 export class WbsBudgetEntity {
@@ -66,10 +67,10 @@ export class WbsBudgetEntity {
   // Status/Audit Fields
   @Column({
     type: "enum",
-    enum: ["pending", "approved", "rejected", "draft"],
-    default: "pending",
+    enum: WbsBudgetStatus,
+    default: WbsBudgetStatus.PENDING,
   })
-  status!: "pending" | "approved" | "rejected" | "draft";
+  status!: WbsBudgetStatus;
 
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;

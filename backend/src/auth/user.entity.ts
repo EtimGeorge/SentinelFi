@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
-import { Role } from "shared/types/role.enum";
-import { TenantEntity } from "../../src/tenants/tenant.entity"; // Relative path to TenantEntity
+import { Role } from "@shared/types/role.enum";
+import type { TenantEntity } from "../../src/tenants/tenant.entity";
 
 @Entity({ name: "user", schema: "public" }) // NOTE: This entity lives in the MASTER DB/Schema, not a tenant schema
 export class UserEntity {
@@ -40,7 +40,7 @@ export class UserEntity {
   @Column({ type: "uuid", nullable: true }) // nullable for system-level users or during initial setup
   tenant_id!: string | null;
 
-  @ManyToOne(() => TenantEntity, (tenant) => tenant.users, {
+  @ManyToOne('TenantEntity', 'users', {
     nullable: true, // System-level users might not belong to a specific tenant
     onDelete: "SET NULL", // What happens to user if tenant is deleted
   })
