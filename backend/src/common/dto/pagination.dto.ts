@@ -1,6 +1,6 @@
-import { IsOptional, IsInt, Min, Max, IsDateString } from 'class-validator';
-import { Type } from 'class-transformer';
-import { PaginationDto as IPaginationDto } from '@shared/types/pagination.dto'; // Import the shared interface
+import { IsOptional, IsInt, Min, Max, IsDateString } from "class-validator";
+import { Type } from "class-transformer";
+import { PaginationDto as IPaginationDto } from "@shared/types/pagination.dto"; // Import the shared interface
 
 export class PaginationDto implements IPaginationDto {
   @IsOptional()

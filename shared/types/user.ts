@@ -1,40 +1,65 @@
 // shared/types/user.ts
-import { Role } from './role.enum'; // Updated path
+import { Role as RoleEnum } from './role.enum';
 
-// Interface for a User - This will be the single source of truth for the User object shape
+// A simple representation of a role, suitable for shared DTOs
+export interface SimpleRole {
+    id: string;
+    name: RoleEnum;
+    description?: string;
+}
+
+// This represents the raw payload of the JWT token itself.
+export interface JwtPayload {
+  id: string; // User ID
+  sub: string; // User ID (standard JWT subject)
+  email: string;
+  roles: RoleEnum[]; // User's roles (by name)
+  permissions: string[]; // All permissions flattened from roles
+  tenant_id: string | null;
+  iat?: number;
+  exp?: number;
+  impersonator_id?: string; // ID of the SuperAdmin who is impersonating
+}
+
+// This is the application-facing User object.
+export interface UserPayload {
+  id: string; 
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  roles: SimpleRole[];
+  is_active: boolean;
+  tenant_id?: string | null;
+  tenant_name?: string | null;
+  permissions?: string[];
+}
+
+// This is the shape of the User object for DTOs.
 export interface User {
   id: string;
   email: string;
-  first_name?: string; // NEW
-  last_name?: string;  // NEW
-  role: Role;
-  is_active: boolean;
-  tenant_id?: string | null; // NEW: User's assigned tenant ID
-  tenant_name?: string | null; // NEW: User's assigned tenant name (for display)
-  isSuperAdmin?: boolean; // NEW: Added for frontend checks
-}
-
-export interface JwtPayload extends User {
-  sub: string; // User ID from JWT
-  iat: number; // Issued at (timestamp)
-  exp: number; // Expiration time (timestamp)
-  // clientSchema?: string; // Removed, standardized to tenant_id
-}
-
-// Interface for creating a new user (initial registration) - Used by backend, can be referenced by frontend forms
-export interface ICreateUserPayload {
-  email: string;
-  password?: string; // Password can be optional for admin creation
   first_name?: string;
   last_name?: string;
-  role: Role;
+  roles: SimpleRole[];
+  is_active: boolean;
+  tenant_id?: string | null;
+  tenant_name?: string | null;
+}
+
+// Interface for creating a new user.
+export interface ICreateUserPayload {
+  email: string;
+  password?: string;
+  first_name?: string;
+  last_name?: string;
+  role: RoleEnum;
   is_active?: boolean;
   tenant_id?: string | null;
 }
 
-// Interface for updating an existing user (role change, status change) - Used by backend
+// Interface for updating an existing user.
 export interface IUpdateUserPayload {
-  role?: Role;
+  role?: RoleEnum;
   is_active?: boolean;
   tenant_id?: string | null;
   first_name?: string;

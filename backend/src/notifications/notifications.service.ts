@@ -1,11 +1,14 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
-import { NotificationsGateway } from './notifications.gateway';
+import { Injectable, Logger, Inject, forwardRef } from "@nestjs/common";
+import { NotificationsGateway } from "./notifications.gateway";
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(@Inject(forwardRef(() => NotificationsGateway)) private readonly notificationsGateway: NotificationsGateway) {}
+  constructor(
+    @Inject(forwardRef(() => NotificationsGateway))
+    private readonly notificationsGateway: NotificationsGateway,
+  ) {}
 
   /**
    * Simulates sending an unread notification count update to a specific user
@@ -15,10 +18,17 @@ export class NotificationsService {
    * @param count The new unread count.
    */
   sendUnreadCountUpdate(count: number, userId?: string) {
-    this.logger.log(`Sending unread count update: ${count} for user: ${userId || 'all'}`);
+    this.logger.log(
+      `Sending unread count update: ${count} for user: ${userId || "all"}`,
+    );
     // For simplicity, currently broadcasts to all.
     // TODO: Implement logic to send to specific clients based on userId after authentication is implemented in gateway.
     this.notificationsGateway.emitUnreadCountUpdate(count);
+  }
+
+  sendVarianceAlert(title: string, message: string, type: string = 'warning') {
+    this.logger.log(`Variance alert triggered: ${title} - ${message}`);
+    this.notificationsGateway.emitVarianceAlert({ title, message, type });
   }
 
   // Other notification-related methods can be added here

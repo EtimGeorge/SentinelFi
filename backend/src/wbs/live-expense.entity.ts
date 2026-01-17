@@ -60,6 +60,12 @@ export class LiveExpenseEntity {
   @Column({ type: "numeric", precision: 19, scale: 4 })
   amount!: number;
 
+  @Column({ type: "numeric", precision: 19, scale: 4, default: 0.0 })
+  vat_amount!: number;
+
+  @Column({ type: "numeric", precision: 19, scale: 4, default: 0.0 })
+  wht_amount!: number;
+
   @Column({ type: "varchar", length: 255, nullable: true })
   document_reference!: string | null;
 

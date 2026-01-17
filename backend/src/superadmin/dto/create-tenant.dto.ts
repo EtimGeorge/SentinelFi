@@ -1,6 +1,13 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsUUID, MaxLength } from 'class-validator';
-import { PartialType } from '@nestjs/mapped-types';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+  IsUUID,
+  MaxLength,
+} from "class-validator";
+import { PartialType } from "@nestjs/mapped-types";
+import { PaginationDto } from "../../common/dto/pagination.dto";
 
 export class CreateTenantDto {
   @IsString()
@@ -17,7 +24,7 @@ export class CreateTenantDto {
   @IsNotEmpty()
   @MaxLength(255)
   // The email of the first admin user for this tenant
-  admin_email!: string; 
+  admin_email!: string;
 
   @IsOptional()
   @IsBoolean()

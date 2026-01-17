@@ -20,10 +20,10 @@ import {
   Res,
   StreamableFile,
 } from "@nestjs/common";
-import { Response } from 'express';
+import { Response } from "express";
 import { WbsService } from "../wbs/wbs.service";
 import { CreateWbsBudgetDto } from "./dto/create-wbs-budget.dto";
-import { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
+import type { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
 import { AuthGuard } from "@nestjs/passport";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -43,21 +43,56 @@ export class WbsController {
   constructor(private readonly wbsService: WbsService) {} // Type back as WbsService
 
   @Get("budgets")
-  @Roles(Role.Admin, Role.ITHead, Role.Finance, Role.OperationalHead, Role.CEO, Role.AssignedProjectUser, Role.SuperAdmin)
+  @Roles(
+    Role.Admin,
+    Role.ITHead,
+    Role.Finance,
+    Role.OperationalHead,
+    Role.CEO,
+    Role.AssignedProjectUser,
+    Role.SuperAdmin,
+  )
   @UsePipes(new ValidationPipe({ transform: true }))
   async getWbsBudgets(
     @Query() getWbsBudgetsDto: GetWbsBudgetsDto,
-    @Req() req: AuthenticatedRequest
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-        throw new UnauthorizedException("User not authenticated or tenant ID not found.");
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID not found.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
-    return this.wbsService.findAllWbsBudgets(getWbsBudgetsDto, tenantIdFromToken);
+    return this.wbsService.findAllWbsBudgets(
+      getWbsBudgetsDto,
+      tenantIdFromToken,
+    );
+  }
+
+  @Get("budget/rollup")
+  @Roles(Role.Admin, Role.Finance, Role.CEO, Role.OperationalHead, Role.ITHead)
+  async getWbsBudgetRollup(
+    @Req() req: AuthenticatedRequest,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    const tenantId = req.user.tenant_id;
+    return this.wbsService.getWbsBudgetRollup(tenantId, { startDate, endDate });
   }
 
   @Get("budgets/export")
-  @Roles(Role.Admin, Role.ITHead, Role.Finance, Role.OperationalHead, Role.CEO, Role.AssignedProjectUser, Role.SuperAdmin)
+  @Roles(
+    Role.Admin,
+    Role.ITHead,
+    Role.Finance,
+    Role.OperationalHead,
+    Role.CEO,
+    Role.AssignedProjectUser,
+    Role.SuperAdmin,
+  )
   async exportBudgets(
     @Query() getWbsBudgetsDto: GetWbsBudgetsDto,
     @Req() req: AuthenticatedRequest,
@@ -65,42 +100,49 @@ export class WbsController {
     @Query("format") format?: "csv" | "pdf" | "xlsx" | "docx",
   ): Promise<StreamableFile> {
     if (!req.user || !req.user.tenant_id) {
-        throw new UnauthorizedException("User not authenticated or tenant ID not found.");
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID not found.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
     const exportFormat = format || "csv";
-    const data = await this.wbsService.exportWbsBudgetsToCsv(getWbsBudgetsDto, tenantIdFromToken); // Changed method name
+    const data = await this.wbsService.exportWbsBudgetsToCsv(
+      getWbsBudgetsDto,
+      tenantIdFromToken,
+    ); // Changed method name
     const filename = `wbs_budgets_export_${new Date().toISOString()}`;
-    
+
     let contentType: string;
 
     switch (exportFormat) {
-      case 'pdf':
-        contentType = 'application/pdf';
+      case "pdf":
+        contentType = "application/pdf";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.pdf"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.pdf"`,
         });
         break;
-      case 'xlsx':
-        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case "xlsx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.xlsx"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.xlsx"`,
         });
         break;
-      case 'docx':
-        contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case "docx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.docx"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.docx"`,
         });
         break;
       default: // csv
-        contentType = 'text/csv';
+        contentType = "text/csv";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.csv"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.csv"`,
         });
         break;
     }
@@ -109,21 +151,52 @@ export class WbsController {
   }
 
   @Get("expenses")
-  @Roles(Role.Admin, Role.ITHead, Role.Finance, Role.OperationalHead, Role.CEO, Role.AssignedProjectUser, Role.SuperAdmin)
+  @Roles(
+    Role.Admin,
+    Role.ITHead,
+    Role.Finance,
+    Role.OperationalHead,
+    Role.CEO,
+    Role.AssignedProjectUser,
+    Role.SuperAdmin,
+  )
   @UsePipes(new ValidationPipe({ transform: true }))
   async getLiveExpenses(
     @Query() getLiveExpensesDto: GetLiveExpensesDto,
-    @Req() req: AuthenticatedRequest
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-        throw new UnauthorizedException("User not authenticated or tenant ID not found.");
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID not found.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
-    return this.wbsService.findAllLiveExpenses(getLiveExpensesDto, tenantIdFromToken);
+    return this.wbsService.findAllLiveExpenses(
+      getLiveExpensesDto,
+      tenantIdFromToken,
+    );
+  }
+
+  @Get("exceptions")
+  @Roles(Role.Admin, Role.Finance, Role.CEO)
+  async getMajorExceptions(@Req() req: AuthenticatedRequest) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    const tenantId = req.user.tenant_id;
+    return this.wbsService.findMajorExceptions(tenantId);
   }
 
   @Get("expenses/export")
-  @Roles(Role.Admin, Role.ITHead, Role.Finance, Role.OperationalHead, Role.CEO, Role.AssignedProjectUser, Role.SuperAdmin)
+  @Roles(
+    Role.Admin,
+    Role.ITHead,
+    Role.Finance,
+    Role.OperationalHead,
+    Role.CEO,
+    Role.AssignedProjectUser,
+    Role.SuperAdmin,
+  )
   async exportExpenses(
     @Query() getLiveExpensesDto: GetLiveExpensesDto,
     @Req() req: AuthenticatedRequest,
@@ -131,42 +204,49 @@ export class WbsController {
     @Query("format") format?: "csv" | "pdf" | "xlsx" | "docx",
   ): Promise<StreamableFile> {
     if (!req.user || !req.user.tenant_id) {
-        throw new UnauthorizedException("User not authenticated or tenant ID not found.");
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID not found.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
     const exportFormat = format || "csv";
-    const data = await this.wbsService.exportLiveExpensesToCsv(getLiveExpensesDto, tenantIdFromToken); // Changed method name
+    const data = await this.wbsService.exportLiveExpensesToCsv(
+      getLiveExpensesDto,
+      tenantIdFromToken,
+    );
     const filename = `live_expenses_export_${new Date().toISOString()}`;
 
     let contentType: string;
 
     switch (exportFormat) {
-      case 'pdf':
-        contentType = 'application/pdf';
+      case "pdf":
+        contentType = "application/pdf";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.pdf"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.pdf"`,
         });
         break;
-      case 'xlsx':
-        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case "xlsx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.xlsx"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.xlsx"`,
         });
         break;
-      case 'docx':
-        contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case "docx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.docx"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.docx"`,
         });
         break;
       default: // csv
-        contentType = 'text/csv';
+        contentType = "text/csv";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.csv"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.csv"`,
         });
         break;
     }
@@ -179,11 +259,14 @@ export class WbsController {
   @Roles(Role.Admin, Role.Finance)
   async deleteWbsItem(
     @Param("id", new ParseUUIDPipe()) id: string,
-    @Query("recursive", new ParseBoolPipe({ optional: true })) recursive: boolean = false,
-    @Req() req: AuthenticatedRequest
+    @Query("recursive", new ParseBoolPipe({ optional: true }))
+    recursive: boolean = false,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-        throw new UnauthorizedException("User not authenticated or tenant ID not found.");
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID not found.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
     await this.wbsService.deleteWbsItem(id, tenantIdFromToken, { recursive });
@@ -193,16 +276,25 @@ export class WbsController {
   @HttpCode(HttpStatus.CREATED)
   @Roles(Role.Admin, Role.Finance, Role.AssignedProjectUser)
   @UsePipes(new ValidationPipe({ transform: true }))
-  async createDraft(@Body() createWbsDto: CreateWbsBudgetDto, @Req() req: AuthenticatedRequest) {
+  async createDraft(
+    @Body() createWbsDto: CreateWbsBudgetDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     if (!req.user) {
       throw new UnauthorizedException("User not authenticated.");
     }
     const userIdFromToken = req.user.id;
     if (!req.user.tenant_id) {
-        throw new BadRequestException("Tenant ID not found in authenticated user payload.");
+      throw new BadRequestException(
+        "Tenant ID not found in authenticated user payload.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
-    return this.wbsService.createWbsBudgetDraft(createWbsDto, userIdFromToken, tenantIdFromToken);
+    return this.wbsService.createWbsBudgetDraft(
+      createWbsDto,
+      userIdFromToken,
+      tenantIdFromToken,
+    );
   }
 
   @Post("budget-draft/batch")
@@ -218,7 +310,9 @@ export class WbsController {
     }
     const userIdFromToken = req.user.id;
     if (!req.user.tenant_id) {
-        throw new BadRequestException("Tenant ID not found in authenticated user payload.");
+      throw new BadRequestException(
+        "Tenant ID not found in authenticated user payload.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
     return this.wbsService.createWbsBudgetDraftBatch(
@@ -234,13 +328,19 @@ export class WbsController {
   async updateWbsBudget(
     @Param("id") id: string,
     @Body() updateWbsBudgetDto: UpdateWbsBudgetDto,
-    @Req() req: AuthenticatedRequest
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-        throw new UnauthorizedException("User not authenticated or tenant ID not found.");
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID not found.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
-    return this.wbsService.updateWbsBudget(id, updateWbsBudgetDto, tenantIdFromToken);
+    return this.wbsService.updateWbsBudget(
+      id,
+      updateWbsBudgetDto,
+      tenantIdFromToken,
+    );
   }
 
   @Post("expense/live-entry")
@@ -256,7 +356,9 @@ export class WbsController {
     }
     const userIdFromToken = req.user.id;
     if (!req.user.tenant_id) {
-        throw new BadRequestException("Tenant ID not found in authenticated user payload.");
+      throw new BadRequestException(
+        "Tenant ID not found in authenticated user payload.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
     return this.wbsService.logLiveExpenseEntry(
@@ -269,15 +371,22 @@ export class WbsController {
   @Patch("expense/live-entry/:id")
   @Roles(Role.Admin, Role.Finance)
   @UsePipes(new ValidationPipe({ transform: true }))
-  async updateLiveExpenseEntry( // Renamed method
+  async updateLiveExpenseEntry(
+    // Renamed method
     @Param("id", new ParseUUIDPipe()) id: string, // Changed to ParseUUIDPipe
     @Body() updateLiveExpenseDto: UpdateLiveExpenseDto,
-    @Req() req: AuthenticatedRequest
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-        throw new UnauthorizedException("User not authenticated or tenant ID not found.");
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID not found.",
+      );
     }
     const tenantIdFromToken = req.user.tenant_id;
-    return this.wbsService.updateLiveExpenseEntry(id, updateLiveExpenseDto, tenantIdFromToken);
+    return this.wbsService.updateLiveExpenseEntry(
+      id,
+      updateLiveExpenseDto,
+      tenantIdFromToken,
+    );
   }
 }

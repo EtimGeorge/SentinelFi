@@ -1,5 +1,11 @@
 import "reflect-metadata";
-import { Entity, PrimaryGeneratedColumn, Column, Unique, OneToMany } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  Unique,
+  OneToMany,
+} from "typeorm";
 import type { UserEntity } from "../../src/auth/user.entity";
 
 @Entity({ name: "tenants", schema: "public" }) // Master data, resides in public schema
@@ -18,12 +24,19 @@ export class TenantEntity {
   @Column({ type: "boolean", default: true }) // NEW: Added for tenant lifecycle management
   is_active!: boolean;
 
+  @Column({ type: "varchar", length: 50, default: "basic" })
+  plan!: string;
+
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
 
-  @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" })
+  @Column({
+    type: "timestamptz",
+    default: () => "CURRENT_TIMESTAMP",
+    onUpdate: "CURRENT_TIMESTAMP",
+  })
   updated_at!: Date;
 
-  @OneToMany('UserEntity', 'tenant')
+  @OneToMany("UserEntity", "tenant")
   users!: UserEntity[];
 }

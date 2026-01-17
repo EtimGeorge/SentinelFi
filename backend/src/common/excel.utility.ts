@@ -17,8 +17,10 @@ export class ExcelUtility {
       };
       cell.alignment = { vertical: "middle", horizontal: "center" };
       cell.border = {
-        top: { style: "thin" }, bottom: { style: "thin" },
-        left: { style: "thin" }, right: { style: "thin" },
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
       };
     });
   }
@@ -27,13 +29,21 @@ export class ExcelUtility {
     worksheet.getRow(rowNum).eachCell((cell: ExcelJS.Cell) => {
       cell.alignment = { vertical: "middle", horizontal: "left" };
       cell.border = {
-        top: { style: "thin" }, bottom: { style: "thin" },
-        left: { style: "thin" }, right: { style: "thin" },
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
       };
     });
   }
 
-  static async generateProjectReport(projects: (ProjectEntity & { total_budgeted_rollup: number; total_paid_rollup: number })[], title: string = "Project Portfolio Report"): Promise<ExcelJS.Buffer> {
+  static async generateProjectReport(
+    projects: (ProjectEntity & {
+      total_budgeted_rollup: number;
+      total_paid_rollup: number;
+    })[],
+    title: string = "Project Portfolio Report",
+  ): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(title);
 
@@ -51,7 +61,12 @@ export class ExcelUtility {
     ExcelUtility.applyHeaderStyle(worksheet);
 
     projects.forEach((project, index) => {
-      const variance = project.total_budgeted_rollup > 0 ? ((project.total_paid_rollup - project.total_budgeted_rollup) / project.total_budgeted_rollup) * 100 : 0;
+      const variance =
+        project.total_budgeted_rollup > 0
+          ? ((project.total_paid_rollup - project.total_budgeted_rollup) /
+              project.total_budgeted_rollup) *
+            100
+          : 0;
       worksheet.addRow({
         project_name: project.project_name,
         rfq_number: project.rfq_number,
@@ -67,7 +82,10 @@ export class ExcelUtility {
     return workbook.xlsx.writeBuffer();
   }
 
-  static async generateWbsBudgetReport(budgets: WbsBudgetEntity[], title: string = "WBS Budget Report"): Promise<ExcelJS.Buffer> {
+  static async generateWbsBudgetReport(
+    budgets: WbsBudgetEntity[],
+    title: string = "WBS Budget Report",
+  ): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(title);
 
@@ -105,7 +123,10 @@ export class ExcelUtility {
     return workbook.xlsx.writeBuffer();
   }
 
-  static async generateLiveExpenseReport(expenses: LiveExpenseEntity[], title: string = "Live Expense Report"): Promise<ExcelJS.Buffer> {
+  static async generateLiveExpenseReport(
+    expenses: LiveExpenseEntity[],
+    title: string = "Live Expense Report",
+  ): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(title);
 
@@ -116,7 +137,11 @@ export class ExcelUtility {
       { header: "Expense Date", key: "expense_date", width: 15 },
       { header: "Unit Cost", key: "unit_cost", width: 20 },
       { header: "Quantity", key: "quantity", width: 15 },
-      { header: "Commitment LPO Amount", key: "commitment_lpo_amount", width: 25 },
+      {
+        header: "Commitment LPO Amount",
+        key: "commitment_lpo_amount",
+        width: 25,
+      },
       { header: "Amount", key: "amount", width: 20 },
       { header: "Variance Flag", key: "variance_flag", width: 20 },
       { header: "Document Reference", key: "document_reference", width: 25 },
@@ -149,7 +174,10 @@ export class ExcelUtility {
     return workbook.xlsx.writeBuffer();
   }
 
-  static async generateOperationalBudgetReport(budgets: OperationalBudgetEntity[], title: string = "Operational Budget Report"): Promise<ExcelJS.Buffer> {
+  static async generateOperationalBudgetReport(
+    budgets: OperationalBudgetEntity[],
+    title: string = "Operational Budget Report",
+  ): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(title);
 

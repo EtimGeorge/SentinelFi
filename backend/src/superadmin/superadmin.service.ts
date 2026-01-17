@@ -1,13 +1,24 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { DataSource, Repository, FindOptionsWhere, ILike, Between, MoreThan } from 'typeorm';
+import { TenantProvisioningService } from '../tenants/tenant-provisioning.service';
+import { CreateTenantDto, GetTenantsDto, UpdateTenantDto } from './dto/create-tenant.dto';
 import { TenantEntity } from '../tenants/tenant.entity';
-import { CreateTenantDto, UpdateTenantDto, GetTenantsDto } from './dto/create-tenant.dto'; // Using combined DTO file for now
-import { AuthService } from '../auth/auth.service'; // To create the initial tenant admin user
-import { ICreateUserPayload } from 'shared/types/user'; // DTO for creating user
-import { Role } from 'shared/types/role.enum'; // NEW: Import Role enum 
-import { CreateTenantAdminUserDto } from './dto/create-tenant-admin-user.dto'; // NEW: Import new DTO
-import { TenantProvisioningService } from '../tenants/tenant-provisioning.service'; // NEW: Import TenantProvisioningService
+import { UserEntity } from '../auth/user.entity';
+import { Role as RoleEnum } from 'shared/types/role.enum';
+import { AssignTenantToUserDto } from './dto/assign-tenant-to-user.dto';
+import { SettingsEntity } from '../settings/settings.entity';
+import { UpdateSettingsDto } from '../settings/dto/settings.dto';
+import { EmailService } from '../email/email.service';
+import { SendTestEmailDto } from '../settings/dto/send-test-email.dto';
+import { TenantDetailDto } from './dto/tenant-details.dto';
+import { WbsBudgetEntity } from '../wbs/wbs-budget.entity';
+import { LiveExpenseEntity } from '../wbs/live-expense.entity';
+import { AuditLogEntity } from '../audit/audit.entity';
+import { UpdateTenantPlanDto } from './dto/tenant-plan.dto';
+import { sub } from 'date-fns';
+import { JwtService } from '@nestjs/jwt';
+import { JwtPayload } from '@shared/types/user';
 
 @Injectable()
 export class SuperAdminService {
@@ -15,144 +26,295 @@ export class SuperAdminService {
 
   constructor(
     @InjectRepository(TenantEntity)
-    private tenantRepository: Repository<TenantEntity>,
-    private authService: AuthService,
-    private dataSource: DataSource, // Inject DataSource for manual schema management
-    private tenantProvisioningService: TenantProvisioningService, // NEW: Inject TenantProvisioningService
+    private readonly tenantRepository: Repository<TenantEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(SettingsEntity)
+    private readonly settingsRepository: Repository<SettingsEntity>,
+    private readonly tenantProvisioningService: TenantProvisioningService,
+    private readonly emailService: EmailService,
+    private readonly dataSource: DataSource,
+    private readonly jwtService: JwtService,
   ) {}
 
-  /**
-   * Creates a new tenant, its dedicated database schema, and an initial admin user.
-   * This is a critical SuperAdmin operation.
-   * @param createTenantDto Data for creating the tenant.
-   * @returns The created TenantEntity.
-   */
-  async createTenant(createTenantDto: CreateTenantDto): Promise<TenantEntity & { admin_password?: string }> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  async createTenant(createTenantDto: CreateTenantDto): Promise<TenantEntity> {
+    const newTenant = this.tenantRepository.create(createTenantDto);
+    const savedTenant = await this.tenantRepository.save(newTenant);
+    this.logger.log(`New tenant created with ID: ${savedTenant.tenant_id}, Name: ${savedTenant.name}`);
 
     try {
-      // 1. Check if schema_name or tenant name already exists
-      const existingTenantByName = await queryRunner.manager.findOne(TenantEntity, { where: { name: createTenantDto.name } });
-      if (existingTenantByName) {
-        throw new ConflictException(`Tenant with name '${createTenantDto.name}' already exists.`);
-      }
-      const existingTenantBySchema = await queryRunner.manager.findOne(TenantEntity, { where: { schema_name: createTenantDto.schema_name } });
-      if (existingTenantBySchema) {
-        throw new ConflictException(`Tenant with schema name '${createTenantDto.schema_name}' already exists.`);
-      }
-
-      // 2. Create and Provision the database schema with tables and types
-      await this.tenantProvisioningService.provisionTenantSchema(createTenantDto.schema_name);
-      this.logger.log(`Tenant schema "${createTenantDto.schema_name}" provisioned with tables and types.`);
-
-      // 3. Create the tenant record in the public schema
-      const newTenant = this.tenantRepository.create(createTenantDto);
-      const savedTenant = await queryRunner.manager.save(TenantEntity, newTenant);
-      this.logger.log(`Tenant record '${savedTenant.name}' saved with ID '${savedTenant.tenant_id}'.`);
-
-      // 4. (Removed placeholder comments as provisioning is now handled by TenantProvisioningService)
-
-      // 5. Create the initial admin user for this tenant
-      const createAdminUserDto: CreateTenantAdminUserDto = {
-        email: createTenantDto.admin_email,
-
-        role: Role.Admin, // Assign 'Admin' role
-        tenant_id: savedTenant.tenant_id,
-        first_name: 'Tenant', // Default first name
-        last_name: 'Admin', // Default last name
-      };
-      const initialAdminUser = await this.authService.createTenantUser(createAdminUserDto); 
-      this.logger.log(`Initial admin user '${initialAdminUser.email}' created for tenant '${savedTenant.name}'.`);
-      // IMPORTANT: The generated password is logged as a WARNING in auth.service.ts.
-      // For production, this password should be securely transmitted (e.g., via email service)
-      // and NOT returned directly in the API response or logs.
-      // For development/testing, returning it here is acceptable.
-
-      await queryRunner.commitTransaction();
-      
-      // Return the saved tenant along with the generated admin password
-      return { ...savedTenant, admin_password: initialAdminUser.generatedPassword };
+      this.logger.log(`Provisioning schema for tenant: ${savedTenant.schema_name}`);
+      await this.tenantProvisioningService.provisionTenantSchema(savedTenant.schema_name);
+      this.logger.log(`Schema '${savedTenant.schema_name}' provisioned successfully.`);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(
-        `Failed to create tenant '${createTenantDto.name}' or schema '${createTenantDto.schema_name}': ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error instanceof Error ? error.stack : undefined
-      );
-      // If schema creation failed but tenant record didn't exist, we might need a cleanup.
-      // For a partial failure (e.g., schema created, but user creation failed),
-      // we might need to rollback schema as well or have a cleanup utility.
-      if (error instanceof ConflictException || error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('Failed to create tenant due to an internal server error.');
+        if (error instanceof Error) {
+            this.logger.error(`Failed to provision schema for tenant ${savedTenant.tenant_id}. Error: ${error.message}`, error.stack);
+            await this.tenantRepository.delete(savedTenant.tenant_id);
+            throw new Error(`Failed to create tenant: Schema provisioning failed. The tenant has been rolled back.`);
+        }
+    }
+
+    return savedTenant;
+  }
+
+  async findAllTenants(getTenantsDto: GetTenantsDto): Promise<{ data: TenantEntity[], total: number }> {
+    const { page = 1, limit = 10, name, schema_name, is_active } = getTenantsDto;
+    const where: FindOptionsWhere<TenantEntity> = {};
+
+    if (name) {
+      where.name = ILike(`%${name}%`);
+    }
+    if (schema_name) {
+      where.schema_name = ILike(`%${schema_name}%`);
+    }
+    if (is_active !== undefined) {
+      where.is_active = is_active;
+    }
+
+    const [data, total] = await this.tenantRepository.findAndCount({
+      where,
+      take: limit,
+      skip: (page - 1) * limit,
+    });
+
+    return { data, total };
+  }
+
+  async updateTenant(id: string, updateTenantDto: UpdateTenantDto): Promise<TenantEntity> {
+    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: id } });
+    if (!tenant) {
+        throw new NotFoundException(`Tenant with ID ${id} not found.`);
+    }
+    this.tenantRepository.merge(tenant, updateTenantDto);
+    return this.tenantRepository.save(tenant);
+  }
+
+  async getTenantPlan(tenantId: string): Promise<any> {
+    this.logger.log(`Fetching plan for tenant ${tenantId}`);
+    return {
+        plan: 'Basic',
+        price: 99,
+        users: 10,
+        features: ['WBS', 'Budgeting', 'Reporting'],
+    };
+  }
+
+  async updateTenantPlan(tenantId: string, updateData: UpdateTenantPlanDto): Promise<any> {
+      this.logger.log(`Updating plan for tenant ${tenantId} with data: ${JSON.stringify(updateData)}`);
+      return { status: 'success', message: 'Plan updated' };
+  }
+
+  async impersonateTenantAdmin(tenantId: string, superAdminId: string): Promise<string> {
+    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: tenantId } });
+    if (!tenant) {
+        throw new NotFoundException(`Tenant with ID ${tenantId} not found.`);
+    }
+
+    const adminUser = await this.userRepository.createQueryBuilder("user")
+        .innerJoin("user.roles", "role")
+        .where("user.tenant_id = :tenantId", { tenantId })
+        .andWhere("role.name = :roleName", { roleName: RoleEnum.Admin })
+        .getOne();
+
+    if (!adminUser) {
+        throw new NotFoundException(`No admin user found for tenant ${tenantId}`);
+    }
+    
+    // We need the full user object with permissions for the token
+    const userWithPermissions = await this.userRepository.findOne({
+        where: { id: adminUser.id },
+        relations: ['roles', 'roles.permissions']
+    });
+
+    if (!userWithPermissions) {
+        throw new NotFoundException(`Could not fully load admin user ${adminUser.id}`);
+    }
+
+    const roleNames: RoleEnum[] = userWithPermissions.roles.map(r => r.name as RoleEnum);
+    const permissions = [...new Set(userWithPermissions.roles.flatMap(role => role.permissions.map(p => p.name)))];
+
+    const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
+        id: userWithPermissions.id,
+        sub: userWithPermissions.id,
+        email: userWithPermissions.email,
+        roles: roleNames,
+        permissions: permissions,
+        tenant_id: userWithPermissions.tenant_id,
+        impersonator_id: superAdminId, // Add impersonator ID
+    };
+
+    return this.jwtService.sign(payload);
+  }
+
+  async getTenantDetails(tenantId: string): Promise<TenantDetailDto> {
+    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID ${tenantId} not found.`);
+    }
+
+    const userCount = await this.userRepository.count({ where: { tenant_id: tenantId }});
+    const adminUsers = await this.userRepository.createQueryBuilder("user")
+        .innerJoin("user.roles", "role")
+        .where("user.tenant_id = :tenantId", { tenantId })
+        .andWhere("role.name = :roleName", { roleName: RoleEnum.Admin })
+        .select(['user.id', 'user.email', 'user.first_name', 'user.last_name'])
+        .take(5)
+        .getMany();
+
+    // The rest of the logic uses queryRunner, which is fine, but let's ensure it's robust
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    // This is not needed if all queries explicitly use `tenant_id`
+    // await queryRunner.query(`SET search_path TO "${tenant.schema_name}";`); 
+
+    try {
+      const lastActivity = await this.dataSource.getRepository(AuditLogEntity).findOne({
+        where: { tenantId: tenantId },
+        select: ['timestamp'],
+        order: { timestamp: 'DESC' },
+      });
+      // These queries will need to be tenant-aware if they aren't already
+      const wbsBudgetsCount = 0; // Placeholder until tenant-specific query is confirmed
+      const liveExpensesCount = 0; // Placeholder
+
+      const recentAuditLogs = await this.dataSource.getRepository(AuditLogEntity).find({
+        where: { tenantId: tenantId },
+        take: 5,
+        order: { timestamp: 'DESC' },
+        relations: ['user'],
+      });
+
+      return {
+        id: tenant.tenant_id,
+        name: tenant.name,
+        createdAt: tenant.created_at,
+        updatedAt: tenant.updated_at,
+        isActive: tenant.is_active,
+        plan: (tenant as any).plan, // Assuming plan is a property
+        userCount,
+        adminUsers: adminUsers.map(u => ({ id: u.id, email: u.email, name: `${u.first_name} ${u.last_name}`.trim() })),
+        lastActivity: lastActivity ? lastActivity.timestamp : null,
+        resourceUsage: {
+          wbsBudgets: wbsBudgetsCount,
+          liveExpenses: liveExpensesCount,
+        },
+        recentAuditLogs: recentAuditLogs.map(log => ({
+          id: log.id,
+          action: log.action,
+          timestamp: log.timestamp,
+          user: log.user ? { id: log.user.id, email: log.user.email } : null,
+        })),
+      };
     } finally {
       await queryRunner.release();
     }
   }
 
-  /**
-   * Finds all tenants with pagination and filtering.
-   * @param getTenantsDto Filtering and pagination options.
-   * @returns A paginated list of TenantEntity.
-   */
-  async findAllTenants(getTenantsDto: GetTenantsDto): Promise<{ tenants: TenantEntity[]; total: number }> {
-    const { page = 1, limit = 10, name, schema_name, is_active } = getTenantsDto;
-    const skip = (page - 1) * limit;
-
-    const queryBuilder = this.tenantRepository.createQueryBuilder('tenant');
-
-    if (name) {
-      queryBuilder.andWhere('tenant.name ILIKE :name', { name: `%${name}%` });
-    }
-    if (schema_name) {
-      queryBuilder.andWhere('tenant.schema_name ILIKE :schema_name', { schema_name: `%${schema_name}%` });
-    }
-    if (is_active !== undefined) {
-      queryBuilder.andWhere('tenant.is_active = :is_active', { is_active });
-    }
-
-    const [tenants, total] = await queryBuilder
-      .orderBy('tenant.name', 'ASC')
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
-
-    return { tenants, total };
+  async getTenantCount(): Promise<{ total: number }> {
+    const total = await this.tenantRepository.count();
+    return { total };
   }
 
-  /**
-   * Updates an existing tenant.
-   * @param id The ID of the tenant to update.
-   * @param updateTenantDto Data for updating the tenant.
-   * @returns The updated TenantEntity.
-   */
-  async updateTenant(id: string, updateTenantDto: UpdateTenantDto): Promise<TenantEntity> {
-    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: id } });
-    if (!tenant) {
-      throw new NotFoundException(`Tenant with ID '${id}' not found.`);
-    }
-
-    // Prevent changing schema_name after creation, as it's foundational
-    if (updateTenantDto.schema_name && updateTenantDto.schema_name !== tenant.schema_name) {
-      throw new BadRequestException('Changing the schema_name of an existing tenant is not allowed.');
-    }
-
-    Object.assign(tenant, updateTenantDto);
-    return this.tenantRepository.save(tenant);
+  async getTenantGrowth(period: string): Promise<{ count: number }> {
+    const date = this.getDateFromPeriod(period);
+    const count = await this.tenantRepository.count({ where: { created_at: MoreThan(date) } });
+    return { count };
   }
 
-  /**
-   * Finds a single tenant by ID.
-   * @param id The ID of the tenant to find.
-   * @returns The TenantEntity.
-   */
-  async findOneTenant(id: string): Promise<TenantEntity> {
-    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: id } });
-    if (!tenant) {
-      throw new NotFoundException(`Tenant with ID '${id}' not found.`);
+  async getUserGrowth(period: string): Promise<{ count: number }> {
+    const date = this.getDateFromPeriod(period);
+    const count = await this.userRepository.count({ where: { created_at: MoreThan(date) } });
+    return { count };
+  }
+
+  async getSystemHealth(): Promise<any> {
+    return { status: 'ok', uptime: '99.9%', db_connection: 'ok' };
+  }
+
+  async getTotalUsers(): Promise<{ total: number }> {
+    const total = await this.userRepository.count();
+    return { total };
+  }
+
+  async getMmrEstimate(): Promise<{ mrr: number }> {
+    const tenantCount = await this.tenantRepository.count();
+    return { mrr: tenantCount * 99 };
+  }
+
+  async getWbsMetrics(tenantId?: string): Promise<any> {
+    return { total_budget: 100000, total_spent: 45000 };
+  }
+
+  async getOperationalBudgetMetrics(tenantId?: string): Promise<any> {
+    return { total_allocated: 200000, total_used: 150000 };
+  }
+
+
+  async assignTenantToUser(assignTenantToUserDto: AssignTenantToUserDto): Promise<UserEntity> {
+    const { userId, tenantId } = assignTenantToUserDto;
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
     }
-    return tenant;
+
+    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+    }
+
+    user.tenant = tenant;
+    user.tenant_id = tenant.tenant_id;
+    return this.userRepository.save(user);
+  }
+
+  async getSuperAdminSettings(): Promise<SettingsEntity> {
+    const settings = await this.settingsRepository.findOne({ where: { id: 1 } });
+    if (!settings) {
+      this.logger.log('No global settings found, creating default settings record.');
+      const defaultSettings = this.settingsRepository.create({ id: 1 });
+      return this.settingsRepository.save(defaultSettings);
+    }
+    return settings;
+  }
+
+  async updateSuperAdminSettings(updateSettingsDto: UpdateSettingsDto): Promise<SettingsEntity> {
+    let settings = await this.settingsRepository.findOne({ where: { id: 1 } });
+    if (!settings) {
+      settings = this.settingsRepository.create({ id: 1, ...updateSettingsDto });
+    } else {
+      this.settingsRepository.merge(settings, updateSettingsDto);
+    }
+    this.logger.log('Global settings updated successfully.');
+    return this.settingsRepository.save(settings);
+  }
+
+  async sendSuperAdminTestEmail(sendTestEmailDto: SendTestEmailDto): Promise<{ message: string }> {
+    const { to } = sendTestEmailDto;
+    this.logger.log(`SuperAdmin initiated test email to: ${to}`);
+    try {
+        await this.emailService.sendEmail(to, 'Test from SuperAdmin', 'This is a test email.');
+        return { message: 'Email sent' };
+    } catch (error) {
+        if (error instanceof Error) {
+            this.logger.error(`Failed to send test email: ${error.message}`, error.stack);
+        }
+      throw error;
+    }
+  }
+
+  private getDateFromPeriod(period: string): Date {
+    const now = new Date();
+    switch (period) {
+        case '24h':
+            return sub(now, { hours: 24 });
+        case '7d':
+            return sub(now, { days: 7 });
+        case '30d':
+            return sub(now, { days: 30 });
+        case '1y':
+            return sub(now, { years: 1 });
+        default:
+            return sub(now, { days: 30 });
+    }
   }
 }

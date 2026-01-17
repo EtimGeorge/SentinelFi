@@ -1,10 +1,6 @@
-import { SetMetadata } from "@nestjs/common";
-import { Role } from "shared/types/role.enum";
+// backend/src/auth/decorators/roles.decorator.ts
+import { SetMetadata } from '@nestjs/common';
+import { Role } from 'shared/types/role.enum';
 
-export const ROLES_KEY = "roles";
-
-/**
- * Custom Decorator for applying RBAC roles to a controller handler.
- * Example: @Roles(Role.Admin, Role.Finance)
- */
+export const ROLES_KEY = 'roles';
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);

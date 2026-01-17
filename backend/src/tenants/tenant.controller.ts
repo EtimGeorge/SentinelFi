@@ -10,23 +10,21 @@ import {
   HttpStatus,
 } from "@nestjs/common";
 
-import { AuthGuard } from "@nestjs/passport";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"; // Use new JwtAuthGuard
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 
 import { TenantService } from "./tenant.service";
 
-import { UpdateTenantDto } from "../superadmin/dto/create-tenant.dto";
+import { UpdateTenantDto } from "../superadmin/dto/create-tenant.dto"; // Corrected import path
 import { TenantEntity } from "./tenant.entity";
 import { Role } from "shared/types/role.enum";
 
 @Controller("admin/tenants") // Base path: /api/v1/admin/tenants
-@UseGuards(AuthGuard("jwt"), RolesGuard)
-@Roles(Role.Admin, Role.Finance, Role.SuperAdmin) // All tenant management is restricted
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.SuperAdmin) // Only SuperAdmin can manage tenant records
 export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
-
-
 
   @Get()
   async findAllTenants(): Promise<TenantEntity[]> {
@@ -45,7 +43,7 @@ export class TenantController {
   ): Promise<TenantEntity> {
     return this.tenantService.updateTenant(
       id,
-      updateTenantDto, // Pass the DTO directly
+      updateTenantDto,
     );
   }
 

@@ -55,12 +55,16 @@ const ApprovalsPage: React.FC = () => {
   }, [api, addToast, isFinanceOrAdmin]);
 
   const fetchMajorExceptions = useCallback(async () => {
-    // Placeholder for fetching major exceptions
     setLoadingExceptions(true);
-    // try { ... } catch { ... }
-    setMajorExceptions([]); // Mocking empty for now
-    setLoadingExceptions(false);
-  }, []);
+    try {
+      const response = await api.get('/wbs/exceptions');
+      setMajorExceptions(response.data);
+    } catch (e: any) {
+      addToast(`Failed to fetch exceptions: ${e.message}`, 'error');
+    } finally {
+      setLoadingExceptions(false);
+    }
+  }, [api, addToast]);
 
   useEffect(() => {
     fetchPendingDrafts();
@@ -154,7 +158,21 @@ const ApprovalsPage: React.FC = () => {
                 <p className="p-4 text-center text-gray-500">No major exceptions.</p>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                  {/* Render exceptions here */}
+                  {majorExceptions.map((ex) => (
+                    <div key={ex.id} className="p-3 bg-brand-dark/50 rounded-lg border border-gray-700 flex flex-col">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-bold text-brand-primary">{ex.wbs_code || ex.wbsBudget?.wbs_code}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${ex.variance_flag === 'MAJOR_VARIANCE' ? 'bg-red-900 text-red-300' : 'bg-yellow-900 text-yellow-300'}`}>
+                          {ex.variance_flag.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-200 mb-1">{ex.item_description || ex.description}</p>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-gray-500">{new Date(ex.expense_date as any).toLocaleDateString()}</span>
+                        <span className="text-sm font-bold text-white">{formatCurrency(ex.actual_paid_amount || ex.amount)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </Card>

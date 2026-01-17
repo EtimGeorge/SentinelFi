@@ -17,20 +17,21 @@ import {
   UnauthorizedException,
   Res,
   StreamableFile,
-} from '@nestjs/common';
-import { Response } from 'express';
-import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from 'shared/types/role.enum';
-import { AuthenticatedRequest } from '../common/interfaces/request.interface';
-import { ProjectsService } from './projects.service';
-import { CreateProjectDto } from './dto/create-project.dto';
-import { UpdateProjectDto } from './dto/update-project.dto';
-import { GetProjectsDto } from './dto/get-projects.dto';
+} from "@nestjs/common";
+import { Response } from "express";
+import { AuthGuard } from "@nestjs/passport";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { Role } from "shared/types/role.enum";
+import { AuthenticatedRequest } from "../common/interfaces/request.interface";
+import { ProjectsService } from "./projects.service";
+import { CreateProjectDto } from "./dto/create-project.dto";
+import { CreateLpoDto } from "./dto/create-lpo.dto";
+import { UpdateProjectDto } from "./dto/update-project.dto";
+import { GetProjectsDto } from "./dto/get-projects.dto";
 
-@Controller('projects') // Base path is /api/v1/projects
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Controller("projects") // Base path is /api/v1/projects
+@UseGuards(AuthGuard("jwt"), RolesGuard)
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
@@ -47,9 +48,39 @@ export class ProjectsController {
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException('User not authenticated or tenant ID is missing.');
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
     }
-    return this.projectsService.create(createProjectDto, req.user.id, req.user.tenant_id);
+    return this.projectsService.create(
+      createProjectDto,
+      req.user.id,
+      req.user.tenant_id,
+    );
+  }
+
+  /**
+   * API Endpoint: POST /api/v1/projects/lpo
+   * Permissions: Admin, Finance, SuperAdmin
+   */
+  @Post("lpo")
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async createLpo(
+    @Body() createLpoDto: CreateLpoDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.createLpo(
+      createLpoDto,
+      req.user.id,
+      req.user.tenant_id,
+    );
   }
 
   /**
@@ -57,14 +88,24 @@ export class ProjectsController {
    * Permissions: All read roles
    */
   @Get()
-  @Roles(Role.Admin, Role.ITHead, Role.Finance, Role.OperationalHead, Role.CEO, Role.AssignedProjectUser, Role.SuperAdmin)
+  @Roles(
+    Role.Admin,
+    Role.ITHead,
+    Role.Finance,
+    Role.OperationalHead,
+    Role.CEO,
+    Role.AssignedProjectUser,
+    Role.SuperAdmin,
+  )
   @UsePipes(new ValidationPipe({ transform: true }))
   async findAllProjects(
     @Query() getProjectsDto: GetProjectsDto,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException('User not authenticated or tenant ID is missing.');
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
     }
     return this.projectsService.findAll(getProjectsDto, req.user.tenant_id);
   }
@@ -73,14 +114,24 @@ export class ProjectsController {
    * API Endpoint: GET /api/v1/projects/:id
    * Permissions: All read roles
    */
-  @Get(':id')
-  @Roles(Role.Admin, Role.ITHead, Role.Finance, Role.OperationalHead, Role.CEO, Role.AssignedProjectUser, Role.SuperAdmin)
+  @Get(":id")
+  @Roles(
+    Role.Admin,
+    Role.ITHead,
+    Role.Finance,
+    Role.OperationalHead,
+    Role.CEO,
+    Role.AssignedProjectUser,
+    Role.SuperAdmin,
+  )
   async findOneProject(
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException('User not authenticated or tenant ID is missing.');
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
     }
     return this.projectsService.findOne(id, req.user.tenant_id);
   }
@@ -90,14 +141,24 @@ export class ProjectsController {
    * Permissions: All read roles
    * Retrieves a single project by ID including rollup financial data.
    */
-  @Get(':id/rollup')
-  @Roles(Role.Admin, Role.ITHead, Role.Finance, Role.OperationalHead, Role.CEO, Role.AssignedProjectUser, Role.SuperAdmin)
+  @Get(":id/rollup")
+  @Roles(
+    Role.Admin,
+    Role.ITHead,
+    Role.Finance,
+    Role.OperationalHead,
+    Role.CEO,
+    Role.AssignedProjectUser,
+    Role.SuperAdmin,
+  )
   async findOneProjectWithRollup(
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException('User not authenticated or tenant ID is missing.');
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
     }
     return this.projectsService.findOneWithRollup(id, req.user.tenant_id);
   }
@@ -106,35 +167,136 @@ export class ProjectsController {
    * API Endpoint: PATCH /api/v1/projects/:id
    * Permissions: Admin, ITHead, SuperAdmin
    */
-  @Patch(':id')
+  @Patch(":id")
   @Roles(Role.Admin, Role.ITHead, Role.SuperAdmin)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateProject(
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param("id", new ParseUUIDPipe()) id: string,
     @Body() updateProjectDto: UpdateProjectDto,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException('User not authenticated or tenant ID is missing.');
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
     }
-    return this.projectsService.update(id, updateProjectDto, req.user.tenant_id);
+    return this.projectsService.update(
+      id,
+      updateProjectDto,
+      req.user.tenant_id,
+      req.user.id,
+    );
   }
 
   /**
    * API Endpoint: DELETE /api/v1/projects/:id
    * Permissions: Admin, SuperAdmin
    */
-  @Delete(':id')
+  @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(Role.Admin, Role.SuperAdmin)
   async removeProject(
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException('User not authenticated or tenant ID is missing.');
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
     }
     await this.projectsService.remove(id, req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/projects/:id/cashflow
+   * Permissions: Admin, Finance, SuperAdmin
+   */
+  @Get(":id/cashflow")
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  async getCashFlow(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Query("year") year: number,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.getCashFlowHeatmap(id, req.user.tenant_id, year || new Date().getFullYear());
+  }
+
+  /**
+   * API Endpoint: POST /api/v1/projects/:id/inflow
+   * Permissions: Admin, Finance, SuperAdmin
+   */
+  @Post(":id/inflow")
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  async createInflow(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() inflowData: any,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.createInflow({ ...inflowData, project_id: id }, req.user.id, req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/projects/:id/audits
+   * Permissions: Admin, Finance, SuperAdmin
+   */
+  @Get(":id/audits")
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  async getAudits(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.findAudits(id, req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/projects/:id/lpos
+   * Permissions: Admin, Finance, SuperAdmin
+   */
+  @Get(":id/lpos")
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  async getLpos(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.findLpos(id, req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/projects/:id/inflows
+   * Permissions: Admin, Finance, SuperAdmin
+   */
+  @Get(":id/inflows")
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  async getInflows(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.findInflows(id, req.user.tenant_id);
   }
 
   /**
@@ -142,50 +304,66 @@ export class ProjectsController {
    * Permissions: All read roles
    * Exports project data to CSV, PDF, XLSX, or DOCX.
    */
-  @Get('export')
-  @Roles(Role.Admin, Role.ITHead, Role.Finance, Role.OperationalHead, Role.CEO, Role.AssignedProjectUser, Role.SuperAdmin)
+  @Get("export")
+  @Roles(
+    Role.Admin,
+    Role.ITHead,
+    Role.Finance,
+    Role.OperationalHead,
+    Role.CEO,
+    Role.AssignedProjectUser,
+    Role.SuperAdmin,
+  )
   async exportProjects(
     @Query() getProjectsDto: GetProjectsDto,
     @Res({ passthrough: true }) res: Response,
     @Req() req: AuthenticatedRequest,
-    @Query('format') format?: 'csv' | 'pdf' | 'xlsx' | 'docx',
+    @Query("format") format?: "csv" | "pdf" | "xlsx" | "docx",
   ): Promise<StreamableFile> {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException('User not authenticated or tenant ID is missing.');
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
     }
-    const exportFormat = format || 'csv'; // Default to CSV
-    const data = await this.projectsService.exportProjectsToFormat(getProjectsDto, exportFormat, req.user.tenant_id);
+    const exportFormat = format || "csv"; // Default to CSV
+    const data = await this.projectsService.exportProjectsToFormat(
+      getProjectsDto,
+      exportFormat,
+      req.user.tenant_id,
+    );
     const filename = `projects_export_${new Date().toISOString()}`;
 
     let contentType: string;
-    
+
     switch (exportFormat) {
-      case 'pdf':
-        contentType = 'application/pdf';
+      case "pdf":
+        contentType = "application/pdf";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.pdf"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.pdf"`,
         });
         break;
-      case 'xlsx':
-        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case "xlsx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.xlsx"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.xlsx"`,
         });
         break;
-      case 'docx':
-        contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case "docx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.docx"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.docx"`,
         });
         break;
       default: // csv
-        contentType = 'text/csv';
+        contentType = "text/csv";
         res.set({
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}.csv"`,
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.csv"`,
         });
         break;
     }

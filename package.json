@@ -37,6 +37,7 @@
     "typeorm:tenant:revert": "npm run typeorm -- -d backend/ormconfig.tenant.ts migration:revert",
     "typeorm:tenant:sync": "npm run typeorm -- -d backend/ormconfig.tenant.ts schema:sync",
     "typeorm:tenant:drop": "npm run typeorm -- -d backend/ormconfig.tenant.ts schema:drop",
+    "db:seed:roles-permissions": "cross-env NODE_OPTIONS=--max-old-space-size=4096 npx ts-node -r reflect-metadata -r tsconfig-paths/register --project backend/tsconfig.typeorm.json backend/src/database/seeds/seed-roles-permissions.ts",
     "db:reset": "ts-node backend/scripts/db-reset.ts",
     "lint-all": "npm run lint -w frontend && npm run lint -w backend",
     "typecheck-all": "npm run build:shared && npm run typecheck -w frontend && npm run typecheck -w backend"
@@ -72,6 +73,7 @@
     "next": "14.1.4",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.12.0",
     "postcss": "^8.5.6",
     "react": "18.2.0",
@@ -99,6 +101,7 @@
     "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "cross-env": "^10.1.0",
     "eslint": "^8.42.0",
     "eslint-config-next": "^14.2.35",
     "eslint-config-prettier": "^9.0.0",

@@ -1,6 +1,14 @@
-import { IsOptional, IsString, IsUUID, IsEnum, IsDateString, IsNumber, IsIn } from 'class-validator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-import { VarianceFlag } from '@shared/types/get-live-expenses.dto'; // Import from shared
+import {
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsEnum,
+  IsDateString,
+  IsNumber,
+  IsIn,
+} from "class-validator";
+import { PaginationDto } from "../../common/dto/pagination.dto";
+import { VarianceFlag } from "@shared/types/get-live-expenses.dto"; // Import from shared
 
 export class GetLiveExpensesDto extends PaginationDto {
   @IsOptional()
@@ -41,8 +49,8 @@ export class GetLiveExpensesDto extends PaginationDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['ASC', 'DESC'])
-  sortOrder?: 'ASC' | 'DESC' = "DESC";
+  @IsIn(["ASC", "DESC"])
+  sortOrder?: "ASC" | "DESC" = "DESC";
 
   @IsOptional()
   @IsUUID()

@@ -1,5 +1,5 @@
-import { DataSource, DataSourceOptions, QueryRunner } from 'typeorm';
-import { ClsService } from 'nestjs-cls';
+import { DataSource, DataSourceOptions, QueryRunner } from "typeorm";
+import { ClsService } from "nestjs-cls";
 
 /**
  * Custom DataSource that wraps the standard TypeORM DataSource to implement multi-tenancy.
@@ -19,7 +19,7 @@ export class TenancyAwareDataSource extends DataSource {
    * Overrides the default createQueryRunner to inject tenant context.
    * @param mode Replication mode (master/slave) - passed through to super
    */
-  createQueryRunner(mode?: 'master' | 'slave'): QueryRunner {
+  createQueryRunner(mode?: "master" | "slave"): QueryRunner {
     const queryRunner = super.createQueryRunner(mode);
     const originalConnect = queryRunner.connect.bind(queryRunner);
 
@@ -30,14 +30,16 @@ export class TenancyAwareDataSource extends DataSource {
 
       // 2. Retrieve the schema name from the CLS context
       // The context is populated by the TenancyMiddleware
-      const schemaName = this.cls.get('SCHEMA_NAME') || 'public';
+      const schemaName = this.cls.get("SCHEMA_NAME") || "public";
 
       // 3. Set the search_path for this connection session
       // This ensures all subsequent queries on this runner use the correct schema
       if (schemaName) {
         // Sanitize schemaName to prevent SQL injection (basic check)
-        const sanitizedSchema = schemaName.replace(/[^a-z0-9_]/gi, '');
-        await queryRunner.query(`SET search_path TO ${sanitizedSchema}, public`);
+        const sanitizedSchema = schemaName.replace(/[^a-z0-9_]/gi, "");
+        await queryRunner.query(
+          `SET search_path TO ${sanitizedSchema}, public`,
+        );
       }
     };
 

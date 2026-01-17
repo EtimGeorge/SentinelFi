@@ -14,6 +14,11 @@ export interface Project {
   sow_details: string | null;
   notes: string | null;
   status: ProjectStatus;
+  currency: string;
+  contract_value: number;
+  contingency_percent: number;
+  vat_rate: number;
+  wht_rate: number;
   created_at: Date;
   updated_at: Date | null;
   created_by_user_id: string;

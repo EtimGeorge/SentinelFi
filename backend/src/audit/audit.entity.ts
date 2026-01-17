@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, Index, ManyToOne, JoinColumn } from "typeorm";
+import { UserEntity } from "../auth/user.entity";
 
 @Entity({ name: "audit_log", schema: "public" }) // Audit log lives in the public schema
 export class AuditLogEntity {
@@ -10,6 +11,10 @@ export class AuditLogEntity {
 
   @Column({ type: "uuid", nullable: true }) // Can be null for system events or unauthenticated attempts
   userId!: string | null;
+
+  @ManyToOne(() => UserEntity, { nullable: true })
+  @JoinColumn({ name: "userId" })
+  user!: UserEntity | null;
 
   @Column({ type: "varchar", length: 255, nullable: true }) // Email of the user who performed the action
   userEmail!: string | null;

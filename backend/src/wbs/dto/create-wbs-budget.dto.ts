@@ -15,7 +15,7 @@ import { WbsBudgetStatus } from "../../../../shared/types/wbs-budget-status.enum
  * Used by the Assigned Project User (Draft Only) and the Finance Officer (Final Draft).
  */
 export class CreateWbsBudgetDto {
-  @IsUUID('4')
+  @IsUUID("4")
   @IsNotEmpty()
   project_id!: string; // NEW: Project ID to link WBS to a specific project
 
@@ -60,5 +60,4 @@ export class CreateWbsBudgetDto {
   @IsOptional()
   @IsUUID("4")
   user_id?: string;
-
 }

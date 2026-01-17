@@ -45,12 +45,12 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="bg-brand-dark border-b border-gray-700/50 p-4 flex items-center justify-between z-30 sticky top-0">
+    <header className="bg-brand-dark border-b border-gray-700/50 p-2 px-4 flex items-center justify-between z-30 sticky top-0">
       <div className="flex items-center">
         {/* Add back your hamburger button here if needed */}
-        <Link href="/dashboard" className="flex items-center space-x-2">
-          <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="SentinelFi Logo" height={48} width={192} priority={true} />
-          <span className="text-xl font-bold text-brand-primary">SentinelFi <span className="text-sm">(client)</span></span>
+        <Link href="/dashboard/home" className="flex items-center space-x-2">
+          <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="SentinelFi Logo" height={36} width={144} priority={true} />
+          <span className="text-lg font-bold text-brand-primary">SentinelFi <span className="text-xs">(client)</span></span>
         </Link>
       </div>
 

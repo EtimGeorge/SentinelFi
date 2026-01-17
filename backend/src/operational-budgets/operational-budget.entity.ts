@@ -8,8 +8,12 @@ import {
   Index,
 } from "typeorm";
 import { UserEntity } from "../auth/user.entity"; // Assuming UserEntity exists for creator
-import { OperationalBudgetType, OperationalBudgetStatus } from "./enums/operational-budget.enum";
+import {
+  OperationalBudgetType,
+  OperationalBudgetStatus,
+} from "./enums/operational-budget.enum";
 import { OperationalBudgetCategoryEntity } from "./operational-budget-category.entity"; // Import new entity
+import { PayrollEntryEntity } from "./payroll-entry.entity";
 
 @Entity({ name: "operational_budget", schema: "client_template" }) // Multi-tenancy
 export class OperationalBudgetEntity {
@@ -66,8 +70,17 @@ export class OperationalBudgetEntity {
   @JoinColumn({ name: "created_by_user_id" })
   createdBy!: UserEntity;
 
-  @OneToMany(() => OperationalBudgetCategoryEntity, (category) => category.operationalBudget)
+  @OneToMany(
+    () => OperationalBudgetCategoryEntity,
+    (category) => category.operationalBudget,
+  )
   categories!: OperationalBudgetCategoryEntity[];
+
+  @OneToMany(
+    () => PayrollEntryEntity,
+    (payroll) => payroll.operationalBudget,
+  )
+  payrollEntries!: PayrollEntryEntity[];
 
   // Future integration: Link to specific department or cost center if needed
   @Column({ type: "uuid", nullable: true })

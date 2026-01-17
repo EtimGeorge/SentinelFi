@@ -1,9 +1,9 @@
-import { Provider, Scope, Logger } from '@nestjs/common';
-import { DataSource, DataSourceOptions } from 'typeorm';
-import { TENANT_DATA_SOURCE } from './constants';
-import { getDataSourceToken } from '@nestjs/typeorm';
-import { ClsService } from 'nestjs-cls';
-import { TenancyAwareDataSource } from './tenancy-aware-data-source';
+import { Provider, Scope, Logger } from "@nestjs/common";
+import { DataSource, DataSourceOptions } from "typeorm";
+import { TENANT_DATA_SOURCE } from "./constants";
+import { getDataSourceToken } from "@nestjs/typeorm";
+import { ClsService } from "nestjs-cls";
+import { TenancyAwareDataSource } from "./tenancy-aware-data-source";
 
 export const TenantConnectionProvider: Provider = {
   provide: TENANT_DATA_SOURCE,
@@ -15,4 +15,3 @@ export const TenantConnectionProvider: Provider = {
   },
   inject: [getDataSourceToken(), ClsService],
 };
-

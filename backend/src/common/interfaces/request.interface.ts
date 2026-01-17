@@ -1,6 +1,6 @@
-import { Request } from 'express';
-import { QueryRunner } from 'typeorm';
-import { Role } from 'shared/types/role.enum';
+import { Request } from "express";
+import { QueryRunner } from "typeorm";
+import { Role } from "shared/types/role.enum";
 
 /**
  * Defines the shape of the raw JWT payload right after it is decoded.
@@ -17,10 +17,10 @@ export interface JwtPayload {
  * by the JwtStrategy's `validate` method.
  */
 export interface UserPayload {
-    id: string;
-    email: string;
-    role: Role;
-    tenant_id: string | null; // Corrected to allow null
+  id: string;
+  email: string;
+  role: Role;
+  tenant_id: string | null; // Corrected to allow null
 }
 
 export interface AuthenticatedRequest extends Request {

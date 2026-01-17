@@ -1,6 +1,6 @@
-import { IsOptional, IsString, IsEnum } from 'class-validator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-import { ProjectStatus } from '../enums/project.enum';
+import { IsOptional, IsString, IsEnum } from "class-validator";
+import { PaginationDto } from "../../common/dto/pagination.dto";
+import { ProjectStatus } from "../enums/project.enum";
 
 export class GetProjectsDto extends PaginationDto {
   @IsOptional()

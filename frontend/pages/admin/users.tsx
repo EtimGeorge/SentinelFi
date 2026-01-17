@@ -5,7 +5,7 @@ import { Users, Plus, X, Edit3, Save, Loader2, AlertTriangle, Trash2, Search, Ke
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth } from '../../components/context/AuthContext';
-import { User, CreateUserDto, UpdateUserDto } from '../../../shared/types/user';
+import { User, ICreateUserPayload, IUpdateUserPayload } from '../../../shared/types/user';
 import { Role as UserRoleEnum } from '../../../shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import Switch from '../../components/common/Switch';
@@ -23,7 +23,7 @@ interface ModalProps {
 }
 
 interface CreateUserModalProps extends ModalProps {
-  onCreate: (userData: CreateUserDto) => void;
+  onCreate: (userData: ICreateUserPayload) => void;
   error: string | null;
   roles: UserRoleEnum[];
   tenants: TenantOption[];
@@ -182,7 +182,7 @@ const UserManagementPage: React.FC = () => {
     }
   }, [currentUser, fetchUsers, fetchTenants, addToast]);
 
-  const handleCreateUser = async (userData: CreateUserDto) => {
+  const handleCreateUser = async (userData: ICreateUserPayload) => {
     setFormLoading(true);
     setCreateError(null);
     try {
@@ -214,7 +214,7 @@ const UserManagementPage: React.FC = () => {
     setFormLoading(true);
     try {
       // This is the key change: ensure tenant_id is included in the payload.
-      const updatePayload: UpdateUserDto = { 
+      const updatePayload: IUpdateUserPayload = { 
         role: editedRole as UserRoleEnum, 
         tenant_id: editedTenantId,
       };
@@ -239,7 +239,7 @@ const UserManagementPage: React.FC = () => {
     setUsers(users.map(u => u.id === userId ? { ...u, is_active: !currentStatus } : u));
 
     try {
-      const updatePayload: UpdateUserDto = { is_active: !currentStatus };
+      const updatePayload: IUpdateUserPayload = { is_active: !currentStatus };
       await api.patch(`/auth/users/${userId}`, updatePayload);
       addToast(`User ${user.email} status updated.`, 'success');
     } catch (e: any) {

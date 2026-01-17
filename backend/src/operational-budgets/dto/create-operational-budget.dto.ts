@@ -1,5 +1,17 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, Min, IsDateString, MaxLength } from 'class-validator';
-import { OperationalBudgetType, OperationalBudgetStatus } from '../enums/operational-budget.enum';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEnum,
+  IsNumber,
+  Min,
+  IsDateString,
+  MaxLength,
+} from "class-validator";
+import {
+  OperationalBudgetType,
+  OperationalBudgetStatus,
+} from "../enums/operational-budget.enum";
 
 export class CreateOperationalBudgetDto {
   @IsString()

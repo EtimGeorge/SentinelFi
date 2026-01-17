@@ -1,7 +1,16 @@
 // backend/src/auth/dto/update-user.dto.ts
-import { IsUUID, IsEmail, IsString, IsNotEmpty, IsIn, IsBoolean, IsOptional, MinLength } from 'class-validator';
-import { IUpdateUserPayload } from '@shared/types/user'; // Import the shared interface
-import { Role } from '@shared/types/role.enum'; // Import Role directly from its enum file
+import {
+  IsUUID,
+  IsEmail,
+  IsString,
+  IsNotEmpty,
+  IsIn,
+  IsBoolean,
+  IsOptional,
+  MinLength,
+} from "class-validator";
+import { IUpdateUserPayload } from "@shared/types/user"; // Import the shared interface
+import { Role } from "@shared/types/role.enum"; // Import Role directly from its enum file
 
 export class UpdateUserDto implements IUpdateUserPayload {
   @IsOptional()

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import { Search, Bell, Menu, User as UserIcon, LogOut } from 'lucide-react'; // Renamed User to avoid conflict
 import Tooltip from '../common/Tooltip';
 import { useSecuredApi } from '../hooks/useSecuredApi';
+import useUIStore from '../../store/uiStore';
 import { WbsBudget } from '../../../shared/types/wbs'; // CORRECTED IMPORT
 import { User } from '../../../shared/types/user'; // CORRECTED IMPORT
 import { LiveExpense } from '../../../shared/types/expense'; // CORRECTED IMPORT
@@ -34,6 +36,7 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
   } | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const api = useSecuredApi();
+  const unreadNotificationsCount = useUIStore((state) => state.unreadNotificationsCount);
 
   const performSearch = useCallback(async (term: string) => {
     if (term.length > 2) {
@@ -65,17 +68,17 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 bg-gray-800 border-b border-gray-700 text-gray-300">
+    <header className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700 text-gray-300">
       <div className="flex items-center">
-        <button onClick={toggleSidebar} className="text-gray-400 focus:outline-none md:hidden">
-          <Menu className="h-6 w-6" />
+        <button onClick={toggleSidebar} className="text-gray-400 focus:outline-none md:hidden p-1 mr-2">
+          <Menu className="h-5 w-5" />
         </button>
-        <div className="relative mx-4 md:mx-0">
+        <div className="relative mx-2 md:mx-0">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-            <Search className="h-5 w-5 text-gray-500" />
+            <Search className="h-4 w-4 text-gray-500" />
           </span>
           <input
-            className="w-full py-2 pl-10 pr-4 text-gray-300 bg-brand-dark/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:bg-gray-900"
+            className="w-full py-1.5 pl-9 pr-4 text-xs text-gray-300 bg-brand-dark/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-primary/50 focus:bg-gray-900"
             type="text"
             placeholder="Search..."
             value={searchTerm}
@@ -116,15 +119,20 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
 
       <div className="flex items-center">
         <Tooltip content="Notifications" position="bottom">
-          <button className="flex items-center mx-4 text-gray-400 focus:outline-none">
-            <Bell className="h-6 w-6" />
+          <button className="relative flex items-center mx-2 text-gray-400 focus:outline-none hover:text-white transition p-1">
+            <Bell className="h-5 w-5" />
+            {unreadNotificationsCount > 0 && (
+                <span className="absolute top-0 right-0 flex items-center justify-center h-3.5 w-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full border border-gray-800">
+                    {unreadNotificationsCount}
+                </span>
+            )}
           </button>
         </Tooltip>
 
-        <div className="relative">
+        <div className="relative ml-2">
           <Tooltip content="Profile" position="bottom">
-            <button onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)} className="relative block w-8 h-8 overflow-hidden rounded-full shadow focus:outline-none">
-              <div className="w-full h-full bg-brand-primary flex items-center justify-center text-sm font-bold text-white">
+            <button onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)} className="relative block w-7 h-7 overflow-hidden rounded-full shadow focus:outline-none border border-gray-700">
+              <div className="w-full h-full bg-brand-primary flex items-center justify-center text-xs font-bold text-white">
                 {user?.email[0].toUpperCase()}
               </div>
             </button>
@@ -135,14 +143,20 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
               onMouseLeave={() => setIsUserDropdownOpen(false)}
               className="absolute right-0 z-10 w-48 mt-2 overflow-hidden bg-gray-800 border border-gray-700 rounded-md shadow-xl"
             >
-              <a href="#" className="block px-4 py-2 text-sm text-gray-300 hover:bg-brand-primary hover:text-white">
+              <Link href="/settings" className="block px-4 py-2 text-sm text-gray-300 hover:bg-brand-primary hover:text-white">
                 <UserIcon className="inline-block w-4 h-4 mr-2" />
                 Profile
-              </a>
-              <a onClick={logout} href="#" className="block px-4 py-2 text-sm text-gray-300 hover:bg-brand-primary hover:text-white">
+              </Link>
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  logout();
+                }} 
+                className="w-full text-left block px-4 py-2 text-sm text-gray-300 hover:bg-brand-primary hover:text-white"
+              >
                 <LogOut className="inline-block w-4 h-4 mr-2" />
                 Logout
-              </a>
+              </button>
             </div>
           )}
         </div>

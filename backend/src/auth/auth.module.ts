@@ -1,29 +1,24 @@
 import { Module, ValidationPipe, Logger } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { UserEntity } from "./user.entity";
+import { RoleEntity } from "./role.entity"; // Import RoleEntity
+import { PermissionEntity } from "./permission.entity"; // Import PermissionEntity
 import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
 import { JwtModule } from "@nestjs/jwt";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { PassportModule } from "@nestjs/passport";
 import { JwtStrategy } from "./jwt.strategy";
 import * as ms from "ms";
 import { InitialSuperAdminSeederService } from "./initial-superadmin-seeder.service";
-import { AuditModule } from '../audit/audit.module'; // NEW: Import AuditModule
-
-// Throttler imports
-import { ThrottlerModule, ThrottlerGuard, ThrottlerModuleOptions } from "@nestjs/throttler";
-import { APP_GUARD } from "@nestjs/core";
+import { AuditModule } from "../audit/audit.module";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity]),
-    PassportModule.register({ defaultStrategy: "jwt" }),
+    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity]), // Add RoleEntity and PermissionEntity
     JwtModule.registerAsync({
       useFactory: async (configService: ConfigService) => {
         const expiresInDuration =
           configService.get<string>("JWT_EXPIRATION_TIME") || "3600s";
-
         const expiresInMs = (ms as any).default(expiresInDuration);
 
         return {
@@ -35,37 +30,20 @@ import { APP_GUARD } from "@nestjs/core";
       },
       inject: [ConfigService],
     }),
-    // ThrottlerModule configuration
-    ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService): ThrottlerModuleOptions => ({ // Return a single options object
-        throttlers: [ // This object contains the throttlers array
-          {
-            ttl: Number(config.get('THROTTLE_TTL') || 60), // Use ttl
-            limit: Number(config.get('THROTTLE_LIMIT') || 10), // Use limit
-          },
-        ],
-      }),
-    }),
-    AuditModule, // NEW: Import AuditModule
-    ConfigModule, // NEW: Add ConfigModule here
+    AuditModule,
+    ConfigModule,
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
     JwtStrategy,
     InitialSuperAdminSeederService,
-    // Global ThrottlerGuard
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
     {
       provide: "APP_PIPE",
       useValue: new ValidationPipe({ whitelist: true }),
     },
-    Logger, // Add Logger as a provider for injection
+    Logger,
   ],
-  exports: [PassportModule, JwtStrategy, TypeOrmModule, JwtModule, AuthService],
+  exports: [TypeOrmModule, JwtModule, AuthService],
 })
 export class AuthModule {}

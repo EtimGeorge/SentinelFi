@@ -7,25 +7,44 @@ import {
   InternalServerErrorException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { In, Repository, DataSource } from "typeorm";
+import {
+  Repository,
+  SelectQueryBuilder,
+  DataSource,
+  In,
+} from "typeorm";
 import { WbsBudgetEntity } from "./wbs-budget.entity";
 import { WbsCategoryEntity } from "./wbs-category.entity";
 import { CreateWbsBudgetDto } from "./dto/create-wbs-budget.dto";
 import { UpdateWbsBudgetDto } from "./dto/update-wbs-budget.dto";
 import { LiveExpenseEntity } from "./live-expense.entity";
-import { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
+import type { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
 import { UpdateLiveExpenseDto } from "./dto/update-live-expense.dto";
 import { TENANT_DATA_SOURCE } from "../database/constants";
-import { Inject } from '@nestjs/common';
-import { GetWbsBudgetsDto } from './dto/get-wbs-budgets.dto';
-import { GetLiveExpensesDto } from './dto/get-live-expenses.dto';
-import { WbsBudgetRollupDto } from './dto/wbs-budget-rollup.dto';
-import { GetProjectsDto } from '../projects/dto/get-projects.dto';
-import { ProjectEntity } from '../projects/project.entity';
-import { ProjectsService } from '../projects/projects.service';
-import { UserEntity } from '../auth/user.entity'; // NEW: Import UserEntity
-import { WbsBudgetStatus } from "@shared/types/wbs-budget-status.enum"; // Import WbsBudgetStatus enum
+import { Inject } from "@nestjs/common";
+import { GetWbsBudgetsDto } from "./dto/get-wbs-budgets.dto";
+import { GetLiveExpensesDto } from "./dto/get-live-expenses.dto";
+import { WbsBudgetRollupDto } from "./dto/wbs-budget-rollup.dto";
+import { GetProjectsDto } from "../projects/dto/get-projects.dto";
+import { ProjectEntity } from "../projects/project.entity";
+import { ProjectsService } from "../projects/projects.service";
+import { UserEntity } from "../auth/user.entity"; // NEW: Import UserEntity
+import { WbsBudgetStatus } from "shared/types/wbs-budget-status.enum"; // Import WbsBudgetStatus enum
 import { Buffer } from "buffer"; // Needed for export methods
+import { NotificationsService } from "../notifications/notifications.service"; // NEW: Import NotificationsService
+import { BudgetControlService } from "../common/budget-control.service";
+import { VarianceFlag } from "shared/types/variance-flag.enum"; // NEW: Import VarianceFlag
+
+interface WbsBudgetRollupQueryResult {
+  wbs_id: string;
+  parent_wbs_id: string | null;
+  wbs_code: string;
+  description: string;
+  total_cost_budgeted: number;
+  total_paid_rollup: number;
+  total_paid_self: number;
+  total_committed_lpo: number;
+}
 
 @Injectable()
 export class WbsService {
@@ -34,22 +53,33 @@ export class WbsService {
   constructor(
     @Inject(TENANT_DATA_SOURCE)
     private dataSource: DataSource,
-    @Inject('WBSBUDGET_REPOSITORY')
+    @Inject("WBSBUDGET_REPOSITORY")
     private wbsBudgetRepository: Repository<WbsBudgetEntity>,
-    @Inject('WBSCATEGORY_REPOSITORY')
+    @Inject("WBSCATEGORY_REPOSITORY")
     private wbsCategoryRepository: Repository<WbsCategoryEntity>,
-    @Inject('LIVEEXPENSE_REPOSITORY')
+    @Inject("LIVEEXPENSE_REPOSITORY")
     private liveExpenseRepository: Repository<LiveExpenseEntity>,
     private readonly projectsService: ProjectsService,
+    private readonly notificationsService: NotificationsService, 
+    private readonly budgetControlService: BudgetControlService,
   ) {}
 
   // WBS Budget (Draft) Operations
   async createWbsBudgetDraft(
     createWbsDto: CreateWbsBudgetDto,
     userId: string,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<WbsBudgetEntity> {
-    const { parent_wbs_id, wbs_code, description, unit_cost_budgeted, days_budgeted, total_cost_budgeted, category_id, project_id } = createWbsDto;
+    const {
+      parent_wbs_id,
+      wbs_code,
+      description,
+      unit_cost_budgeted,
+      days_budgeted,
+      total_cost_budgeted,
+      category_id,
+      project_id,
+    } = createWbsDto;
 
     // Validate project_id and category_id
     if (project_id) {
@@ -57,7 +87,9 @@ export class WbsService {
         .getRepository(ProjectEntity)
         .findOne({ where: { project_id: project_id, tenant_id: tenant_id } });
       if (!project) {
-        throw new NotFoundException(`Project with ID ${project_id} not found in tenant ${tenant_id}`);
+        throw new NotFoundException(
+          `Project with ID ${project_id} not found in tenant ${tenant_id}`,
+        );
       }
     }
 
@@ -66,10 +98,11 @@ export class WbsService {
         .getRepository(WbsCategoryEntity)
         .findOne({ where: { id: category_id, tenant_id: tenant_id } });
       if (!category) {
-        throw new NotFoundException(`Category with ID ${category_id} not found in tenant ${tenant_id}`);
+        throw new NotFoundException(
+          `Category with ID ${category_id} not found in tenant ${tenant_id}`,
+        );
       }
     }
-
 
     const wbsBudget = new WbsBudgetEntity();
     wbsBudget.project_id = project_id;
@@ -90,16 +123,20 @@ export class WbsService {
   async createWbsBudgetDraftBatch(
     createWbsDtos: CreateWbsBudgetDto[],
     userId: string,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<WbsBudgetEntity[]> {
     if (!Array.isArray(createWbsDtos)) {
-      throw new BadRequestException('Input must be an array of WBS budget DTOs.');
+      throw new BadRequestException(
+        "Input must be an array of WBS budget DTOs.",
+      );
     }
 
-    const wbsBudgets = createWbsDtos.map(dto => {
+    const wbsBudgets = createWbsDtos.map((dto) => {
       // Basic validation for each DTO in the batch
       if (!dto.wbs_code || !dto.description) {
-        throw new BadRequestException('Each WBS budget item must have a wbs_code and description.');
+        throw new BadRequestException(
+          "Each WBS budget item must have a wbs_code and description.",
+        );
       }
       const newWbsBudget = new WbsBudgetEntity();
       newWbsBudget.project_id = dto.project_id;
@@ -123,7 +160,7 @@ export class WbsService {
   async updateWbsBudget(
     id: string,
     updateWbsBudgetDto: UpdateWbsBudgetDto,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<WbsBudgetEntity> {
     const wbsBudget = await this.wbsBudgetRepository.findOne({
       where: { wbs_id: id, tenant_id: tenant_id }, // Changed id to wbs_id
@@ -131,7 +168,7 @@ export class WbsService {
 
     if (!wbsBudget) {
       throw new NotFoundException(
-        `WBS Budget with ID ${id} not found for tenant ${tenant_id}`
+        `WBS Budget with ID ${id} not found for tenant ${tenant_id}`,
       );
     }
 
@@ -142,7 +179,7 @@ export class WbsService {
   async deleteWbsItem(
     id: string, // Keep 'id' as parameter name for controller consistency
     tenant_id: string,
-    options: { recursive: boolean } = { recursive: false }
+    options: { recursive: boolean } = { recursive: false },
   ): Promise<void> {
     const wbsItem = await this.wbsBudgetRepository.findOne({
       where: { wbs_id: id, tenant_id: tenant_id }, // Changed id to wbs_id
@@ -150,7 +187,7 @@ export class WbsService {
 
     if (!wbsItem) {
       throw new NotFoundException(
-        `WBS item with ID ${id} not found for tenant ${tenant_id}`
+        `WBS item with ID ${id} not found for tenant ${tenant_id}`,
       );
     }
 
@@ -159,7 +196,10 @@ export class WbsService {
       const children = await this.findAllChildren(id, tenant_id);
       const childIds = children.map((child) => child.wbs_id); // Changed child.id to child.wbs_id
       if (childIds.length > 0) {
-        await this.wbsBudgetRepository.delete({ wbs_id: In(childIds), tenant_id: tenant_id }); // Changed id to wbs_id
+        await this.wbsBudgetRepository.delete({
+          wbs_id: In(childIds),
+          tenant_id: tenant_id,
+        }); // Changed id to wbs_id
       }
     }
 
@@ -168,7 +208,7 @@ export class WbsService {
 
   private async findAllChildren(
     parentId: string,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<WbsBudgetEntity[]> {
     const children: WbsBudgetEntity[] = [];
     const directChildren = await this.wbsBudgetRepository.find({
@@ -187,9 +227,9 @@ export class WbsService {
   async logLiveExpenseEntry(
     expenseDto: CreateLiveExpenseDto,
     userId: string,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<LiveExpenseEntity> {
-    const { wbs_id, amount, description, project_id } = expenseDto;
+    const { wbs_id, project_id } = expenseDto;
 
     // Validate wbs_id
     if (wbs_id) {
@@ -197,7 +237,9 @@ export class WbsService {
         where: { wbs_id: wbs_id, tenant_id: tenant_id }, // Changed id to wbs_id
       });
       if (!wbsItem) {
-        throw new NotFoundException(`WBS item with ID ${wbs_id} not found for tenant ${tenant_id}`);
+        throw new NotFoundException(
+          `WBS item with ID ${wbs_id} not found for tenant ${tenant_id}`,
+        );
       }
     }
 
@@ -207,7 +249,9 @@ export class WbsService {
         .getRepository(ProjectEntity)
         .findOne({ where: { project_id: project_id, tenant_id: tenant_id } }); // Changed id to project_id
       if (!project) {
-        throw new NotFoundException(`Project with ID ${project_id} not found in tenant ${tenant_id}`);
+        throw new NotFoundException(
+          `Project with ID ${project_id} not found in tenant ${tenant_id}`,
+        );
       }
     }
 
@@ -215,14 +259,60 @@ export class WbsService {
       ...expenseDto,
       user_id: userId,
       tenant_id: tenant_id,
+      variance_flag: VarianceFlag.NO_VARIANCE
     });
+
+    // ADVANCED: Real-time Variance Detection
+    if (wbs_id) {
+        const wbsItem = await this.wbsBudgetRepository.findOne({
+            where: { wbs_id: wbs_id, tenant_id: tenant_id }
+        });
+
+        if (wbsItem) {
+            // ADVANCED: Tax & Retention Calculation
+            if (wbsItem.project_id) {
+                const project = await this.projectsService.findOne(wbsItem.project_id, tenant_id);
+                if (project) {
+                    const vatRate = Number(project.vat_rate || 0) / 100;
+                    const whtRate = Number(project.wht_rate || 0) / 100;
+
+                    liveExpense.vat_amount = expenseDto.amount * vatRate;
+                    liveExpense.wht_amount = expenseDto.amount * whtRate;
+                    
+                    // The 'amount' stored is the gross amount (usually including VAT or before WHT)
+                    // Depending on accounting preference, we might adjust, but for now we just record them.
+                }
+            }
+
+            liveExpense.variance_flag = await this.budgetControlService.validateAndAlertWbsExpense(
+                wbsItem,
+                expenseDto.amount
+            );
+
+            // Update the WBS node with actual spend (denormalized for faster lookup)
+            wbsItem.total_cost_actual = Number(wbsItem.total_cost_actual || 0) + expenseDto.amount;
+            await this.wbsBudgetRepository.save(wbsItem);
+        }
+    }
+
     return this.liveExpenseRepository.save(liveExpense);
+  }
+
+  async findMajorExceptions(tenant_id: string): Promise<LiveExpenseEntity[]> {
+    return this.liveExpenseRepository.find({
+      where: {
+        tenant_id,
+        variance_flag: In([VarianceFlag.MAJOR_VARIANCE, VarianceFlag.UNAPPROVED_BUDGET_USAGE])
+      },
+      relations: ['wbsBudget'],
+      order: { created_at: 'DESC' }
+    });
   }
 
   async updateLiveExpenseEntry(
     id: string,
     updateLiveExpenseDto: UpdateLiveExpenseDto,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<LiveExpenseEntity> {
     const liveExpense = await this.liveExpenseRepository.findOne({
       where: { id, tenant_id: tenant_id },
@@ -230,7 +320,7 @@ export class WbsService {
 
     if (!liveExpense) {
       throw new NotFoundException(
-        `Live Expense with ID ${id} not found for tenant ${tenant_id}`
+        `Live Expense with ID ${id} not found for tenant ${tenant_id}`,
       );
     }
 
@@ -245,7 +335,7 @@ export class WbsService {
 
     if (!liveExpense) {
       throw new NotFoundException(
-        `Live Expense with ID ${id} not found for tenant ${tenant_id}`
+        `Live Expense with ID ${id} not found for tenant ${tenant_id}`,
       );
     }
 
@@ -255,17 +345,20 @@ export class WbsService {
   // WBS Category Operations
   async createWbsCategory(
     name: string,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<WbsCategoryEntity> {
     const existingCategory = await this.wbsCategoryRepository.findOne({
       where: { name, tenant_id: tenant_id },
     });
     if (existingCategory) {
       throw new ConflictException(
-        `WBS Category with name "${name}" already exists for tenant ${tenant_id}`
+        `WBS Category with name "${name}" already exists for tenant ${tenant_id}`,
       );
     }
-    const category = this.wbsCategoryRepository.create({ name, tenant_id: tenant_id });
+    const category = this.wbsCategoryRepository.create({
+      name,
+      tenant_id: tenant_id,
+    });
     return this.wbsCategoryRepository.save(category);
   }
 
@@ -276,14 +369,14 @@ export class WbsService {
   async updateWbsCategory(
     id: string,
     name: string,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<WbsCategoryEntity> {
     const category = await this.wbsCategoryRepository.findOne({
       where: { id, tenant_id: tenant_id },
     });
     if (!category) {
       throw new NotFoundException(
-        `WBS Category with ID ${id} not found for tenant ${tenant_id}`
+        `WBS Category with ID ${id} not found for tenant ${tenant_id}`,
       );
     }
     const existingCategoryWithName = await this.wbsCategoryRepository.findOne({
@@ -291,7 +384,7 @@ export class WbsService {
     });
     if (existingCategoryWithName && existingCategoryWithName.id !== id) {
       throw new ConflictException(
-        `WBS Category with name "${name}" already exists for tenant ${tenant_id}`
+        `WBS Category with name "${name}" already exists for tenant ${tenant_id}`,
       );
     }
 
@@ -305,17 +398,16 @@ export class WbsService {
     });
     if (!category) {
       throw new NotFoundException(
-        `WBS Category with ID ${id} not found for tenant ${tenant_id}`
+        `WBS Category with ID ${id} not found for tenant ${tenant_id}`,
       );
     }
     await this.wbsCategoryRepository.delete({ id, tenant_id: tenant_id });
   }
 
-
   // Enhanced WBS Budget Retrieval with Filters and Pagination
   async findAllWbsBudgets(
     getWbsBudgetsDto: GetWbsBudgetsDto,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<{ data: WbsBudgetEntity[]; total: number }> {
     const {
       wbsCode,
@@ -349,7 +441,9 @@ export class WbsService {
       queryBuilder.andWhere("wbsBudget.status = :status", { status });
     }
     if (categoryId) {
-      queryBuilder.andWhere("wbsBudget.category_id = :categoryId", { categoryId });
+      queryBuilder.andWhere("wbsBudget.category_id = :categoryId", {
+        categoryId,
+      });
     }
     if (projectId) {
       queryBuilder.andWhere("wbsBudget.project_id = :projectId", { projectId });
@@ -366,7 +460,6 @@ export class WbsService {
     //   queryBuilder.andWhere("wbsBudget.parent_wbs_id = :parentWbsId", { parentWbsId });
     // }
 
-
     queryBuilder.orderBy(`wbsBudget.${sortBy}`, sortOrder);
     queryBuilder.skip((page - 1) * limit).take(limit);
 
@@ -377,7 +470,7 @@ export class WbsService {
   // Enhanced Live Expense Retrieval with Filters and Pagination
   async findAllLiveExpenses(
     getLiveExpensesDto: GetLiveExpensesDto,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<{ data: LiveExpenseEntity[]; total: number }> {
     const {
       wbsId,
@@ -400,7 +493,9 @@ export class WbsService {
       queryBuilder.andWhere("liveExpense.wbs_id = :wbsId", { wbsId });
     }
     if (projectId) {
-      queryBuilder.andWhere("liveExpense.project_id = :projectId", { projectId });
+      queryBuilder.andWhere("liveExpense.project_id = :projectId", {
+        projectId,
+      });
     }
     if (description) {
       queryBuilder.andWhere("liveExpense.description ILIKE :description", {
@@ -424,41 +519,85 @@ export class WbsService {
     return { data, total };
   }
 
-
-  // WBS Budget Rollup (placeholder for now)
   async getWbsBudgetRollup(
-    projectId: string,
-    tenant_id: string
+    tenant_id: string,
+    filters: { startDate?: string; endDate?: string } = {},
   ): Promise<WbsBudgetRollupDto[]> {
-    // This is a complex aggregation. For now, we'll return a simplified structure.
-    // A full implementation would involve recursive queries or CTEs to sum up
-    // budgeted and actual costs across WBS hierarchies.
-    this.logger.warn(
-      `WBS Budget Rollup for project ${projectId} in tenant ${tenant_id} is a placeholder implementation.`
-    );
-    // Dummy data for demonstration
-    return [
-      {
-        wbs_id: "root",
-        wbs_code: "P1",
-        description: "Project 1 Total",
-        total_cost_budgeted: 100000,
-        total_paid_rollup: 75000,
-        parent_wbs_id: null,
-        total_paid_self: 75000,
-        total_committed_lpo: 0,
-      },
-    ];
-  }
+    const { startDate, endDate } = filters;
+    
+    // Advanced SQL with correlated subqueries for accurate rollups
+    // total_paid_rollup: Sum of all expenses for this node AND all its recursive descendants
+    // total_paid_self: Sum of expenses for ONLY this node
+    const query = `
+      SELECT 
+          w.wbs_id,
+          w.parent_wbs_id,
+          w.wbs_code,
+          w.description,
+          w.total_cost_budgeted,
+          (
+              SELECT COALESCE(SUM(amount), 0) 
+              FROM live_expense e 
+              WHERE e.tenant_id = w.tenant_id 
+              AND e.wbs_id IN (
+                  WITH RECURSIVE descendants AS (
+                      SELECT wbs_id FROM wbs_budget WHERE wbs_id = w.wbs_id
+                      UNION ALL
+                      SELECT b.wbs_id FROM wbs_budget b INNER JOIN descendants d ON b.parent_wbs_id = d.wbs_id
+                  )
+                  SELECT wbs_id FROM descendants
+              )
+              ${startDate ? 'AND e.created_at >= :startDate' : ''}
+              ${endDate ? 'AND e.created_at <= :endDate' : ''}
+          ) as total_paid_rollup,
+          (
+              SELECT COALESCE(SUM(amount), 0) 
+              FROM live_expense e 
+              WHERE e.wbs_id = w.wbs_id
+              ${startDate ? 'AND e.created_at >= :startDate' : ''}
+              ${endDate ? 'AND e.created_at <= :endDate' : ''}
+          ) as total_paid_self,
+          0 as total_committed_lpo
+      FROM wbs_budget w
+      WHERE w.tenant_id = :tenantId
+      ORDER BY w.wbs_code ASC
+    `;
 
+    const params: any = { tenantId: tenant_id };
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+
+    let pCount = 1;
+    let refinedQuery = query.replace(':tenantId', `$${pCount++}`);
+    const queryParams = [tenant_id];
+
+    if (startDate) {
+        refinedQuery = refinedQuery.replace(/:startDate/g, `$${pCount++}`);
+        queryParams.push(startDate);
+    }
+    if (endDate) {
+        refinedQuery = refinedQuery.replace(/:endDate/g, `$${pCount++}`);
+        queryParams.push(endDate);
+    }
+
+    const finalResults = await this.dataSource.query(refinedQuery, queryParams);
+
+    return finalResults.map((r: WbsBudgetRollupQueryResult) => ({
+        ...r,
+        total_cost_budgeted: parseFloat(r.total_cost_budgeted.toString()),
+        total_paid_rollup: parseFloat(r.total_paid_rollup.toString()),
+        total_paid_self: parseFloat(r.total_paid_self.toString()),
+        total_committed_lpo: parseFloat(r.total_committed_lpo.toString()),
+    }));
+  }
 
   async exportWbsBudgetsToCsv(
     getWbsBudgetsDto: GetWbsBudgetsDto,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<Buffer> {
     const { data: wbsBudgets } = await this.findAllWbsBudgets(
       getWbsBudgetsDto,
-      tenant_id
+      tenant_id,
     );
 
     if (wbsBudgets.length === 0) {
@@ -483,7 +622,7 @@ export class WbsService {
       headers.join(","),
       ...wbsBudgets.map((budget) =>
         [
-          `"${budget.wbs_id}"`, // Changed id to wbs_id
+          `"${budget.wbs_id}"`,
           `"${budget.wbs_code}"`,
           `"${budget.description.replace(/"/g, '""')}"`,
           budget.unit_cost_budgeted,
@@ -491,10 +630,10 @@ export class WbsService {
           budget.total_cost_budgeted,
           budget.status,
           `"${budget.category?.name || "N/A"}"`,
-          `"${budget.project?.project_name || "N/A"}"`, // Changed project?.name to project?.project_name
+          `"${budget.project?.project_name || "N/A"}"`,
           budget.created_at.toISOString(),
           budget.updated_at?.toISOString() || "", // Added null check
-        ].join(",")
+        ].join(","),
       ),
     ];
 
@@ -503,11 +642,11 @@ export class WbsService {
 
   async exportLiveExpensesToCsv(
     getLiveExpensesDto: GetLiveExpensesDto,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<Buffer> {
     const { data: liveExpenses } = await this.findAllLiveExpenses(
       getLiveExpensesDto,
-      tenant_id
+      tenant_id,
     );
 
     if (liveExpenses.length === 0) {
@@ -537,38 +676,10 @@ export class WbsService {
           `"${expense.user_id}"`,
           expense.created_at.toISOString(),
           expense.updated_at?.toISOString() || "", // Added null check
-        ].join(",")
+        ].join(","),
       ),
     ];
 
     return Buffer.from(csvRows.join("\n"), "utf8");
   }
-
-    // New methods from the senior dev report:
-    async getWbsBudgetProgress(wbs_id: string, tenant_id: string): Promise<any> { // Changed wbsId to wbs_id
-      this.logger.debug(`Fetching WBS Budget Progress for ${wbs_id} in tenant ${tenant_id}`);
-      // Implement logic to calculate progress, e.g., based on actual expenses vs. budgeted amounts
-      // For now, return dummy data
-      return {
-        wbs_id, // Changed wbsId to wbs_id
-        progressPercentage: Math.floor(Math.random() * 100),
-        status: 'on-track',
-        lastUpdated: new Date().toISOString(),
-      };
-    }
-
-    async getWbsBudgetStatusReport(projectId: string, tenant_id: string): Promise<any> {
-      this.logger.debug(`Generating WBS Budget Status Report for project ${projectId} in tenant ${tenant_id}`);
-      // Implement logic to generate a detailed status report for the project's WBS
-      // This might involve aggregating data from findAllWbsBudgets and findAllLiveExpenses
-      return {
-        projectId,
-        reportDate: new Date().toISOString(),
-        totalBudget: 150000,
-        totalSpent: 80000,
-        remainingBudget: 70000,
-        overallStatus: 'green',
-        issues: [],
-      };
-    }
 }

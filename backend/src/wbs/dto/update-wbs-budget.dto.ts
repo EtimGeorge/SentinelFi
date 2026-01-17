@@ -1,5 +1,5 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateWbsBudgetDto } from './create-wbs-budget.dto';
+import { PartialType } from "@nestjs/mapped-types";
+import { CreateWbsBudgetDto } from "./create-wbs-budget.dto";
 
 /**
  * DTO for updating an existing WBS/Budget Line Item.

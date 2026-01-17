@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
+import { RoleEntity } from "./role.entity";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  ManyToMany,
+  JoinTable,
+} from "typeorm";
 import { Role } from "@shared/types/role.enum";
 import type { TenantEntity } from "../../src/tenants/tenant.entity";
 
@@ -20,12 +29,13 @@ export class UserEntity {
   @Column({ type: "varchar", length: 255, nullable: true }) // NEW: Last name
   last_name?: string;
 
-  @Column({
-    type: "enum",
-    enum: Role,
-    default: Role.AssignedProjectUser, // Default role for accountability (Crucial Constraint)
+  @ManyToMany(() => RoleEntity, { eager: true })
+  @JoinTable({
+    name: "user_roles",
+    joinColumn: { name: "user_id", referencedColumnName: "id" },
+    inverseJoinColumn: { name: "role_id", referencedColumnName: "id" },
   })
-  role!: Role;
+  roles!: RoleEntity[];
 
   @Column({ default: true })
   is_active!: boolean;
@@ -33,14 +43,18 @@ export class UserEntity {
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
 
-  @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" })
+  @Column({
+    type: "timestamptz",
+    default: () => "CURRENT_TIMESTAMP",
+    onUpdate: "CURRENT_TIMESTAMP",
+  })
   updated_at!: Date;
 
   // Multi-tenancy: Link user to a tenant
   @Column({ type: "uuid", nullable: true }) // nullable for system-level users or during initial setup
   tenant_id!: string | null;
 
-  @ManyToOne('TenantEntity', 'users', {
+  @ManyToOne("TenantEntity", "users", {
     nullable: true, // System-level users might not belong to a specific tenant
     onDelete: "SET NULL", // What happens to user if tenant is deleted
   })
@@ -48,9 +62,13 @@ export class UserEntity {
   tenant!: TenantEntity;
 
   // Password Reset Fields
-  @Column({ nullable: true, name: 'reset_password_token' })
+  @Column({ nullable: true, name: "reset_password_token" })
   resetPasswordToken?: string; // Stores the hashed reset token
 
-  @Column({ type: 'timestamptz', nullable: true, name: 'reset_password_expires' })
+  @Column({
+    type: "timestamptz",
+    nullable: true,
+    name: "reset_password_expires",
+  })
   resetPasswordExpires?: Date;
 }

@@ -1,6 +1,6 @@
-import { IsOptional, IsString, IsUUID, IsIn, IsEnum } from 'class-validator';
-import { PaginationDto } from '../../common/dto/pagination.dto'; // Reverted to backend-internal DTO
-import { WbsBudgetStatus } from '@shared/types/wbs-budget-status.enum'; // Import from shared
+import { IsOptional, IsString, IsUUID, IsIn, IsEnum } from "class-validator";
+import { PaginationDto } from "../../common/dto/pagination.dto"; // Reverted to backend-internal DTO
+import { WbsBudgetStatus } from "@shared/types/wbs-budget-status.enum"; // Import from shared
 
 export class GetWbsBudgetsDto extends PaginationDto {
   @IsOptional()
@@ -29,8 +29,8 @@ export class GetWbsBudgetsDto extends PaginationDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['ASC', 'DESC'])
-  sortOrder?: 'ASC' | 'DESC' = "DESC";
+  @IsIn(["ASC", "DESC"])
+  sortOrder?: "ASC" | "DESC" = "DESC";
 
   // NEW: Filtering by project ID
   @IsOptional()

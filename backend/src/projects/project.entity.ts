@@ -34,6 +34,22 @@ export class ProjectEntity {
   })
   status!: ProjectStatus;
 
+  // Advanced Financial Controls
+  @Column({ type: "varchar", length: 10, default: "NGN" })
+  currency!: string;
+
+  @Column({ type: "numeric", precision: 19, scale: 4, default: 0 })
+  contract_value!: number;
+
+  @Column({ type: "numeric", precision: 5, scale: 2, default: 0 })
+  contingency_percent!: number;
+
+  @Column({ type: "numeric", precision: 5, scale: 2, default: 7.5 })
+  vat_rate!: number; // e.g., 7.5 for Nigeria
+
+  @Column({ type: "numeric", precision: 5, scale: 2, default: 5.0 })
+  wht_rate!: number; // e.g., 5.0 for Withholding Tax
+
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
 

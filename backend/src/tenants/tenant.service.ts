@@ -1,10 +1,20 @@
-import { Injectable, InternalServerErrorException, NotFoundException, ConflictException, Logger } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
-import { InjectRepository } from '@nestjs/typeorm';
-import { TenantEntity } from './tenant.entity';
-import { CreateTenantDto, UpdateTenantDto } from '../superadmin/dto/create-tenant.dto';
-import { WbsService } from '../wbs/wbs.service'; // For seeding data
-import { AuditService } from '../audit/audit.service'; // NEW: Import AuditService
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  ConflictException,
+  Logger,
+} from "@nestjs/common";
+import { DataSource, Repository } from "typeorm";
+import { InjectRepository } from "@nestjs/typeorm";
+import { TenantEntity } from "./tenant.entity";
+import {
+  CreateTenantDto,
+  UpdateTenantDto,
+} from "../superadmin/dto/create-tenant.dto";
+import { WbsService } from "../wbs/wbs.service"; // For seeding data
+import { AuditService } from "../audit/audit.service"; // NEW: Import AuditService
+import { TenantMigrationService } from "../database/tenant-migration.service"; // NEW: Import TenantMigrationService
 
 @Injectable()
 export class TenantService {
@@ -16,19 +26,26 @@ export class TenantService {
     private readonly dataSource: DataSource,
     private readonly wbsService: WbsService, // Inject WbsService
     private readonly auditService: AuditService, // NEW: Inject AuditService
+    private readonly tenantMigrationService: TenantMigrationService, // NEW: Inject TenantMigrationService
   ) {}
 
   /**
    * Creates a new tenant, which involves:
    * 1. Creating a new PostgreSQL schema for the tenant.
    * 2. Saving the tenant's metadata to the public 'tenants' table.
+   * 3. Running tenant-specific migrations on the new schema.
    * This all happens within a single database transaction.
    * @param createTenantDto - The DTO containing the tenant's information.
    * @param initialBudgetFile - Optional file for future AI processing.
    * @returns The newly created TenantEntity.
    */
-  async createTenant(createTenantDto: CreateTenantDto, initialBudgetFile?: Express.Multer.File): Promise<TenantEntity> {
-    const schema_name = createTenantDto.name.toLowerCase().replace(/[^a-z0-9_]/gi, '_');
+  async createTenant(
+    createTenantDto: CreateTenantDto,
+    initialBudgetFile?: Express.Multer.File,
+  ): Promise<TenantEntity> {
+    const schema_name = createTenantDto.name
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/gi, "_");
 
     // Use a single query runner for the entire transaction
     const queryRunner = this.dataSource.createQueryRunner();
@@ -42,21 +59,26 @@ export class TenantService {
       });
       if (existingTenant) {
         await this.auditService.logEvent({
-          action: 'TENANT_CREATION_FAILED',
-          userEmail: 'SYSTEM', // Assuming system initiated or passed from SuperAdmin context
-          details: { reason: `Conflicting tenant name or schema name: ${createTenantDto.name}/${schema_name}` },
+          action: "TENANT_CREATION_FAILED",
+          userEmail: "SYSTEM", // Assuming system initiated or passed from SuperAdmin context
+          details: {
+            reason: `Conflicting tenant name or schema name: ${createTenantDto.name}/${schema_name}`,
+          },
         });
-        throw new ConflictException('Tenant with this name or a conflicting schema name already exists.');
+        throw new ConflictException(
+          "Tenant with this name or a conflicting schema name already exists.",
+        );
       }
 
       // 2. Create the new schema
       this.logger.log(`Creating schema: ${schema_name}`);
       await queryRunner.query(`CREATE SCHEMA IF NOT EXISTS "${schema_name}"`);
 
-      // 3. TODO: Run migrations on the new schema. This is a complex step.
-      // For now, we assume the tables are created by other means or will be handled
-      // by a separate migration strategy. A robust solution would use `dataSource.runMigrations()`.
-      this.logger.warn(`Migrations for schema '${schema_name}' are not being run automatically. This must be handled.`);
+      // 3. Run migrations on the new schema
+      await this.tenantMigrationService.runTenantMigrations(schema_name);
+      this.logger.log(
+        `Migrations successfully applied to new schema: "${schema_name}"`,
+      );
 
       // 4. Create and save the tenant entity to the public schema
       const newTenant = queryRunner.manager.create(TenantEntity, {
@@ -65,10 +87,12 @@ export class TenantService {
         is_active: createTenantDto.is_active ?? true, // Set is_active from DTO or default
       });
       const savedTenant = await queryRunner.manager.save(newTenant);
-      
+
       // 5. TODO: Process `initialBudgetFile` with AI and seed data
       if (initialBudgetFile) {
-        this.logger.warn(`File processing for '${initialBudgetFile.originalname}' is not yet implemented.`);
+        this.logger.warn(
+          `File processing for '${initialBudgetFile.originalname}' is not yet implemented.`,
+        );
         // Example of how it would work:
         // const wbsData = await this.aiService.parseBudget(initialBudgetFile);
         // await this.wbsService.seedWbsDataForTenant(schema_name, wbsData, /* userId */);
@@ -76,23 +100,33 @@ export class TenantService {
 
       // If we get this far without errors, commit the transaction
       await queryRunner.commitTransaction();
-      this.logger.log(`Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`);
-      
+      this.logger.log(
+        `Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`,
+      );
+
       await this.auditService.logEvent({
-        action: 'TENANT_CREATED',
-        userId: 'SYSTEM', // Assuming system initiated or passed from SuperAdmin context
-        targetType: 'TENANT',
+        action: "TENANT_CREATED",
+        userId: "SYSTEM", // Assuming system initiated or passed from SuperAdmin context
+        targetType: "TENANT",
         targetId: savedTenant.tenant_id,
-        details: { name: savedTenant.name, schema_name: savedTenant.schema_name },
+        details: {
+          name: savedTenant.name,
+          schema_name: savedTenant.schema_name,
+        },
       });
       return savedTenant;
-
-    } catch (error: unknown) { // Explicitly type error as unknown
+    } catch (error: unknown) {
+      // Explicitly type error as unknown
       // If any step fails, roll back the entire transaction
-      this.logger.error(`Failed to create tenant: ${(error instanceof Error ? error.message : 'Unknown error')}`, (error instanceof Error ? error.stack : undefined));
+      this.logger.error(
+        `Failed to create tenant: ${error instanceof Error ? error.message : "Unknown error"}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       await queryRunner.rollbackTransaction();
       // Re-throw the original error or a generic one
-      throw new InternalServerErrorException(`Could not create tenant: ${(error instanceof Error ? error.message : 'Unknown error')}`);
+      throw new InternalServerErrorException(
+        `Could not create tenant: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     } finally {
       // VERY IMPORTANT: Always release the query runner
       await queryRunner.release();
@@ -103,9 +137,11 @@ export class TenantService {
    * Finds all tenants from the public schema.
    */
   async findAllTenants(): Promise<TenantEntity[]> {
-    this.logger.log('Attempting to find all tenants...');
+    this.logger.log("Attempting to find all tenants...");
     const tenants = await this.tenantRepository.find();
-    this.logger.log(`Found ${tenants.length} tenants. Data: ${JSON.stringify(tenants)}`);
+    this.logger.log(
+      `Found ${tenants.length} tenants. Data: ${JSON.stringify(tenants)}`,
+    );
     return tenants;
   }
 
@@ -113,7 +149,9 @@ export class TenantService {
    * Finds a single tenant by ID from the public schema.
    */
   async findOneTenant(id: string): Promise<TenantEntity> {
-    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: id } });
+    const tenant = await this.tenantRepository.findOne({
+      where: { tenant_id: id },
+    });
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${id} not found.`);
     }
@@ -123,28 +161,40 @@ export class TenantService {
   /**
    * Updates a tenant's information in the public schema.
    */
-  async updateTenant(id: string, updateTenantDto: UpdateTenantDto): Promise<TenantEntity> {
+  async updateTenant(
+    id: string,
+    updateTenantDto: UpdateTenantDto,
+  ): Promise<TenantEntity> {
     // findOneTenant will throw if not found.
     const tenant = await this.findOneTenant(id);
-    
+
     // Merge and save the changes
     const oldTenant = { ...tenant }; // Snapshot old state for audit
     const updatedTenant = this.tenantRepository.merge(tenant, updateTenantDto);
     const savedTenant = await this.tenantRepository.save(updatedTenant);
 
     const changes: any = {};
-    if (updateTenantDto.name !== undefined && oldTenant.name !== savedTenant.name) {
+    if (
+      updateTenantDto.name !== undefined &&
+      oldTenant.name !== savedTenant.name
+    ) {
       changes.name = { from: oldTenant.name, to: savedTenant.name };
     }
-    if (updateTenantDto.is_active !== undefined && oldTenant.is_active !== savedTenant.is_active) {
-      changes.is_active = { from: oldTenant.is_active, to: savedTenant.is_active };
+    if (
+      updateTenantDto.is_active !== undefined &&
+      oldTenant.is_active !== savedTenant.is_active
+    ) {
+      changes.is_active = {
+        from: oldTenant.is_active,
+        to: savedTenant.is_active,
+      };
     }
 
     if (Object.keys(changes).length > 0) {
       await this.auditService.logEvent({
-        action: 'TENANT_UPDATED',
-        userId: 'SYSTEM', // Assuming system initiated or passed from SuperAdmin context
-        targetType: 'TENANT',
+        action: "TENANT_UPDATED",
+        userId: "SYSTEM", // Assuming system initiated or passed from SuperAdmin context
+        targetType: "TENANT",
         targetId: savedTenant.tenant_id,
         details: { changes },
       });
@@ -160,34 +210,41 @@ export class TenantService {
   async deleteTenant(id: string): Promise<void> {
     // TODO: Implement logic to drop the schema ("DROP SCHEMA...") in a transaction.
     // This is a destructive operation and should be handled with care.
-    this.logger.warn(`Schema dropping for tenant ${id} is not yet implemented.`);
+    this.logger.warn(
+      `Schema dropping for tenant ${id} is not yet implemented.`,
+    );
 
-    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: id } });
+    const tenant = await this.tenantRepository.findOne({
+      where: { tenant_id: id },
+    });
     if (!tenant) {
       await this.auditService.logEvent({
-        action: 'TENANT_DELETION_FAILED',
-        userEmail: 'SYSTEM',
+        action: "TENANT_DELETION_FAILED",
+        userEmail: "SYSTEM",
         details: { reason: `Tenant with ID ${id} not found for deletion.` },
       });
       throw new NotFoundException(`Tenant with ID ${id} not found.`);
     }
 
     const result = await this.tenantRepository.delete({ tenant_id: id });
-    if (result.affected === 0) { // Should not happen if tenant was found above
+    if (result.affected === 0) {
+      // Should not happen if tenant was found above
       await this.auditService.logEvent({
-        action: 'TENANT_DELETION_FAILED',
-        userEmail: 'SYSTEM',
-        targetType: 'TENANT',
+        action: "TENANT_DELETION_FAILED",
+        userEmail: "SYSTEM",
+        targetType: "TENANT",
         targetId: id,
         details: { reason: `Failed to delete tenant record for ID ${id}.` },
       });
-      throw new InternalServerErrorException(`Failed to delete tenant record for ID ${id}.`);
+      throw new InternalServerErrorException(
+        `Failed to delete tenant record for ID ${id}.`,
+      );
     }
 
     await this.auditService.logEvent({
-      action: 'TENANT_DELETED',
-      userId: 'SYSTEM',
-      targetType: 'TENANT',
+      action: "TENANT_DELETED",
+      userId: "SYSTEM",
+      targetType: "TENANT",
       targetId: id,
       details: { name: tenant.name, schema_name: tenant.schema_name },
     });

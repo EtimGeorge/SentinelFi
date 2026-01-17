@@ -1,8 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindManyOptions, Like } from 'typeorm';
-import { AuditLogEntity } from './audit.entity';
-import { PaginationDto, DateRangeDto } from '../common/dto/pagination.dto'; // Corrected import path
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, FindManyOptions, Like } from "typeorm";
+import { AuditLogEntity } from "./audit.entity";
+import { PaginationDto, DateRangeDto } from "../common/dto/pagination.dto"; // Corrected import path
 
 export interface AuditEvent {
   userId?: string;
@@ -15,7 +15,8 @@ export interface AuditEvent {
   tenantId?: string; // Tenant context of the action
 }
 
-export interface FindAuditLogsOptions { // Removed 'extends PaginationDto, DateRangeDto'
+export interface FindAuditLogsOptions {
+  // Removed 'extends PaginationDto, DateRangeDto'
   page?: number;
   limit?: number;
   startDate?: string;
@@ -50,24 +51,44 @@ export class AuditService {
 
     try {
       return await this.auditLogRepository.save(auditLog);
-    } catch (error: unknown) { // Explicitly type as unknown
+    } catch (error: unknown) {
+      // Explicitly type as unknown
       if (error instanceof Error) {
-        this.logger.error(`Failed to save audit log event: ${event.action}`, error.stack, JSON.stringify(event));
+        this.logger.error(
+          `Failed to save audit log event: ${event.action}`,
+          error.stack,
+          JSON.stringify(event),
+        );
       } else {
-        this.logger.error(`Failed to save audit log event: ${event.action}`, String(error), JSON.stringify(event));
+        this.logger.error(
+          `Failed to save audit log event: ${event.action}`,
+          String(error),
+          JSON.stringify(event),
+        );
       }
       // Depending on policy, might re-throw or just log. For now, we log and suppress to not block main operations.
       return auditLog; // Return the unsaved log to not break the chain
     }
   }
 
-  async findAuditLogs(options: FindAuditLogsOptions): Promise<{ logs: AuditLogEntity[]; total: number }> {
-    const { page = 1, limit = 10, startDate, endDate, userId, action, targetType, tenantId } = options;
+  async findAuditLogs(
+    options: FindAuditLogsOptions,
+  ): Promise<{ logs: AuditLogEntity[]; total: number }> {
+    const {
+      page = 1,
+      limit = 10,
+      startDate,
+      endDate,
+      userId,
+      action,
+      targetType,
+      tenantId,
+    } = options;
     const skip = (page - 1) * limit;
 
     const findOptions: FindManyOptions<AuditLogEntity> = {
       where: {},
-      order: { timestamp: 'DESC' },
+      order: { timestamp: "DESC" },
       skip: skip,
       take: limit,
     };
@@ -96,10 +117,11 @@ export class AuditService {
     }
     // Filter by tenantId (if provided)
     if (tenantId !== undefined) {
-        (findOptions.where as any).tenantId = tenantId;
+      (findOptions.where as any).tenantId = tenantId;
     }
 
-    const [logs, total] = await this.auditLogRepository.findAndCount(findOptions);
+    const [logs, total] =
+      await this.auditLogRepository.findAndCount(findOptions);
 
     return { logs, total };
   }

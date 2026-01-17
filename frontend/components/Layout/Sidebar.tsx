@@ -10,15 +10,21 @@ import { X, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp } from 'lucide-r
 // Helper component for rendering nav items, handles nesting
 const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, isCollapsed }) => {
   const router = useRouter();
-  const isActive = item.exactMatch ? router.asPath === item.path : router.asPath.startsWith(item.path);
+  
+  // Clean paths for comparison
+  const currentPath = router.asPath.split('?')[0].split('#')[0];
+  const itemPath = item.path.split('?')[0].split('#')[0];
+
+  const isActive = item.exactMatch ? currentPath === itemPath : currentPath.startsWith(itemPath);
+  
   const [isExpanded, setIsExpanded] = useState(false); // State to manage expansion of children
 
   useEffect(() => {
     // Expand parent if one of its children is active
-    if (item.children && item.children.some(child => router.asPath.startsWith(child.path))) {
+    if (item.children && item.children.some(child => currentPath === child.path || currentPath.startsWith(child.path))) {
       setIsExpanded(true);
     }
-  }, [item, router.asPath]);
+  }, [item, currentPath]);
 
   if (item.children && item.children.length > 0) {
     return (
@@ -43,7 +49,7 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
                 <Link
                   href={child.path}
                   className={`flex items-center p-2 rounded-md transition duration-200 ${
-                    router.asPath === child.path
+                    currentPath === child.path
                       ? 'bg-brand-primary text-white'
                       : 'hover:bg-brand-primary/20'
                   }`}

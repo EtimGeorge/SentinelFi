@@ -1,6 +1,15 @@
-import { IsOptional, IsString, IsEnum, IsDateString, IsUUID } from 'class-validator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-import { OperationalBudgetType, OperationalBudgetStatus } from '../enums/operational-budget.enum';
+import {
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsDateString,
+  IsUUID,
+} from "class-validator";
+import { PaginationDto } from "../../common/dto/pagination.dto";
+import {
+  OperationalBudgetType,
+  OperationalBudgetStatus,
+} from "../enums/operational-budget.enum";
 
 export class GetOperationalBudgetsDto extends PaginationDto {
   @IsOptional()

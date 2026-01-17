@@ -1,5 +1,5 @@
-import { Module, Global } from '@nestjs/common';
-import { TenantConnectionProvider } from './tenant-database.providers';
+import { Module, Global } from "@nestjs/common";
+import { TenantConnectionProvider } from "./tenant-database.providers";
 
 @Global()
 @Module({

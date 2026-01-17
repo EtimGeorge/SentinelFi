@@ -1,292 +1,287 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import PageContainer from '../components/Layout/PageContainer';
-import { TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle, ChevronRight, ChevronDown, Layers } from 'lucide-react';
 import Card from '../components/common/Card';
 import { useSecuredApi } from '../components/hooks/useSecuredApi';
-import { IWbsCategoryEntity } from '../../shared/types/wbs'; // Use IWbsCategoryEntity from shared
 import { Role, useAuth } from '../components/context/AuthContext';
 import useToast from '../store/toastStore';
+import { formatCurrency, getWBSColor } from '../lib/utils';
 
+interface WBSItem {
+  wbs_id: string;
+  parent_wbs_id: string | null;
+  wbs_code: string;
+  description: string;
+  total_cost_budgeted: number;
+}
 
 const WBSManagerPage: React.FC = () => {
-  const { user } = useAuth(); // Get user for RBAC
+  const { user } = useAuth();
   const api = useSecuredApi();
-  const addToast = useToast(state => state.addToast); // Get addToast for toast messages
-  const [categories, setCategories] = useState<IWbsCategoryEntity[]>([]); // Use IWbsCategoryEntity
+  const addToast = useToast(state => state.addToast);
+  
+  const [items, setItems] = useState<WBSItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newCode, setNewCode] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  
+  // State for Add/Edit
+  const [actionNode, setActionNode] = useState<{ type: 'add' | 'edit', parentId: string | null, node?: WBSItem } | null>(null);
+  const [formData, setFormData] = useState({ code: '', description: '', amount: 0 });
 
-  // State for Delete Confirmation
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
-  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
+  const canManage = user?.role === Role.Admin || user?.role === Role.Finance;
 
-  // State for Edit Functionality
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
-  const [editedCode, setEditedCode] = useState('');
-  const [editedDescription, setEditedDescription] = useState('');
-
-  // RBAC checks
-  const canManageCategories = user?.role === Role.Admin || user?.role === Role.Finance;
-
-  const fetchCategories = useCallback(async () => {
+  const fetchWBSData = useCallback(async () => {
     setLoading(true);
-    setSuccessMessage(null);
-    setError(null);
     try {
-      const response = await api.get<IWbsCategoryEntity[]>('/wbs/categories'); // Use IWbsCategoryEntity
-      setCategories(response.data);
+      // Use the rollup endpoint to get ALL items for the tenant
+      const response = await api.get<WBSItem[]>('/wbs/budget/rollup');
+      setItems(response.data);
+      
+      // Auto-expand root nodes
+      const roots = response.data.filter(i => !i.parent_wbs_id);
+      setExpandedNodes(new Set(roots.map(r => r.wbs_id)));
     } catch (e: any) {
-      setError("Failed to fetch categories: " + (e.response?.data?.message || e.message));
-      addToast(`Failed to fetch categories: ${e.response?.data?.message || e.message}`, 'error'); // Add toast
+      addToast(`Failed to fetch WBS: ${e.message}`, 'error');
     } finally {
       setLoading(false);
     }
   }, [api, addToast]);
 
   useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
+    fetchWBSData();
+  }, [fetchWBSData]);
 
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCode || !newDescription) {
-      setError("Code and Description cannot be empty.");
-      addToast("Code and Description cannot be empty.", 'error'); // Add toast
-      return;
-    }
+  const toggleExpand = (id: string) => {
+    const newExpanded = new Set(expandedNodes);
+    if (newExpanded.has(id)) newExpanded.delete(id);
+    else newExpanded.add(id);
+    setExpandedNodes(newExpanded);
+  };
 
+  const handleAction = (type: 'add' | 'edit', parentId: string | null = null, node?: WBSItem) => {
+    setActionNode({ type, parentId, node });
+    setFormData({
+      code: node?.wbs_code || (parentId ? items.find(i => i.wbs_id === parentId)?.wbs_code + '.' : ''),
+      description: node?.description || '',
+      amount: node?.total_cost_budgeted || 0
+    });
+  };
+
+  const saveAction = async () => {
+    if (!formData.code || !formData.description) return;
+    
     setLoading(true);
-    setError(null);
-    setSuccessMessage(null);
     try {
-      await api.post('/wbs/categories', { code: newCode.trim(), description: newDescription.trim() });
-      setNewCode('');
-      setNewDescription('');
-      setSuccessMessage('Category created successfully!');
-      addToast('Category created successfully!', 'success'); // Add toast
-      fetchCategories(); // Refresh list
+      if (actionNode?.type === 'add') {
+        // Find a project_id - in a real app, this would be selected. 
+        // For now, we'll try to find any existing project_id or use a global one
+        const projectId = items.length > 0 ? (items[0] as any).project_id : null;
+        
+        await api.post('/wbs/budget-draft', {
+          wbs_code: formData.code,
+          description: formData.description,
+          total_cost_budgeted: formData.amount,
+          parent_wbs_id: actionNode.parentId,
+          project_id: projectId // Placeholder logic
+        });
+        addToast('Item added successfully', 'success');
+      } else if (actionNode?.type === 'edit' && actionNode.node) {
+        await api.patch(`/wbs/budget-draft/${actionNode.node.wbs_id}`, {
+          wbs_code: formData.code,
+          description: formData.description,
+          total_cost_budgeted: formData.amount
+        });
+        addToast('Item updated successfully', 'success');
+      }
+      setActionNode(null);
+      fetchWBSData();
     } catch (e: any) {
-      const msg = e.response?.data?.message || e.message;
-      setError(`Creation failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`);
-      addToast(`Creation failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error'); // Add toast
+      addToast(`Action failed: ${e.message}`, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditClick = (category: IWbsCategoryEntity) => { // Use IWbsCategoryEntity
-    setEditingCategoryId(category.id);
-    setEditedCode(category.code);
-    setEditedDescription(category.description);
-    setError(null);
-    setSuccessMessage(null);
-  };
-
-  const handleUpdateCategory = async (e: React.FormEvent) => {
-    e.preventDefault(); // Prevent form submission if this is part of a form
-    if (!editingCategoryId || !editedCode || !editedDescription) {
-      setError("Code and Description cannot be empty for update.");
-      addToast("Code and Description cannot be empty for update.", 'error'); // Add toast
-      return;
-    }
-
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure? This will delete the item and all its children.')) return;
+    
     setLoading(true);
-    setError(null);
-    setSuccessMessage(null);
     try {
-      await api.patch(`/wbs/categories/${editingCategoryId}`, { code: editedCode.trim(), description: editedDescription.trim() });
-      setSuccessMessage('Category updated successfully!');
-      addToast('Category updated successfully!', 'success'); // Add toast
-      setEditingCategoryId(null); // Exit edit mode
-      fetchCategories(); // Refresh list
+      await api.delete(`/wbs/budget-draft/${id}?recursive=true`);
+      addToast('Deleted successfully', 'success');
+      fetchWBSData();
     } catch (e: any) {
-      const msg = e.response?.data?.message || e.message;
-      setError(`Update failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`);
-      addToast(`Update failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error'); // Add toast
+      addToast(`Delete failed: ${e.message}`, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteClick = (categoryId: string) => {
-    setDeletingCategoryId(categoryId);
-    setShowDeleteConfirm(true);
-  };
+  const renderTree = (parentId: string | null = null, level: number = 0) => {
+    const children = items.filter(i => i.parent_wbs_id === parentId)
+      .sort((a, b) => a.wbs_code.localeCompare(b.wbs_code, undefined, { numeric: true }));
 
-  const handleDeleteConfirm = async () => {
-    if (!deletingCategoryId) return;
+    return children.map(item => {
+      const isExpanded = expandedNodes.has(item.wbs_id);
+      const hasChildren = items.some(i => i.parent_wbs_id === item.wbs_id);
+      const wbsColor = getWBSColor(item.wbs_code.split('.')[0]);
 
-    setLoading(true);
-    setError(null);
-    setSuccessMessage(null);
-    try {
-      await api.delete(`/wbs/categories/${deletingCategoryId}`);
-      setSuccessMessage('Category deleted successfully!');
-      addToast('Category deleted successfully!', 'success'); // Add toast
-      fetchCategories(); // Refresh list
-    } catch (e: any) {
-      const msg = e.response?.data?.message || e.message;
-      setError(`Deletion failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`);
-      addToast(`Deletion failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error'); // Add toast
-    } finally {
-      setLoading(false);
-      setShowDeleteConfirm(false);
-      setDeletingCategoryId(null);
-    }
+      return (
+        <React.Fragment key={item.wbs_id}>
+          <div 
+            className={`group flex items-center p-3 border-b border-gray-800 hover:bg-white/5 transition-all ${level > 0 ? 'ml-4 border-l-2' : ''}`}
+            style={{ borderLeftColor: level > 0 ? wbsColor : 'transparent' }}
+          >
+            <div className="flex items-center flex-grow min-w-0">
+               {hasChildren ? (
+                 <button onClick={() => toggleExpand(item.wbs_id)} className="mr-2">
+                   {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+                 </button>
+               ) : <div className="w-6" />}
+               
+               <div className="flex flex-col truncate">
+                 <span className="font-mono text-xs font-bold" style={{ color: wbsColor }}>{item.wbs_code}</span>
+                 <span className="text-gray-200 truncate pr-4">{item.description}</span>
+               </div>
+            </div>
+
+            <div className="text-right mr-6 font-semibold text-sm text-gray-400">
+              {formatCurrency(item.total_cost_budgeted)}
+            </div>
+
+            {canManage && (
+              <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => handleAction('add', item.wbs_id)} className="p-1.5 text-brand-primary hover:bg-brand-primary/20 rounded" title="Add Child">
+                  <Plus className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleAction('edit', item.parent_wbs_id, item)} className="p-1.5 text-gray-400 hover:bg-gray-700 rounded" title="Edit">
+                  <Edit3 className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleDelete(item.wbs_id)} className="p-1.5 text-red-500 hover:bg-red-900/40 rounded" title="Delete">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+          {isExpanded && renderTree(item.wbs_id, level + 1)}
+        </React.Fragment>
+      );
+    });
   };
 
   return (
     <>
-      <Head><title>WBS Manager | SentinelFi</title></Head>
+      <Head><title>WBS Master Builder | SentinelFi</title></Head>
       <PageContainer 
-        title="WBS Category Manager"
-        subtitle="Manage the foundational Level 1 WBS headers used for project structuring (NGN Template Fidelity)."
-        headerContent={<TrendingUp className="w-8 h-8 text-brand-primary" />}
+        title="WBS Master Builder"
+        subtitle="Construct and manage your project's hierarchical cost structure with precision."
+        headerContent={<Layers className="w-8 h-8 text-brand-primary" />}
       >
-        {successMessage && <div className="p-3 mb-4 text-sm text-alert-positive bg-green-900 rounded-lg border border-alert-positive/50">{successMessage}</div>}
-        {error && <div className="p-3 mb-4 text-sm text-red-400 bg-red-900 rounded-lg border border-red-700">{error}</div>}
-
-        {/* Main Grid: Categories List and Creation Form */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
-          {/* Left (Span 2): Current Categories List */}
-          <div className="lg:col-span-2">
-            <Card title="Current Master Categories (NGN Template)" subtitle="Manage top-level WBS categories. Edits and deletions impact all dependent projects." borderTopColor="secondary">
-              {loading && !categories.length ? <p className="text-brand-primary">Loading WBS structure...</p> : (
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                  {categories.length === 0 ? (
-                    <p className="text-gray-400">No categories found. Start by creating one!</p>
-                  ) : (
-                    categories.map(cat => (
-                      <div key={cat.id} className="flex justify-between items-center p-3 bg-brand-dark/50 rounded-lg border border-gray-700">
-                        {editingCategoryId === cat.id ? (
-                          <div className="flex-grow grid grid-cols-2 gap-2 mr-4">
-                            <input 
-                              type="text" 
-                              value={editedCode} 
-                              onChange={(e) => setEditedCode(e.target.value)} 
-                              className="bg-gray-700 border border-gray-600 rounded-lg p-1 text-white text-sm"
-                            />
-                            <input 
-                              type="text" 
-                              value={editedDescription} 
-                              onChange={(e) => setEditedDescription(e.target.value)} 
-                              className="bg-gray-700 border border-gray-600 rounded-lg p-1 text-white text-sm"
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex-grow">
-                            <p className="font-bold text-lg text-brand-primary">{cat.code}</p>
-                            <p className="text-gray-300">{cat.description}</p>
-                          </div>
-                        )}
-                        
-                        {canManageCategories && (
-                          <div className="flex space-x-2">
-                            {editingCategoryId === cat.id ? (
-                              <>
-                                <button 
-                                  onClick={handleUpdateCategory}
-                                  disabled={loading}
-                                  className="text-alert-positive hover:text-green-300 transition"
-                                  title="Save Changes"
-                                >
-                                  <Save className="w-5 h-5" />
-                                </button>
-                                <button 
-                                  onClick={() => setEditingCategoryId(null)}
-                                  className="text-gray-400 hover:text-white transition"
-                                  title="Cancel Edit"
-                                >
-                                  <X className="w-5 h-5" />
-                                </button>
-                              </>
-                            ) : (
-                              <button 
-                                onClick={() => handleEditClick(cat)}
-                                disabled={loading}
-                                className="text-brand-primary hover:text-white transition"
-                                title="Edit Category"
-                              >
-                                <Edit3 className="w-5 h-5" />
-                              </button>
-                            )}
-                            <button 
-                              onClick={() => handleDeleteClick(cat.id)}
-                              disabled={loading}
-                              className="text-red-500 hover:text-red-300 transition"
-                              title="Delete Category"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </div>
-                        )}
+          <div className="lg:col-span-3">
+            <Card title="WBS Architecture" subtitle="Hierarchical view of all projects and costs. Hover over items to manage." borderTopColor="primary">
+               {loading && items.length === 0 ? (
+                 <div className="flex flex-col items-center justify-center p-12">
+                   <TrendingUp className="w-12 h-12 text-gray-700 animate-pulse mb-4" />
+                   <p className="text-gray-500">Loading WBS structure...</p>
+                 </div>
+               ) : (
+                 <div className="bg-brand-dark/40 rounded-lg overflow-hidden min-h-[400px]">
+                    <div className="bg-gray-800/50 p-3 border-b border-gray-700 flex text-xs font-bold text-gray-400 uppercase">
+                        <div className="flex-grow">Structure & Description</div>
+                        <div className="w-32 text-right mr-20">Amount</div>
+                        {canManage && <div className="w-24">Actions</div>}
+                    </div>
+                    {items.length === 0 ? (
+                      <div className="p-12 text-center text-gray-500">
+                        No items found. Start by creating a Top-Level element.
+                        <br />
+                        <button onClick={() => handleAction('add')} className="mt-4 px-4 py-2 bg-brand-primary text-white rounded-lg">Create First WBS</button>
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
+                    ) : renderTree(null)}
+                 </div>
+               )}
             </Card>
           </div>
 
-          {/* Right (Span 1): Create New Category Form */}
           <div className="lg:col-span-1">
-            <Card title="Create New Category" subtitle="Only use X.0 codes (e.g., 8.0, 9.0). Requires Admin or Finance role." borderTopColor="alert">
-              {!canManageCategories ? (
-                <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
-                  <AlertTriangle className="w-5 h-5 mr-2" /> You do not have permission to create categories.
-                </p>
-              ) : (
-                <form onSubmit={handleCreateCategory} className="space-y-4">
+            {actionNode ? (
+              <Card 
+                title={actionNode.type === 'add' ? 'Add WBS Element' : 'Edit WBS Element'} 
+                borderTopColor={actionNode.type === 'add' ? 'positive' : 'secondary'}
+              >
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-white">Code (e.g., 8.0)</label>
-                    <input type="text" value={newCode} onChange={(e) => setNewCode(e.target.value)} required
-                      placeholder="X.0"
-                      className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">WBS Code</label>
+                    <input 
+                      type="text" 
+                      value={formData.code} 
+                      onChange={e => setFormData({...formData, code: e.target.value})}
+                      className="w-full bg-gray-800 border border-gray-700 p-2 rounded text-white font-mono"
+                      placeholder="e.g. 1.1.2"
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white">Description</label>
-                    <input type="text" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} required
-                      placeholder="e.g., New Projects / Unallocated"
-                      className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Description</label>
+                    <textarea 
+                      value={formData.description} 
+                      onChange={e => setFormData({...formData, description: e.target.value})}
+                      className="w-full bg-gray-800 border border-gray-700 p-2 rounded text-white h-24"
+                      placeholder="Enter detailed description..."
+                    />
                   </div>
-                  <button type="submit" disabled={loading} className="w-full flex items-center justify-center p-2 rounded-lg font-semibold text-white bg-alert-critical hover:bg-alert-critical/90 transition">
-                    <Plus className="w-5 h-5 mr-2" /> Add Master Category
-                  </button>
-                </form>
-              )}
-            </Card>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Budgeted Amount (NGN)</label>
+                    <input 
+                      type="number" 
+                      value={formData.amount} 
+                      onChange={e => setFormData({...formData, amount: parseFloat(e.target.value) || 0})}
+                      className="w-full bg-gray-800 border border-gray-700 p-2 rounded text-white"
+                    />
+                  </div>
+                  <div className="flex space-x-2 pt-2">
+                    <button 
+                      onClick={saveAction}
+                      disabled={loading}
+                      className="flex-grow flex items-center justify-center py-2 bg-brand-primary text-white rounded font-bold hover:bg-brand-primary/80 transition"
+                    >
+                      <Save className="w-4 h-4 mr-2" /> Save
+                    </button>
+                    <button 
+                      onClick={() => setActionNode(null)}
+                      className="px-4 py-2 bg-gray-700 text-gray-300 rounded font-bold hover:bg-gray-600 transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <Card title="WBS Controls" borderTopColor="alert">
+                <div className="space-y-4">
+                   <p className="text-sm text-gray-400">Select an item in the tree to edit or add children.</p>
+                   {canManage && (
+                     <button 
+                       onClick={() => handleAction('add')}
+                       className="w-full flex items-center justify-center p-3 border-2 border-dashed border-gray-700 rounded-lg text-brand-primary hover:border-brand-primary hover:bg-brand-primary/5 transition"
+                     >
+                       <Plus className="w-5 h-5 mr-2" /> Add Top-Level Node
+                     </button>
+                   )}
+                   <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+                      <p className="text-xs text-yellow-300 flex items-start">
+                        <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
+                        Deleting a node recursively deletes ALL sub-items. This action is irreversible.
+                      </p>
+                   </div>
+                </div>
+              </Card>
+            )}
           </div>
         </div>
       </PageContainer>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card title="Confirm Deletion" borderTopColor="alert" className="w-full max-w-sm">
-            <p className="text-white mb-4">Are you sure you want to delete this category? This action cannot be undone.</p>
-            <div className="flex justify-end space-x-4">
-              <button 
-                onClick={() => setShowDeleteConfirm(false)} 
-                className="px-4 py-2 bg-gray-600 rounded-lg text-white hover:bg-gray-500 transition"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleDeleteConfirm} 
-                disabled={loading}
-                className="px-4 py-2 bg-red-600 rounded-lg text-white hover:bg-red-500 transition"
-              >
-                {loading ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </Card>
-        </div>
-      )}
     </>
   );
 };
