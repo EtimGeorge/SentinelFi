@@ -1,29 +1,36 @@
 // frontend/components/context/AuthContext.tsx
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { toast } from 'react-hot-toast'; // For notifications
-import api from '../../lib/api'; // Our existing API client
+import api from '../../lib/api'; // Adjusted import path from '@/lib/api'
 
-// Import existing shared types
-import { Role as RoleEnum } from '@shared/types/role.enum';
-export { RoleEnum };
-import { UserPayload as BackendUserPayload } from '@shared/types/user'; // Rename to avoid conflict
-
-// Import new frontend-specific types
-import { AppUser, AppRole, LoginApiResponse } from '../../types/auth';
+// Import existing shared types from project
+import { Role as RoleEnumRaw } from '@shared/types/role.enum'; // Renamed to avoid local Enum conflict
+import { UserPayload as BackendUserPayload } from '@shared/types/user'; // Backend payload
+import { AppUser, AppRole, LoginApiResponse } from '../../types/auth'; // Frontend AppUser and AppRole
 
 // ============================================================================
-// TYPES & ENUMS
+// TYPES & ENUMS (Adjusted to project's existing types)
 // ============================================================================
+
+// Use the project's existing RoleEnum
+export const RoleEnum = RoleEnumRaw;
+export type Role = AppRole; // Use existing AppRole type
+
+export interface AuthState {
+  user: AppUser | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  isInitialized: boolean;
+  error: string | null;
+}
 
 export interface LoginCredentials {
   email: string;
   password: string;
-  tenantId?: string; // Optional for SuperAdmin login
+  tenantId?: string;
   rememberMe?: boolean;
 }
 
-// Result for login operation, handles MFA state
 export interface LoginResult {
   success: boolean;
   requiresMFA?: boolean;
@@ -31,50 +38,38 @@ export interface LoginResult {
   error?: string;
 }
 
-// Main authentication state for the context
-export interface AuthState {
-  user: AppUser | null;
-  isAuthenticated: boolean;
-  isLoading: boolean; // Initial loading state (e.g., checking token on mount)
-  isInitialized: boolean; // NEW: Tracks if auth has completed initial load (crucial for _app.tsx)
-  isInitialLoad: boolean; // Legacy support for components expecting this
-  error: string | null;
-}
-
-// Public API of the AuthContext
 export interface AuthContextValue extends AuthState {
   login: (credentials: LoginCredentials) => Promise<LoginResult>;
   logout: () => Promise<void>;
-  verifyMFA: (code: string, mfaToken: string) => Promise<LoginResult>; // Placeholder
+  verifyMFA: (code: string, mfaToken: string) => Promise<LoginResult>;
   refreshAuth: () => Promise<void>;
   hasRole: (role: RoleEnum) => boolean;
   hasAnyRole: (roles: RoleEnum[]) => boolean;
   hasPermission: (permission: string) => boolean;
   getPrimaryRole: () => RoleEnum | null;
-  getDefaultRoute: () => string; // Gets user's default landing page based on role hierarchy
+  getDefaultRoute: () => string;
 }
 
 // ============================================================================
-// ROUTE CONFIGURATION - Single Source of Truth
+// ROUTE CONFIGURATION (Adjusted to project's existing routes)
 // ============================================================================
 
 // Adapting to existing project routes
 export const ROLE_ROUTES: Record<RoleEnum, string> = {
   [RoleEnum.SuperAdmin]: '/super', // As per navigationMap.ts
-  [RoleEnum.Admin]: '/dashboard/home',
+  [RoleEnum.Admin]: '/admin/dashboard', // Assuming general admin dashboard
   [RoleEnum.ITHead]: '/dashboard/home',
   [RoleEnum.Finance]: '/dashboard/home',
   [RoleEnum.OperationalHead]: '/dashboard/home',
   [RoleEnum.CEO]: '/dashboard/home',
   [RoleEnum.AssignedProjectUser]: '/dashboard/home',
-  // Assuming a generic 'User' role also defaults to dashboard home if implemented
 };
 
-// Expanded public routes
+// Expanded public routes (as per project's existing definition)
 export const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password', '/unauthorized', '/verify-email'];
 
 // ============================================================================
-// LOGGING UTILITY - Enhanced
+// LOGGING UTILITY (Using project's enhanced logger)
 // ============================================================================
 
 export class AuthLogger {
@@ -98,8 +93,7 @@ export class AuthLogger {
 }
 
 // ============================================================================
-// AUTHENTICATION TOKEN & USER STORAGE (ADAPTED)
-// Uses localStorage for token, but adapts user storage for new AppUser type
+// AUTHENTICATION TOKEN & USER STORAGE (Using project's existing storage)
 // ============================================================================
 
 const AUTH_TOKEN_KEY = 'sentinelfi_auth_token';
@@ -159,7 +153,14 @@ class AuthStorage {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 // ============================================================================
-// ADAPTER: Backend UserPayload to Frontend AppUser
+// LOADING FALLBACK COMPONENT (Using project's enhanced component)
+// ============================================================================
+
+import AppLoadingFallback from '../common/AppLoadingFallback'; // Use the project's enhanced AppLoadingFallback
+import { useStrictModeDebug } from '../../utils/strictModeDebugger'; // Import the Strict Mode Debugger
+
+// ============================================================================
+// ADAPTER: Backend UserPayload to Frontend AppUser (Using project's adapter)
 // ============================================================================
 
 const adaptBackendUserPayloadToAppUser = (payload: BackendUserPayload): AppUser => {
@@ -167,7 +168,6 @@ const adaptBackendUserPayloadToAppUser = (payload: BackendUserPayload): AppUser 
     id: r.id,
     name: r.name,
     description: r.description,
-    // Permissions will be flattened on the user object itself as per current backend
     permissions: [], // For now, roles from backend don't have nested permissions
   }));
 
@@ -181,52 +181,167 @@ const adaptBackendUserPayloadToAppUser = (payload: BackendUserPayload): AppUser 
     isActive: payload.is_active,
     tenantId: payload.tenant_id,
     tenantName: payload.tenant_name,
-    // Flatten permissions directly from payload if available
     permissions: payload.permissions || [],
-    impersonatorId: undefined, // Not in current backend UserPayload
+    impersonatorId: undefined,
   };
 };
 
 // ============================================================================
-// PROVIDER COMPONENT
+// CRITICAL: ABORT CONTROLLER FOR STRICT MODE
+// ============================================================================
+
+// Module-level cache for the initial auth check
+// Using Map instead of WeakMap as keys are strings. TTL ensures it's short-lived for Strict Mode only.
+const authCache = new Map<string, { user: AppUser | null; timestamp: number }>();
+const CACHE_TTL = 5000; // 5 seconds - only cache during initial mount storms
+
+// ============================================================================
+// PROVIDER COMPONENT - STRICT MODE COMPATIBLE
 // ============================================================================
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  useStrictModeDebug('AuthProvider'); // Track AuthProvider's lifecycle in Strict Mode
   const router = useRouter();
   const [state, setState] = useState<AuthState>({
     user: null,
     isAuthenticated: false,
-    isLoading: true, // Initially true for token check
-    isInitialized: false, // NEW: Becomes true after initial token check
-    isInitialLoad: true,
+    isLoading: true,
+    isInitialized: false,
     error: null,
   });
 
-  // Track navigation intent to prevent race conditions
-  const navigationIntentRef = useRef<string | null>(null);
-  const isNavigatingRef = useRef(false);
+  // CRITICAL: Use AbortController for cleanup (Instance-specific as per senior dev's guidance)
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // ============================================================================
-  // SAFE STATE UPDATER - Prevents updates after unmount
+  // FETCH CURRENT USER - WITH ABORT SIGNAL AND CACHING
   // ============================================================================
 
-  const isMountedRef = useRef(true);
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  const updateState = useCallback((updates: Partial<AuthState>) => {
-    if (!isMountedRef.current) {
-      AuthLogger.warn('Attempted state update after unmount - ignoring');
-      return;
+  const fetchCurrentUser = useCallback(async (signal?: AbortSignal): Promise<AppUser | null> => {
+    const cacheKey = 'initial_auth';
+    const cached = authCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      AuthLogger.info('Using cached auth state');
+      return cached.user;
     }
-    setState(prev => ({ ...prev, ...updates }));
+
+    try {
+      AuthLogger.info('Fetching current user...');
+      
+      // Check for token BEFORE making API call
+      // Adapt to project's AuthStorage
+      const token = AuthStorage.getToken();
+      if (!token) {
+        AuthLogger.info('No token found - skipping API call');
+        const result = { user: null, timestamp: Date.now() };
+        authCache.set(cacheKey, result);
+        return null;
+      }
+
+      const response = await api.get<{ user: BackendUserPayload }>('/auth/me', {
+        signal, // Pass abort signal to API call
+      });
+      
+      if (signal?.aborted) {
+        AuthLogger.warn('Fetch aborted');
+        return null;
+      }
+      
+      if (response.data?.user) {
+        const appUser = adaptBackendUserPayloadToAppUser(response.data.user); // Use project's adapter
+        AuthLogger.success('User fetched successfully', {
+          email: appUser.email,
+          roles: appUser.roles.map((r: AppRole) => r.name), // Use AppRole for mapping
+        });
+        
+        const result = { user: appUser, timestamp: Date.now() }; // Store adapted user
+        authCache.set(cacheKey, result);
+        return appUser;
+      }
+      
+      const result = { user: null, timestamp: Date.now() };
+      authCache.set(cacheKey, result);
+      return null;
+      
+    } catch (error: unknown) {
+      if (signal?.aborted) {
+        AuthLogger.info('Request aborted during fetch');
+        return null;
+      }
+      
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
+        AuthLogger.info('Request aborted');
+        return null;
+      }
+      
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status: number } };
+        if (axiosError.response?.status === 401) {
+          AuthLogger.info('User not authenticated (401)');
+          AuthStorage.clear(); // Clear local storage on 401
+          const result = { user: null, timestamp: Date.now() };
+          authCache.set(cacheKey, result);
+          return null;
+        }
+      }
+      
+      AuthLogger.error('Error fetching user', error);
+      AuthStorage.clear(); // Clear local storage on other fetch errors as well
+      throw error;
+    }
   }, []);
 
   // ============================================================================
-  // ROLE & PERMISSION CHECKS
+  // INITIALIZE AUTH - STRICT MODE SAFE
+  // ============================================================================
+
+  useEffect(() => {
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController; // Store in ref for external access if needed
+
+    let isSubscribed = true; // Local flag for component subscription status
+
+    const initializeAuth = async () => {
+      try {
+        AuthLogger.info('Initializing auth state...');
+        
+        const user = await fetchCurrentUser(abortController.signal);
+
+        if (!abortController.signal.aborted && isSubscribed) {
+          setState({
+            user,
+            isAuthenticated: !!user,
+            isLoading: false,
+            isInitialized: true,
+            error: null,
+          });
+        }
+      } catch (error) {
+        if (!abortController.signal.aborted && isSubscribed) {
+          AuthLogger.error('Auth initialization failed', error);
+          setState({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+            isInitialized: true,
+            error: 'Failed to initialize authentication',
+          });
+        }
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      AuthLogger.info('Auth initialization cleanup - aborting pending requests');
+      isSubscribed = false; // Mark component as unsubscribed
+      abortController.abort(); // Abort any ongoing fetch requests
+    };
+  }, [fetchCurrentUser]);
+
+  // ============================================================================
+  // ROLE & PERMISSION CHECKS (Using project's existing logic)
   // ============================================================================
 
   const hasRole = useCallback((role: RoleEnum): boolean => {
@@ -274,150 +389,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [getPrimaryRole]);
 
   // ============================================================================
-  // SAFE NAVIGATION HANDLER - Prevents race conditions
+  // SAFE NAVIGATION (Using project's existing logic)
   // ============================================================================
 
   const navigateToRoute = useCallback(async (targetRoute: string, replace = false) => {
-    if (isNavigatingRef.current) {
-      AuthLogger.warn('Navigation already in progress, skipping duplicate navigation');
-      return;
-    }
-
     try {
-      isNavigatingRef.current = true;
-      navigationIntentRef.current = targetRoute;
+      AuthLogger.info(`Navigating to: ${targetRoute}`);
       
-      AuthLogger.info(`Navigating to: ${targetRoute} (replace: ${replace})`);
-
-      // Use replace for post-login/logout to avoid back button issues
       if (replace) {
         await router.replace(targetRoute);
       } else {
         await router.push(targetRoute);
       }
-
-      AuthLogger.success(`Navigation completed to: ${targetRoute}`);
     } catch (error) {
       AuthLogger.error('Navigation failed', error);
-      throw error;
-    } finally {
-      isNavigatingRef.current = false;
-      navigationIntentRef.current = null;
+      // Fallback to login if navigation fails
+      router.replace('/login');
     }
   }, [router]);
 
   // ============================================================================
-  // FETCH CURRENT USER (and adapt to AppUser type)
-  // ============================================================================
-
-  const fetchCurrentUser = useCallback(async (): Promise<AppUser | null> => {
-    try {
-      AuthLogger.info('Fetching current user...');
-      const token = AuthStorage.getToken();
-      if (!token) {
-        AuthLogger.warn('No token found for fetching current user.');
-        return null;
-      }
-
-      AuthLogger.info('Token found. Calling /auth/me...');
-      const response = await api.get<{ user: BackendUserPayload }>('/auth/me');
-      AuthLogger.info('/auth/me call completed.');
-      
-      if (response.data?.user) {
-        const appUser = adaptBackendUserPayloadToAppUser(response.data.user);
-        AuthLogger.success('User fetched and adapted successfully', {
-          email: appUser.email,
-          roles: appUser.roles.map(r => r.name),
-        });
-        return appUser;
-      }
-      
-      AuthLogger.warn('No user data in /auth/me response');
-      return null;
-    } catch (error: unknown) {
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response?: { status: number } };
-        if (axiosError.response?.status === 401) {
-          AuthLogger.info('User token invalid (401) during fetchCurrentUser');
-          AuthStorage.clear(); // Clear invalid token
-          return null;
-        }
-      }
-      AuthLogger.error('Error fetching user', error);
-      // Re-throw if it's a critical error not related to authentication
-      throw error; 
-    }
-  }, []);
-
-  // ============================================================================
-  // INITIALIZE AUTH STATE ON MOUNT (Check existing token)
-  // ============================================================================
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    const initializeAuth = async () => {
-      AuthLogger.info('Initializing auth state...');
-      // No need to set isLoading here as it's true by default
-      
-      try {
-        const user = await fetchCurrentUser();
-
-        if (isCancelled) return;
-
-        if (user) {
-          AuthStorage.setUser(user); // Store adapted AppUser
-          updateState({
-            user,
-            isAuthenticated: true,
-            isLoading: false,
-            isInitialized: true,
-            isInitialLoad: false, // Initial load is complete
-            error: null,
-          });
-        } else {
-          // No valid user, clear any stale data
-          AuthStorage.clear();
-          updateState({
-            user: null,
-            isAuthenticated: false,
-            isLoading: false,
-            isInitialized: true,
-            isInitialLoad: false, // Initial load is complete
-            error: null,
-          });
-        }
-      } catch (error) {
-        if (isCancelled) return;
-        
-        AuthLogger.error('Auth initialization failed', error);
-        updateState({
-          user: null,
-          isAuthenticated: false,
-          isLoading: false,
-          isInitialized: true,
-          isInitialLoad: false, // Initial load is complete
-          error: 'Failed to initialize authentication',
-        });
-      }
-    };
-
-    initializeAuth();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [fetchCurrentUser, updateState]);
-
-  // ============================================================================
-  // LOGIN FUNCTION - CRITICAL: No immediate navigation from here
+  // LOGIN
   // ============================================================================
 
   const login = useCallback(async (credentials: LoginCredentials): Promise<LoginResult> => {
-    AuthLogger.info('Login attempt', { email: credentials.email });
-    updateState({ isLoading: true, error: null });
-
     try {
+      AuthLogger.info('Login attempt', { email: credentials.email });
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+
       // Determine endpoint based on tenantId
       const endpoint = credentials.tenantId 
         ? `/auth/login/tenant`
@@ -432,10 +431,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const response = await api.post<LoginApiResponse>(endpoint, payload);
 
-      // Handle MFA requirement - PLACEHOLDER
-      if (response.data.requiresMFA && response.data.mfaToken) { // Assuming backend sends these fields
-        AuthLogger.info('MFA required - Frontend ready, but backend not yet implemented for MFA');
-        updateState({ isLoading: false });
+      if (response.data.requiresMFA && response.data.mfaToken) {
+        setState(prev => ({ ...prev, isLoading: false }));
         return {
           success: false,
           requiresMFA: true,
@@ -443,36 +440,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       }
 
-      // Login successful - set token and fetch complete user data
-      AuthStorage.setToken(response.data.access_token);
-      const user = await fetchCurrentUser(); // Fetch user again to get the full AppUser object
+      AuthStorage.setToken(response.data.access_token); // Set token via project's AuthStorage
+      authCache.clear(); // Clear cache on new login to force fresh fetch
+
+      const user = await fetchCurrentUser(); // Fetch fresh user data using the safe fetcher
 
       if (!user) {
         throw new Error('Failed to fetch user data after login');
       }
 
-      // CRITICAL: Update state FIRST, navigation happens AFTER state is stable
-      AuthStorage.setUser(user); // Store adapted AppUser
-      updateState({
+      AuthStorage.setUser(user); // Store adapted user via project's AuthStorage
+      setState({
         user,
         isAuthenticated: true,
         isLoading: false,
+        isInitialized: true,
         error: null,
       });
 
       AuthLogger.success('Login successful', {
         email: user.email,
         roles: user.roles.map(r => r.name),
-        primaryRole: getPrimaryRole(),
       });
 
-      // CRITICAL: Wait for next tick to ensure state propagation to other components
-      // before RouteGuard attempts to redirect.
-      await new Promise(resolve => setTimeout(resolve, 0));
-
-      // NOW navigate - RouteGuard will handle the actual routing based on updated state
-      const defaultRoute = getDefaultRoute();
-      await navigateToRoute(defaultRoute, true); // Use replace to clear login history
+      // Navigate after state is stable
+      await new Promise(resolve => setTimeout(resolve, 0)); // Ensure state propagation
+      const defaultRoute = getDefaultRoute(); // Use project's getDefaultRoute
+      await navigateToRoute(defaultRoute, true);
 
       return { success: true };
 
@@ -481,132 +475,160 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? ((error as { response?: { data?: { message?: string | string[] } } }).response?.data?.message || 'Login failed')
         : 'Login failed';
 
-      // Convert array messages to string if needed
       const finalErrorMessage = Array.isArray(errorMessage) ? errorMessage.join(', ') : errorMessage;
       
       AuthLogger.error('Login failed', error);
-      updateState({
+      setState(prev => ({
+        ...prev,
         isLoading: false,
         error: finalErrorMessage,
-      });
+      }));
 
       return {
         success: false,
         error: finalErrorMessage,
       };
     }
-  }, [fetchCurrentUser, navigateToRoute, updateState, getPrimaryRole, getDefaultRoute]);
+  }, [fetchCurrentUser, navigateToRoute, getDefaultRoute]);
 
   // ============================================================================
-  // MFA VERIFICATION - PLACEHOLDER
+  // MFA VERIFICATION
   // ============================================================================
 
   const verifyMFA = useCallback(async (code: string, mfaToken: string): Promise<LoginResult> => {
-    AuthLogger.warn('MFA verification is a frontend placeholder; backend not yet implemented.');
-    toast.error('MFA verification is not yet fully implemented on the backend.');
+    try {
+      AuthLogger.info('Verifying MFA code');
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-    // Simulate success/failure based on code for now
-    if (code === '123456') {
-      // Simulate successful MFA, then fetch user and navigate
-      // In a real scenario, backend would return a new token
-      AuthLogger.info('MFA placeholder: simulating success');
+      await api.post('/auth/verify-mfa', { code, mfaToken });
+
+      authCache.clear(); // Clear cache after MFA verification
       const user = await fetchCurrentUser();
-      if (user) {
-        AuthStorage.setUser(user);
-        updateState({ user, isAuthenticated: true, isLoading: false, error: null });
-        await new Promise(resolve => setTimeout(resolve, 0));
-        await navigateToRoute(getDefaultRoute(), true);
-        return { success: true };
+      
+      if (!user) {
+        throw new Error('Failed to fetch user after MFA verification');
       }
+
+      AuthStorage.setUser(user); // Store adapted user via project's AuthStorage
+      setState({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        isInitialized: true,
+        error: null,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const defaultRoute = getDefaultRoute();
+      await navigateToRoute(defaultRoute, true);
+
+      return { success: true };
+
+    } catch (error: unknown) {
+      const errorMessage = (error && typeof error === 'object' && 'response' in error)
+        ? ((error as { response?: { data?: { message?: string | string[] } } }).response?.data?.message || 'MFA verification failed')
+        : 'MFA verification failed';
+
+      const finalErrorMessage = Array.isArray(errorMessage) ? errorMessage.join(', ') : errorMessage;
+
+      AuthLogger.error('MFA verification failed', error);
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: finalErrorMessage,
+      }));
+
+      return {
+        success: false,
+        error: finalErrorMessage,
+      };
     }
-    return { success: false, error: 'Invalid MFA code (placeholder)' };
-  }, [fetchCurrentUser, navigateToRoute, updateState, getDefaultRoute]);
+  }, [fetchCurrentUser, navigateToRoute, getDefaultRoute]);
 
   // ============================================================================
   // LOGOUT
   // ============================================================================
 
   const logout = useCallback(async () => {
-    AuthLogger.info('Logging out');
     try {
+      AuthLogger.info('Logging out');
       await api.post('/auth/logout');
     } catch (error) {
-      AuthLogger.error('Logout API call failed, but clearing session anyway', error);
+      AuthLogger.error('Logout API call failed', error);
     } finally {
-      AuthStorage.clear();
-      updateState({
+      AuthStorage.clear(); // Clear local storage on logout
+      authCache.clear(); // Clear cache on logout
+      setState({
         user: null,
         isAuthenticated: false,
         isLoading: false,
-        isInitialized: false, // Reset for next login
-        isInitialLoad: true, // Next login will be an initial load
+        isInitialized: true, // Mark as initialized to prevent preloader loop
         error: null,
       });
-      AuthLogger.success('Logout complete');
       await navigateToRoute('/login', true);
     }
-  }, [navigateToRoute, updateState]);
+  }, [navigateToRoute]);
 
   // ============================================================================
-  // REFRESH AUTH STATE (e.g., after session timeout extension)
+  // REFRESH AUTH
   // ============================================================================
 
   const refreshAuth = useCallback(async () => {
     try {
       AuthLogger.info('Refreshing auth state');
+      authCache.clear(); // Clear cache to force fresh fetch
       const user = await fetchCurrentUser();
 
-      updateState({
+      AuthStorage.setUser(user as AppUser); // Store adapted user via project's AuthStorage
+      setState({
         user,
         isAuthenticated: !!user,
         isLoading: false,
+        isInitialized: true,
         error: null,
       });
-      AuthLogger.success('Auth state refreshed');
     } catch (error) {
       AuthLogger.error('Failed to refresh auth', error);
-      updateState({
+      AuthStorage.clear(); // Clear local storage on refresh error
+      setState({
         user: null,
         isAuthenticated: false,
         isLoading: false,
+        isInitialized: true,
         error: 'Failed to refresh authentication',
       });
     }
-  }, [fetchCurrentUser, updateState]);
+  }, [fetchCurrentUser]);
 
   // ============================================================================
-  // CONTEXT VALUE
+  // MEMOIZE CONTEXT VALUE
   // ============================================================================
 
-  const contextValue = useMemo<AuthContextValue>(() => ({
-    ...state,
-    login,
-    logout,
-    verifyMFA,
-    refreshAuth,
-    hasRole,
-    hasAnyRole,
-    hasPermission,
-    getPrimaryRole,
-    getDefaultRoute,
-  }), [
-    state,
-    login,
-    logout,
-    verifyMFA,
-    refreshAuth,
-    hasRole,
-    hasAnyRole,
-    hasPermission,
-    getPrimaryRole,
-    getDefaultRoute,
-  ]);
-
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      ...state,
+      login,
+      logout,
+      verifyMFA,
+      refreshAuth,
+      hasRole,
+      hasAnyRole,
+      hasPermission,
+      getPrimaryRole,
+      getDefaultRoute,
+    }),
+    [state, login, logout, verifyMFA, refreshAuth, hasRole, hasAnyRole, hasPermission, getPrimaryRole, getDefaultRoute]
   );
+
+  // ============================================================================
+  // RENDER LOADING OR PROVIDER
+  // ============================================================================
+
+  if (!state.isInitialized) {
+    return <AppLoadingFallback message="Initializing Session..." />;
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // ============================================================================

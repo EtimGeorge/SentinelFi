@@ -19,17 +19,7 @@ import { Role as RoleEnum } from '@shared/types/role.enum'; // Import RoleEnum d
 
 function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  const { user, isAuthenticated, isInitialLoad, isInitialized } = useAuth();
-
-  // ========================================================================
-  // CRITICAL: Wait for auth initialization
-  // Show a basic loading screen until AuthContext is fully initialized.
-  // This prevents layout flashes and ensures auth state is stable for RouteGuard and layout selection.
-  // ========================================================================
-  if (isInitialLoad) { // Use isInitialLoad here for the very first render
-    AuthLogger.info('[_app] Auth still initializing or loading user...', { isInitialized, isInitialLoad });
-    return <AppLoadingFallback />;
-  }
+  const { user, isAuthenticated, isInitialized } = useAuth();
 
   // ========================================================================
   // PUBLIC ROUTES - Use PublicLayout for pages like login, register, etc.

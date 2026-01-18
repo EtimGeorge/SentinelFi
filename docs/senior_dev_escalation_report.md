@@ -1,123 +1,214 @@
-# Senior Developer Escalation Report: SuperAdmin Login & Redirection Failure
+# Senior Developer Escalation Report: Persistent Frontend Preloader Issue
 
-**Date:** 2026-01-17
+**Date:** January 18, 2026
 
-**Author:** Gemini AI Assistant
+**Project:** SentinelFi Frontend
 
-## 1. Executive Summary
+**Problem Description:**
+The frontend application remains stuck on a preloader screen indefinitely during initial page load in local development. This issue persists despite extensive debugging and implementation of advanced React patterns to manage component lifecycles.
 
-The application is experiencing a critical issue where SuperAdmin users can successfully log in, but the application fails to redirect to the SuperAdmin dashboard. Instead, it gets stuck on a loading screen, which appears to be the `RouteGuard`'s preloader. The root cause appears to be a layout selection failure in `_app.tsx`, where the application incorrectly renders the `SecuredLayout` (for tenant users) instead of the `SuperAdminLayout`, even for a user with the `SuperAdmin` role. This mismatch seems to abort the redirection process.
+**Symptoms:**
+- Application loads in the browser, displays the preloader (`AppLoadingFallback` initially, then `AuthLoadingScreen` as per user's request).
+- The console logs repeatedly show: `[AUTH] ⚠️ Attempted state update after unmount - ignoring` originating from `AuthProvider`'s `updateState` function.
+- The `isInitialized` state in the `AuthContext` (and consequently `RouteGuard`) never consistently becomes `true`, preventing the application from transitioning to the login page.
+- The `initializeAuthEffect` is triggered, `memoizedFetchCurrentUser` runs (and logs `No token found for fetching current user.`, which is expected for an unauthenticated user), but the final `updateState` to set `isInitialized: true` appears to be racing with component unmounts.
 
-## 2. The Problem
-
-When a user logs in with SuperAdmin credentials:
-1.  Authentication succeeds, and the `AuthContext` correctly identifies the user's role as `SuperAdmin`.
-2.  The application attempts to redirect.
-3.  The browser console logs an `Error: Abort fetching component for route: "/"`.
-4.  Crucially, the `_app.tsx` component logs that it is rendering the `SecuredLayout` (intended for tenants), not the `SuperAdminLayout`.
-5.  The UI remains on a loading/authorization screen indefinitely.
-
-**Key Log Snippet:**
+**Relevant Logs (Latest):**
 ```
-[AUTH] Login SUCCESS - User: superadmin@example.com, Roles: SuperAdmin, ID: ...
-...
-Error: Abort fetching component for route: "/"
-...
-[_app] Rendering SecuredLayout for tenant user
+Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+websocket.js:46 [HMR] connected
+AuthContext.tsx:85 [AUTH] Auth initialization effect triggered.
+AuthContext.tsx:85 [AUTH] Fetching current user...
+AuthContext.tsx:89 [AUTH] ⚠️ No token found for fetching current user.
+warn @ AuthContext.tsx:89
+eval @ AuthContext.tsx:326
+eval @ AuthContext.tsx:364
+eval @ AuthContext.tsx:365
+initializeAuthEffect @ AuthContext.tsx:381
+eval @ AuthContext.tsx:405
+commitHookEffectListMount @ react-dom.development.js:23145
+commitPassiveMountOnFiber @ react-dom.development.js:24921
+commitPassiveMountEffects_complete @ react-dom.development.js:24886
+commitPassiveMountEffects_begin @ react-dom.development.js:24873
+commitPassiveMountEffects @ react-dom.development.js:24861
+flushPassiveEffectsImpl @ react-dom.development.js:27034
+flushPassiveEffects @ react-dom.development.js:26979
+eval @ react-dom.development.js:26764
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533Understand this warning
+AuthContext.tsx:85 [AUTH] Auth initialization effect triggered.
+AuthContext.tsx:89 [AUTH] ⚠️ Attempted state update after unmount - ignoring
 ```
 
-This demonstrates a clear contradiction: the user is a `SuperAdmin`, but the app tries to render a tenant layout, causing the redirection to fail.
+**Context:**
+- Next.js 14.1.4 development environment.
+- React Strict Mode is active (default for Next.js dev server).
+- Monorepo setup: Frontend (Next.js), Backend (NestJS).
 
-## 3. Debugging Steps & Fixes Implemented
+**Debugging Journey & Actions Taken:**
 
-The initial investigation pointed to several issues, which have since been fixed, but the core problem persists.
+1.  **Initial Diagnosis (Preloader Stuck):** Identified that `isInitialized` flag in `AuthContext` was perpetually `false`, preventing UI transition.
+2.  **Backend Seeder Error Fix:** Discovered a critical `bcryptjs` error in `backend/src/auth/initial-superadmin-seeder.service.ts` due to `password_hash` not being selected (due to `select: false` on entity). Fixed this using TypeORM QueryBuilder's `addSelect`. **Backend now starts cleanly.**
+3.  **Frontend `ReferenceError` Fix:** Corrected a `ReferenceError: AppLoadingFallback is not defined` by adding the missing import in `frontend/components/context/AuthContext.tsx`.
+4.  **Architectural Refactor (AuthProvider Controls Loading):** Modified `AuthProvider` (`AuthContext.tsx`) to directly render `AppLoadingFallback` while `!state.isInitialized`, ensuring no children render prematurely. Removed redundant checks from `_app.tsx` and `RouteGuard.tsx`.
+5.  **Preloader Consolidation (Reverted):** Initially consolidated `AuthLoadingScreen` into `AppLoadingFallback`, but reverted this based on user's request to keep `AuthLoadingScreen` distinct for `RouteGuard`.
+6.  **Advanced Refactor (Singleton Promise Pattern):**
+    *   Implemented a module-level `initialAuthPromise` (`frontend/components/context/AuthContext.tsx`) to store the result of the first `fetchCurrentUser` call.
+    *   Refactored `fetchCurrentUser` into `_fetchCurrentUser` (internal logic) and `memoizedFetchCurrentUser` (singleton promise manager).
+    *   The `useEffect` in `AuthProvider` now awaits `memoizedFetchCurrentUser`, ensuring the async auth check runs only once per page load, even with Strict Mode's double-invocation.
+    *   `initialAuthPromise` is reset on `login`, `logout`, and `refreshAuth` for fresh checks when appropriate.
+    *   `useCallback` dependencies updated.
 
-### 3.1. `TypeError` on Redirect (Fixed)
+**Current State:**
+- The backend is stable and starts without errors.
+- The frontend still shows the preloader indefinitely.
+- The `AuthProvider` is still reporting `Attempted state update after unmount - ignoring`, indicating that the component instance which initiated the state update is unmounting before the update can be safely applied, despite the singleton promise and `isMountedRef` checks. This implies that even with these measures, the component's lifecycle is being aggressively disrupted.
 
-**Problem:** The application was crashing with `TypeError: Cannot destructure property 'auth' of 'urlObj' as it is undefined.`
-**Cause:** The `login` function in `AuthContext.tsx` was returning an `undefined` `redirectUrl`, which was then passed to `router.push()` or `router.replace()`.
-**Fix:** I implemented fallback logic in `login.tsx`, `AuthContext.tsx`, and `RouteGuard.tsx` to ensure the redirect URL always defaults to a valid path (e.g., `'/'`) if a role-specific route is not found.
+**Hypothesis:**
+The core problem is a deep interaction between React's component lifecycle in development (specifically with Strict Mode's aggressive remounting behavior) and possibly Next.js's Fast Refresh, leading to the root `AuthProvider` component effectively being unmounted and re-mounted before its critical state updates (`isInitialized: true`) can stabilize. This defeats the purpose of internal `isMountedRef` checks if the entire component instance (and thus its `isMountedRef`) is being destroyed and re-created.
 
-**Example Fix in `login.tsx`:**
+**Request for Senior Developer Assistance:**
+We require assistance in diagnosing why the root `AuthProvider` component is experiencing such aggressive unmounting/remounting during initial page load in the Next.js development environment. This behavior is preventing the authentication state from becoming stable and blocking the application from rendering the login page.
+Specifically, insights into how to make `AuthProvider`'s state updates resilient to these unmount/remount cycles during initial render, or identifying external factors (e.g., in `_app.tsx` or Next.js config) that could be causing this, would be invaluable.
+
+---
+**Code Snippets (relevant to `AuthProvider` lifecycle):**
+
+`frontend/components/context/AuthContext.tsx`
 ```typescript
-// frontend/pages/login.tsx
-if (result.success) {
-  if (result.redirectUrl) {
-    AuthLogger.info('Login successful, pushing to redirect URL.');
-    await router.push(result.redirectUrl);
-  } else {
-     AuthLogger.warn('Login successful but no redirect URL returned. Relying on RouteGuard for redirection.');
+// SINGLETON PROMISE FOR INITIAL AUTH CHECK
+let initialAuthPromise: Promise<AppUser | null> | null = null;
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const router = useRouter();
+  const [state, setState] = useState<AuthState>(/* ... initial state ... */);
+
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const updateState = useCallback((updates: Partial<AuthState>) => {
+    if (!isMountedRef.current) {
+      AuthLogger.warn('Attempted state update after unmount - ignoring');
+      return;
+    }
+    setState(prev => ({ ...prev, ...updates }));
+  }, []);
+
+  // ... _fetchCurrentUser, memoizedFetchCurrentUser definitions ...
+
+  useEffect(() => {
+    const initializeAuthEffect = async () => {
+      AuthLogger.info('Auth initialization effect triggered.');
+      try {
+        const user = await memoizedFetchCurrentUser(); // Await the shared, memoized promise
+
+        updateState({
+          user,
+          isAuthenticated: !!user,
+          isLoading: false,
+          isInitialized: true,
+          isInitialLoad: false,
+          error: user ? null : 'No active session',
+        });
+
+      } catch (error) {
+        AuthLogger.error('Auth initialization effect failed', error);
+        updateState({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          isInitialized: true,
+          isInitialLoad: false,
+          error: 'Failed to initialize authentication',
+        });
+      }
+    };
+
+    initializeAuthEffect();
+
+  }, [memoizedFetchCurrentUser, updateState]);
+
+  // ... other functions (login, logout, refreshAuth) where initialAuthPromise is reset ...
+
+  if (!state.isInitialized) {
+    return <AppLoadingFallback message="Initializing Session..." />;
   }
-}
-```
 
-### 3.2. `ReferenceError` in `RouteGuard` (Fixed)
-
-**Problem:** The application crashed with `ReferenceError: Cannot access 'hasSuperAdminRole' before initialization`.
-**Cause:** The `hasSuperAdminRole` variable was declared in a narrow scope but used in a wider one within the `checkAuth` function.
-**Fix:** I refactored `RouteGuard.tsx` to declare the role-checking constants at the top of the `checkAuth` function, making them available to all subsequent logic within that function.
-
-**Corrected Code in `RouteGuard.tsx`:**
-```typescript
-// frontend/components/guards/RouteGuard.tsx
-const checkAuth = async () => {
-  const path = router.pathname;
-  // ...
-  const hasSuperAdminRole = isAuthenticated && user ? user.roles.some(r => r.name === RoleEnum.SuperAdmin) : false;
-  const hasAdminRole = isAuthenticated && user ? user.roles.some(r => r.name === RoleEnum.Admin) : false;
-
-  // PUBLIC ROUTES - always allow
-  if (PUBLIC_ROUTES.includes(path)) {
-    // ... logic now has access to hasSuperAdminRole
-  }
-  // ... etc.
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 ```
-
-## 4. Current Blocking Issue: Incorrect Layout Selection
-
-Despite the fixes above, the core issue remains. The `_app.tsx` component is not selecting the correct layout for the SuperAdmin.
-
-**Code in `frontend/pages/_app.tsx`:**
+`frontend/pages/_app.tsx`
 ```typescript
 function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading } = useAuth();
-  // ...
+  const { user, isAuthenticated, isInitialized } = useAuth(); // No more isInitialLoad here
 
-  // Once the user is loaded and authenticated, choose the layout based on their role.
-  if (user.roles.some((r) => r.name === RoleEnum.SuperAdmin)) { // <--- THIS CHECK IS FAILING
-    console.log('[_app] Rendering SuperAdminLayout');
-    return (
-      <SuperAdminLayout>
-        <Component {...pageProps} />
-      </SuperAdminLayout>
-    );
-  }
+  // No longer checking isInitialLoad here; AuthProvider handles initial rendering
+  // ... Public Routes check ...
+  // ... Unauthenticated users on protected routes check ...
+  // ... Authenticated users - Select layout based on PRIMARY ROLE ...
+}
 
-  // It incorrectly falls through to here
-  if (user.roles.length > 0) {
-    console.log('[_app] Rendering SecuredLayout for tenant user');
-    return (
-      <SecuredLayout>
-        <Component {...pageProps} />
-      </SecuredLayout>
-    );
-  }
-  // ...
+export default function App(props: AppProps) {
+  return (
+    <>
+      <Head>{/* ... */}</Head>
+      
+      <AuthProvider>
+        <RouteGuard>
+          <AppContent {...props} />
+        </RouteGuard>
+      </AuthProvider>
+      <Toaster position="bottom-right" />
+    </>
+  );
 }
 ```
+`frontend/components/guards/RouteGuard.tsx`
+```typescript
+const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
+  const router = useRouter();
+  const { 
+    user, 
+    isAuthenticated, 
+    isLoading, 
+    getPrimaryRole, // isInitialized removed from here
+    getDefaultRoute 
+  } = useAuth();
 
-### Hypothesis
+  const [isAuthorizing, setIsAuthorizing] = useState(true);
+  const checkInProgressRef = useRef(false);
 
-The `user` object provided by the `useAuth()` hook to the `_app.tsx` component might be stale or inconsistent at the exact moment of the post-login re-render. Although `AuthContext` successfully authenticates and holds the correct user data (with the `SuperAdmin` role), this state might not be propagating to the `AppContent` component in time for the first render after the redirect is initiated. This race condition leads to the wrong layout being chosen, which in turn causes Next.js's router to abort the navigation.
+  useEffect(() => {
+    // No longer checking isInitialized here; AuthProvider guarantees it's true when this renders
+    if (checkInProgressRef.current || !router.isReady) {
+      AuthLogger.info('[RouteGuard] Waiting for router readiness, or check in progress.', {
+        checkInProgress: checkInProgressRef.current,
+        routerReady: router.isReady,
+      });
+      return;
+    }
+    // ... rest of authorization logic ...
+  }, [router, isAuthenticated, user, getPrimaryRole, getDefaultRoute]);
 
-## 5. Request for Assistance
+  // Show loading screen while authorizing
+  if (isAuthorizing) {
+    AuthLogger.info('[RouteGuard] Displaying loading screen.', {
+      isAuthorizing
+    });
+    return <AuthLoadingScreen />;
+  }
 
-The preliminary bugs have been resolved, and the code is now more robust. However, this layout selection issue points to a potentially deeper problem within the React context and rendering lifecycle.
-
-I would appreciate your expertise in diagnosing why the `user.roles` check is failing in `_app.tsx` immediately after login, despite the `AuthContext` appearing to have the correct state.
-
-I have also noticed the preloader in the `RouteGuard` is not well-styled. It would be beneficial to improve its appearance while we resolve the main issue.
-
-Thank you for your guidance.
+  // Render protected content
+  return <>{children}</>;
+};
+```

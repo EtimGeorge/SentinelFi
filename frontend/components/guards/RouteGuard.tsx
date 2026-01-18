@@ -66,7 +66,6 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
     user, 
     isAuthenticated, 
     isLoading, 
-    isInitialized, 
     getPrimaryRole,
     getDefaultRoute 
   } = useAuth();
@@ -79,11 +78,10 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
   // ============================================================================
 
   useEffect(() => {
-    // Only run if not already checking, and auth has initialized and router is ready
-    if (checkInProgressRef.current || !isInitialized || !router.isReady) {
-      AuthLogger.info('[RouteGuard] Waiting for initialization or router readiness, or check in progress.', {
+    // Only run if not already checking, and router is ready
+    if (checkInProgressRef.current || !router.isReady) {
+      AuthLogger.info('[RouteGuard] Waiting for router readiness, or check in progress.', {
         checkInProgress: checkInProgressRef.current,
-        isInitialized,
         routerReady: router.isReady,
       });
       return;
@@ -207,22 +205,20 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
       }
     };
 
-    // Only run authorization check if auth has finished initializing and router is ready
-    if (isInitialized && router.isReady) {
+    // Only run authorization check if router is ready
+    if (router.isReady) {
       checkAuthorization();
     }
 
-  }, [router, isAuthenticated, user, isInitialized, getPrimaryRole, getDefaultRoute]);
+  }, [router, isAuthenticated, user, getPrimaryRole, getDefaultRoute]);
 
   // ============================================================================
   // RENDER LOGIC
   // ============================================================================
 
-  // Show loading screen while auth is initializing or authorizing
-  if (!isInitialized || isLoading || isAuthorizing) {
+  // Show loading screen while authorizing
+  if (isAuthorizing) {
     AuthLogger.info('[RouteGuard] Displaying loading screen.', {
-      isInitialized,
-      isLoading,
       isAuthorizing
     });
     return <AuthLoadingScreen />;
