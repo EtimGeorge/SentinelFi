@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import api from '../../lib/api'; // Adjusted import path from '@/lib/api'
 
 // Import existing shared types from project
-import { Role as RoleEnumRaw } from '@shared/types/role.enum'; // Renamed to avoid local Enum conflict
+import { Role } from '@shared/types/role.enum'; // Directly import Role
 import { UserPayload as BackendUserPayload } from '@shared/types/user'; // Backend payload
 import { AppUser, AppRole, LoginApiResponse } from '../../types/auth'; // Frontend AppUser and AppRole
 
@@ -12,8 +12,7 @@ import { AppUser, AppRole, LoginApiResponse } from '../../types/auth'; // Fronte
 // TYPES & ENUMS (Adjusted to project's existing types)
 // ============================================================================
 
-// Use the project's existing RoleEnum
-export const RoleEnum = RoleEnumRaw;
+
 export type Role = AppRole; // Use existing AppRole type
 
 export interface AuthState {
@@ -43,10 +42,10 @@ export interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
   verifyMFA: (code: string, mfaToken: string) => Promise<LoginResult>;
   refreshAuth: () => Promise<void>;
-  hasRole: (role: RoleEnum) => boolean;
-  hasAnyRole: (roles: RoleEnum[]) => boolean;
+  hasRole: (role: Role) => boolean;
+  hasAnyRole: (roles: Role[]) => boolean;
   hasPermission: (permission: string) => boolean;
-  getPrimaryRole: () => RoleEnum | null;
+  getPrimaryRole: () => Role | null;
   getDefaultRoute: () => string;
 }
 
@@ -55,14 +54,14 @@ export interface AuthContextValue extends AuthState {
 // ============================================================================
 
 // Adapting to existing project routes
-export const ROLE_ROUTES: Record<RoleEnum, string> = {
-  [RoleEnum.SuperAdmin]: '/super', // As per navigationMap.ts
-  [RoleEnum.Admin]: '/admin/dashboard', // Assuming general admin dashboard
-  [RoleEnum.ITHead]: '/dashboard/home',
-  [RoleEnum.Finance]: '/dashboard/home',
-  [RoleEnum.OperationalHead]: '/dashboard/home',
-  [RoleEnum.CEO]: '/dashboard/home',
-  [RoleEnum.AssignedProjectUser]: '/dashboard/home',
+export const ROLE_ROUTES: Record<Role, string> = {
+  [Role.SuperAdmin]: '/super', // As per navigationMap.ts
+  [Role.Admin]: '/admin/dashboard', // Assuming general admin dashboard
+  [Role.ITHead]: '/dashboard/home',
+  [Role.Finance]: '/dashboard/home',
+  [Role.OperationalHead]: '/dashboard/home',
+  [Role.CEO]: '/dashboard/home',
+  [Role.AssignedProjectUser]: '/dashboard/home',
 };
 
 // Expanded public routes (as per project's existing definition)
@@ -344,35 +343,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // ROLE & PERMISSION CHECKS (Using project's existing logic)
   // ============================================================================
 
-  const hasRole = useCallback((role: RoleEnum): boolean => {
+  const hasRole = useCallback((role: Role): boolean => {
     return state.user?.roles.some(r => r.name === role) ?? false;
   }, [state.user]);
 
-  const hasAnyRole = useCallback((roles: RoleEnum[]): boolean => {
+  const hasAnyRole = useCallback((roles: Role[]): boolean => {
     return roles.some(role => hasRole(role));
   }, [hasRole]);
 
   const hasPermission = useCallback((permission: string): boolean => {
     // SuperAdmin implicitly has all permissions
-    if (state.user?.roles.some(r => r.name === RoleEnum.SuperAdmin)) {
+    if (state.user?.roles.some(r => r.name === Role.SuperAdmin)) {
       return true;
     }
     // Check against the flattened permissions list on the user object
     return state.user?.permissions?.includes(permission) ?? false;
   }, [state.user]);
 
-  const getPrimaryRole = useCallback((): RoleEnum | null => {
+  const getPrimaryRole = useCallback((): Role | null => {
     if (!state.user?.roles.length) return null;
     
     // Priority order: SuperAdmin > Admin > ITHead > CEO > Finance > OperationalHead > AssignedProjectUser
     const rolePriority = [
-      RoleEnum.SuperAdmin,
-      RoleEnum.Admin,
-      RoleEnum.ITHead,
-      RoleEnum.CEO,
-      RoleEnum.Finance,
-      RoleEnum.OperationalHead,
-      RoleEnum.AssignedProjectUser,
+      Role.SuperAdmin,
+      Role.Admin,
+      Role.ITHead,
+      Role.CEO,
+      Role.Finance,
+      Role.OperationalHead,
+      Role.AssignedProjectUser,
     ];
 
     for (const role of rolePriority) {

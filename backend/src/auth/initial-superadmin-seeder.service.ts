@@ -28,7 +28,9 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
     this.logger.log(`--- Starting SuperAdmin Seeding (NODE_ENV: ${nodeEnv}) ---`);
 
     let superAdminEmail = this.configService.get<string>("SUPERADMIN_EMAIL");
+    this.logger.debug(`ConfigService sees SUPERADMIN_EMAIL: ${superAdminEmail}`); // Debug log
     let superAdminPassword = this.configService.get<string>("SUPERADMIN_PASSWORD");
+    this.logger.debug(`ConfigService sees SUPERADMIN_PASSWORD: ${superAdminPassword}`); // Debug log
 
     const isProduction = nodeEnv === "production";
 
