@@ -57,10 +57,11 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
         }
 
         // --- Find or Create SuperAdmin User ---
-        let user = await this.usersRepository.findOne({
-            where: { email: superAdminEmail },
-            relations: ["roles"], // Eager load roles to manage relationship
-        });
+        let user = await this.usersRepository.createQueryBuilder("user")
+            .addSelect("user.password_hash")
+            .leftJoinAndSelect("user.roles", "role")
+            .where("user.email = :email", { email: superAdminEmail })
+            .getOne();
 
         let passwordChanged = false;
 

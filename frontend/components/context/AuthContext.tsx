@@ -319,7 +319,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
 
+      AuthLogger.info('Token found. Calling /auth/me...');
       const response = await api.get<{ user: BackendUserPayload }>('/auth/me');
+      AuthLogger.info('/auth/me call completed.');
       
       if (response.data?.user) {
         const appUser = adaptBackendUserPayloadToAppUser(response.data.user);
