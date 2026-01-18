@@ -5,16 +5,15 @@ import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import { useAuth } from '../../components/context/AuthContext';
+import { useAuth, RoleEnum as UserRoleEnum } from '../../components/context/AuthContext';
 import { AuditLogEntity } from '@shared/types/audit';
-import { Role as UserRoleEnum } from '@shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import { Users, Plus, X, Edit3, Save, Loader2, AlertTriangle, Trash2, Search, Calendar, Filter, Building } from 'lucide-react'; // Added Building icon
 
 const ITEMS_PER_PAGE = 10;
 
 const AuditLogPage: React.FC = () => {
-  const { user, isInitialLoad } = useAuth();
+  const { user, isInitialLoad, hasAnyRole } = useAuth();
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
 
@@ -46,14 +45,14 @@ const AuditLogPage: React.FC = () => {
         targetType: targetTypeFilter,
         startDate: startDate,
         endDate: endDate,
-        tenantId: (user?.role === UserRoleEnum.SuperAdmin || user?.role === UserRoleEnum.ITHead) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/ITHead can filter, otherwise undefined means no filter by query param
+        tenantId: hasAnyRole([UserRoleEnum.SuperAdmin, UserRoleEnum.ITHead]) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/ITHead can filter, otherwise undefined means no filter by query param
       };
 
       // If user is Admin, they can only see their own tenant's logs
-      if (user?.role === UserRoleEnum.Admin && user?.tenant_id) {
-        params.tenantId = user.tenant_id;
-      } else if (user?.role === UserRoleEnum.Admin && !user?.tenant_id) {
-        // Admin user without tenant_id should not see any logs
+      if (hasAnyRole([UserRoleEnum.Admin]) && user?.tenantId) {
+        params.tenantId = user.tenantId;
+      } else if (hasAnyRole([UserRoleEnum.Admin]) && !user?.tenantId) {
+        // Admin user without tenantId should not see any logs
         setAuditLogs([]);
         setTotalLogs(0);
         setLoading(false);
@@ -77,14 +76,14 @@ const AuditLogPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [api, addToast, currentPage, userSearchTerm, actionTypeFilter, targetTypeFilter, startDate, endDate, tenantIdFilter, user]);
+  }, [api, addToast, currentPage, userSearchTerm, actionTypeFilter, targetTypeFilter, startDate, endDate, tenantIdFilter, user, hasAnyRole]); // Added hasAnyRole to dep array
 
   useEffect(() => {
     // Only fetch if user is authenticated and has appropriate roles
-    if (!isInitialLoad && (user?.role === UserRoleEnum.Admin || user?.role === UserRoleEnum.SuperAdmin || user?.role === UserRoleEnum.ITHead)) {
+    if (!isInitialLoad && (hasAnyRole([UserRoleEnum.Admin, UserRoleEnum.SuperAdmin, UserRoleEnum.ITHead]))) {
       fetchAuditLogs();
     }
-  }, [user, isInitialLoad, fetchAuditLogs]); // Removed tenantIdFilter from dep array to prevent double fetch on superadmin toggle
+  }, [user, isInitialLoad, fetchAuditLogs, hasAnyRole]); // Added hasAnyRole to dep array
 
   const totalPages = Math.ceil(totalLogs / ITEMS_PER_PAGE);
 
@@ -97,7 +96,7 @@ const AuditLogPage: React.FC = () => {
   }
 
   // Access Control: Only Admin, SuperAdmin, ITHead can access
-  if (!user || !(user.role === UserRoleEnum.Admin || user.role === UserRoleEnum.SuperAdmin || user.role === UserRoleEnum.ITHead)) {
+  if (!user || !(hasAnyRole([UserRoleEnum.Admin, UserRoleEnum.SuperAdmin, UserRoleEnum.ITHead]))) {
     return (
       <PageContainer title="Access Denied" subtitle="Unauthorized Access">
         <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
@@ -108,7 +107,7 @@ const AuditLogPage: React.FC = () => {
     );
   }
 
-  const isSuperAdminOrITHead = user.role === UserRoleEnum.SuperAdmin || user.role === UserRoleEnum.ITHead;
+  const isSuperAdminOrITHead = hasAnyRole([UserRoleEnum.SuperAdmin, UserRoleEnum.ITHead]);
 
   return (
     <>

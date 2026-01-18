@@ -2,6 +2,7 @@
 import { useAuth, RoleEnum, AuthLogger } from '../components/context/AuthContext'; // Using relative path for AuthContext
 import { useRouter } from 'next/router';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+export { RoleEnum } from '../components/context/AuthContext';
 
 // ============================================================================
 // ROLE-BASED RENDERING HOOK

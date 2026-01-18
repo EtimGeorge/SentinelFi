@@ -4,12 +4,12 @@ import PageContainer from '../components/Layout/PageContainer';
 import { Settings, Users, Plug, Activity } from 'lucide-react';
 import Link from 'next/link';
 import Card from '../components/common/Card';
-import { useAuth, Role } from '../components/context/AuthContext';
+import { useAuth, RoleEnum as Role } from '../components/context/AuthContext';
 
 const SettingsPage: React.FC = () => {
-    const { user } = useAuth();
+    const { hasAnyRole } = useAuth();
     // Admin and IT Head have user management privileges
-    const isAdminOrITHead = user?.role === Role.Admin || user?.role === Role.ITHead;
+    const isAdminOrITHead = hasAnyRole([Role.Admin, Role.ITHead]);
 
   return (
     <>
@@ -34,7 +34,7 @@ const SettingsPage: React.FC = () => {
           )}
           
           {/* WBS Category Management (For Admin/Finance) */}
-          {(user?.role === Role.Admin || user?.role === Role.Finance) && (
+          {(hasAnyRole([Role.Admin, Role.Finance])) && (
               <Link href="/wbs-manager" className="block">
                   <Card className="hover:bg-gray-700/50 transition h-full" borderTopColor="primary">
                       <Activity className="w-8 h-8 text-brand-primary mb-3" />

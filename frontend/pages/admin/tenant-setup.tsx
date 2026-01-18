@@ -4,7 +4,7 @@ import PageContainer from '../../components/Layout/PageContainer';
 import { Layers3, Plus, Trash2, Edit3, Save, X, Loader2, AlertTriangle, CloudUpload } from 'lucide-react'; // Added CloudUpload
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import { useAuth, Role } from '../../components/context/AuthContext';
+import { useAuth, RoleEnum as Role } from '../../components/context/AuthContext';
 
 // Interface for Tenant Entity (mirrors backend TenantEntity)
 interface Tenant {
@@ -24,9 +24,9 @@ interface TenantSetupForm {
 }
 
 const TenantProjectSetupPage: React.FC = () => {
-  const { user } = useAuth();
+  const { hasAnyRole } = useAuth();
   const api = useSecuredApi();
-  const isAdminOrFinance = user?.role === Role.Admin || user?.role === Role.Finance;
+  const isAdminOrFinance = hasAnyRole([Role.Admin, Role.Finance]);
 
   const [formData, setFormData] = useState<TenantSetupForm>({
     name: '',

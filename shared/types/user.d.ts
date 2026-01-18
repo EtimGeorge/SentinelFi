@@ -2,8 +2,9 @@ import { Role } from './role.enum';
 export interface User {
     id: string;
     email: string;
-    role: Role;
+    roles: Role[]; // Corrected to plural 'roles'
     is_active: boolean;
+    tenant_id?: string | null;
 }
 export interface JwtPayload extends User {
     iat: number;

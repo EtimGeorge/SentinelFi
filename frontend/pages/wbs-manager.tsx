@@ -4,7 +4,7 @@ import PageContainer from '../components/Layout/PageContainer';
 import { TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle, ChevronRight, ChevronDown, Layers } from 'lucide-react';
 import Card from '../components/common/Card';
 import { useSecuredApi } from '../components/hooks/useSecuredApi';
-import { Role, useAuth } from '../components/context/AuthContext';
+import { useAuth, RoleEnum as Role } from '../components/context/AuthContext';
 import useToast from '../store/toastStore';
 import { formatCurrency, getWBSColor } from '../lib/utils';
 
@@ -17,7 +17,7 @@ interface WBSItem {
 }
 
 const WBSManagerPage: React.FC = () => {
-  const { user } = useAuth();
+  const { hasAnyRole } = useAuth();
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
   
@@ -29,7 +29,7 @@ const WBSManagerPage: React.FC = () => {
   const [actionNode, setActionNode] = useState<{ type: 'add' | 'edit', parentId: string | null, node?: WBSItem } | null>(null);
   const [formData, setFormData] = useState({ code: '', description: '', amount: 0 });
 
-  const canManage = user?.role === Role.Admin || user?.role === Role.Finance;
+  const canManage = hasAnyRole([Role.Admin, Role.Finance]);
 
   const fetchWBSData = useCallback(async () => {
     setLoading(true);

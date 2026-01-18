@@ -1,7 +1,8 @@
 // frontend/pages/_app.tsx
 import type { AppProps } from 'next/app';
 import { useRouter } from 'next/router';
-import { AuthProvider, useAuth, PUBLIC_ROUTES } from '../components/context/AuthContext'; // Using relative path for AuthContext
+import Head from 'next/head'; // Import Head
+import { AuthProvider, useAuth, PUBLIC_ROUTES, AuthLogger } from '../components/context/AuthContext'; // Using relative path for AuthContext
 import RouteGuard from '../components/guards/RouteGuard'; // Using relative path for RouteGuard
 import SuperAdminLayout from '../components/Layout/SuperAdminLayout'; // Using relative path for SuperAdminLayout
 import SecuredLayout from '../components/Layout/SecuredLayout'; // Using relative path for SecuredLayout
@@ -18,15 +19,15 @@ import { Role as RoleEnum } from '@shared/types/role.enum'; // Import RoleEnum d
 
 function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, isInitialized } = useAuth();
+  const { user, isAuthenticated, isInitialLoad, isInitialized } = useAuth();
 
   // ========================================================================
   // CRITICAL: Wait for auth initialization
   // Show a basic loading screen until AuthContext is fully initialized.
   // This prevents layout flashes and ensures auth state is stable for RouteGuard and layout selection.
   // ========================================================================
-  if (!isInitialized || isLoading) {
-    AuthLogger.info('[_app] Auth still initializing or loading user...', { isInitialized, isLoading });
+  if (isInitialLoad) { // Use isInitialLoad here for the very first render
+    AuthLogger.info('[_app] Auth still initializing or loading user...', { isInitialized, isInitialLoad });
     return <AppLoadingFallback />;
   }
 

@@ -1,30 +1,26 @@
-Failed to compile
-./hooks/useAuthHooks.ts
-Error: 
-  × Expression expected
-     ╭─[C:\temp\SentinelFi\frontend\hooks\useAuthHooks.ts:223:1]
- 223 │ 
- 224 │ 
- 225 │   if (!isInitialized || isLoading) return null; // Or a loading spinner
- 226 │   return canAccess ? <>{children}</> : <>{fallback}</>;
-     ·                       ─
- 227 │ };
- 228 │ 
- 229 │ // ============================================================================
-     ╰────
-
-  × Expression expected
-     ╭─[C:\temp\SentinelFi\frontend\hooks\useAuthHooks.ts:223:1]
- 223 │ 
- 224 │ 
- 225 │   if (!isInitialized || isLoading) return null; // Or a loading spinner
- 226 │   return canAccess ? <>{children}</> : <>{fallback}</>;
-     ·                                                       ─
- 227 │ };
- 228 │ 
- 229 │ // ============================================================================
-     ╰────
-
-Caused by:
-    Syntax Error
-This error occurred during the build process and can only be dismissed by fixing the error.
+✓ Compiled in 3.2s (411 modules)
+ ✓ Compiled in 552ms (232 modules)
+[AUTH] [RouteGuard] Displaying loading screen. { isInitialized: false, isLoading: true, isAuthorizing: true }
+[AUTH] [RouteGuard] Displaying loading screen. { isInitialized: false, isLoading: true, isAuthorizing: true }
+ ✓ Compiled in 824ms (232 modules)
+ ✓ Compiled in 637ms (232 modules)
+ ✓ Compiled in 414ms (232 modules)
+ ✓ Compiled in 752ms (232 modules)
+ ✓ Compiled in 1054ms (232 modules)
+ ✓ Compiled in 609ms (232 modules)
+ ✓ Compiled in 651ms (232 modules)
+ ✓ Compiled in 717ms (232 modules)
+ ✓ Compiled in 903ms (232 modules)
+ ✓ Compiled in 609ms (232 modules)
+ ✓ Compiled in 493ms (232 modules)
+ ✓ Compiled in 522ms (232 modules)
+ ✓ Compiled in 932ms (232 modules)
+ ✓ Compiled in 702ms (232 modules)
+ ✓ Compiled in 3.1s (411 modules)
+[AUTH] [RouteGuard] Displaying loading screen. { isInitialized: false, isLoading: true, isAuthorizing: true }
+[AUTH] [RouteGuard] Displaying loading screen. { isInitialized: false, isLoading: true, isAuthorizing: true }
+ ✓ Compiled in 882ms (232 modules)
+[AUTH] [RouteGuard] Displaying loading screen. { isInitialized: false, isLoading: true, isAuthorizing: true }
+[AUTH] [RouteGuard] Displaying loading screen. { isInitialized: false, isLoading: true, isAuthorizing: true }
+ ✓ Compiled in 1245ms (232 modules)
+ ✓ Compiled in 736ms (232 modules)

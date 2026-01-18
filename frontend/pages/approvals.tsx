@@ -26,10 +26,15 @@ interface MajorException {
   item_description: string;
   actual_paid_amount: number;
   variance_flag: string;
+  // Added missing properties based on usage
+  wbsBudget?: { wbs_code: string };
+  description?: string;
+  expense_date?: string;
+  amount?: number;
 }
 
 const ApprovalsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { hasAnyRole } = useAuth();
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
   
@@ -39,7 +44,7 @@ const ApprovalsPage: React.FC = () => {
   const [loadingExceptions, setLoadingExceptions] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const isFinanceOrAdmin = user?.role === UserRoleEnum.Finance || user?.role === UserRoleEnum.Admin;
+  const isFinanceOrAdmin = hasAnyRole([UserRoleEnum.Finance, UserRoleEnum.Admin]);
 
   const fetchPendingDrafts = useCallback(async () => {
     if (!isFinanceOrAdmin) return;

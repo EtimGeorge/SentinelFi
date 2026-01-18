@@ -1,14 +1,13 @@
 import React from 'react';
 import Link from 'next/link';
-import { useAuth } from '../components/context/AuthContext';
-import { Role } from '../components/context/AuthContext';
+import { useAuth, RoleEnum as Role } from '../components/context/AuthContext';
 
 const UnauthorizedPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, getPrimaryRole } = useAuth();
 
   const getDashboardLink = () => {
     if (!user) return '/login';
-    switch (user.role) {
+    switch (getPrimaryRole()) {
       case Role.CEO:
       case Role.Finance:
         return '/dashboard/ceo';

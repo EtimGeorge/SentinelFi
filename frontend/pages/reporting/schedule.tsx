@@ -4,7 +4,7 @@ import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import { Send, Clock, SlidersHorizontal, FileDown } from 'lucide-react'; // Added SlidersHorizontal, FileDown
-import { Role } from '../../components/context/AuthContext';
+import { RoleEnum as Role } from '../../components/context/AuthContext';
 import useToast from '../../store/toastStore';
 import { useAuth } from '../../components/context/AuthContext'; // NEW: Import useAuth
 import { RollupData } from '../../components/dashboard/WBSHierarchyTree';
@@ -36,7 +36,7 @@ interface AutomatedReportRequestDto {
 }
 
 const AutomatedReporting: React.FC = () => {
-    const { user } = useAuth(); // NEW: Get current user for RBAC
+    const { hasAnyRole } = useAuth(); // NEW: Get current user for RBAC
     const api = useSecuredApi();
     const addToast = useToast(state => state.addToast);
     const [formData, setFormData] = useState<AutomatedReportRequestDto>({
@@ -52,7 +52,7 @@ const AutomatedReporting: React.FC = () => {
     const [projects, setProjects] = useState<RollupData[]>([]); // NEW: State for projects (root WBS items)
     const [loading, setLoading] = useState(false);
 
-    const isAdminOrCEO = user?.role === Role.Admin || user?.role === Role.CEO;
+    const isAdminOrCEO = hasAnyRole([Role.Admin, Role.CEO]);
 
     // Fetch WBS Categories and Projects for the filter dropdowns
     useEffect(() => {

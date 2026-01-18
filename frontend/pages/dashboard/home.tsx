@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
-import { useAuth, Role } from '../../components/context/AuthContext';
+import { useAuth, RoleEnum as Role } from '../../components/context/AuthContext';
 import { LayoutDashboard, Zap, FileText, Bell, Clock, BarChart2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Card from '../../components/common/Card';
@@ -23,7 +23,7 @@ interface ActivityLog {
 }
 
 const DashboardHome: React.FC = () => {
-  const { user } = useAuth();
+  const { user, hasAnyRole, getPrimaryRole } = useAuth();
   const api = useSecuredApi();
   const [stats, setStats] = useState<SummaryStats | null>(null);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
@@ -56,14 +56,14 @@ const DashboardHome: React.FC = () => {
     { label: 'View Financial Reports', href: '/reporting/variance', icon: LayoutDashboard, roles: [Role.Finance, Role.Admin, Role.OperationalHead, Role.CEO] },
   ];
   
-  const relevantActions = actionLinks.filter(link => user && link.roles.some(role => user.role === role));
+  const relevantActions = actionLinks.filter(link => hasAnyRole(link.roles));
 
   return (
     <>
       <Head><title>Welcome | SentinelFi</title></Head>
       <PageContainer
         title={`Welcome, ${user?.email.split('@')[0]}!`}
-        subtitle={`You are logged in as a ${user?.role}.`}
+        subtitle={`You are logged in as a ${getPrimaryRole()}.`}
       >
         <h2 className="text-2xl font-semibold text-white mb-6 border-b border-gray-700 pb-2">Quick Navigation</h2>
         

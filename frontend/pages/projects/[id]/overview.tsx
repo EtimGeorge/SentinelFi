@@ -243,7 +243,7 @@ const ProjectOverviewPage: React.FC = () => {
     }
   };
 
-  const handleDownloadExpenses = async (format: 'csv' | 'pdf' | 'xlsx' = 'csv') => {
+  const handleExportExpenses = async (format: 'csv' | 'pdf' | 'xlsx' = 'csv') => {
     try {
       const response = await api.get(`/wbs/expenses/export?projectId=${id}&format=${format}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -426,11 +426,22 @@ const ProjectOverviewPage: React.FC = () => {
                           <div className="grid grid-cols-2 gap-3">
                               <button onClick={handleDownloadBudgets} className="flex flex-col items-center justify-center p-4 bg-gray-800/50 rounded-xl hover:bg-gray-700 transition border border-gray-700">
                                   <Download className="w-6 h-6 text-brand-secondary mb-2" />
-                                  <span className="text-xs font-bold text-gray-300">Export Budget</span>
+                                  <span className="text-xs font-bold text-gray-300">Export Budget (CSV)</span>
                               </button>
-                              <button onClick={handleDownloadExpenses} className="flex flex-col items-center justify-center p-4 bg-gray-800/50 rounded-xl hover:bg-gray-700 transition border border-gray-700">
+                              <div className="relative group">
+                                <button className="flex flex-col items-center justify-center p-4 bg-gray-800/50 rounded-xl hover:bg-gray-700 transition border border-gray-700 w-full">
+                                    <Download className="w-6 h-6 text-brand-primary mb-2" />
+                                    <span className="text-xs font-bold text-gray-300">Export Expenses</span>
+                                </button>
+                                <div className="absolute left-0 right-0 top-full mt-1 hidden group-hover:block bg-brand-dark border border-gray-700 rounded-lg shadow-lg z-10">
+                                    <button onClick={() => handleExportExpenses('csv')} className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-700">CSV</button>
+                                    <button onClick={() => handleExportExpenses('pdf')} className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-700">PDF</button>
+                                    <button onClick={() => handleExportExpenses('xlsx')} className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-700">Excel</button>
+                                </div>
+                              </div>
+                              <button onClick={handlePrint} className="flex flex-col items-center justify-center p-4 bg-gray-800/50 rounded-xl hover:bg-gray-700 transition border border-gray-700">
                                   <Printer className="w-6 h-6 text-brand-primary mb-2" />
-                                  <span className="text-xs font-bold text-gray-300">Print Journal</span>
+                                  <span className="text-xs font-bold text-gray-300">Print Page</span>
                               </button>
                           </div>
                       </Card>

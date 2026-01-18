@@ -87,14 +87,14 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
 
 
 const Sidebar: React.FC = () => {
-  const { user } = useAuth();
+  const { user, getPrimaryRole } = useAuth();
   const {
     isMobileSidebarOpen, closeMobileSidebar,
     isDesktopSidebarCollapsed, toggleDesktopSidebar
   } = useUIStore();
   
   // CORRECT: Generate nav items from the centralized map
-  const navItems = user ? getNavItemsForRole(user.role) : [];
+  const navItems = user ? getNavItemsForRole(getPrimaryRole()) : [];
 
   // Close mobile sidebar on navigation
   const router = useRouter();

@@ -49,4 +49,6 @@ export interface LoginApiResponse {
     permissions?: string[];
   };
   access_token: string;
+  requiresMFA?: boolean; // For multi-factor authentication
+  mfaToken?: string;     // Token to use for the MFA verification step
 }

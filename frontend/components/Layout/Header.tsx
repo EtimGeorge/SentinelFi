@@ -17,7 +17,7 @@ import { useAuth } from '../../components/context/AuthContext';
   
 const Header: React.FC = () => {
   console.log("Header component rendered");
-  const { user, logout } = useAuth();
+  const { user, logout, getPrimaryRole } = useAuth();
   const router = useRouter();
 
   // ✅ FIXED: Select primitive directly - no object, no shallow needed
@@ -84,7 +84,7 @@ const Header: React.FC = () => {
             </span>
             <span className="capitalize text-xs sm:text-sm hidden md:inline">
               {" "}
-              ({user.role})
+              ({getPrimaryRole()})
             </span>
           </span>
         )}

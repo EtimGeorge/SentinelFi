@@ -9,7 +9,7 @@ import { RollupData } from '../../components/dashboard/WBSHierarchyTree';
 import { IWbsCategoryEntity } from '../../../shared/types/wbs';
 import useToast from '../../store/toastStore';
 import PageContainer from '../../components/Layout/PageContainer';
-import { useAuth, Role } from '../../components/context/AuthContext';
+import { useAuth, RoleEnum as Role } from '../../components/context/AuthContext';
 
 // Enum for Variance Status
 enum VarianceStatus {
@@ -57,7 +57,7 @@ interface LiveExpenseException {
 }
 
 const VarianceReportPage: React.FC = () => {
-  const { user } = useAuth(); // Get current user for RBAC
+  const { hasAnyRole } = useAuth(); // Get current user for RBAC
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
   const [reportData, setReportData] = useState<RollupData[]>([]);
@@ -79,7 +79,7 @@ const VarianceReportPage: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
 
-  const isAdminOrCEO = user?.role === Role.Admin || user?.role === Role.CEO;
+  const isAdminOrCEO = hasAnyRole([Role.Admin, Role.CEO]);
 
   // Fetch all necessary data
   useEffect(() => {
@@ -289,7 +289,7 @@ const VarianceReportPage: React.FC = () => {
                       <label htmlFor="reportScope" className="block text-sm font-medium text-gray-400 mb-1">Report Scope</label>
                       <select name="reportScope" id="reportScope" value={filters.reportScope} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white appearance-none">
                           {/* RBAC: Admin/CEO can view All Projects */}
-                          {(user?.role === Role.Admin || user?.role === Role.CEO) && (
+                          {(isAdminOrCEO) && (
                             <option value={ReportScope.AllProjects} className="bg-gray-800">All Projects</option>
                           )}
                           <option value={ReportScope.IndividualProject} className="bg-gray-800">Individual Project</option>

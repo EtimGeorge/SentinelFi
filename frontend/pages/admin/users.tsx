@@ -120,7 +120,7 @@ const allRoles = Object.values(UserRoleEnum);
 const ITEMS_PER_PAGE = 10;
 
 const UserManagementPage: React.FC = () => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, hasAnyRole } = useAuth();
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
   
@@ -173,14 +173,14 @@ const UserManagementPage: React.FC = () => {
   }, [api, addToast]);
 
   useEffect(() => {
-    if (currentUser?.role === UserRoleEnum.Admin || currentUser?.role === UserRoleEnum.ITHead || currentUser?.role === UserRoleEnum.SuperAdmin) {
+    if (hasAnyRole([UserRoleEnum.Admin, UserRoleEnum.ITHead, UserRoleEnum.SuperAdmin])) {
       fetchUsers();
       fetchTenants();
     } else {
       setLoading(false);
       addToast('Access Denied: You do not have permission to manage users.', 'error');
     }
-  }, [currentUser, fetchUsers, fetchTenants, addToast]);
+  }, [hasAnyRole, fetchUsers, fetchTenants, addToast]);
 
   const handleCreateUser = async (userData: ICreateUserPayload) => {
     setFormLoading(true);
@@ -202,8 +202,8 @@ const UserManagementPage: React.FC = () => {
 
   const handleEditClick = (user: User) => {
     setEditingUserId(user.id);
-    setEditedRole(user.role);
-    setEditedTenantId(user.tenant_id);
+    setEditedRole(user.roles[0]?.name || ''); // Access first role in the array
+    setEditedTenantId(user.tenant_id || null);
   };
 
   const handleSaveUser = async (userId: string) => {
@@ -296,7 +296,7 @@ const UserManagementPage: React.FC = () => {
   const filteredUsers = useMemo(() => {
     return users
       .filter(user => user.email.toLowerCase().includes(searchTerm.toLowerCase()))
-      .filter(user => roleFilter ? user.role === roleFilter : true)
+      .filter(user => roleFilter ? user.roles.some(r => r.name === roleFilter) : true)
       .filter(user => statusFilter ? user.is_active.toString() === statusFilter : true);
   }, [users, searchTerm, roleFilter, statusFilter]);
 
@@ -307,7 +307,7 @@ const UserManagementPage: React.FC = () => {
 
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
 
-  if (!(currentUser?.role === UserRoleEnum.Admin || currentUser?.role === UserRoleEnum.ITHead || currentUser?.role === UserRoleEnum.SuperAdmin)) {
+  if (!(hasAnyRole([UserRoleEnum.Admin, UserRoleEnum.ITHead, UserRoleEnum.SuperAdmin]))) {
     return (
       <PageContainer title="User & Role Management" subtitle="Access Restricted">
         <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
@@ -386,10 +386,10 @@ const UserManagementPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white font-medium">{user.email}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {editingUserId === user.id ? (
-                          <select value={editedRole} onChange={(e) => setEditedRole(e.target.value as UserRoleEnum)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={user.role === UserRoleEnum.Admin || formLoading}>
+                          <select value={editedRole} onChange={(e) => setEditedRole(e.target.value as UserRoleEnum)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={user.roles.some(r => r.name === UserRoleEnum.Admin) || formLoading}>
                             {allRoles.map(role => <option key={role} value={role}>{role}</option>)}
                           </select>
-                        ) : ( <span className="text-brand-primary/80 font-medium">{user.role}</span> )}
+                        ) : ( <span className="text-brand-primary/80 font-medium">{user.roles[0]?.name || 'N/A'}</span> )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {editingUserId === user.id ? (
@@ -397,12 +397,12 @@ const UserManagementPage: React.FC = () => {
                                 {user.is_active ? 'Active' : 'Inactive'}
                             </span>
                         ) : (
-                            <Switch checked={user.is_active} onChange={() => handleStatusToggle(user.id, user.is_active)} disabled={user.role === UserRoleEnum.Admin || formLoading} />
+                            <Switch checked={user.is_active} onChange={() => handleStatusToggle(user.id, user.is_active)} disabled={user.roles.some(r => r.name === UserRoleEnum.Admin) || formLoading} />
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                          {editingUserId === user.id ? (
-                            <select value={editedTenantId || ''} onChange={(e) => setEditedTenantId(e.target.value || null)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={! (currentUser?.role === UserRoleEnum.SuperAdmin) || formLoading}>
+                            <select value={editedTenantId || ''} onChange={(e) => setEditedTenantId(e.target.value || null)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={! (hasAnyRole([UserRoleEnum.SuperAdmin])) || formLoading}>
                               <option value="">-- System User --</option>
                               {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
@@ -411,14 +411,14 @@ const UserManagementPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         {editingUserId === user.id ? (
                           <div className="flex items-center justify-end space-x-4">
-                            <button onClick={() => handleSaveUser(user.id)} disabled={formLoading || user.role === UserRoleEnum.Admin} className="text-alert-positive hover:text-green-300 disabled:opacity-50 disabled:cursor-not-allowed" title="Save Changes"><Save className="w-5 h-5" /></button>
+                            <button onClick={() => handleSaveUser(user.id)} disabled={formLoading || user.roles.some(r => r.name === UserRoleEnum.Admin)} className="text-alert-positive hover:text-green-300 disabled:opacity-50 disabled:cursor-not-allowed" title="Save Changes"><Save className="w-5 h-5" /></button>
                             <button onClick={() => setEditingUserId(null)} disabled={formLoading} className="text-gray-400 hover:text-white disabled:opacity-50" title="Cancel"><X className="w-5 h-5" /></button>
                           </div>
                         ) : (
                           <div className="flex items-center justify-end space-x-4">
                             <button onClick={() => handlePasswordResetClick(user.id)} className="text-gray-400 hover:text-brand-primary transition disabled:opacity-50" disabled={formLoading} title="Reset Password"><KeyRound className="w-5 h-5" /></button>
-                            <button onClick={() => handleEditClick(user)} className="text-gray-400 hover:text-brand-primary transition disabled:opacity-50" disabled={user.role === UserRoleEnum.Admin || formLoading} title="Edit Role/Tenant"><Edit3 className="w-5 h-5" /></button>
-                            <button onClick={() => handleDeleteClick(user.id)} className="text-gray-400 hover:text-red-500 transition disabled:opacity-50" disabled={user.role === UserRoleEnum.Admin || formLoading} title="Deactivate User"><Trash2 className="w-5 h-5" /></button>
+                            <button onClick={() => handleEditClick(user)} className="text-gray-400 hover:text-brand-primary transition disabled:opacity-50" disabled={user.roles.some(r => r.name === UserRoleEnum.Admin) || formLoading} title="Edit Role/Tenant"><Edit3 className="w-5 h-5" /></button>
+                            <button onClick={() => handleDeleteClick(user.id)} className="text-gray-400 hover:text-red-500 transition disabled:opacity-50" disabled={user.roles.some(r => r.name === UserRoleEnum.Admin) || formLoading} title="Deactivate User"><Trash2 className="w-5 h-5" /></button>
                           </div>
                         )}
                       </td>
@@ -440,7 +440,7 @@ const UserManagementPage: React.FC = () => {
         </Card>
       </PageContainer>
       
-      <CreateUserModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateUser} loading={formLoading} error={createError} roles={allRoles} tenants={tenants} isSuperAdmin={currentUser?.role === UserRoleEnum.SuperAdmin} />
+      <CreateUserModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateUser} loading={formLoading} error={createError} roles={allRoles} tenants={tenants} isSuperAdmin={hasAnyRole([UserRoleEnum.SuperAdmin])} />
       
       <ConfirmationModal
           isOpen={showDeleteConfirm}

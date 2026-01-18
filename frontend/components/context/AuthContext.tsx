@@ -5,8 +5,8 @@ import { toast } from 'react-hot-toast'; // For notifications
 import api from '../../lib/api'; // Our existing API client
 
 // Import existing shared types
-export { Role as RoleEnum } from '@shared/types/role.enum';
-export { Role } from '@shared/types/role.enum';
+import { Role as RoleEnum } from '@shared/types/role.enum';
+export { RoleEnum };
 import { UserPayload as BackendUserPayload } from '@shared/types/user'; // Rename to avoid conflict
 
 // Import new frontend-specific types
@@ -37,6 +37,7 @@ export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean; // Initial loading state (e.g., checking token on mount)
   isInitialized: boolean; // NEW: Tracks if auth has completed initial load (crucial for _app.tsx)
+  isInitialLoad: boolean; // Legacy support for components expecting this
   error: string | null;
 }
 
@@ -197,6 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: false,
     isLoading: true, // Initially true for token check
     isInitialized: false, // NEW: Becomes true after initial token check
+    isInitialLoad: true,
     error: null,
   });
 
@@ -354,7 +356,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       AuthLogger.info('Initializing auth state...');
-      updateState({ isLoading: true }); // Start loading for initialization
+      // No need to set isLoading here as it's true by default
       
       try {
         const user = await fetchCurrentUser();
@@ -368,6 +370,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isAuthenticated: true,
             isLoading: false,
             isInitialized: true,
+            isInitialLoad: false, // Initial load is complete
             error: null,
           });
         } else {
@@ -378,6 +381,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isAuthenticated: false,
             isLoading: false,
             isInitialized: true,
+            isInitialLoad: false, // Initial load is complete
             error: null,
           });
         }
@@ -390,6 +394,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAuthenticated: false,
           isLoading: false,
           isInitialized: true,
+          isInitialLoad: false, // Initial load is complete
           error: 'Failed to initialize authentication',
         });
       }
@@ -531,6 +536,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user: null,
         isAuthenticated: false,
         isLoading: false,
+        isInitialized: false, // Reset for next login
+        isInitialLoad: true, // Next login will be an initial load
         error: null,
       });
       AuthLogger.success('Logout complete');
