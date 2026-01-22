@@ -1,15 +1,15 @@
 // frontend/hooks/useAuthHooks.tsx
-import { useAuth, RoleEnum, AuthLogger } from '../components/context/AuthContext'; // Using relative path for AuthContext
+import { useAuth, Role, AuthLogger } from '../components/context/AuthContext'; // Using relative path for AuthContext
 import { useRouter } from 'next/router';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-export { RoleEnum } from '../components/context/AuthContext';
+export { Role } from '../components/context/AuthContext';
 
 // ============================================================================
 // ROLE-BASED RENDERING HOOK
 // ============================================================================
 
 interface UseRoleGuardOptions {
-  requiredRoles?: RoleEnum[];
+  requiredRoles?: Role[];
   requiredPermissions?: string[];
   fallbackPath?: string;
   onUnauthorized?: () => void;
@@ -224,7 +224,7 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({
 // ============================================================================
 
 interface RequireRoleProps {
-  role: RoleEnum | RoleEnum[];
+  role: Role | Role[];
   fallback?: React.ReactNode;
   children: React.ReactNode;
 }

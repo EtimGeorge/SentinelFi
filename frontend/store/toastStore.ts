@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { v4 as uuidv4 } from 'uuid'; // For unique message IDs
+import * as uuid from 'uuid';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -20,7 +20,7 @@ const useToastStore = create<ToastState>((set) => ({
   toasts: [],
 
   addToast: (message, type, duration = 5000) => {
-    const id = uuidv4();
+    const id = uuid.v4();
     set((state) => ({
       toasts: [...state.toasts, { id, message, type, duration }],
     }));

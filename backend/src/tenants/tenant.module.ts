@@ -6,7 +6,6 @@ import { TenantController } from "./tenant.controller";
 import { TenantEntity } from "./tenant.entity";
 import { WbsModule } from "../wbs/wbs.module"; // <-- New Import
 import { AuditModule } from "../audit/audit.module";
-import { TenantProvisioningService } from "./tenant-provisioning.service"; // NEW: Import TenantProvisioningService
 import { TenantMigrationModule } from "../database/tenant-migration.module"; // NEW: Import Module
 
 @Module({
@@ -18,10 +17,9 @@ import { TenantMigrationModule } from "../database/tenant-migration.module"; // 
     TenantMigrationModule, // <-- New Import for TenantService dependency
   ],
   controllers: [TenantController],
-  providers: [TenantService, TenantProvisioningService], // Add TenantProvisioningService
+  providers: [TenantService], // Removed TenantProvisioningService
   exports: [
     TenantService,
-    TenantProvisioningService, // Export the provisioning service
     TypeOrmModule.forFeature([TenantEntity]), // Export the repository
   ],
 })

@@ -69,7 +69,10 @@ interface AuditLogEntry {
   status: 'success' | 'failure'; // Based on backend AuditService logic
 }
 
-const SuperAdminDashboardPage: React.FC = () => {
+import SuperAdminLayout from '../../components/Layout/SuperAdminLayout'; // Import SuperAdminLayout
+import { NextPageWithLayout } from '../_app'; // Import NextPageWithLayout
+
+const SuperAdminDashboardPage: NextPageWithLayout = () => {
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
 
@@ -90,7 +93,7 @@ const SuperAdminDashboardPage: React.FC = () => {
 
   const fetchSystemHealth = useCallback(async () => {
     try {
-      const res = await api.get<SystemHealthResponse>('/super/dashboard/system-health');
+      const res = await api.get<SystemHealthResponse>('/super/analytics/system-health');
       setSystemHealth(res.data);
     } catch (e: any) {
       const msg = e.response?.data?.message || e.message;
@@ -101,38 +104,51 @@ const SuperAdminDashboardPage: React.FC = () => {
 
 
   const fetchDashboardData = useCallback(async () => {
+    console.log('[Dashboard] Starting data fetch...');
     setLoading(true);
     setError(null);
     try {
       // 1. Fetch Real Tenant Data
+      console.log('[Dashboard] Fetching tenants...');
       const tenantRes = await api.get<{ tenants: Tenant[], total: number }>('/super/tenants');
+      console.log('[Dashboard] Tenants fetched:', tenantRes.data.total);
       setTenants(tenantRes.data.tenants);
 
       // 2. Fetch System Health
+      console.log('[Dashboard] Fetching system health...');
       await fetchSystemHealth();
 
       // 3. Fetch Total Users
-      const totalUsersRes = await api.get<TotalUsersResponse>('/super/dashboard/total-users');
+      console.log('[Dashboard] Fetching total users...');
+      const totalUsersRes = await api.get<TotalUsersResponse>('/super/analytics/total-users');
+      console.log('[Dashboard] Total users fetched:', totalUsersRes.data.totalUsers);
       setTotalUsersCount(totalUsersRes.data.totalUsers);
 
       // 4. Fetch MRR Estimate
-      const mrrRes = await api.get<MmrEstimateResponse>('/super/dashboard/mrr-estimate');
+      console.log('[Dashboard] Fetching MRR...');
+      const mrrRes = await api.get<MmrEstimateResponse>('/super/analytics/mrr-estimate');
       setMrrEstimate(mrrRes.data.mrrEstimate);
 
       // 5. Fetch Audit Logs
+      console.log('[Dashboard] Fetching audit logs...');
       const auditRes = await api.get<{ logs: AuditLogEntry[] }>('/admin/audit/logs', { params: { limit: 5 } });
       setAuditLogs(auditRes.data.logs);
+      
+      console.log('[Dashboard] All data fetched successfully.');
 
     } catch (e: any) {
+      console.error('[Dashboard] Fetch error:', e);
       const msg = e.response?.data?.message || e.message;
       setError(`Failed to fetch dashboard data: ${msg}`);
       addToast(`Error loading dashboard: ${msg}`, 'error');
     } finally {
+      console.log('[Dashboard] Setting loading to false');
       setLoading(false);
     }
   }, [api, addToast, fetchSystemHealth]);
 
   useEffect(() => {
+    console.log('[Dashboard] Mount effect triggered');
     fetchDashboardData();
     // Poll for health every 30s
     const interval = setInterval(() => {
@@ -143,14 +159,14 @@ const SuperAdminDashboardPage: React.FC = () => {
 
   // --- Computed Metrics ---
 
-  const totalActiveTenants = useMemo(() => tenants.filter(t => t.is_active).length, [tenants]);
+  const totalActiveTenants = useMemo(() => (tenants || []).filter(t => t.is_active).length, [tenants]);
   
   const growthData = useMemo(() => {
     // Group tenants by month created
     const dataMap = new Map<string, number>();
     const monthYearFormat = { year: 'numeric', month: 'short' } as const;
 
-    tenants.forEach(t => {
+    (tenants || []).forEach(t => {
       const date = new Date(t.created_at);
       const key = date.toLocaleString('default', monthYearFormat);
       dataMap.set(key, (dataMap.get(key) || 0) + 1);
@@ -383,6 +399,12 @@ const SuperAdminDashboardPage: React.FC = () => {
       </PageContainer>
     </>
   );
+};
+
+import { ReactElement } from 'react'; // Import ReactElement
+
+SuperAdminDashboardPage.getLayout = function getLayout(page: ReactElement) {
+  return <SuperAdminLayout>{page}</SuperAdminLayout>;
 };
 
 export default SuperAdminDashboardPage;

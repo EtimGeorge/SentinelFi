@@ -1,5 +1,4 @@
 import { Controller, Get, Put, Body, UseGuards, HttpCode, HttpStatus, UsePipes, ValidationPipe, Post } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from 'shared/types/role.enum';
@@ -9,7 +8,7 @@ import { UpdateSettingsDto } from './dto/settings.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 
 @Controller('super/settings')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(RolesGuard)
 @Roles(Role.SuperAdmin)
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}

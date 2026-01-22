@@ -5,6 +5,8 @@ import {
   RequestMethod,
   Logger,
 } from "@nestjs/common";
+import { TenancyGuard } from "./common/guards/tenancy.guard";
+import { TenantAccessGuard } from "./common/guards/tenant-access.guard"; // Import TenantAccessGuard
 import { ClsModule } from "nestjs-cls";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -39,11 +41,12 @@ import { SettingsModule } from "./settings/settings.module";
 import { SettingsEntity } from "./settings/settings.entity";
 import { EmailModule } from "./email/email.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
-import { TenancyMiddleware } from "./common/middleware/tenancy.middleware";
 import { TenantDatabaseModule } from "./database/tenant-database.module";
 import { TenantMigrationModule } from "./database/tenant-migration.module";
 import { CommonModule } from "./common/common.module";
+import { DatabaseConfig } from "./common/config/database.config";
 import { PayrollEntryEntity } from "./operational-budgets/payroll-entry.entity";
+import { TenantRepositoriesModule } from "./tenant-repositories.module"; // Import TenantRepositoriesModule
 
 @Module({
   imports: [
@@ -56,113 +59,34 @@ import { PayrollEntryEntity } from "./operational-budgets/payroll-entry.entity";
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const logger = new Logger("TypeOrmModule");
-        let databaseUrl = configService.get<string>("DATABASE_URL");
+        // Define all entities that TypeORM should be aware of for the main public connection.
+        const entities = [
+          WbsBudgetEntity,
+          LiveExpenseEntity,
+          UserEntity,
+          RoleEntity,
+          PermissionEntity,
+          WbsCategoryEntity,
+          TenantEntity,
+          AuditLogEntity,
+          ProjectEntity,
+          LpoEntity,
+          ProjectInflowEntity,
+          ProjectAuditEntity,
+          OperationalBudgetEntity,
+          OperationalBudgetCategoryEntity,
+          OperationalExpenseEntity,
+          SettingsEntity,
+          PayrollEntryEntity,
+        ];
 
-        if (!databaseUrl) {
-          logger.error("DATABASE_URL is not set in environment or .env files");
-          throw new Error("DATABASE_URL environment variable is not set");
-        }
-
-        // 1. Strip suspicious non-printable characters and trim
-        databaseUrl = databaseUrl
-          .replace(/[^\x20-\x7E]/g, "")
-          .trim()
-          .replace(/^['"]|['"]$/g, "");
-
-        // 2. Normalize and Robustly Encode Credentials (user:pass)
-        // We isolate the authority part (between :// and the LAST @)
-        let sanitizedUrl = databaseUrl;
-        const protoMatch = databaseUrl.match(/^(postgres(?:ql)?:\/\/)/i);
-        const lastAtIdx = databaseUrl.lastIndexOf("@");
-
-        if (protoMatch && lastAtIdx > protoMatch[0].length) {
-          const proto = "postgres://"; // standard for TypeORM
-          const authority = databaseUrl.substring(
-            protoMatch[0].length,
-            lastAtIdx,
-          );
-          const remainder = databaseUrl.substring(lastAtIdx); // includes @host...
-
-          const colonIdx = authority.indexOf(":");
-          if (colonIdx !== -1) {
-            const user = authority.substring(0, colonIdx);
-            const pass = authority.substring(colonIdx + 1);
-
-            // Reconstruct with properly encoded credentials
-            // We use a safe encoder that doesn't double-encode %
-            const safeEncode = (str: string) => {
-              try {
-                // If it's already mostly encoded, decode first to avoid %25...
-                const decoded = decodeURIComponent(str);
-                return encodeURIComponent(decoded);
-              } catch (e) {
-                // If decode fails (e.g. malformed %), encode it fresh
-                return encodeURIComponent(str);
-              }
-            };
-            sanitizedUrl = `${proto}${safeEncode(user)}:${safeEncode(pass)}${remainder}`;
-            if (sanitizedUrl !== databaseUrl) {
-              logger.log("Applied encoding/normalization to DATABASE_URL.");
-            }
-          }
-        }
-
-        // 3. Diagnostics
-        const redactedUrl = sanitizedUrl.replace(/:([^:@]+)@/, ":****@");
-        logger.log(
-          `Connecting to database (len: ${sanitizedUrl.length}): ${redactedUrl}`,
-        );
-
-        try {
-          new URL(sanitizedUrl);
-        } catch (e: any) {
-          logger.error(
-            `Critical: Sanitize attempt resulted in an invalid URL: ${e.message}`,
-          );
-          // Log hex codes of the failing URL for deep troubleshooting
-          const hex = Array.from(sanitizedUrl)
-            .map((c) => c.charCodeAt(0).toString(16).padStart(2, "0"))
-            .join(" ");
-          logger.error(`Hex codes: ${hex}`);
-          // Let's try one last thing: if it's missing a host or something, new URL fails.
-        }
-
-        const isNeon = sanitizedUrl.includes("neon.tech");
-        const hasSslMode = sanitizedUrl.includes("sslmode=");
-
-        return {
-          type: "postgres",
-          url: sanitizedUrl,
-          // Let the URL define SSL if present, otherwise default to opt-in for Neon
-          ssl:
-            isNeon && !hasSslMode ? { rejectUnauthorized: false } : undefined,
-          entities: [
-            WbsBudgetEntity,
-            LiveExpenseEntity,
-            UserEntity,
-            RoleEntity, // Add RoleEntity
-            PermissionEntity, // Add PermissionEntity
-            WbsCategoryEntity,
-            TenantEntity,
-            AuditLogEntity,
-            ProjectEntity,
-            LpoEntity,
-            ProjectInflowEntity,
-            ProjectAuditEntity,
-            OperationalBudgetEntity,
-            OperationalBudgetCategoryEntity,
-            OperationalExpenseEntity,
-            SettingsEntity,
-            PayrollEntryEntity, // Correctly added PayrollEntryEntity
-          ],
-          synchronize: false,
-          logging: true,
-        };
+        // Delegate the entire configuration generation to the new, centralized DatabaseConfig class.
+        return DatabaseConfig.getTypeOrmConfig(configService, entities);
       },
     }),
     TenantDatabaseModule, // Add the TenantDatabaseModule here
     TenantMigrationModule, // NEW: Add TenantMigrationModule
+    TenantRepositoriesModule, // Add TenantRepositoriesModule global
     WbsModule,
     AuthModule,
     TenantModule,
@@ -182,10 +106,19 @@ import { PayrollEntryEntity } from "./operational-budgets/payroll-entry.entity";
     }),
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard, // Runs first: authenticates the user
+    },
+    {
+      provide: APP_GUARD,
+      useClass: TenancyGuard, // Runs second: resolves tenant context from the authenticated user
+    },
+    {
+      provide: APP_GUARD,
+      useClass: TenantAccessGuard, // Runs third: enforces tenant-level access control
+    },
+  ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(TenancyMiddleware).forRoutes("*");
-  }
-}
+export class AppModule {}

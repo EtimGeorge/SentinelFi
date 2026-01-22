@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
-import { useAuth, RoleEnum as Role } from '../../components/context/AuthContext';
+import { useAuth, Role } from '../../components/context/AuthContext';
 import { LayoutDashboard, Zap, FileText, Bell, Clock, BarChart2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Card from '../../components/common/Card';

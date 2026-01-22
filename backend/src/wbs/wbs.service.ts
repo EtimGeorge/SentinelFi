@@ -25,6 +25,8 @@ import { Inject } from "@nestjs/common";
 import { GetWbsBudgetsDto } from "./dto/get-wbs-budgets.dto";
 import { GetLiveExpensesDto } from "./dto/get-live-expenses.dto";
 import { WbsBudgetRollupDto } from "./dto/wbs-budget-rollup.dto";
+import { UpdateWbsCategoryDto } from "./dto/update-wbs-category.dto";
+import { CreateWbsCategoryDto } from "./dto/create-wbs-category.dto";
 import { GetProjectsDto } from "../projects/dto/get-projects.dto";
 import { ProjectEntity } from "../projects/project.entity";
 import { ProjectsService } from "../projects/projects.service";
@@ -284,9 +286,20 @@ export class WbsService {
                 }
             }
 
+            // ADVANCED: Fetch Committed Costs (LPOs) for this node
+            const lpoRepo = this.dataSource.getRepository(ProjectEntity.name === 'ProjectEntity' ? 'LpoEntity' : 'LpoEntity'); // Safe way to get repo if not injected
+            // Actually I'll use the DataSource directly
+            const committedResults = await this.dataSource.query(
+                `SELECT COALESCE(SUM(amount_committed - amount_paid), 0) as total FROM lpo WHERE wbs_id = $1 AND tenant_id = $2`,
+                [wbsItem.wbs_id, tenant_id]
+            );
+            const committedAmount = parseFloat(committedResults[0]?.total || 0);
+
             liveExpense.variance_flag = await this.budgetControlService.validateAndAlertWbsExpense(
                 wbsItem,
-                expenseDto.amount
+                expenseDto.amount,
+                tenant_id,
+                committedAmount
             );
 
             // Update the WBS node with actual spend (denormalized for faster lookup)
@@ -368,9 +381,10 @@ export class WbsService {
 
   async updateWbsCategory(
     id: string,
-    name: string,
+    updateWbsCategoryDto: UpdateWbsCategoryDto,
     tenant_id: string,
   ): Promise<WbsCategoryEntity> {
+    const { name } = updateWbsCategoryDto;
     const category = await this.wbsCategoryRepository.findOne({
       where: { id, tenant_id: tenant_id },
     });
@@ -388,7 +402,9 @@ export class WbsService {
       );
     }
 
-    category.name = name;
+    if (name) {
+      category.name = name;
+    }
     return this.wbsCategoryRepository.save(category);
   }
 
@@ -525,9 +541,8 @@ export class WbsService {
   ): Promise<WbsBudgetRollupDto[]> {
     const { startDate, endDate } = filters;
     
-    // Advanced SQL with correlated subqueries for accurate rollups
-    // total_paid_rollup: Sum of all expenses for this node AND all its recursive descendants
-    // total_paid_self: Sum of expenses for ONLY this node
+    // Advanced SQL with native PostgreSQL parameterization ($1, $2, etc.) for absolute security.
+    // Calculates recursive rollups for budget, actuals (live_expense), and committed costs (lpo).
     const query = `
       SELECT 
           w.wbs_id,
@@ -547,43 +562,47 @@ export class WbsService {
                   )
                   SELECT wbs_id FROM descendants
               )
-              ${startDate ? 'AND e.created_at >= :startDate' : ''}
-              ${endDate ? 'AND e.created_at <= :endDate' : ''}
+              ${startDate ? 'AND e.created_at >= $2' : ''}
+              ${endDate ? `AND e.created_at <= ${startDate ? '$3' : '$2'}` : ''}
           ) as total_paid_rollup,
           (
               SELECT COALESCE(SUM(amount), 0) 
               FROM live_expense e 
               WHERE e.wbs_id = w.wbs_id
-              ${startDate ? 'AND e.created_at >= :startDate' : ''}
-              ${endDate ? 'AND e.created_at <= :endDate' : ''}
+              ${startDate ? 'AND e.created_at >= $2' : ''}
+              ${endDate ? `AND e.created_at <= ${startDate ? '$3' : '$2'}` : ''}
           ) as total_paid_self,
-          0 as total_committed_lpo
+          (
+              SELECT COALESCE(SUM(amount_committed), 0) 
+              FROM lpo l
+              WHERE l.tenant_id = w.tenant_id 
+              AND l.wbs_id IN (
+                  WITH RECURSIVE descendants AS (
+                      SELECT wbs_id FROM wbs_budget WHERE wbs_id = w.wbs_id
+                      UNION ALL
+                      SELECT b.wbs_id FROM wbs_budget b INNER JOIN descendants d ON b.parent_wbs_id = d.wbs_id
+                  )
+                  SELECT wbs_id FROM descendants
+              )
+              ${startDate ? 'AND l.created_at >= $2' : ''}
+              ${endDate ? `AND l.created_at <= ${startDate ? '$3' : '$2'}` : ''}
+          ) as total_committed_lpo
       FROM wbs_budget w
-      WHERE w.tenant_id = :tenantId
+      WHERE w.tenant_id = $1
       ORDER BY w.wbs_code ASC
     `;
 
-    const params: any = { tenantId: tenant_id };
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
+    const queryParams: any[] = [tenant_id];
+    if (startDate) queryParams.push(startDate);
+    if (endDate) queryParams.push(endDate);
 
-    let pCount = 1;
-    let refinedQuery = query.replace(':tenantId', `$${pCount++}`);
-    const queryParams = [tenant_id];
+    const finalResults = await this.dataSource.query(query, queryParams);
 
-    if (startDate) {
-        refinedQuery = refinedQuery.replace(/:startDate/g, `$${pCount++}`);
-        queryParams.push(startDate);
-    }
-    if (endDate) {
-        refinedQuery = refinedQuery.replace(/:endDate/g, `$${pCount++}`);
-        queryParams.push(endDate);
-    }
-
-    const finalResults = await this.dataSource.query(refinedQuery, queryParams);
-
-    return finalResults.map((r: WbsBudgetRollupQueryResult) => ({
-        ...r,
+    return finalResults.map((r: any) => ({
+        wbs_id: r.wbs_id,
+        parent_wbs_id: r.parent_wbs_id,
+        wbs_code: r.wbs_code,
+        description: r.description,
         total_cost_budgeted: parseFloat(r.total_cost_budgeted.toString()),
         total_paid_rollup: parseFloat(r.total_paid_rollup.toString()),
         total_paid_self: parseFloat(r.total_paid_self.toString()),

@@ -1,10 +1,10 @@
 // shared/types/user.ts
-import { Role as RoleEnum } from './role.enum';
+import { Role } from './role.enum';
 
 // A simple representation of a role, suitable for shared DTOs
 export interface SimpleRole {
     id: string;
-    name: RoleEnum;
+    name: Role;
     description?: string;
 }
 
@@ -13,7 +13,7 @@ export interface JwtPayload {
   id: string; // User ID
   sub: string; // User ID (standard JWT subject)
   email: string;
-  roles: RoleEnum[]; // User's roles (by name)
+  roles: Role[]; // User's roles (by name)
   permissions: string[]; // All permissions flattened from roles
   tenant_id: string | null;
   iat?: number;
@@ -32,6 +32,7 @@ export interface UserPayload {
   tenant_id?: string | null;
   tenant_name?: string | null;
   permissions?: string[];
+  impersonator_id?: string | null;
 }
 
 // This is the shape of the User object for DTOs.
@@ -44,6 +45,7 @@ export interface User {
   is_active: boolean;
   tenant_id?: string | null;
   tenant_name?: string | null;
+  impersonator_id?: string | null;
 }
 
 // Interface for creating a new user.
@@ -52,14 +54,14 @@ export interface ICreateUserPayload {
   password?: string;
   first_name?: string;
   last_name?: string;
-  role: RoleEnum;
+  role: Role;
   is_active?: boolean;
   tenant_id?: string | null;
 }
 
 // Interface for updating an existing user.
 export interface IUpdateUserPayload {
-  role?: RoleEnum;
+  role?: Role;
   is_active?: boolean;
   tenant_id?: string | null;
   first_name?: string;

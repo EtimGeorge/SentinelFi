@@ -10,7 +10,7 @@ import {
 } from "class-validator";
 import { Type } from "class-transformer";
 import { User, SimpleRole } from "@shared/types/user";
-import { Role as RoleEnum } from "@shared/types/role.enum";
+import { Role } from "@shared/types/role.enum";
 
 // Create a class for SimpleRole to be used with @Type decorator
 export class SimpleRoleDto implements SimpleRole {
@@ -18,8 +18,8 @@ export class SimpleRoleDto implements SimpleRole {
     id!: string;
 
     @IsString()
-    @IsIn(Object.values(RoleEnum))
-    name!: RoleEnum;
+    @IsIn(Object.values(Role))
+    name!: Role;
 
     @IsOptional()
     @IsString()

@@ -10,7 +10,6 @@ import {
   UnauthorizedException, // NEW: Import UnauthorizedException
   Req, // Added
 } from "@nestjs/common";
-import { AuthGuard } from "@nestjs/passport";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "shared/types/role.enum";
@@ -26,7 +25,7 @@ class AutomatedReportRequestDto {
 }
 
 @Controller("dcs") // Base path: /api/v1/dcs
-@UseGuards(AuthGuard("jwt"), RolesGuard)
+@UseGuards(RolesGuard)
 export class DcsController {
   constructor(private readonly wbsService: WbsService) {}
 

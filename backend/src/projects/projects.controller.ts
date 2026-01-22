@@ -19,7 +19,6 @@ import {
   StreamableFile,
 } from "@nestjs/common";
 import { Response } from "express";
-import { AuthGuard } from "@nestjs/passport";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "shared/types/role.enum";
@@ -31,7 +30,7 @@ import { UpdateProjectDto } from "./dto/update-project.dto";
 import { GetProjectsDto } from "./dto/get-projects.dto";
 
 @Controller("projects") // Base path is /api/v1/projects
-@UseGuards(AuthGuard("jwt"), RolesGuard)
+@UseGuards(RolesGuard)
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 

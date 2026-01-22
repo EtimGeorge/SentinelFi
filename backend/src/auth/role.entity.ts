@@ -1,4 +1,4 @@
-import { Role as RoleEnum } from "@shared/types/role.enum";
+import { Role } from "@shared/types/role.enum";
 import {
   Entity,
   PrimaryGeneratedColumn,

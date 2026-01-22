@@ -4,7 +4,7 @@ import PageContainer from '../components/Layout/PageContainer';
 import { TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle, ChevronRight, ChevronDown, Layers } from 'lucide-react';
 import Card from '../components/common/Card';
 import { useSecuredApi } from '../components/hooks/useSecuredApi';
-import { useAuth, RoleEnum as Role } from '../components/context/AuthContext';
+import { useAuth, Role } from '../components/context/AuthContext';
 import useToast from '../store/toastStore';
 import { formatCurrency, getWBSColor } from '../lib/utils';
 

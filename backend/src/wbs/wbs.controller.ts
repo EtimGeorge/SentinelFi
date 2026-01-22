@@ -24,7 +24,6 @@ import { Response } from "express";
 import { WbsService } from "../wbs/wbs.service";
 import { CreateWbsBudgetDto } from "./dto/create-wbs-budget.dto";
 import type { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
-import { AuthGuard } from "@nestjs/passport";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { CreateWbsCategoryDto } from "./dto/create-wbs-category.dto";
@@ -38,7 +37,7 @@ import { GetWbsBudgetsDto } from "./dto/get-wbs-budgets.dto";
 import { GetLiveExpensesDto } from "./dto/get-live-expenses.dto";
 
 @Controller("wbs") // Base path is /api/v1/wbs
-@UseGuards(AuthGuard("jwt"), RolesGuard)
+@UseGuards(RolesGuard)
 export class WbsController {
   constructor(private readonly wbsService: WbsService) {} // Type back as WbsService
 
@@ -372,15 +371,12 @@ export class WbsController {
   @Roles(Role.Admin, Role.Finance)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateLiveExpenseEntry(
-    // Renamed method
-    @Param("id", new ParseUUIDPipe()) id: string, // Changed to ParseUUIDPipe
+    @Param("id", new ParseUUIDPipe()) id: string,
     @Body() updateLiveExpenseDto: UpdateLiveExpenseDto,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException(
-        "User not authenticated or tenant ID not found.",
-      );
+      throw new UnauthorizedException("User not authenticated.");
     }
     const tenantIdFromToken = req.user.tenant_id;
     return this.wbsService.updateLiveExpenseEntry(
@@ -388,5 +384,63 @@ export class WbsController {
       updateLiveExpenseDto,
       tenantIdFromToken,
     );
+  }
+
+  // --- WBS CATEGORY ENDPOINTS ---
+
+  @Get("categories")
+  @Roles(Role.Admin, Role.Finance, Role.ITHead, Role.OperationalHead, Role.CEO)
+  async getCategories(@Req() req: AuthenticatedRequest) {
+    if (!req.user || !req.user.tenant_id) {
+       throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.findAllWbsCategories(req.user.tenant_id);
+  }
+
+  @Post("category")
+  @Roles(Role.Admin, Role.Finance)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async createCategory(
+    @Body() createWbsCategoryDto: CreateWbsCategoryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.createWbsCategory(
+      createWbsCategoryDto.name,
+      req.user.tenant_id,
+    );
+  }
+
+  @Patch("category/:id")
+  @Roles(Role.Admin, Role.Finance)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async updateCategory(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() updateWbsCategoryDto: UpdateWbsCategoryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+       throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.updateWbsCategory(
+      id,
+      updateWbsCategoryDto,
+      req.user.tenant_id,
+    );
+  }
+
+  @Delete("category/:id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles(Role.Admin, Role.Finance)
+  async deleteCategory(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    await this.wbsService.deleteWbsCategory(id, req.user.tenant_id);
   }
 }

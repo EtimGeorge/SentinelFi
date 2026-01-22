@@ -3,7 +3,7 @@ module.exports = {
   rootDir: '.', // Relative to backend package root
   testRegex: '.*\.spec\.ts$',
   transform: {
-    '^.+\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.jest.json', useTsconfigPaths: true }],
+    '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.jest.json', useTsconfigPaths: true }],
   },
   moduleNameMapper: {
     '^@shared/(.*)$': '<rootDir>/../shared/$1', // Add this line
@@ -19,4 +19,5 @@ module.exports = {
     },
   },
   testEnvironment: 'node',
+  transformIgnorePatterns: ['/node_modules/(?!uuid)/'],
 };

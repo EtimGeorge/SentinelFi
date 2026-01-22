@@ -10,8 +10,8 @@ import {
 import { Reflector } from "@nestjs/core";
 import { ClsService } from "nestjs-cls";
 import { AuthenticatedRequest } from "../interfaces/authenticated-request.interface"; // Corrected import path
-import { IS_PUBLIC_KEY } from "../../auth/decorators/public.decorator";
-import { Role as RoleEnum } from "@shared/types/role.enum";
+import { IS_PUBLIC_KEY } from "../../common/decorators/public.decorator";
+import { Role } from "@shared/types/role.enum";
 import { UserPayload } from "@shared/types/user";
 
 @Injectable()
@@ -43,7 +43,7 @@ export class TenantAccessGuard implements CanActivate {
       throw new UnauthorizedException("Authentication required.");
     }
 
-    const isSuperAdmin = user.roles.some(role => role.name === RoleEnum.SuperAdmin);
+    const isSuperAdmin = user.roles.some(role => role.name === Role.SuperAdmin);
 
     if (isSuperAdmin) {
       this.logger.verbose(`[TenantAccessGuard] SuperAdmin '${user.email}' granted full access to: ${requestPath}`);

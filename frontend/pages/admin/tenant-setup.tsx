@@ -4,7 +4,7 @@ import PageContainer from '../../components/Layout/PageContainer';
 import { Layers3, Plus, Trash2, Edit3, Save, X, Loader2, AlertTriangle, CloudUpload } from 'lucide-react'; // Added CloudUpload
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import { useAuth, RoleEnum as Role } from '../../components/context/AuthContext';
+import { useAuth, Role } from '../../components/context/AuthContext';
 
 // Interface for Tenant Entity (mirrors backend TenantEntity)
 interface Tenant {

@@ -6,7 +6,7 @@ import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth } from '../../components/context/AuthContext';
 import { User, ICreateUserPayload, IUpdateUserPayload } from '../../../shared/types/user';
-import { Role as UserRoleEnum } from '../../../shared/types/role.enum';
+import { Role } from '../../../shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import Switch from '../../components/common/Switch';
 
@@ -25,22 +25,21 @@ interface ModalProps {
 interface CreateUserModalProps extends ModalProps {
   onCreate: (userData: ICreateUserPayload) => void;
   error: string | null;
-  roles: UserRoleEnum[];
-  tenants: TenantOption[];
   isSuperAdmin: boolean; // NEW: Added prop
+  roles: Role[];
 }
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onCreate, loading, error, roles, tenants, isSuperAdmin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRoleEnum>(UserRoleEnum.AssignedProjectUser);
+  const [role, setRole] = useState<Role>(Role.AssignedProjectUser);
   const [tenantId, setTenantId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setEmail('');
       setPassword('');
-      setRole(UserRoleEnum.AssignedProjectUser);
+      setRole(Role.AssignedProjectUser);
       setTenantId(null);
     }
   }, [isOpen]);
@@ -62,7 +61,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onCr
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300">Role</label>
-            <select value={role} onChange={(e) => setRole(e.target.value as UserRoleEnum)} className="mt-1 block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white appearance-none focus:ring-brand-primary focus:border-brand-primary">
+            <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="mt-1 block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white appearance-none focus:ring-brand-primary focus:border-brand-primary">
               {roles.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
@@ -116,7 +115,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
 };
 
 
-const allRoles = Object.values(UserRoleEnum);
+const allRoles = Object.values(Role);
 const ITEMS_PER_PAGE = 10;
 
 const UserManagementPage: React.FC = () => {
@@ -131,7 +130,7 @@ const UserManagementPage: React.FC = () => {
   const [formLoading, setFormLoading] = useState(false);
   
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editedRole, setEditedRole] = useState<UserRoleEnum | string>('');
+  const [editedRole, setEditedRole] = useState<Role | string>('');
   const [editedTenantId, setEditedTenantId] = useState<string | null>(null);
   
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -173,7 +172,7 @@ const UserManagementPage: React.FC = () => {
   }, [api, addToast]);
 
   useEffect(() => {
-    if (hasAnyRole([UserRoleEnum.Admin, UserRoleEnum.ITHead, UserRoleEnum.SuperAdmin])) {
+    if (hasAnyRole([Role.Admin, Role.ITHead, 'SuperAdmin'])) {
       fetchUsers();
       fetchTenants();
     } else {
@@ -215,7 +214,7 @@ const UserManagementPage: React.FC = () => {
     try {
       // This is the key change: ensure tenant_id is included in the payload.
       const updatePayload: IUpdateUserPayload = { 
-        role: editedRole as UserRoleEnum, 
+        role: editedRole as Role, 
         tenant_id: editedTenantId,
       };
       await api.patch<User>(`/auth/users/${userId}`, updatePayload);
@@ -307,7 +306,7 @@ const UserManagementPage: React.FC = () => {
 
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
 
-  if (!(hasAnyRole([UserRoleEnum.Admin, UserRoleEnum.ITHead, UserRoleEnum.SuperAdmin]))) {
+  if (!(hasAnyRole([Role.Admin, Role.ITHead, 'SuperAdmin']))) {
     return (
       <PageContainer title="User & Role Management" subtitle="Access Restricted">
         <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
@@ -386,7 +385,7 @@ const UserManagementPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white font-medium">{user.email}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {editingUserId === user.id ? (
-                          <select value={editedRole} onChange={(e) => setEditedRole(e.target.value as UserRoleEnum)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={user.roles.some(r => r.name === UserRoleEnum.Admin) || formLoading}>
+                          <select value={editedRole} onChange={(e) => setEditedRole(e.target.value as Role)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={user.roles.some(r => r.name === Role.Admin) || formLoading}>
                             {allRoles.map(role => <option key={role} value={role}>{role}</option>)}
                           </select>
                         ) : ( <span className="text-brand-primary/80 font-medium">{user.roles[0]?.name || 'N/A'}</span> )}
@@ -397,12 +396,12 @@ const UserManagementPage: React.FC = () => {
                                 {user.is_active ? 'Active' : 'Inactive'}
                             </span>
                         ) : (
-                            <Switch checked={user.is_active} onChange={() => handleStatusToggle(user.id, user.is_active)} disabled={user.roles.some(r => r.name === UserRoleEnum.Admin) || formLoading} />
+                            <Switch checked={user.is_active} onChange={() => handleStatusToggle(user.id, user.is_active)} disabled={user.roles.some(r => r.name === Role.Admin) || formLoading} />
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                          {editingUserId === user.id ? (
-                            <select value={editedTenantId || ''} onChange={(e) => setEditedTenantId(e.target.value || null)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={! (hasAnyRole([UserRoleEnum.SuperAdmin])) || formLoading}>
+                            <select value={editedTenantId || ''} onChange={(e) => setEditedTenantId(e.target.value || null)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={! (hasAnyRole(['SuperAdmin'])) || formLoading}>
                               <option value="">-- System User --</option>
                               {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
@@ -411,14 +410,14 @@ const UserManagementPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         {editingUserId === user.id ? (
                           <div className="flex items-center justify-end space-x-4">
-                            <button onClick={() => handleSaveUser(user.id)} disabled={formLoading || user.roles.some(r => r.name === UserRoleEnum.Admin)} className="text-alert-positive hover:text-green-300 disabled:opacity-50 disabled:cursor-not-allowed" title="Save Changes"><Save className="w-5 h-5" /></button>
+                            <button onClick={() => handleSaveUser(user.id)} disabled={formLoading || user.roles.some(r => r.name === Role.Admin)} className="text-alert-positive hover:text-green-300 disabled:opacity-50 disabled:cursor-not-allowed" title="Save Changes"><Save className="w-5 h-5" /></button>
                             <button onClick={() => setEditingUserId(null)} disabled={formLoading} className="text-gray-400 hover:text-white disabled:opacity-50" title="Cancel"><X className="w-5 h-5" /></button>
                           </div>
                         ) : (
                           <div className="flex items-center justify-end space-x-4">
                             <button onClick={() => handlePasswordResetClick(user.id)} className="text-gray-400 hover:text-brand-primary transition disabled:opacity-50" disabled={formLoading} title="Reset Password"><KeyRound className="w-5 h-5" /></button>
-                            <button onClick={() => handleEditClick(user)} className="text-gray-400 hover:text-brand-primary transition disabled:opacity-50" disabled={user.roles.some(r => r.name === UserRoleEnum.Admin) || formLoading} title="Edit Role/Tenant"><Edit3 className="w-5 h-5" /></button>
-                            <button onClick={() => handleDeleteClick(user.id)} className="text-gray-400 hover:text-red-500 transition disabled:opacity-50" disabled={user.roles.some(r => r.name === UserRoleEnum.Admin) || formLoading} title="Deactivate User"><Trash2 className="w-5 h-5" /></button>
+                            <button onClick={() => handleEditClick(user)} className="text-gray-400 hover:text-brand-primary transition disabled:opacity-50" disabled={user.roles.some(r => r.name === Role.Admin) || formLoading} title="Edit Role/Tenant"><Edit3 className="w-5 h-5" /></button>
+                            <button onClick={() => handleDeleteClick(user.id)} className="text-gray-400 hover:text-red-500 transition disabled:opacity-50" disabled={user.roles.some(r => r.name === Role.Admin) || formLoading} title="Deactivate User"><Trash2 className="w-5 h-5" /></button>
                           </div>
                         )}
                       </td>
@@ -440,7 +439,7 @@ const UserManagementPage: React.FC = () => {
         </Card>
       </PageContainer>
       
-      <CreateUserModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateUser} loading={formLoading} error={createError} roles={allRoles} tenants={tenants} isSuperAdmin={hasAnyRole([UserRoleEnum.SuperAdmin])} />
+      <CreateUserModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateUser} loading={formLoading} error={createError} roles={allRoles} tenants={tenants} isSuperAdmin={hasAnyRole(['SuperAdmin'])} />
       
       <ConfirmationModal
           isOpen={showDeleteConfirm}

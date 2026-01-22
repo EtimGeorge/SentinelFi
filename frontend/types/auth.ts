@@ -1,5 +1,5 @@
 // frontend/types/auth.ts
-import { Role as RoleEnum } from '@shared/types/role.enum';
+import { Role } from '@shared/types/role.enum';
 
 /**
  * Represents a user role within the application's frontend context.
@@ -7,7 +7,7 @@ import { Role as RoleEnum } from '@shared/types/role.enum';
  */
 export interface AppRole {
   id: string;
-  name: RoleEnum;
+  name: Role;
   description?: string;
   permissions?: string[]; // Permissions are nested under roles
 }
@@ -42,7 +42,7 @@ export interface LoginApiResponse {
     email: string;
     first_name?: string;
     last_name?: string;
-    roles: Array<{ id: string; name: RoleEnum; description?: string }>;
+    roles: Array<{ id: string; name: Role; description?: string }>;
     is_active: boolean;
     tenant_id?: string | null;
     tenant_name?: string | null;

@@ -21,7 +21,7 @@ import Input from '../../components/common/Input'; // Re-using Input component
 import Button from '../../components/common/Button'; // Re-using Button component
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth } from '../../components/context/AuthContext'; // CORRECTED IMPORT PATH
-import { Role as UserRoleEnum } from '../../../shared/types/role.enum';
+import { Role } from '../../../shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import Switch from '../../components/common/Switch';
 import Cookies from 'js-cookie'; // NEW: Import Cookies
@@ -283,7 +283,10 @@ const ManagePlanModal: React.FC<ManagePlanModalProps> = ({ isOpen, onClose, tena
 };
 const ITEMS_PER_PAGE = 10;
 
-const SuperAdminTenantsPage: React.FC = () => {
+import SuperAdminLayout from '../../components/Layout/SuperAdminLayout'; // Import SuperAdminLayout
+import { NextPageWithLayout } from '../_app'; // Import NextPageWithLayout
+
+const SuperAdminTenantsPage: NextPageWithLayout = () => {
   const { user } = useAuth(); // isInitialLoad removed as it's handled by _app.tsx
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
@@ -568,6 +571,12 @@ const SuperAdminTenantsPage: React.FC = () => {
       />
     </>
   );
+};
+
+import { ReactElement } from 'react'; // Import ReactElement
+
+SuperAdminTenantsPage.getLayout = function getLayout(page: ReactElement) {
+  return <SuperAdminLayout>{page}</SuperAdminLayout>;
 };
 
 export default SuperAdminTenantsPage;

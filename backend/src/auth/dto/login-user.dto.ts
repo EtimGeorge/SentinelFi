@@ -10,7 +10,7 @@ import { Transform } from "class-transformer";
 
 export class LoginUserDto {
   @IsEmail()
-  @Transform(({ value }) => value.toLowerCase()) // Normalize email case
+  @Transform(({ value }) => typeof value === 'string' ? value.toLowerCase() : value) // Normalize email case safely
   @IsNotEmpty()
   email!: string;
 

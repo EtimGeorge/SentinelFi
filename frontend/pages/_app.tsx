@@ -1,6 +1,8 @@
 // frontend/pages/_app.tsx
 import type { AppProps } from 'next/app';
+import type { NextPage } from 'next'; // Import NextPage
 import { useRouter } from 'next/router';
+import { useEffect, ReactElement, ReactNode } from 'react'; // Import ReactElement and ReactNode
 import Head from 'next/head'; // Import Head
 import { AuthProvider, useAuth, PUBLIC_ROUTES, AuthLogger } from '../components/context/AuthContext'; // Using relative path for AuthContext
 import RouteGuard from '../components/guards/RouteGuard'; // Using relative path for RouteGuard
@@ -10,74 +12,66 @@ import PublicLayout from '../components/Layout/PublicLayout'; // New PublicLayou
 import AppLoadingFallback from '../components/common/AppLoadingFallback'; // New AppLoadingFallback
 import '../styles/globals.css';
 import { Toaster } from 'react-hot-toast'; // For toast notifications
-import { Role as RoleEnum } from '@shared/types/role.enum'; // Import RoleEnum directly
+import { Role } from '../components/context/AuthContext'; // Import Role for layout determination
+
+// ============================================================================
+// LAYOUT TYPING (NEW)
+// ============================================================================
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: ReactElement) => ReactNode;
+};
+
+type AppPropsWithLayout = AppProps & {
+  Component: NextPageWithLayout;
+};
 
 // ============================================================================
 // APP CONTENT - Layout selection logic
 // This component MUST be inside AuthProvider and RouteGuard to access auth context
 // ============================================================================
 
-function AppContent({ Component, pageProps }: AppProps) {
+function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPropsWithLayout
+  const { isInitialized, isAuthenticated, user } = useAuth();
   const router = useRouter();
-  const { user, isAuthenticated, isInitialized } = useAuth();
 
-  // ========================================================================
-  // PUBLIC ROUTES - Use PublicLayout for pages like login, register, etc.
-  // = These do not require authentication for initial access.
-  // ========================================================================
-  if (PUBLIC_ROUTES.includes(router.pathname)) {
-    AuthLogger.info('[_app] Rendering PublicLayout for:', router.pathname);
-    return (
-      <PublicLayout>
-        <Component {...pageProps} />
-      </PublicLayout>
-    );
+  // If AuthProvider is not yet initialized or user status is pending, show fallback
+  if (!isInitialized) {
+    AuthLogger.info('[_app] AuthProvider not yet initialized. Showing fallback.');
+    return <AppLoadingFallback message="Initializing Authentication..." />;
   }
 
-  // ========================================================================
-  // UNAUTHENTICATED USERS ON PROTECTED ROUTES
-  // This scenario should be caught by RouteGuard, which will redirect to /login.
-  // We return a fallback here to prevent rendering sensitive content.
-  // ========================================================================
-  if (!isAuthenticated || !user) {
-    AuthLogger.warn('[_app] User not authenticated on a protected route. RouteGuard should handle redirect.');
-    return <AppLoadingFallback />; // RouteGuard will eventually redirect to login
+  // This check should ideally be handled by RouteGuard, but as a safeguard:
+  // If not authenticated and trying to access a non-public route, show fallback.
+  // RouteGuard will eventually redirect.
+  if (!isAuthenticated && !PUBLIC_ROUTES.includes(router.pathname)) {
+    AuthLogger.warn('[_app] Not authenticated on protected route. RouteGuard will redirect.');
+    return <AppLoadingFallback message="Redirecting to Login..." />;
   }
 
-  // ========================================================================
-  // AUTHENTICATED USERS - Select layout based on PRIMARY ROLE
-  // = Now that we are sure user is authenticated and state is initialized,
-  // = we select the appropriate layout.
-  // ========================================================================
-  
-  const hasSuperAdmin = user.roles.some(r => r.name === RoleEnum.SuperAdmin);
-  // Add other role checks if necessary for specific layouts, or use getPrimaryRole() from context
-  // For now, simple SuperAdmin vs. Tenant user distinction.
+  // Pages can define a custom layout, otherwise use the default
+  const getLayout = Component.getLayout || ((page) => {
+    // Default layout logic based on authentication and user roles
+    if (!isAuthenticated) {
+      AuthLogger.info('[_app] Applying PublicLayout as unauthenticated.');
+      return <PublicLayout>{page}</PublicLayout>;
+    }
 
-  AuthLogger.info('[_app] Layout selection for authenticated user:', {
-    email: user.email,
-    roles: user.roles.map(r => r.name),
-    hasSuperAdmin,
-    pathname: router.pathname,
+    // Determine layout based on primary role for authenticated users
+    const hasSuperAdmin = user?.roles.some(r => {
+        const name = typeof r === 'string' ? r : r.name;
+        return name === 'SuperAdmin';
+    });
+
+    if (hasSuperAdmin) {
+      AuthLogger.info('[_app] Applying SuperAdminLayout for SuperAdmin user.');
+      return <SuperAdminLayout>{page}</SuperAdminLayout>;
+    }
+
+    AuthLogger.info('[_app] Applying SecuredLayout for tenant user.');
+    return <SecuredLayout>{page}</SecuredLayout>;
   });
 
-  // SuperAdmin gets SuperAdminLayout
-  if (hasSuperAdmin) {
-    AuthLogger.info('[_app] ✅ Rendering SuperAdminLayout');
-    return (
-      <SuperAdminLayout>
-        <Component {...pageProps} />
-      </SuperAdminLayout>
-    );
-  }
-
-  // All other authenticated users (e.g., Admin, Manager, etc.) get SecuredLayout
-  AuthLogger.info('[_app] ✅ Rendering SecuredLayout for tenant user');
-  return (
-    <SecuredLayout>
-      <Component {...pageProps} />
-    </SecuredLayout>
-  );
+  return getLayout(<Component {...pageProps} />);
 }
 
 // ============================================================================
@@ -86,6 +80,46 @@ function AppContent({ Component, pageProps }: AppProps) {
 // ============================================================================
 
 export default function App(props: AppProps) {
+  // ============================================================================
+  // GLOBAL ERROR HANDLER - Suppress CanceledError from React StrictMode
+  // ============================================================================
+  useEffect(() => {
+    /**
+     * CRITICAL FIX: Suppress unhandled CanceledError promise rejections.
+     * 
+     * React StrictMode mounts components twice in development, causing the first
+     * fetch to be aborted. This creates a brief moment where the CanceledError
+     * exists as an unhandled promise rejection before our catch handler processes it.
+     * 
+     * This is a standard React pattern for handling request cancellations.
+     */
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const error = event.reason;
+      
+      // Check if this is a CanceledError from axios
+      if (
+        error?.name === 'CanceledError' ||
+        error?.code === 'ERR_CANCELED' ||
+        error?.message?.includes('canceled')
+      ) {
+        // Prevent the error overlay from showing
+        event.preventDefault();
+        
+        // Log for debugging (only in development)
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('[App] Suppressed CanceledError:', error.message);
+        }
+      }
+      // Let other errors propagate normally
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
   return (
     <>
       {/* Head component for global metadata, can be overridden by individual pages */}

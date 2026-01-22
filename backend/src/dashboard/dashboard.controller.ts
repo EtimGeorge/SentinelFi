@@ -8,7 +8,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@shared/types/role.enum';
 
 @Controller('dashboard')
-@UseGuards(JwtAuthGuard, RolesGuard, TenantAccessGuard)
+@UseGuards(RolesGuard, TenantAccessGuard)
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 

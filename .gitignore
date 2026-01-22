@@ -41,6 +41,11 @@ ehthumbs.db
 /frontend/node_modules
 /frontend/dist
 /frontend/build
+/shared/node_modules
+/shared/dist
+/shared/types/*.js
+/shared/types/*.d.ts
+/shared/types/*.js.map
 .next/
 
 # AI Agent specific

@@ -1,11 +1,11 @@
 import { Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, FindOptionsWhere, ILike, Between, MoreThan } from 'typeorm';
-import { TenantProvisioningService } from '../tenants/tenant-provisioning.service';
+import { TenantService } from '../tenants/tenant.service';
 import { CreateTenantDto, GetTenantsDto, UpdateTenantDto } from './dto/create-tenant.dto';
 import { TenantEntity } from '../tenants/tenant.entity';
 import { UserEntity } from '../auth/user.entity';
-import { Role as RoleEnum } from 'shared/types/role.enum';
+import { Role } from 'shared/types/role.enum';
 import { AssignTenantToUserDto } from './dto/assign-tenant-to-user.dto';
 import { SettingsEntity } from '../settings/settings.entity';
 import { UpdateSettingsDto } from '../settings/dto/settings.dto';
@@ -19,6 +19,9 @@ import { UpdateTenantPlanDto } from './dto/tenant-plan.dto';
 import { sub } from 'date-fns';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from '@shared/types/user';
+import { AuditService } from '../audit/audit.service';
+import { AuthService } from '../auth/auth.service';
+
 
 @Injectable()
 export class SuperAdminService {
@@ -31,30 +34,17 @@ export class SuperAdminService {
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(SettingsEntity)
     private readonly settingsRepository: Repository<SettingsEntity>,
-    private readonly tenantProvisioningService: TenantProvisioningService,
+    private readonly tenantService: TenantService,
     private readonly emailService: EmailService,
-    private readonly dataSource: DataSource,
+    private readonly auditService: AuditService,
     private readonly jwtService: JwtService,
+    private readonly authService: AuthService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async createTenant(createTenantDto: CreateTenantDto): Promise<TenantEntity> {
-    const newTenant = this.tenantRepository.create(createTenantDto);
-    const savedTenant = await this.tenantRepository.save(newTenant);
-    this.logger.log(`New tenant created with ID: ${savedTenant.tenant_id}, Name: ${savedTenant.name}`);
-
-    try {
-      this.logger.log(`Provisioning schema for tenant: ${savedTenant.schema_name}`);
-      await this.tenantProvisioningService.provisionTenantSchema(savedTenant.schema_name);
-      this.logger.log(`Schema '${savedTenant.schema_name}' provisioned successfully.`);
-    } catch (error) {
-        if (error instanceof Error) {
-            this.logger.error(`Failed to provision schema for tenant ${savedTenant.tenant_id}. Error: ${error.message}`, error.stack);
-            await this.tenantRepository.delete(savedTenant.tenant_id);
-            throw new Error(`Failed to create tenant: Schema provisioning failed. The tenant has been rolled back.`);
-        }
-    }
-
-    return savedTenant;
+    // Delegate to the specialized TenantService which handles schema creation and migrations
+    return this.tenantService.createTenant(createTenantDto);
   }
 
   async findAllTenants(getTenantsDto: GetTenantsDto): Promise<{ data: TenantEntity[], total: number }> {
@@ -104,46 +94,100 @@ export class SuperAdminService {
       return { status: 'success', message: 'Plan updated' };
   }
 
-  async impersonateTenantAdmin(tenantId: string, superAdminId: string): Promise<string> {
-    const tenant = await this.tenantRepository.findOne({ where: { tenant_id: tenantId } });
-    if (!tenant) {
-        throw new NotFoundException(`Tenant with ID ${tenantId} not found.`);
-    }
-
-    const adminUser = await this.userRepository.createQueryBuilder("user")
-        .innerJoin("user.roles", "role")
-        .where("user.tenant_id = :tenantId", { tenantId })
-        .andWhere("role.name = :roleName", { roleName: RoleEnum.Admin })
-        .getOne();
-
-    if (!adminUser) {
-        throw new NotFoundException(`No admin user found for tenant ${tenantId}`);
-    }
-    
-    // We need the full user object with permissions for the token
-    const userWithPermissions = await this.userRepository.findOne({
-        where: { id: adminUser.id },
-        relations: ['roles', 'roles.permissions']
+  async impersonateUser(userId: string, superAdminId: string): Promise<string> {
+    // 1. Validate the user to be impersonated
+    const userToImpersonate = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['roles', 'roles.permissions', 'tenant'], // Eager load relations for payload
     });
 
-    if (!userWithPermissions) {
-        throw new NotFoundException(`Could not fully load admin user ${adminUser.id}`);
+    if (!userToImpersonate) {
+      throw new NotFoundException(`User with ID ${userId} not found.`);
     }
 
-    const roleNames: RoleEnum[] = userWithPermissions.roles.map(r => r.name as RoleEnum);
-    const permissions = [...new Set(userWithPermissions.roles.flatMap(role => role.permissions.map(p => p.name)))];
+    // Prevent SuperAdmin from impersonating another SuperAdmin (security measure)
+    const isImpersonatedUserSuperAdmin = userToImpersonate.roles.some(
+      (role) => role.name === Role.SuperAdmin,
+    );
+    if (isImpersonatedUserSuperAdmin) {
+      throw new UnauthorizedException('Cannot impersonate another SuperAdmin.');
+    }
+
+    // 2. Generate JWT payload for the impersonated user
+    const roleNames: Role[] = userToImpersonate.roles.map(
+      (r) => r.name as Role,
+    );
+    const permissions = [
+      ...new Set(
+        userToImpersonate.roles.flatMap((role) =>
+          role.permissions.map((p) => p.name),
+        ),
+      ),
+    ];
 
     const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
-        id: userWithPermissions.id,
-        sub: userWithPermissions.id,
-        email: userWithPermissions.email,
-        roles: roleNames,
-        permissions: permissions,
-        tenant_id: userWithPermissions.tenant_id,
-        impersonator_id: superAdminId, // Add impersonator ID
+      id: userToImpersonate.id,
+      sub: userToImpersonate.id,
+      email: userToImpersonate.email,
+      roles: roleNames,
+      permissions: permissions,
+      tenant_id: userToImpersonate.tenant_id,
+      impersonator_id: superAdminId, // IMPORTANT: Store the SuperAdmin's ID for audit
     };
 
-    return this.jwtService.sign(payload);
+    // 3. Generate the token using AuthService - strictly limited to 30 minutes for security
+    const impersonationToken = await this.authService.generateJwtToken(payload, { expiresIn: '1800s' });
+
+    // 4. Log the impersonation action
+    await this.auditService.logEvent({
+      action: 'IMPERSONATION_STARTED',
+      userId: superAdminId, // The SuperAdmin who initiated the impersonation
+      userEmail: superAdminId, // Placeholder, ideally get SuperAdmin's email
+      targetType: 'USER',
+      targetId: userToImpersonate.id,
+      details: {
+        impersonatedUserEmail: userToImpersonate.email,
+        tenantId: userToImpersonate.tenant_id,
+      },
+    });
+
+    this.logger.log(
+      `SuperAdmin (ID: ${superAdminId}) impersonated user (ID: ${userId}, Email: ${userToImpersonate.email})`,
+    );
+
+    return impersonationToken;
+  }
+
+  async stopImpersonation(superAdminId: string, impersonatedUserId: string): Promise<void> {
+    await this.auditService.logEvent({
+      action: 'IMPERSONATION_ENDED',
+      userId: superAdminId,
+      userEmail: superAdminId, // Placeholder
+      targetType: 'USER',
+      targetId: impersonatedUserId,
+      details: { message: 'SuperAdmin ended impersonation session' },
+    });
+    this.logger.log(`SuperAdmin (ID: ${superAdminId}) ended impersonation of user (ID: ${impersonatedUserId})`);
+  }
+
+  async impersonateTenant(tenantId: string, superAdminId: string): Promise<string> {
+    // 1. Find the admin user for this tenant
+    const adminUser = await this.userRepository.findOne({
+      where: { 
+        tenant_id: tenantId,
+        roles: {
+          name: Role.Admin
+        }
+      },
+      relations: ['roles']
+    });
+
+    if (!adminUser) {
+      throw new NotFoundException(`No Admin user found for tenant ${tenantId}`);
+    }
+
+    // 2. Delegate to the user impersonation logic
+    return this.impersonateUser(adminUser.id, superAdminId);
   }
 
   async getTenantDetails(tenantId: string): Promise<TenantDetailDto> {
@@ -156,7 +200,7 @@ export class SuperAdminService {
     const adminUsers = await this.userRepository.createQueryBuilder("user")
         .innerJoin("user.roles", "role")
         .where("user.tenant_id = :tenantId", { tenantId })
-        .andWhere("role.name = :roleName", { roleName: RoleEnum.Admin })
+        .andWhere("role.name = :roleName", { roleName: Role.Admin })
         .select(['user.id', 'user.email', 'user.first_name', 'user.last_name'])
         .take(5)
         .getMany();
@@ -198,7 +242,7 @@ export class SuperAdminService {
           wbsBudgets: wbsBudgetsCount,
           liveExpenses: liveExpensesCount,
         },
-        recentAuditLogs: recentAuditLogs.map(log => ({
+        recentAuditLogs: recentAuditLogs.map((log: AuditLogEntity) => ({
           id: log.id,
           action: log.action,
           timestamp: log.timestamp,

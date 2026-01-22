@@ -7,7 +7,6 @@ import {
   Res,
   Param,
 } from "@nestjs/common";
-import { AuthGuard } from "@nestjs/passport";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "shared/types/role.enum";
@@ -17,7 +16,7 @@ import { InvoiceDto } from "./dto/invoice.dto";
 import { Response } from "express";
 
 @Controller("super/billing")
-@UseGuards(AuthGuard("jwt"), RolesGuard)
+@UseGuards(RolesGuard)
 @Roles(Role.SuperAdmin)
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}

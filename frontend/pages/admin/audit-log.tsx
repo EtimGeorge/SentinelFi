@@ -5,7 +5,7 @@ import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import { useAuth, RoleEnum as UserRoleEnum } from '../../components/context/AuthContext';
+import { useAuth, Role } from '../../components/context/AuthContext';
 import { AuditLogEntity } from '@shared/types/audit';
 import useToast from '../../store/toastStore';
 import { Users, Plus, X, Edit3, Save, Loader2, AlertTriangle, Trash2, Search, Calendar, Filter, Building } from 'lucide-react'; // Added Building icon
@@ -45,13 +45,13 @@ const AuditLogPage: React.FC = () => {
         targetType: targetTypeFilter,
         startDate: startDate,
         endDate: endDate,
-        tenantId: hasAnyRole([UserRoleEnum.SuperAdmin, UserRoleEnum.ITHead]) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/ITHead can filter, otherwise undefined means no filter by query param
+        tenantId: hasAnyRole(['SuperAdmin', Role.ITHead]) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/ITHead can filter, otherwise undefined means no filter by query param
       };
 
       // If user is Admin, they can only see their own tenant's logs
-      if (hasAnyRole([UserRoleEnum.Admin]) && user?.tenantId) {
+      if (hasAnyRole([Role.Admin]) && user?.tenantId) {
         params.tenantId = user.tenantId;
-      } else if (hasAnyRole([UserRoleEnum.Admin]) && !user?.tenantId) {
+      } else if (hasAnyRole([Role.Admin]) && !user?.tenantId) {
         // Admin user without tenantId should not see any logs
         setAuditLogs([]);
         setTotalLogs(0);
@@ -80,7 +80,7 @@ const AuditLogPage: React.FC = () => {
 
   useEffect(() => {
     // Only fetch if user is authenticated and has appropriate roles
-    if (!isInitialLoad && (hasAnyRole([UserRoleEnum.Admin, UserRoleEnum.SuperAdmin, UserRoleEnum.ITHead]))) {
+    if (!isInitialLoad && (hasAnyRole([Role.Admin, 'SuperAdmin', Role.ITHead]))) {
       fetchAuditLogs();
     }
   }, [user, isInitialLoad, fetchAuditLogs, hasAnyRole]); // Added hasAnyRole to dep array
@@ -96,7 +96,7 @@ const AuditLogPage: React.FC = () => {
   }
 
   // Access Control: Only Admin, SuperAdmin, ITHead can access
-  if (!user || !(hasAnyRole([UserRoleEnum.Admin, UserRoleEnum.SuperAdmin, UserRoleEnum.ITHead]))) {
+  if (!user || !(hasAnyRole([Role.Admin, 'SuperAdmin', Role.ITHead]))) {
     return (
       <PageContainer title="Access Denied" subtitle="Unauthorized Access">
         <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
@@ -107,7 +107,7 @@ const AuditLogPage: React.FC = () => {
     );
   }
 
-  const isSuperAdminOrITHead = hasAnyRole([UserRoleEnum.SuperAdmin, UserRoleEnum.ITHead]);
+  const isSuperAdminOrITHead = hasAnyRole(['SuperAdmin', Role.ITHead]);
 
   return (
     <>

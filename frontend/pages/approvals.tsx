@@ -5,8 +5,7 @@ import { CheckSquare, AlertTriangle, FileText, Loader2 } from 'lucide-react';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button'; // Use enhanced Button
 import { formatCurrency } from '../lib/utils';
-import { useAuth } from '../components/context/AuthContext';
-import { Role as UserRoleEnum } from '../../shared/types/role.enum';
+import { useAuth, Role } from '../components/context/AuthContext';
 import { useSecuredApi } from '../components/hooks/useSecuredApi';
 import Link from 'next/link';
 import useToast from '../store/toastStore';
@@ -44,7 +43,7 @@ const ApprovalsPage: React.FC = () => {
   const [loadingExceptions, setLoadingExceptions] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const isFinanceOrAdmin = hasAnyRole([UserRoleEnum.Finance, UserRoleEnum.Admin]);
+  const isFinanceOrAdmin = hasAnyRole([Role.Finance, Role.Admin]);
 
   const fetchPendingDrafts = useCallback(async () => {
     if (!isFinanceOrAdmin) return;

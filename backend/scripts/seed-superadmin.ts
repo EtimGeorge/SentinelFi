@@ -3,7 +3,6 @@ import { AppModule } from '../src/app.module';
 import { DataSource } from 'typeorm';
 import { UserEntity } from '../src/auth/user.entity';
 import { RoleEntity } from '../src/auth/role.entity'; // Import RoleEntity
-import { Role as RoleEnum } from '../../shared/types/role.enum'; // Import RoleEnum from shared types
 import * as bcrypt from 'bcryptjs';
 import { Logger } from '@nestjs/common';
 

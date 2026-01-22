@@ -34,6 +34,7 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
+    "allowJs": true,
     "strict": true,
     "lib": ["es2020"]
   },

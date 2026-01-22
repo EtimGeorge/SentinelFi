@@ -4,7 +4,7 @@ import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import { Send, Clock, SlidersHorizontal, FileDown } from 'lucide-react'; // Added SlidersHorizontal, FileDown
-import { RoleEnum as Role } from '../../components/context/AuthContext';
+import { Role } from '../../components/context/AuthContext';
 import useToast from '../../store/toastStore';
 import { useAuth } from '../../components/context/AuthContext'; // NEW: Import useAuth
 import { RollupData } from '../../components/dashboard/WBSHierarchyTree';

@@ -9,7 +9,7 @@ import WBSHierarchyTree from '../../components/dashboard/WBSHierarchyTree';
 import SpendingChart from '../../components/dashboard/SpendingChart';
 import Card from '../../components/common/Card';
 import withAuth from '../../components/auth/withAuth';
-import { RoleEnum as Role } from '../../components/context/AuthContext';
+import { Role } from '../../components/context/AuthContext';
 import { Loader2, Search, RefreshCcw } from 'lucide-react';
 
 import 'react-datepicker/dist/react-datepicker.css'; // Keep CSS import here

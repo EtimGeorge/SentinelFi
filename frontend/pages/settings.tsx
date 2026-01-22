@@ -4,7 +4,7 @@ import PageContainer from '../components/Layout/PageContainer';
 import { Settings, Users, Plug, Activity } from 'lucide-react';
 import Link from 'next/link';
 import Card from '../components/common/Card';
-import { useAuth, RoleEnum as Role } from '../components/context/AuthContext';
+import { useAuth, Role } from '../components/context/AuthContext';
 
 const SettingsPage: React.FC = () => {
     const { hasAnyRole } = useAuth();

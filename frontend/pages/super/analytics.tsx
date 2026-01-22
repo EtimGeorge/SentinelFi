@@ -46,7 +46,10 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, change, changeC
   </Card>
 );
 
-const SuperAdminAnalyticsPage: React.FC = () => {
+import SuperAdminLayout from '../../components/Layout/SuperAdminLayout'; // Import SuperAdminLayout
+import { NextPageWithLayout } from '../_app'; // Import NextPageWithLayout
+
+const SuperAdminAnalyticsPage: NextPageWithLayout = () => {
   const [timeRange, setTimeRange] = useState('30d');
   const { data, loading, error } = useSuperAdminAnalytics(timeRange);
 
@@ -165,6 +168,12 @@ const SuperAdminAnalyticsPage: React.FC = () => {
       </PageContainer>
     </>
   );
+};
+
+import { ReactElement } from 'react'; // Import ReactElement
+
+SuperAdminAnalyticsPage.getLayout = function getLayout(page: ReactElement) {
+  return <SuperAdminLayout>{page}</SuperAdminLayout>;
 };
 
 export default SuperAdminAnalyticsPage;

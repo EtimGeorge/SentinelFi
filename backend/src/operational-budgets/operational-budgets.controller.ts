@@ -19,7 +19,6 @@ import {
   StreamableFile,
 } from "@nestjs/common";
 import { Response } from "express";
-import { AuthGuard } from "@nestjs/passport";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "shared/types/role.enum";
@@ -30,7 +29,7 @@ import { UpdateOperationalBudgetDto } from "./dto/update-operational-budget.dto"
 import { GetOperationalBudgetsDto } from "./dto/get-operational-budgets.dto";
 
 @Controller("operational-budgets") // Base path is /api/v1/operational-budgets
-@UseGuards(AuthGuard("jwt"), RolesGuard)
+@UseGuards(RolesGuard)
 export class OperationalBudgetsController {
   constructor(
     private readonly operationalBudgetsService: OperationalBudgetsService,

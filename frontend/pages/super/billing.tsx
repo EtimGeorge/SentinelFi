@@ -56,7 +56,10 @@ const getStatusIcon = (status: InvoiceStatus) => {
   }
 };
 
-const SuperAdminBillingPage: React.FC = () => {
+import SuperAdminLayout from '../../components/Layout/SuperAdminLayout'; // Import SuperAdminLayout
+import { NextPageWithLayout } from '../_app'; // Import NextPageWithLayout
+
+const SuperAdminBillingPage: NextPageWithLayout = () => {
   const { data, loading, error } = useSuperAdminBilling();
 
   const handleDownload = (invoiceId: string) => {
@@ -157,6 +160,12 @@ const SuperAdminBillingPage: React.FC = () => {
       </PageContainer>
     </>
   );
+};
+
+import { ReactElement } from 'react'; // Import ReactElement
+
+SuperAdminBillingPage.getLayout = function getLayout(page: ReactElement) {
+  return <SuperAdminLayout>{page}</SuperAdminLayout>;
 };
 
 export default SuperAdminBillingPage;

@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { useAuth, RoleEnum as Role } from '../components/context/AuthContext';
+import { useAuth, Role } from '../components/context/AuthContext';
 
 const UnauthorizedPage: React.FC = () => {
   const { user, getPrimaryRole } = useAuth();

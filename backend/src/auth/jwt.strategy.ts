@@ -6,17 +6,22 @@ import { DataSource, Repository } from "typeorm";
 import { UserEntity } from './user.entity';
 import { UserPayload, JwtPayload, SimpleRole } from "@shared/types/user";
 import { Request } from "express";
-import { Role as RoleEnum } from "@shared/types/role.enum"; // Import RoleEnum
+import { Role } from "@shared/types/role.enum"; // Import Role
 
 const cookieExtractor = (req: Request): string | null => {
   const logger = new Logger("CookieExtractor");
   let token = null;
 
   if (req && req.cookies) {
+    logger.debug(`[Extract] Request cookies: ${JSON.stringify(req.cookies)}`);
     token = req.cookies["access_token"];
     if (token) {
       logger.log("[Extract] ✅ JWT token found in `access_token` cookie.");
+    } else {
+      logger.warn("[Extract] ❌ `access_token` cookie NOT found.");
     }
+  } else {
+    logger.warn("[Extract] Request or cookies are undefined.");
   }
   return token;
 };
@@ -54,15 +59,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<UserPayload> {
-    this.logger.log(
-      `[Validate] Called with payload: ${JSON.stringify({
-        sub: payload.sub,
-        email: payload.email,
-        roles: payload.roles,
-        permissions: payload.permissions?.length,
-        tenant_id: payload.tenant_id,
-      })}`,
-    );
+    this.logger.debug(`[Validate] Received payload: ${JSON.stringify(payload)}`);
 
     if (!payload.sub) {
       this.logger.error("[Validate] Missing sub (user ID) in JWT payload");
@@ -81,7 +78,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException("User no longer active or token invalid.");
       }
 
-      const simpleRoles: SimpleRole[] = user.roles.map(r => ({id: r.id, name: r.name as RoleEnum, description: r.description})); // Cast r.name
+      const simpleRoles: SimpleRole[] = user.roles.map(r => ({id: r.id, name: r.name as Role, description: r.description})); // Cast r.name
 
       this.logger.log(
         `[Validate] User found in DB: ${JSON.stringify({
@@ -105,6 +102,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         tenant_name: user.tenant?.name || null
       };
 
+      this.logger.debug(`[Validate] UserPayload returned: ${JSON.stringify(userPayloadToReturn)}`);
       this.logger.log(`[Validate] Returning user payload with tenant_id: ${userPayloadToReturn.tenant_id}`);
 
       return userPayloadToReturn;

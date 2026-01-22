@@ -11,9 +11,11 @@ import { JwtStrategy } from "./jwt.strategy";
 import * as ms from "ms";
 import { InitialSuperAdminSeederService } from "./initial-superadmin-seeder.service";
 import { AuditModule } from "../audit/audit.module";
+import { TenantRepositoriesModule } from "../tenant-repositories.module"; // Import the new module
 
 @Module({
   imports: [
+    TenantRepositoriesModule, // Import the tenant repositories module
     TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity]), // Add RoleEntity and PermissionEntity
     JwtModule.registerAsync({
       useFactory: async (configService: ConfigService) => {

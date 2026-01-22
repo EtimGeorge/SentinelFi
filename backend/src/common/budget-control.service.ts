@@ -1,6 +1,7 @@
 import { Injectable, Logger, Inject } from "@nestjs/common";
 import { Repository } from "typeorm";
 import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
+import { WbsBudgetStatus } from "shared/types/wbs-budget-status.enum";
 import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
 import { NotificationsService } from "../notifications/notifications.service";
 
@@ -15,29 +16,48 @@ export class BudgetControlService {
   async validateAndAlertWbsExpense(
     wbsItem: WbsBudgetEntity,
     amount: number,
-  ): Promise<'MAJOR_VARIANCE' | 'UNAPPROVED_BUDGET_USAGE' | 'NO_VARIANCE'> {
+    tenant_id: string,
+    committedAmount: number = 0, // Should be passed from service or fetched here
+  ): Promise<'MAJOR_VARIANCE' | 'MINOR_VARIANCE' | 'UNAPPROVED_BUDGET_USAGE' | 'NO_VARIANCE'> {
     // 1. Check Approval
-    if (wbsItem.status !== 'approved') {
+    if (wbsItem.status !== WbsBudgetStatus.APPROVED) {
        this.notificationsService.sendVarianceAlert(
            'Unapproved Budget Usage',
-           `Expense logged against WBS ${wbsItem.wbs_code} which is not yet approved.`,
+           `Expense logged against WBS ${wbsItem.wbs_code} which is in ${wbsItem.status} state.`,
            'warning'
        );
        return 'UNAPPROVED_BUDGET_USAGE';
     }
 
-    // 2. Check Overrun
+    // 2. Check Overrun with Weighted Thresholds
     const totalActual = Number(wbsItem.total_cost_actual || 0);
     const budgetLimit = Number(wbsItem.total_cost_budgeted || 0);
+    const projectedTotal = totalActual + committedAmount + amount;
 
-    if (totalActual + amount > budgetLimit) {
-        const overAmount = (totalActual + amount - budgetLimit).toFixed(2);
+    if (projectedTotal > budgetLimit) {
+        const overrun = projectedTotal - budgetLimit;
+        const variancePercentage = (overrun / budgetLimit) * 100;
+
+        // Weighted thresholds: Large budgets have tighter variance controls
+        let isMajor = false;
+        if (budgetLimit > 100000) {
+            isMajor = variancePercentage > 2; // > 2% for large budgets
+        } else if (budgetLimit > 10000) {
+            isMajor = variancePercentage > 5; // > 5% for medium budgets
+        } else {
+            isMajor = variancePercentage > 10; // > 10% for small budgets
+        }
+
+        const severity = isMajor ? 'error' : 'warning';
+        const action = isMajor ? 'Major Variance Detected' : 'Minor Variance Detected';
+
         this.notificationsService.sendVarianceAlert(
-            'Major Variance Detected',
-            `Expense for ${wbsItem.wbs_code} exceeds budget by ${overAmount}`,
-            'error'
+            action,
+            `Expense for ${wbsItem.wbs_code} exceeds budget by ${overrun.toFixed(2)} (${variancePercentage.toFixed(1)}%).`,
+            severity
         );
-        return 'MAJOR_VARIANCE';
+
+        return isMajor ? 'MAJOR_VARIANCE' : 'MINOR_VARIANCE';
     }
 
     return 'NO_VARIANCE';
@@ -53,7 +73,7 @@ export class BudgetControlService {
     if (totalSpent + amount > budgetLimit) {
         this.notificationsService.sendVarianceAlert(
             'Operational Budget Overrun',
-            `Budget "${budget.name}" has exceeded its limit.`,
+            `Budget "${budget.name}" has exceeded its limit by ${(totalSpent + amount - budgetLimit).toFixed(2)}.`,
             'error'
         );
         return 'OVER_BUDGET';

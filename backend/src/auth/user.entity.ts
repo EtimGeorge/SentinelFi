@@ -20,8 +20,8 @@ export class UserEntity {
   @Column({ unique: true })
   email!: string;
 
-  @Column({ select: false }) // CRITICAL: Never retrieve the password hash by default
-  password_hash!: string;
+  @Column({ select: false, type: "varchar", length: 255 }) // CRITICAL: Never retrieve the password hash by default
+  password_hash: string | null = null;
 
   @Column({ type: "varchar", length: 255, nullable: true }) // NEW: First name
   first_name?: string;

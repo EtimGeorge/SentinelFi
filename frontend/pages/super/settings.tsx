@@ -13,7 +13,10 @@ import { Spinner } from '../../components/common/Spinner';
 import { AlertCircle } from 'lucide-react';
 import api from '../../lib/api'; // Import the API instance
 
-const SuperAdminSettingsPage: React.FC = () => {
+import SuperAdminLayout from '../../components/Layout/SuperAdminLayout'; // Import SuperAdminLayout
+import { NextPageWithLayout } from '../_app'; // Import NextPageWithLayout
+
+const SuperAdminSettingsPage: NextPageWithLayout = () => {
   const addToast = useToast(state => state.addToast);
   const { settings, loading, error, updateSettings, refetch } = useSuperAdminSettings();
 
@@ -239,6 +242,12 @@ const SuperAdminSettingsPage: React.FC = () => {
       </PageContainer>
     </>
   );
+};
+
+import { ReactElement } from 'react'; // Import ReactElement
+
+SuperAdminSettingsPage.getLayout = function getLayout(page: ReactElement) {
+  return <SuperAdminLayout>{page}</SuperAdminLayout>;
 };
 
 export default SuperAdminSettingsPage;

@@ -1,6 +1,12 @@
 import { DataSource, DataSourceOptions, QueryRunner } from "typeorm";
 import { ClsService } from "nestjs-cls";
 
+import { UserEntity } from "../auth/user.entity";
+import { RoleEntity } from "../auth/role.entity";
+import { PermissionEntity } from "../auth/permission.entity";
+import { AuditLogEntity } from "../audit/audit.entity";
+import { TenantEntity } from "../tenants/tenant.entity";
+
 /**
  * Custom DataSource that wraps the standard TypeORM DataSource to implement multi-tenancy.
  * It uses the 'nestjs-cls' service (Async Local Storage) to retrieve the current tenant's
@@ -12,7 +18,17 @@ export class TenancyAwareDataSource extends DataSource {
     options: DataSourceOptions,
     private readonly cls: ClsService,
   ) {
-    super(options);
+    super({
+      ...options,
+      entities: [
+        UserEntity,
+        RoleEntity,
+        PermissionEntity,
+        AuditLogEntity,
+        TenantEntity,
+        // Add other tenant-specific entities here as they are created
+      ],
+    });
   }
 
   /**
@@ -37,6 +53,7 @@ export class TenancyAwareDataSource extends DataSource {
       if (schemaName) {
         // Sanitize schemaName to prevent SQL injection (basic check)
         const sanitizedSchema = schemaName.replace(/[^a-z0-9_]/gi, "");
+        console.log(`[TenancyAwareDataSource] Setting search_path for queryRunner to: ${sanitizedSchema}`); // Add logging
         await queryRunner.query(
           `SET search_path TO ${sanitizedSchema}, public`,
         );

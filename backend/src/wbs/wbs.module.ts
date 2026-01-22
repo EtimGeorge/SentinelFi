@@ -10,6 +10,7 @@ import { DcsController } from "./dcs.controller";
 import { TENANT_DATA_SOURCE } from "../database/constants";
 import { ProjectsModule } from "../projects/projects.module";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { BudgetControlService } from "../common/budget-control.service";
 
 @Module({
   imports: [forwardRef(() => ProjectsModule), NotificationsModule],
@@ -34,6 +35,7 @@ import { NotificationsModule } from "../notifications/notifications.module";
       inject: [TENANT_DATA_SOURCE],
     },
     WbsService,
+    BudgetControlService,
   ],
   exports: [WbsService, "WBSBUDGET_REPOSITORY", "LIVEEXPENSE_REPOSITORY"], // Export repositories for use in other modules if needed
 })

@@ -4,7 +4,7 @@ import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { UploadCloud, FileText, CheckCircle, BrainCircuit, Loader2, CloudUpload } from 'lucide-react';
 import { WBSItemBase } from '../../lib/wbsUtils';
 import withAuth from '../../components/auth/withAuth';
-import { RoleEnum as Role } from '../../components/context/AuthContext';
+import { Role } from '../../components/context/AuthContext';
 import { formatCurrency } from '../../lib/utils';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';

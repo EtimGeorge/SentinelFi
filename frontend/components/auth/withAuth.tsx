@@ -1,6 +1,6 @@
 import { useRouter } from 'next/router';
 import React, { ComponentType, useEffect } from 'react';
-import { useAuth, RoleEnum as Role } from '../context/AuthContext';
+import { useAuth, Role } from '../context/AuthContext';
 
 interface WithAuthProps {
   // You can add any additional props you want to pass to the wrapped component

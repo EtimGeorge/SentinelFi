@@ -9,7 +9,7 @@ import { RollupData } from '../../components/dashboard/WBSHierarchyTree';
 import { IWbsCategoryEntity } from '../../../shared/types/wbs';
 import useToast from '../../store/toastStore';
 import PageContainer from '../../components/Layout/PageContainer';
-import { useAuth, RoleEnum as Role } from '../../components/context/AuthContext';
+import { useAuth, Role } from '../../components/context/AuthContext';
 
 // Enum for Variance Status
 enum VarianceStatus {

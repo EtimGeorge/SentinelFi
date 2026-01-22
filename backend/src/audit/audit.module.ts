@@ -8,6 +8,6 @@ import { AuditController } from "./audit.controller";
   imports: [TypeOrmModule.forFeature([AuditLogEntity])],
   providers: [AuditService],
   controllers: [AuditController], // Add AuditController here
-  exports: [AuditService], // Make AuditService available for injection in other modules
+  exports: [TypeOrmModule.forFeature([AuditLogEntity]), AuditService], // Export TypeOrmModule.forFeature
 })
 export class AuditModule {}

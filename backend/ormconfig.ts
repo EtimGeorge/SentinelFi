@@ -11,7 +11,9 @@ dotenv.config({ path: [path.resolve(process.cwd(), 'backend', '.env.local'), pat
 const config: DataSourceOptions = {
   type: 'postgres',
   url: process.env.DATABASE_URL, // Use DATABASE_URL from .env files
-  ssl: process.env.DATABASE_URL?.includes('neon.tech'), // Conditionally enable SSL for Neon databases
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: true }
+    : { rejectUnauthorized: false }, // For development, allow self-signed or unverified certs if needed
   schema: 'public', // Default schema for this DataSource, where public entities and migrations reside
   entities: [
     path.resolve(__dirname, 'src/tenants/tenant.entity.ts'),

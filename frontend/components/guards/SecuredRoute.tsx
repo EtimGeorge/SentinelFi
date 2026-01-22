@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { useRoleGuard, RoleEnum } from '../../hooks/useAuthHooks';
+import { useRoleGuard, Role } from '../../hooks/useAuthHooks';
 import AppLoadingFallback from '../common/AppLoadingFallback';
 
 interface SecuredRouteProps {
   children: React.ReactNode;
-  requiredRoles?: RoleEnum[];
+  requiredRoles?: Role[];
   requiredPermissions?: string[];
   fallbackPath?: string;
 }

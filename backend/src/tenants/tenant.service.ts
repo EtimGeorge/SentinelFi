@@ -204,19 +204,40 @@ export class TenantService {
   }
 
   /**
-   * Deletes a tenant record from the public schema.
-   * A robust implementation should also drop the tenant's schema.
+   * Drops a tenant schema.
+   * @param schema_name The name of the schema to drop.
+   */
+  async dropTenantSchema(schema_name: string): Promise<void> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+
+    try {
+      this.logger.log(`Attempting to drop schema: "${schema_name}"`);
+      // We use CASCADE to ensure all tables, types, and constraints within the schema are also dropped.
+      // CAUTION: This is a destructive operation.
+      await queryRunner.query(`DROP SCHEMA IF EXISTS "${schema_name}" CASCADE`);
+      this.logger.log(`Schema "${schema_name}" dropped successfully.`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to drop schema "${schema_name}": ${error instanceof Error ? error.message : "Unknown error"}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        `Failed to drop tenant schema "${schema_name}".`,
+      );
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Deletes a tenant record from the public schema and drops its associated PostgreSQL schema.
    */
   async deleteTenant(id: string): Promise<void> {
-    // TODO: Implement logic to drop the schema ("DROP SCHEMA...") in a transaction.
-    // This is a destructive operation and should be handled with care.
-    this.logger.warn(
-      `Schema dropping for tenant ${id} is not yet implemented.`,
-    );
-
     const tenant = await this.tenantRepository.findOne({
       where: { tenant_id: id },
     });
+
     if (!tenant) {
       await this.auditService.logEvent({
         action: "TENANT_DELETION_FAILED",
@@ -226,15 +247,19 @@ export class TenantService {
       throw new NotFoundException(`Tenant with ID ${id} not found.`);
     }
 
+    // 1. Drop the schema first. If this fails, we don't delete the record.
+    await this.dropTenantSchema(tenant.schema_name);
+
+    // 2. Delete the record from the public tenants table
     const result = await this.tenantRepository.delete({ tenant_id: id });
+    
     if (result.affected === 0) {
-      // Should not happen if tenant was found above
       await this.auditService.logEvent({
         action: "TENANT_DELETION_FAILED",
         userEmail: "SYSTEM",
         targetType: "TENANT",
         targetId: id,
-        details: { reason: `Failed to delete tenant record for ID ${id}.` },
+        details: { reason: `Failed to delete tenant record for ID ${id} after schema drop.` },
       });
       throw new InternalServerErrorException(
         `Failed to delete tenant record for ID ${id}.`,
@@ -246,7 +271,9 @@ export class TenantService {
       userId: "SYSTEM",
       targetType: "TENANT",
       targetId: id,
-      details: { name: tenant.name, schema_name: tenant.schema_name },
+      details: { name: tenant.name, schema_name: tenant.schema_name, status: 'SCHEMA_DROPPED_AND_RECORD_DELETED' },
     });
+
+    this.logger.log(`Tenant '${tenant.name}' deleted successfully along with schema '${tenant.schema_name}'.`);
   }
 }

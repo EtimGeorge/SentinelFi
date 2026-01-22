@@ -5,9 +5,10 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "rimraf dist && tsc"
   },
   "devDependencies": {
+    "rimraf": "^5.0.7",
     "typescript": "^5.9.3"
   }
 }
