@@ -15,20 +15,13 @@ export class CreateTenantDto {
   @MaxLength(255)
   name!: string;
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
-  schema_name!: string; // Database schema name for the tenant
-
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
-  // The email of the first admin user for this tenant
-  admin_email!: string;
-
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  plan?: string;
 }
 
 export class UpdateTenantDto extends PartialType(CreateTenantDto) {

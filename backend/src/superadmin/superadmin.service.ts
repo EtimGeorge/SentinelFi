@@ -139,17 +139,17 @@ export class SuperAdminService {
     const impersonationToken = await this.authService.generateJwtToken(payload, { expiresIn: '1800s' });
 
     // 4. Log the impersonation action
-    await this.auditService.logEvent({
-      action: 'IMPERSONATION_STARTED',
-      userId: superAdminId, // The SuperAdmin who initiated the impersonation
-      userEmail: superAdminId, // Placeholder, ideally get SuperAdmin's email
-      targetType: 'USER',
-      targetId: userToImpersonate.id,
-      details: {
+    this.auditService.log(
+      superAdminId,
+      'IMPERSONATION_STARTED',
+      userToImpersonate.tenant_id,
+      `SuperAdmin (ID: ${superAdminId}) impersonated user (ID: ${userId}, Email: ${userToImpersonate.email})`,
+      {
+        targetUserId: userToImpersonate.id,
         impersonatedUserEmail: userToImpersonate.email,
-        tenantId: userToImpersonate.tenant_id,
       },
-    });
+      superAdminId, // Acting user email (SuperAdmin's email, or ID as placeholder)
+    ).catch(err => this.logger.error(`Failed to log impersonation start: ${err.message}`));
 
     this.logger.log(
       `SuperAdmin (ID: ${superAdminId}) impersonated user (ID: ${userId}, Email: ${userToImpersonate.email})`,
@@ -159,14 +159,16 @@ export class SuperAdminService {
   }
 
   async stopImpersonation(superAdminId: string, impersonatedUserId: string): Promise<void> {
-    await this.auditService.logEvent({
-      action: 'IMPERSONATION_ENDED',
-      userId: superAdminId,
-      userEmail: superAdminId, // Placeholder
-      targetType: 'USER',
-      targetId: impersonatedUserId,
-      details: { message: 'SuperAdmin ended impersonation session' },
-    });
+    this.auditService.log(
+      superAdminId,
+      'IMPERSONATION_ENDED',
+      null, // Tenant ID for SuperAdmin stopping impersonation (platform-level)
+      `SuperAdmin (ID: ${superAdminId}) ended impersonation of user (ID: ${impersonatedUserId})`,
+      {
+        impersonatedUserId: impersonatedUserId,
+      },
+      superAdminId, // Acting user email (SuperAdmin's email, or ID as placeholder)
+    ).catch(err => this.logger.error(`Failed to log impersonation end: ${err.message}`));
     this.logger.log(`SuperAdmin (ID: ${superAdminId}) ended impersonation of user (ID: ${impersonatedUserId})`);
   }
 

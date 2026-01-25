@@ -81,7 +81,7 @@ export class WbsBudgetEntity {
   @Column({ type: "uuid", nullable: false })
   tenant_id!: string;
 
-  @ManyToOne(() => UserEntity)
-  @JoinColumn({ name: "user_id" })
+  @ManyToOne('UserEntity') // Reference UserEntity by string name
+  @JoinColumn({ name: "user_id", referencedColumnName: "id" }) // Explicitly define referencedColumnName
   user!: UserEntity;
 }
