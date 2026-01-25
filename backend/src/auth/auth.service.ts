@@ -191,6 +191,7 @@ export class AuthService {
     let user: UserEntity | null = null; // Declare user here
 
     try {
+      const t1 = Date.now();
       this.logger.debug(`[LOGIN DIAGNOSTIC] Querying public schema for user: ${email}`);
       // CRITICAL: Always use the global dataSource for authentication to ensure "public" schema access
       // OPTIMIZED: Use a more direct query for the login lookup. 
@@ -207,8 +208,8 @@ export class AuthService {
         3, 100 // maxRetries, baseDelay
       );
 
-      const queryTime = Date.now() - startTime;
-      this.logger.debug(`[LOGIN DIAGNOSTIC] User query completed in ${queryTime}ms`);
+      const queryTime = Date.now() - t1;
+      this.logger.debug(`[PERF] User query completed in ${queryTime}ms`);
 
       if (!user) {
         this.logger.warn(`[LOGIN FAILED] User not found in DB: ${email}`);
@@ -228,11 +229,12 @@ export class AuthService {
         throw new UnauthorizedException("Account configuration error. Please reset your password.");
       }
 
+      const t2 = Date.now();
       this.logger.debug(`[LOGIN DIAGNOSTIC] Comparing passwords...`);
       const isPasswordValid = await this.validatePassword(password, user.password_hash, user.email);
       
-      const passwordCheckTime = Date.now() - startTime - queryTime;
-      this.logger.debug(`[LOGIN DIAGNOSTIC] Password validation completed in ${passwordCheckTime}ms`);
+      const passwordCheckTime = Date.now() - t2;
+      this.logger.debug(`[PERF] Password validation completed in ${passwordCheckTime}ms`);
 
       if (!isPasswordValid) {
         this.logger.warn(`[LOGIN FAILED] Invalid password for user: ${email}`);
@@ -259,13 +261,13 @@ export class AuthService {
       
       this.logger.debug(`[LOGIN DIAGNOSTIC] JWT Payload generated: ${JSON.stringify(payload)}`);
       
+      const t3 = Date.now();
       const accessToken = this.jwtService.sign(payload);
-
-      const tokenTime = Date.now() - startTime - queryTime - passwordCheckTime;
-      this.logger.debug(`[LOGIN DIAGNOSTIC] JWT generation completed in ${tokenTime}ms`);
+      const tokenTime = Date.now() - t3;
+      this.logger.debug(`[PERF] JWT generation completed in ${tokenTime}ms`);
 
       const totalTime = Date.now() - startTime;
-      this.logger.log(`[LOGIN] Login successful for ${user.email} (${totalTime}ms)`);
+      this.logger.log(`[PERF] Total login duration: ${totalTime}ms (Query: ${queryTime}ms, Pwd: ${passwordCheckTime}ms, Token: ${tokenTime}ms)`);
 
       // Log performance breakdown for slow logins
       if (totalTime > 2000) {

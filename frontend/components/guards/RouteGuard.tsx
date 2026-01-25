@@ -113,128 +113,95 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
   const { 
     user, 
     isAuthenticated, 
-    isLoading,
+    isLoading, // Global auth loading state
     error,
     refreshUser,
-    getPrimaryRole,
     getDefaultRoute 
   } = useAuth();
 
-  const [isAuthorizing, setIsAuthorizing] = useState(true);
-  const checkInProgressRef = useRef(false);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    if (checkInProgressRef.current || !router.isReady) {
-      return;
-    }
+    // If auth is still loading (initial mount), do nothing yet
+    if (isLoading) return;
+
+    // If there's a system error, we stop authorization and show the error screen
+    if (error) return;
 
     const checkAuthorization = async () => {
-      checkInProgressRef.current = true;
-      setIsAuthorizing(true);
-      
-      const timeoutId = setTimeout(() => {
-        AuthLogger.error('[RouteGuard] Authorization check timed out');
-        setIsAuthorizing(false);
-        checkInProgressRef.current = false;
-        router.replace('/login?error=authorization_timeout');
-      }, 10000);
-      
-      try {
-        const currentPath = router.pathname;
-        
-        // If there's a system error, we stop authorization and show the error screen
-        if (error) {
-          AuthLogger.error('[RouteGuard] Auth error detected, bypassing auth check.');
-          clearTimeout(timeoutId);
-          setIsAuthorizing(false);
-          return;
-        }
+      const currentPath = router.pathname;
 
-        if (PUBLIC_ROUTES.includes(currentPath)) {
-          if (isAuthenticated && user) {
-            const defaultRoute = getDefaultRoute();
-            if (['/login', '/register', '/forgot-password', '/reset-password'].includes(currentPath)) {
-                clearTimeout(timeoutId);
-                await router.replace(defaultRoute);
-                return;
-            }
+      // 1. Public Routes
+      if (PUBLIC_ROUTES.includes(currentPath)) {
+        if (isAuthenticated && user) {
+          // If logged in and on public page, redirect to dashboard
+          if (['/login', '/register', '/forgot-password', '/reset-password'].includes(currentPath)) {
+             await router.replace(getDefaultRoute());
+             return;
           }
-          clearTimeout(timeoutId);
-          setIsAuthorizing(false);
-          return;
         }
+        setAuthorized(true);
+        return;
+      }
 
-        if (!isAuthenticated || !user) {
-          clearTimeout(timeoutId);
-          await router.replace({
-            pathname: '/login',
-            query: { returnUrl: router.asPath },
-          });
-          return;
-        }
+      // 2. Protected Routes - Check Auth
+      if (!isAuthenticated || !user) {
+        // Not authenticated, redirect to login
+        AuthLogger.warn(`[RouteGuard] Access denied to ${currentPath}, redirecting to login`);
+        await router.replace({
+          pathname: '/login',
+          query: { returnUrl: router.asPath },
+        });
+        return;
+      }
 
-        const hasSuperAdminRole = user.roles.some(r => (typeof r === 'string' ? r : r.name) === 'SuperAdmin');
-        
-        
-        if (hasSuperAdminRole) {
-          if (currentPath === '/') {
-            const defaultRoute = getDefaultRoute();
-            clearTimeout(timeoutId);
-            await router.replace(defaultRoute);
-            return;
-          }
-          clearTimeout(timeoutId);
-          setIsAuthorizing(false);
-          return;
-        }
-
-        if (currentPath.startsWith('/super') && !hasSuperAdminRole) {
-            clearTimeout(timeoutId);
-            await router.replace(getDefaultRoute());
-            return;
-        }
-
-        if (currentPath.startsWith('/admin') && !user.roles.some(r => r.name === Role.Admin)) {
-            clearTimeout(timeoutId);
-            await router.replace(getDefaultRoute());
-            return;
-        }
-
+      // 3. Role-Based Access Control (Synchronous)
+      const hasSuperAdminRole = user.roles.some(r => (typeof r === 'string' ? r : r.name) === 'SuperAdmin');
+      
+      // SuperAdmin Logic
+      if (hasSuperAdminRole) {
         if (currentPath === '/') {
-          clearTimeout(timeoutId);
           await router.replace(getDefaultRoute());
           return;
         }
-
-        clearTimeout(timeoutId);
-        setIsAuthorizing(false);
-
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        if (err?.message?.includes('Abort') || err?.message?.includes('Cancel')) {
-            setIsAuthorizing(false);
-            return;
-        }
-        AuthLogger.error('[RouteGuard] Authorization check error:', err);
-        await router.replace('/login'); 
-      } finally {
-        checkInProgressRef.current = false;
+        // Allow access to all routes for SuperAdmin (or restrict if needed)
+        setAuthorized(true); 
+        return;
       }
+
+      // Non-SuperAdmin Logic
+      if (currentPath.startsWith('/super')) {
+          AuthLogger.warn(`[RouteGuard] Non-SuperAdmin attempts to access ${currentPath}`);
+          await router.replace(getDefaultRoute());
+          return;
+      }
+
+      if (currentPath.startsWith('/admin') && !user.roles.some(r => r.name === Role.Admin)) {
+          await router.replace(getDefaultRoute());
+          return;
+      }
+
+      if (currentPath === '/') {
+        await router.replace(getDefaultRoute());
+        return;
+      }
+
+      // Access Granted
+      setAuthorized(true);
     };
 
-    if (router.isReady) {
-      checkAuthorization();
-    }
+    checkAuthorization();
 
-  }, [router, isAuthenticated, user, error, getPrimaryRole, getDefaultRoute]);
+  }, [router.pathname, isAuthenticated, user, isLoading, error, getDefaultRoute]); // minimized dependencies
 
-  // Handle system-level authentication errors (e.g., Circuit Breaker open)
+  // Handle system-level authentication errors
   if (error) {
     return <AuthErrorScreen error={error} onRetry={refreshUser} />;
   }
 
-  // Show loading screen while authorizing
-  if (isAuthorizing) {
+  // Show loading ONLY if global auth is loading OR we haven't authorized yet
+  // But strictly rely on isLoading from context for the big wait
+  if (isLoading || (!authorized && !PUBLIC_ROUTES.includes(router.pathname))) {
     return <AuthLoadingScreen />;
   }
 

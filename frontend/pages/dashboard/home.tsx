@@ -35,7 +35,7 @@ const DashboardHome: React.FC = () => {
       try {
         const [statsRes, activityRes] = await Promise.all([
           api.get('/dashboard/summary'),
-          api.get('/admin/audit/logs?limit=5')
+          api.get('/admin/audit-logs?limit=5')
         ]);
         setStats(statsRes.data);
         setActivities(activityRes.data.logs || []);

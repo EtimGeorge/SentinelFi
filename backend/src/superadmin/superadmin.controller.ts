@@ -42,7 +42,12 @@ export class SuperAdminController {
   @Roles('SuperAdmin')
   @UsePipes(new ValidationPipe({ transform: true }))
   async findAllTenants(@Query() getTenantsDto: GetTenantsDto) {
-    return this.superAdminService.findAllTenants(getTenantsDto);
+    try {
+      return await this.superAdminService.findAllTenants(getTenantsDto);
+    } catch (error) {
+      console.error('[SuperAdminController] findAllTenants Error:', error);
+      throw error;
+    }
   }
 
   @Patch('tenants/:id')

@@ -7,11 +7,13 @@ import {
   JoinColumn,
   ManyToMany,
   JoinTable,
+  Index,
 } from "typeorm";
 import { Role } from "@shared/types/role.enum";
 import type { TenantEntity } from "../../src/tenants/tenant.entity";
 
 @Entity({ name: "user", schema: "public" }) // NOTE: This entity lives in the MASTER DB/Schema, not a tenant schema
+@Index("IDX_user_email_is_active", ['email', 'is_active']) // Match existing migration index name
 export class UserEntity {
   // Primary Key (Used as the user_id in LiveExpense table)
   @PrimaryGeneratedColumn("uuid")

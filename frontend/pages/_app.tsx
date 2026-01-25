@@ -17,7 +17,7 @@ import { Role } from '../components/context/AuthContext'; // Import Role for lay
 // ============================================================================
 // LAYOUT TYPING (NEW)
 // ============================================================================
-type NextPageWithLayout = NextPage & {
+export type NextPageWithLayout = NextPage & {
   getLayout?: (page: ReactElement) => ReactNode;
 };
 

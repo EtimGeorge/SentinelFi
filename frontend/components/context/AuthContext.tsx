@@ -48,8 +48,18 @@ export interface User {
   impersonator_id?: string | null;
 }
 
+// NEW: Auth State Enum
+export enum AuthState {
+  INITIALIZING = 'INITIALIZING',
+  HYDRATING = 'HYDRATING',
+  AUTHENTICATED = 'AUTHENTICATED',
+  UNAUTHENTICATED = 'UNAUTHENTICATED',
+  ERROR = 'ERROR',
+}
+
 interface AuthContextType {
   user: User | null;
+  authState: AuthState; // Added authState
   isAuthenticated: boolean;
   isInitialized: boolean;
   isInitialLoad: boolean; // FOR BACKWARD COMPATIBILITY
@@ -57,7 +67,7 @@ interface AuthContextType {
   error: Error | null; // NEW: Track auth errors
   login: (email: string, password: string, role: Role) => Promise<void>;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshUser: (silent?: boolean) => Promise<void>; // Updated signature
   getPrimaryRole: () => Role | null;
   getDefaultRoute: () => string;
   stopImpersonation: () => Promise<void>;
@@ -191,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasPermission = useCallback((permission: string): boolean => {
     if (!user) return false;
     // SuperAdmin implicitly has all permissions
-    if (hasRole('SuperAdmin')) return true;
+    if (hasRole(Role.SuperAdmin)) return true;
     
     // Check permissions from user object if available, otherwise would need to check roles
     // The User type from AuthContext.tsx doesn't have permissions, but let's check roles
@@ -377,12 +387,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [router]);
 
-  const refreshUser = useCallback(async () => {
-    setIsLoading(true);
+  const refreshUser = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     const currentUser = await fetchCurrentUser();
     if (isMountedRef.current) {
       setUser(currentUser);
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [fetchCurrentUser]);
 
@@ -405,8 +415,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshUser, router]);
 
+  // Determine high-level AuthState
+  let authState = AuthState.INITIALIZING;
+  if (isInitialized) {
+    if (user) authState = AuthState.AUTHENTICATED;
+    else authState = AuthState.UNAUTHENTICATED;
+  }
+  // If we wanted 'HYDRATING', we'd need more granular state, but this covers useSecuredApi needs
+
   const value: AuthContextType = {
     user,
+    authState,
     isAuthenticated: !!user,
     isInitialized,
     isInitialLoad: !isInitialized,

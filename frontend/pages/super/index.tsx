@@ -110,9 +110,9 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
     try {
       // 1. Fetch Real Tenant Data
       console.log('[Dashboard] Fetching tenants...');
-      const tenantRes = await api.get<{ tenants: Tenant[], total: number }>('/super/tenants');
+      const tenantRes = await api.get<{ data: Tenant[], total: number }>('/super/tenants');
       console.log('[Dashboard] Tenants fetched:', tenantRes.data.total);
-      setTenants(tenantRes.data.tenants);
+      setTenants(tenantRes.data.data || []); // Safety fallback
 
       // 2. Fetch System Health
       console.log('[Dashboard] Fetching system health...');
@@ -131,7 +131,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
 
       // 5. Fetch Audit Logs
       console.log('[Dashboard] Fetching audit logs...');
-      const auditRes = await api.get<{ logs: AuditLogEntry[] }>('/admin/audit/logs', { params: { limit: 5 } });
+      const auditRes = await api.get<{ logs: AuditLogEntry[] }>('/admin/audit-logs', { params: { limit: 5 } });
       setAuditLogs(auditRes.data.logs);
       
       console.log('[Dashboard] All data fetched successfully.');
