@@ -95,6 +95,55 @@ class LoginRateLimiter {
 }
 
 // ============================================================================
+// SESSION STORAGE - Persist auth state across page reloads
+// ============================================================================
+class SessionStorage {
+  private static readonly SESSION_KEY = 'sentinelfi_auth_user';
+  private static readonly TIMESTAMP_KEY = 'sentinelfi_auth_timestamp';
+  private static readonly MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  static save(user: User): void {
+    try {
+      localStorage.setItem(this.SESSION_KEY, JSON.stringify(user));
+      localStorage.setItem(this.TIMESTAMP_KEY, Date.now().toString());
+      AuthLogger.info('Session saved to localStorage');
+    } catch (error) {
+      AuthLogger.warn('Failed to save session to localStorage', error);
+    }
+  }
+
+  static load(): User | null {
+    try {
+      const userStr = localStorage.getItem(this.SESSION_KEY);
+      const timestampStr = localStorage.getItem(this.TIMESTAMP_KEY);
+
+      if (!userStr || !timestampStr) return null;
+
+      const age = Date.now() - parseInt(timestampStr, 10);
+      if (age > this.MAX_AGE_MS) {
+        AuthLogger.warn('Cached session expired, clearing');
+        this.clear();
+        return null;
+      }
+
+      const user: User = JSON.parse(userStr);
+      AuthLogger.info(`Session loaded from localStorage (age: ${Math.round(age / 1000)}s)`);
+      return user;
+    } catch (error) {
+      AuthLogger.warn('Failed to load session from localStorage', error);
+      this.clear();
+      return null;
+    }
+  }
+
+  static clear(): void {
+    localStorage.removeItem(this.SESSION_KEY);
+    localStorage.removeItem(this.TIMESTAMP_KEY);
+    AuthLogger.info('Session cleared from localStorage');
+  }
+}
+
+// ============================================================================
 // AUTH CONTEXT
 // ============================================================================
 
@@ -124,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isSuperAdmin = user.roles.some(r => getRoleName(r) === 'SuperAdmin');
 
     if (isSuperAdmin) {
-      return 'SuperAdmin';
+      return Role.SuperAdmin;
     }
 
     return getRoleName(user.roles[0]) as Role;
@@ -154,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const getDefaultRoute = useCallback((): string => {
     const primaryRole = getPrimaryRole();
-    if (primaryRole === 'SuperAdmin') return '/super';
+    if (primaryRole === Role.SuperAdmin) return '/super';
     return '/dashboard/home';
   }, [getPrimaryRole]);
 
@@ -198,13 +247,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isMountedRef.current = true;
     AuthLogger.info('AuthProvider mounting...');
 
-    fetchCurrentUser().then(currentUser => {
-      if (isMountedRef.current) {
-        setUser(currentUser);
-        setIsInitialized(true);
-        AuthLogger.success('Auth initialization complete.');
-      }
-    });
+    // Try to restore from localStorage first (instant)
+    const cachedUser = SessionStorage.load();
+    if (cachedUser) {
+      setUser(cachedUser);
+      setIsInitialized(true);
+      AuthLogger.info('Auth hydrated from cache, verifying with backend...');
+      
+      // Verify in background WITHOUT abort signal (critical for page reload in StrictMode)
+      // We want this verification to complete even if component unmounts temporarily
+      apiClient.get<{ user: User }>('/auth/me')
+        .then(response => {
+          if (isMountedRef.current) {
+            setUser(response.user);
+            SessionStorage.save(response.user);
+            AuthLogger.info('Background verification successful, session updated');
+          }
+        })
+        .catch(err => {
+          if (axios.isCancel(err)) return; // Ignore cancellations
+          
+          // Only clear session if it's a real auth failure (401)
+          if (axios.isAxiosError(err) && err.response?.status === 401) {
+            AuthLogger.warn('Cached session invalid (401), clearing');
+            if (isMountedRef.current) {
+              setUser(null);
+              SessionStorage.clear();
+            }
+          } else {
+            // Network error or other issue - keep cached session
+            AuthLogger.warn('Background verification failed but keeping cached session', err.message);
+          }
+        });
+    } else {
+      // No cache, fetch from backend
+      fetchCurrentUser().then(currentUser => {
+        if (isMountedRef.current) {
+          setUser(currentUser);
+          setIsInitialized(true);
+          if (currentUser) {
+            SessionStorage.save(currentUser);
+          }
+          AuthLogger.success('Auth initialization complete.');
+        }
+      });
+    }
 
     return () => {
       isMountedRef.current = false;
@@ -255,12 +342,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
 
     try {
-      const endpoint = role === 'SuperAdmin' ? '/auth/login/super' : '/auth/login/tenant';
+      const endpoint = role === Role.SuperAdmin ? '/auth/login/super' : '/auth/login/tenant';
       const response = await apiClient.post<{ user: User }>(endpoint, { email, password });
       
       AuthLogger.success(`Authenticated as ${email}`);
       rateLimiterRef.current.reset(email);
       setUser(response.user);
+      SessionStorage.save(response.user); // Persist to localStorage
     } catch (err: any) {
       rateLimiterRef.current.recordAttempt(email);
       if (axios.isCancel(err)) throw err;
@@ -284,6 +372,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setError(null);
       setIsLoading(false);
+      SessionStorage.clear(); // Clear localStorage
       router.push('/login');
     }
   }, [router]);

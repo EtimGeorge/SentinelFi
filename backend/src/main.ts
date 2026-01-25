@@ -6,6 +6,7 @@ import { ConfigService } from "@nestjs/config";
 import { Request, Response, NextFunction } from "express";
 import { DataSource } from "typeorm";
 import { DatabaseConfig } from "./common/config/database.config";
+import { CorrelationInterceptor } from './common/interceptors/correlation.interceptor'; // NEW IMPORT
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
@@ -32,6 +33,9 @@ async function bootstrap() {
 
     app.use(cookieParser());
     app.setGlobalPrefix("api/v1");
+
+    // Apply correlation interceptor globally (NEW LINE)
+    app.useGlobalInterceptors(new CorrelationInterceptor());
 
     app.useGlobalPipes(
       new ValidationPipe({

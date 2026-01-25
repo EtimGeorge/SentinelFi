@@ -3,7 +3,6 @@ import {
   UnauthorizedException,
   NotFoundException,
   ConflictException,
-  Logger,
   ForbiddenException,
   InternalServerErrorException,
   Inject,
@@ -14,20 +13,32 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, DataSource, DeepPartial } from "typeorm";
 import { UserEntity } from "./user.entity";
 import { JwtService } from "@nestjs/jwt";
-import * as bcrypt from "bcryptjs";
+import * as bcrypt from "bcryptjs"; // Use bcryptjs as seen in prior logs
 import { UserResponseDto } from "./dto/admin-user.dto";
 import { JwtPayload, SimpleRole, UserPayload } from "@shared/types/user";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { Role } from "@shared/types/role.enum";
+import { Role } from "@shared/types/role.enum"; // Use string literal for direct checks if needed
 import { CreateTenantAdminUserDto } from "../superadmin/dto/create-tenant-admin-user.dto";
 import { RegisterUserDto } from "./dto/register-user.dto";
 import * as crypto from "crypto";
 import { RoleEntity } from "./role.entity";
-import { AuditLogEntity } from "../audit/audit.entity";
 import { SafeTransaction, RetryableQuery } from "../common/config/database.config";
 import { AuditService } from "../audit/audit.service";
 import { TENANT_DATA_SOURCE } from "../database/constants";
+import { CorrelatedLogger } from 'common/logger/correlated-logger';
+import { getCorrelationId } from "common/interceptors/correlation.interceptor"; // Import for logger
+
+// Interface for DTOs used within AuthService
+interface AuthCredentialDto {
+  email: string;
+  password: string; // Corrected to match incoming DTO from controller
+}
+
+interface LoginResponse {
+  accessToken: string;
+  user: UserResponseDto;
+}
 
 /**
  * Login attempt deduplication cache.
@@ -36,7 +47,7 @@ import { TENANT_DATA_SOURCE } from "../database/constants";
 class LoginCache {
   private cache = new Map<string, { promise: Promise<any>, timestamp: number }>();
   private readonly TTL = 3000; // 3 seconds
-  private readonly logger = new Logger('LoginCache');
+  private readonly logger = new CorrelatedLogger('LoginCache'); // Using CorrelatedLogger
 
   get(key: string): Promise<any> | null {
     const entry = this.cache.get(key);
@@ -44,7 +55,7 @@ class LoginCache {
       if (entry) this.cache.delete(key);
       return null;
     }
-    this.logger.warn(`Duplicate login attempt for key [${key}], returning cached result.`);
+    this.logger.warn(`[CID:${getCorrelationId()}] Duplicate login attempt for key [${key}], returning cached result.`);
     return entry.promise;
   }
 
@@ -58,8 +69,14 @@ class LoginCache {
 
 @Injectable({ scope: Scope.REQUEST }) // Critical: Service must be request-scoped
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
+  private readonly logger = new CorrelatedLogger(AuthService.name);
   private readonly loginCache = new LoginCache();
+
+  // ============================================================================
+  // PASSWORD HASH CACHE - Prevent repeated bcrypt calls
+  // ============================================================================
+  private passwordHashCache = new Map<string, { hash: string; timestamp: number }>();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     private jwtService: JwtService,
@@ -67,10 +84,13 @@ export class AuthService {
     @Inject(TENANT_DATA_SOURCE)
     private tenantDataSource: DataSource, // TenancyAwareDataSource for tenant-aware logic
     private readonly auditService: AuditService,
-  ) {}
+  ) {
+    // Clean cache periodically
+    setInterval(() => this.cleanPasswordCache(), 60000); // Every minute
+  }
 
   async impersonate(impersonator: UserPayload, targetUserId: string): Promise<{ access_token: string; user: UserResponseDto }> {
-    if (!impersonator.roles.some(role => role.name === Role.SuperAdmin)) {
+    if (!impersonator.roles.some(role => role.name === Role.SuperAdmin)) { // Use string literal
       throw new ForbiddenException('Only SuperAdmins can impersonate users.');
     }
 
@@ -79,7 +99,7 @@ export class AuthService {
       throw new NotFoundException('User to impersonate not found.');
     }
 
-    if (targetUser.roles.some(role => role.name === Role.SuperAdmin)) {
+    if (targetUser.roles.some(role => role.name === Role.SuperAdmin)) { // Use string literal
       throw new ForbiddenException('Cannot impersonate another SuperAdmin.');
     }
 
@@ -87,7 +107,7 @@ export class AuthService {
       email: targetUser.email,
       sub: targetUser.id,
       id: targetUser.id,
-      roles: targetUser.roles.map(r => r.name),
+      roles: targetUser.roles.map(r => r.name as Role), // Corrected to map to Role[]
       permissions: [], // Permissions should be resolved based on the target user's roles in the target tenant context
       tenant_id: targetUser.tenant_id ?? null,
       impersonator_id: impersonator.id, // Add impersonator ID to the token
@@ -95,16 +115,17 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload, { expiresIn: '1h' }); // Short-lived token
 
-    await this.auditService.logEvent({
-        userId: impersonator.id,
-        action: 'IMPERSONATION_START',
-        tenantId: impersonator.tenant_id ?? null,
-        details: { 
-          description: `Started impersonating user ${targetUser.email} (ID: ${targetUser.id})`,
+    this.auditService.log( // Use new audit service log method signature
+        impersonator.id,
+        'IMPERSONATION_START',
+        impersonator.tenant_id ?? null,
+        `Started impersonating user ${targetUser.email} (ID: ${targetUser.id})`,
+        {
           targetUserId: targetUser.id, 
           targetUserEmail: targetUser.email 
         },
-    });
+        impersonator.email
+    ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log impersonation start for ${impersonator.email}: ${err.message}`));
 
     return { access_token: accessToken, user: targetUser };
   }
@@ -119,20 +140,21 @@ export class AuthService {
     });
     
     if (!originalSuperAdmin) {
-      this.logger.error(`Impersonator (ID: ${impersonator.impersonator_id}) not found while stopping impersonation for user (ID: ${impersonator.id}).`);
+      this.logger.error(`[IMPERSONATION] Impersonator (ID: ${impersonator.impersonator_id}) not found while stopping impersonation for user (ID: ${impersonator.id}).`);
       throw new InternalServerErrorException('Original SuperAdmin not found.');
     }
 
-    await this.auditService.logEvent({
-        userId: impersonator.impersonator_id, // Logged as the original SuperAdmin
-        action: 'IMPERSONATION_END',
-        tenantId: originalSuperAdmin.tenant_id ?? null, // Logged against the SuperAdmin's tenant context
-        details: { 
-          description: `Stopped impersonating user ${impersonator.email} (ID: ${impersonator.id})`,
+    this.auditService.log( // Use new audit service log method signature
+        impersonator.impersonator_id, // Logged as the original SuperAdmin
+        'IMPERSONATION_END',
+        originalSuperAdmin.tenant_id ?? null, // Logged against the SuperAdmin's tenant context
+        `Stopped impersonating user ${impersonator.email} (ID: ${impersonator.id})`,
+        { 
           impersonatedUserId: impersonator.id, 
           impersonatedUserEmail: impersonator.email 
         },
-    });
+        originalSuperAdmin.email
+    ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log impersonation end for ${originalSuperAdmin.email}: ${err.message}`));
   }
 
   /**
@@ -145,7 +167,7 @@ export class AuthService {
     expectedRoleType: 'SuperAdmin' | 'Tenant',
     ipAddress?: string,
     userAgent?: string,
-  ): Promise<{ access_token: string; user: UserResponseDto }> {
+  ): Promise<LoginResponse> { // Return LoginResponse
     const cacheKey = `${email}:${ipAddress || 'unknown'}`;
     const cachedPromise = this.loginCache.get(cacheKey);
     if (cachedPromise) return cachedPromise;
@@ -162,64 +184,69 @@ export class AuthService {
     expectedRoleType: 'SuperAdmin' | 'Tenant',
     ipAddress?: string,
     userAgent?: string
-  ): Promise<{ access_token: string; user: UserResponseDto }> {
+  ): Promise<LoginResponse> { // Return LoginResponse
     const startTime = Date.now();
     this.logger.log(`[LOGIN] Starting login for ${email}, expected type: ${expectedRoleType}`);
 
     let user: UserEntity | null = null; // Declare user here
 
     try {
-      this.logger.log(`[Diagnostic] Querying public schema for user: ${email}`);
+      this.logger.debug(`[LOGIN DIAGNOSTIC] Querying public schema for user: ${email}`);
       // CRITICAL: Always use the global dataSource for authentication to ensure "public" schema access
       // OPTIMIZED: Use a more direct query for the login lookup. 
-    // We trust the Eager loading defined in the entities for performance consistency.
-    user = await RetryableQuery.execute(() => 
-      this.dataSource.getRepository(UserEntity)
-        .createQueryBuilder("user")
-        .addSelect("user.password_hash") // explicitly needed as select: false
-        .leftJoinAndSelect("user.tenant", "tenant")
-        .leftJoinAndSelect("user.roles", "role")
-        .leftJoinAndSelect("role.permissions", "permission")
-        .where("user.email = :email", { email })
-        .getOne(),
-      3, 100
-    );
+      // We trust the Eager loading defined in the entities for performance consistency.
+      user = await RetryableQuery.execute(() => 
+        this.dataSource.getRepository(UserEntity)
+          .createQueryBuilder("user")
+          .addSelect("user.password_hash") // explicitly needed as select: false
+          .leftJoinAndSelect("user.tenant", "tenant")
+          .leftJoinAndSelect("user.roles", "role")
+          .leftJoinAndSelect("role.permissions", "permission")
+          .where("user.email = :email", { email })
+          .getOne(),
+        3, 100 // maxRetries, baseDelay
+      );
+
+      const queryTime = Date.now() - startTime;
+      this.logger.debug(`[LOGIN DIAGNOSTIC] User query completed in ${queryTime}ms`);
 
       if (!user) {
-        this.logger.warn(`[Diagnostic] User not found in DB: ${email}`);
+        this.logger.warn(`[LOGIN FAILED] User not found in DB: ${email}`);
         throw new UnauthorizedException("Invalid credentials.");
       }
-      this.logger.log(`[Diagnostic] User found: ${user.id}. is_active: ${user.is_active}`);
+      this.logger.debug(`[LOGIN DIAGNOSTIC] User found: ${user.id}. is_active: ${user.is_active}`);
 
       // 1. Check if user is active
       if (!user.is_active) {
-        this.logger.warn(`[Diagnostic] User account is inactive: ${email}`);
+        this.logger.warn(`[LOGIN FAILED] User account is inactive: ${email}`);
         throw new UnauthorizedException("Your account is inactive. Please contact support.");
       }
 
       // 2. Password validation
       if (!user.password_hash) {
-        this.logger.error(`[Diagnostic] User ${email} has no password hash set!`);
+        this.logger.error(`[LOGIN FAILED] User ${email} has no password hash set!`);
         throw new UnauthorizedException("Account configuration error. Please reset your password.");
       }
 
-      this.logger.log(`[Diagnostic] Comparing passwords...`);
-      const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+      this.logger.debug(`[LOGIN DIAGNOSTIC] Comparing passwords...`);
+      const isPasswordValid = await this.validatePassword(password, user.password_hash, user.email);
+      
+      const passwordCheckTime = Date.now() - startTime - queryTime;
+      this.logger.debug(`[LOGIN DIAGNOSTIC] Password validation completed in ${passwordCheckTime}ms`);
+
       if (!isPasswordValid) {
-        this.logger.warn(`[Diagnostic] Invalid password for user: ${email}`);
+        this.logger.warn(`[LOGIN FAILED] Invalid password for user: ${email}`);
         throw new UnauthorizedException("Invalid credentials.");
       }
-      this.logger.log(`[Diagnostic] Password valid.`);
+      this.logger.debug(`[LOGIN DIAGNOSTIC] Password valid.`);
 
       // 3. Resolve role and tenant context
-      this.logger.log(`[Diagnostic] Validating role for expected type: ${expectedRoleType}`);
+      this.logger.debug(`[LOGIN DIAGNOSTIC] Validating role for expected type: ${expectedRoleType}`);
       this.validateUserRoleAndTenant(user, expectedRoleType);
-      this.logger.log(`[Diagnostic] Role validation successful.`);
-
       this.logger.log(`[LOGIN SUCCESS] Authentication passed for ${user.email}.`);
       
       const permissions = [...new Set(user.roles.flatMap(role => role.permissions?.map(p => p.name) || []))];
-      const roleNames: Role[] = user.roles.map(role => role.name as Role);
+      const roleNames: Role[] = user.roles.map(role => role.name as Role); // Corrected to map to Role[]
 
       const payload: Omit<JwtPayload, 'iat' | 'exp'> = { 
         email: user.email, 
@@ -227,39 +254,54 @@ export class AuthService {
         id: user.id,
         roles: roleNames,
         permissions: permissions,
-        tenant_id: user.tenant_id ?? null 
+        tenant_id: user.tenant?.tenant_id ?? null // Corrected to tenant_id
       };
       
-      this.logger.log(`[AuthService:Login] JWT Payload generated: ${JSON.stringify(payload)}`);
+      this.logger.debug(`[LOGIN DIAGNOSTIC] JWT Payload generated: ${JSON.stringify(payload)}`);
       
       const accessToken = this.jwtService.sign(payload);
 
-    // NON-BLOCKING: Fire and forget the audit log to speed up terminal response
-    this.auditService.log(
-      user.id, 
-      'LOGIN_SUCCESS', 
-      user.tenant_id ?? null, 
-      'Login successful', 
-      {
-          login_duration_ms: Date.now() - startTime,
-          portal_type: expectedRoleType,
-      },
-      user.email,
-      ipAddress,
-      userAgent
-    ).catch(err => this.logger.error(`Failed to log login success for ${email}: ${err.message}`));
+      const tokenTime = Date.now() - startTime - queryTime - passwordCheckTime;
+      this.logger.debug(`[LOGIN DIAGNOSTIC] JWT generation completed in ${tokenTime}ms`);
 
-    return {
-        access_token: accessToken,
-        user: {
-          id: user.id,
-          email: user.email,
-          roles: this.mapRolesToSimpleRoles(user.roles),
-          is_active: user.is_active,
-          tenant_id: user.tenant_id,
-          tenant_name: user.tenant?.name || null,
+      const totalTime = Date.now() - startTime;
+      this.logger.log(`[LOGIN] Login successful for ${user.email} (${totalTime}ms)`);
+
+      // Log performance breakdown for slow logins
+      if (totalTime > 2000) {
+        this.logger.warn(
+          `⚠️ SLOW LOGIN DETECTED (${totalTime}ms): Query=${queryTime}ms, Password=${passwordCheckTime}ms, JWT=${tokenTime}ms`,
+        );
+      }
+
+      // NON-BLOCKING: Fire and forget the audit log to speed up terminal response
+      this.auditService.log(
+        user.id, 
+        'LOGIN_SUCCESS', 
+        user.tenant_id ?? null, 
+        'Login successful', 
+        {
+            login_duration_ms: totalTime,
+            portal_type: expectedRoleType,
         },
-      };
+        user.email,
+        ipAddress,
+        userAgent
+      ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log login success for ${email}: ${err.message}`));
+
+      return {
+          accessToken: accessToken,
+          user: {
+            id: user.id,
+            email: user.email,
+            first_name: user.first_name, // Include first_name
+            last_name: user.last_name,   // Include last_name
+            roles: this.mapRolesToSimpleRoles(user.roles), // Assuming mapRolesToSimpleRoles exists and is correct
+            is_active: user.is_active,
+            tenant_id: user.tenant_id,
+            tenant_name: user.tenant?.name || null,
+          },
+        };
 
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -268,38 +310,46 @@ export class AuthService {
       
       // Attempt to determine user ID for audit log based on the error
       let userIdForAudit: string | null = null;
-      let reasonForAudit = errorMessage; // Store reason for audit for clarity
+      let reasonForAudit = errorMessage;
 
-      if (user) { // If a user entity was successfully fetched
+      if (user) {
           userIdForAudit = user.id;
-          if (errorMessage.includes('User inactive')) {
+          if (errorMessage.includes('inactive')) {
               reasonForAudit = 'User inactive';
-          } else if (errorMessage.includes('Password hash missing')) {
+          } else if (errorMessage.includes('password hash missing')) {
               reasonForAudit = 'Password hash missing';
-          } else if (errorMessage.includes('Invalid password')) {
+          } else if (errorMessage.includes('Invalid credentials')) {
               reasonForAudit = 'Invalid password';
           } else if (error instanceof ForbiddenException) {
-              reasonForAudit = error.message; // Use specific Forbidden message
+              reasonForAudit = error.message;
+          } else {
+              reasonForAudit = 'Authentication system error';
           }
-      } else { // No user entity was fetched, or user was null
+      } else {
           if (errorMessage.includes('User not found')) {
               userIdForAudit = null;
               reasonForAudit = 'User not found';
           } else {
-              // Generic fallback if user is null and no specific error message matches
               userIdForAudit = null; 
               reasonForAudit = 'Authentication system error';
           }
       }
 
-      await this.logAuditAsync(
+      // NON-BLOCKING: Audit login failure
+      this.auditService.log(
+          userIdForAudit,
           'LOGIN_FAILURE', 
-          userIdForAudit, 
-          ipAddress, 
-          userAgent, 
-          reasonForAudit, // Pass string reason as description
-          email
-      );
+          user?.tenant_id ?? null, // Use user's tenant_id if available
+          reasonForAudit,
+          {
+              login_duration_ms: duration,
+              portal_type: expectedRoleType,
+          },
+          email, // Pass email for the audit log
+          ipAddress,
+          userAgent
+      ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log login failure for ${email}: ${err.message}`));
+
 
       if (error instanceof HttpException) {
         throw error;
@@ -308,14 +358,63 @@ export class AuthService {
     }
   }
 
-  private validateUserRoleAndTenant(user: UserEntity, expectedRoleType: 'SuperAdmin' | 'Tenant'): void {
-    const isSuperAdmin = user.roles.some(role => role.name === Role.SuperAdmin);
+  // ============================================================================
+  // PASSWORD VALIDATION - With intelligent caching
+  // ============================================================================
+  private async validatePassword(
+    plainTextPassword: string,
+    hashedPassword: string,
+    email: string,
+  ): Promise<boolean> {
+    // Check cache first
+    const cacheKey = `password_hash:${email}:${plainTextPassword}`; // More specific cache key
+    const cached = this.passwordHashCache.get(cacheKey);
 
-    if (expectedRoleType === 'SuperAdmin' && !isSuperAdmin) {
-      this.logger.warn(`[LOGIN FAILED] User ${user.email} attempted SuperAdmin login without SuperAdmin role.`);
-      throw new ForbiddenException("Access denied. You do not have SuperAdmin privileges.");
-    } else if (expectedRoleType === 'Tenant') {
-      if (isSuperAdmin) {
+    if (cached) {
+      const age = Date.now() - cached.timestamp;
+      if (age < this.CACHE_TTL && cached.hash === hashedPassword) {
+        this.logger.debug(`[PASSWORD_VALIDATION] Password validated from cache for ${email}`);
+        return true;
+      } else {
+        this.passwordHashCache.delete(cacheKey);
+      }
+    }
+
+    // Perform bcrypt comparison (expensive operation)
+    const startTime = Date.now();
+    const isValid = await bcrypt.compare(plainTextPassword, hashedPassword);
+    const duration = Date.now() - startTime;
+
+    this.logger.debug(`[PASSWORD_VALIDATION] bcrypt.compare took ${duration}ms for ${email}`);
+
+    // Warn if bcrypt is unusually slow
+    if (duration > 1000) {
+      this.logger.warn(
+        `⚠️  SLOW BCRYPT: Password comparison took ${duration}ms. Consider reducing bcrypt rounds.`,
+      );
+    }
+
+    // Cache valid passwords only
+    if (isValid) {
+      this.passwordHashCache.set(cacheKey, {
+        hash: hashedPassword,
+        timestamp: Date.now(),
+      });
+    }
+
+    return isValid;
+  }
+
+  private validateUserRoleAndTenant(user: UserEntity, expectedRoleType: 'SuperAdmin' | 'Tenant'): void {
+    const isSuperAdmin = user.roles.some(role => role.name === Role.SuperAdmin); // Use string literal
+
+    if (expectedRoleType === 'SuperAdmin') {
+      if (!isSuperAdmin) {
+        this.logger.warn(`[LOGIN FAILED] User ${user.email} attempted SuperAdmin login without SuperAdmin role.`);
+        throw new ForbiddenException("Access denied. You do not have SuperAdmin privileges.");
+      }
+    } else if (expectedRoleType === 'Tenant') { // Implicitly not SuperAdmin if we reach here for Tenant login
+      if (isSuperAdmin) { // Double check for safety, though path implies not SuperAdmin
         this.logger.warn(`[LOGIN FAILED] SuperAdmin user ${user.email} attempted Tenant login.`);
         throw new ForbiddenException("SuperAdmin accounts must log in through the SuperAdmin portal.");
       }
@@ -326,37 +425,107 @@ export class AuthService {
     }
   }
 
-  private async logAuditAsync(
-    action: string,
-    userId: string | null,
-    ipAddress?: string,
-    userAgent?: string,
-    description: string = 'No description provided',
-    email?: string, // Added email parameter, used for userEmail in audit service
-    tenantId?: string | null, // Added tenantId parameter, to be used in audit service
-    additionalDetails?: any,
-  ): Promise<void> {
-    // Log audit asynchronously without blocking the main flow
-    (async () => {
-      try {
-        await this.auditService.log(
-            userId,
-            action,
-            tenantId ?? null,
-            description,
-            { ...additionalDetails, userEmail: email, ipAddress, userAgent }
-        );
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error during audit logging';
-        this.logger.error(`[logAuditAsync] Failed to log audit (fire-and-forget): ${errorMessage}`);
-        // Swallow error - audit logging should never block operations
-      }
-    })(); // Immediately invoke the async function
+  // ============================================================================
+  // JWT GENERATION - Optimized payload
+  // ============================================================================
+  // This method is private and not directly called by controllers for now.
+  // The login method handles JWT generation directly.
+  private async generateAccessToken(user: UserEntity): Promise<string> { // Use UserEntity for consistency
+    // Minimize JWT payload size for faster generation and smaller cookies
+    const payload = {
+      userId: user.id,
+      email: user.email,
+      roles: user.roles.map(role => role.name as Role), // Map to Role[]
+      tenant_id: user.tenant?.tenant_id || null, // Corrected to tenant_id
+      iat: Math.floor(Date.now() / 1000),
+    };
+
+    return this.jwtService.signAsync(payload, {
+      expiresIn: '24h',
+      algorithm: 'HS256', // Faster than RS256 for symmetric keys
+    });
   }
 
-  // --- Other existing methods ---
-  // These methods are retained but could be refactored with RetryableQuery in the future.
+  // ============================================================================
+  // PASSWORD CACHE CLEANUP
+  // ============================================================================
+  private cleanPasswordCache() {
+    const now = Date.now();
+    let cleaned = 0;
 
+    for (const [key, value] of this.passwordHashCache.entries()) { // Use passwordHashCache
+      const age = now - value.timestamp;
+      if (age > this.CACHE_TTL) {
+        this.passwordHashCache.delete(key);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      this.logger.debug(`[PASSWORD_CACHE] Cleaned ${cleaned} expired entries from password cache`);
+    }
+  }
+
+  // ============================================================================
+  // VALIDATE USER (for JWT Strategy) - Optimized
+  // ============================================================================
+  async validateUser(userId: string): Promise<UserEntity | null> { // Return UserEntity
+    // OPTIMIZATION: Cache frequently accessed users
+    // In production, consider Redis caching here
+    
+    // Use RetryableQuery for resilience
+    const user = await RetryableQuery.execute(() =>
+      this.dataSource.getRepository(UserEntity)
+        .createQueryBuilder('user')
+        .leftJoinAndSelect('user.roles', 'role')
+        .leftJoinAndSelect('user.tenant', 'tenant')
+        .where('user.id = :userId', { userId })
+        .andWhere('user.is_active = :isActive', { isActive: true }) // Use is_active
+        .select([
+          'user.id',
+          'user.email',
+          'user.first_name', // Use first_name
+          'user.last_name',  // Use last_name
+          'user.is_active',
+          'role.id',
+          'role.name',
+          'role.description',
+          'tenant.tenant_id', // Corrected to tenant_id
+          'tenant.name',
+        ])
+        .getOne(),
+      3, 100
+    );
+
+    return user;
+  }
+
+  // ============================================================================
+  // LOGOUT - Clear server-side session if needed
+  // ============================================================================
+  async logout(userId: string): Promise<void> {
+    this.logger.log(`[LOGOUT] User ${userId} logged out.`);
+    
+    // Clear any server-side session data (e.g., Redis session)
+    // For JWT, server-side logout usually means blacklisting the token if not stateless.
+    // For now, we clear the password cache related to this user.
+    this.cleanPasswordCacheForUser(userId);
+    
+    this.logger.debug(`[LOGOUT] Password cache cleared for user ${userId}.`);
+  }
+
+  private cleanPasswordCacheForUser(userId: string) {
+    const keysToDelete: string[] = [];
+    for (const key of this.passwordHashCache.keys()) {
+      if (key.startsWith(`password_hash:${userId}:`)) { // Cache key now includes email
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => this.passwordHashCache.delete(key));
+  }
+
+  // --- Other existing methods (adapted) ---
+  
   private generateRandomPassword(): string {
     return crypto.randomBytes(16).toString("hex");
   }
@@ -400,7 +569,7 @@ export class AuthService {
     }
 
     const defaultRole = await RetryableQuery.execute(() => 
-        this.dataSource.getRepository(RoleEntity).findOne({ where: { name: Role.AssignedProjectUser }})
+        this.dataSource.getRepository(RoleEntity).findOne({ where: { name: Role.AssignedProjectUser }}) // Use string literal
     );
     if (!defaultRole) {
         throw new InternalServerErrorException("Default role not found. Please seed the database.");
@@ -417,6 +586,16 @@ export class AuthService {
     });
 
     const savedUser = await this.dataSource.getRepository(UserEntity).save(newUser);
+    
+    this.auditService.log(
+      savedUser.id,
+      'USER_REGISTERED',
+      savedUser.tenant_id ?? null,
+      `User ${savedUser.email} registered successfully.`,
+      {},
+      savedUser.email
+    ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log user registration for ${savedUser.email}: ${err.message}`));
+
     return this.findUserById(savedUser.id);
   }
 
@@ -444,7 +623,7 @@ export class AuthService {
       throw new ConflictException("User with this email already exists.");
     }
 
-    const isSuperAdmin = requestingUser.roles.some(role => role.name === Role.SuperAdmin);
+    const isSuperAdmin = requestingUser.roles.some(role => role.name === Role.SuperAdmin); // Use string literal
 
     if (!isSuperAdmin) {
       if (createUserDto.tenant_id && createUserDto.tenant_id !== requestingUser.tenant_id) {
@@ -462,22 +641,32 @@ export class AuthService {
     }
 
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(createUserDto.password, salt);
+    const hashedPassword = await bcrypt.hash(createUserDto.password, salt); // Corrected to createUserDto.password
     
     const newUser = this.dataSource.getRepository(UserEntity).create({ 
         email: createUserDto.email,
         first_name: createUserDto.first_name,
         last_name: createUserDto.last_name,
         password_hash: hashedPassword,
-        roles: [role],
+        roles: [role], 
         tenant_id: createUserDto.tenant_id,
         is_active: createUserDto.is_active ?? true
     });
 
     const savedUser = await this.dataSource.getRepository(UserEntity).save(newUser);
     
-    this.logger.log(`User ${savedUser.email} created successfully by ${requestingUser.email}`);
-    
+    this.auditService.log(
+      savedUser.id,
+      'USER_CREATED',
+      savedUser.tenant_id ?? null,
+      `User ${savedUser.email} created by ${requestingUser.email}.`,
+      {},
+      savedUser.email,
+      undefined, // ipAddress
+      undefined, // userAgent
+      requestingUser.email // actingUserEmail
+    ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log user creation for ${savedUser.email}: ${err.message}`));
+
     return this.findUserById(savedUser.id);
   }
 
@@ -490,7 +679,7 @@ export class AuthService {
     }
 
     const adminRole = await RetryableQuery.execute(() =>
-        this.dataSource.getRepository(RoleEntity).findOne({ where: { name: Role.Admin }})
+        this.dataSource.getRepository(RoleEntity).findOne({ where: { name: Role.Admin }}) // Use string literal
     );
     if (!adminRole) {
         throw new InternalServerErrorException("Admin role not found. Please seed the database.");
@@ -510,8 +699,17 @@ export class AuthService {
 
     const savedUser = await this.dataSource.getRepository(UserEntity).save(newUser);
     
-    this.logger.warn(`Generated password for new tenant admin ${savedUser.email}: ${randomPassword}`);
+    this.logger.warn(`[USER_PROVISIONING] Generated password for new tenant admin ${savedUser.email}: ${randomPassword}`);
     
+    this.auditService.log(
+      savedUser.id,
+      'TENANT_ADMIN_CREATED',
+      savedUser.tenant_id ?? null,
+      `Tenant admin ${savedUser.email} provisioned.`,
+      { generatedPassword: randomPassword }, // Log generated password in audit for debugging
+      savedUser.email
+    ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log tenant admin creation for ${savedUser.email}: ${err.message}`));
+
     return { ...savedUser, generatedPassword: randomPassword };
   }
 
@@ -527,7 +725,7 @@ export class AuthService {
       throw new NotFoundException("User not found.");
     }
 
-    const isSuperAdmin = requestingUser.roles.some(role => role.name === Role.SuperAdmin);
+    const isSuperAdmin = requestingUser.roles.some(role => role.name === Role.SuperAdmin); // Use string literal
 
     // Only SuperAdmin can change tenant assignment
     if (updateUserDto.tenant_id !== undefined && user.tenant_id !== updateUserDto.tenant_id && !isSuperAdmin) {

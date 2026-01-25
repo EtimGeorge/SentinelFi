@@ -66,10 +66,20 @@ declare module 'axios' {
   }
 }
 
+// Generate correlation ID for request tracing
+const generateCorrelationId = (): string => {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 api.interceptors.request.use(
   (config) => {
     config.metadata = { startTime: Date.now() };
-    console.log(`[API] → ${config.method?.toUpperCase()} ${config.url}`);
+    
+    // Add correlation ID for request tracing
+    const correlationId = generateCorrelationId();
+    config.headers['X-Correlation-ID'] = correlationId;
+    
+    console.log(`[API] [CID:${correlationId}] → ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
   (error) => {
@@ -81,7 +91,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response: AxiosResponse) => {
     const duration = Date.now() - (response.config.metadata?.startTime || 0);
-    console.log(`[API] ✓ ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
+    const correlationId = response.config.headers['X-Correlation-ID'];
+    console.log(`[API] [CID:${correlationId}] ✓ ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
     return response;
   },
   async (error: AxiosError) => {
@@ -95,8 +106,9 @@ api.interceptors.response.use(
        return Promise.reject(error);
     }
     
+    const correlationId = config.headers?.['X-Correlation-ID'];
     console.error(
-      `[API] ✗ ${error.response?.status || error.code} ${config.method?.toUpperCase()} ${config.url} (${duration}ms): ${error.message}`
+      `[API] [CID:${correlationId}] ✗ ${error.response?.status || error.code} ${config.method?.toUpperCase()} ${config.url} (${duration}ms): ${error.message}`
     );
 
     if (config._skipRetry) {

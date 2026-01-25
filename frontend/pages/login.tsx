@@ -175,7 +175,7 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
       AuthLogger.info(`Attempting ${loginMode} login for: ${formData.email}`);
       
       // Convert loginMode to Role
-      const role = loginMode === LoginMode.SUPER_ADMIN ? 'SuperAdmin' as Role : Role.Admin;
+      const role = loginMode === LoginMode.SUPER_ADMIN ? Role.SuperAdmin : Role.Admin;
       
       // FIXED: Call login with individual parameters, not an object
       await login(formData.email.trim(), formData.password, role);

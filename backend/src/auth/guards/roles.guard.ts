@@ -5,10 +5,11 @@ import { Role } from 'shared/types/role.enum';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { UserPayload, SimpleRole } from '@shared/types/user'; // UserPayload potentially defines roles as SimpleRole[] or string[]
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request.interface';
+import { CorrelatedLogger } from 'common/logger/correlated-logger'; // NEW IMPORT
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  private readonly logger = new Logger(RolesGuard.name);
+  private readonly logger = new CorrelatedLogger(RolesGuard.name); // CHANGED LINE
 
   constructor(private reflector: Reflector) {}
 

@@ -7,9 +7,10 @@ import { UserEntity } from './user.entity';
 import { UserPayload, JwtPayload, SimpleRole } from "@shared/types/user";
 import { Request } from "express";
 import { Role } from "@shared/types/role.enum"; // Import Role
+import { CorrelatedLogger } from 'common/logger/correlated-logger'; // NEW IMPORT
 
 const cookieExtractor = (req: Request): string | null => {
-  const logger = new Logger("CookieExtractor");
+  const logger = new CorrelatedLogger("CookieExtractor"); // CHANGED LINE
   let token = null;
 
   if (req && req.cookies) {
@@ -29,14 +30,14 @@ const cookieExtractor = (req: Request): string | null => {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   private usersRepository: Repository<UserEntity>;
-  private readonly logger = new Logger(JwtStrategy.name);
+  private readonly logger = new CorrelatedLogger(JwtStrategy.name); // CHANGED LINE
 
   constructor(
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
   ) {
     // Logger can be instantiated here as it doesn't depend on 'this' context yet that needs 'super()'
-    const constructorLogger = new Logger(JwtStrategy.name + ':Constructor'); 
+    const constructorLogger = new CorrelatedLogger(JwtStrategy.name + ':Constructor'); // CHANGED LINE
 
     const secret = configService.get<string>("JWT_SECRET_KEY");
     if (!secret) {
