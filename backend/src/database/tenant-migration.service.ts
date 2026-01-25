@@ -18,7 +18,10 @@ import { OperationalBudgetCategoryEntity } from "../operational-budgets/operatio
 import { OperationalExpenseEntity } from "../operational-budgets/operational-expense.entity";
 import { PayrollEntryEntity } from '../operational-budgets/payroll-entry.entity';
 import { UserEntity } from "../auth/user.entity";
+import { RoleEntity } from "../auth/role.entity"; // NEW
+import { PermissionEntity } from "../auth/permission.entity"; // NEW
 import { TenantEntity } from "../tenants/tenant.entity";
+import { AuditLogEntity } from "../audit/audit.entity"; // NEW
 
 @Injectable()
 export class TenantMigrationService {
@@ -74,8 +77,11 @@ export class TenantMigrationService {
         OperationalBudgetCategoryEntity,
         OperationalExpenseEntity,
         PayrollEntryEntity,
-        UserEntity,
-        TenantEntity,
+        UserEntity,           // Public entity
+        RoleEntity,           // Public entity (for UserEntity relations)
+        PermissionEntity,     // Public entity (for RoleEntity relations)
+        TenantEntity,         // Public entity (for UserEntity relations)
+        AuditLogEntity,       // Public entity (for UserEntity relations)
       ],
       migrations: [
         path.join(
