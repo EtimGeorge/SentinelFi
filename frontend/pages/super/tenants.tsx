@@ -314,8 +314,8 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
     setLoading(true);
     try {
       // Assuming backend returns { tenants: Tenant[], total: N }
-      const response = await api.get<{ tenants: Tenant[], total: number }>('/super/tenants');
-      setTenants(response.data.tenants);
+      const response = await api.get<{ data: Tenant[], total: number }>('/super/tenants');
+      setTenants(response.data.data || []);
     } catch (e: any) {
       addToast(`Failed to fetch tenants: ${e.response?.data?.message || e.message}`, 'error');
     } finally {

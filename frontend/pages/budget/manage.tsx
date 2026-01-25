@@ -56,8 +56,8 @@ const BudgetManagementPage: React.FC = () => {
         status: statusFilter || undefined,
         projectId: projectIdFilter || undefined,
       };
-      const response = await api.get<{ budgets: WbsBudget[]; total: number }>('/wbs/budgets', { params });
-      setBudgets(response.data.budgets);
+      const response = await api.get<{ data: WbsBudget[]; total: number }>('/wbs/budgets', { params });
+      setBudgets(response.data.data);
       setTotal(response.data.total);
     } catch (e: any) {
       const errorMsg = `Failed to fetch budgets: ${e.response?.data?.message || e.message}`;

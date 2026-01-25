@@ -139,12 +139,12 @@ const ProjectOverviewPage: React.FC = () => {
       setCashflow(cfResponse.data);
 
       // Fetch associated budgets using projectId filter
-      const budgetsResponse = await api.get<{ budgets: WbsBudget[], total: number }>(`/wbs/budgets?projectId=${id}&limit=1000`);
-      setBudgets(budgetsResponse.data.budgets);
+      const budgetsResponse = await api.get<{ data: WbsBudget[], total: number }>(`/wbs/budgets?projectId=${id}&limit=1000`);
+      setBudgets(budgetsResponse.data.data);
 
       // Fetch associated expenses using projectId filter
-      const expensesResponse = await api.get<{ expenses: LiveExpense[], total: number }>(`/wbs/expenses?projectId=${id}&limit=1000`);
-      setExpenses(expensesResponse.data.expenses);
+      const expensesResponse = await api.get<{ data: LiveExpense[], total: number }>(`/wbs/expenses?projectId=${id}&limit=1000`);
+      setExpenses(expensesResponse.data.data);
 
       // Fetch LPOs
       const lposResponse = await api.get<LpoData[]>(`/projects/${id}/lpos`);

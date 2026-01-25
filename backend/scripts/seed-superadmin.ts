@@ -17,7 +17,7 @@ async function bootstrap() {
     const roleRepo = dataSource.getRepository(RoleEntity); // Get RoleRepository
 
     const email = 'superadmin@sentinelfi.com';
-    const defaultPassword = '##Ndiong1988##'; 
+    const defaultPassword = 'Ndiong1988'; 
     const superAdminRoleName = "SuperAdmin";
 
     // Fetch the SuperAdmin role from the database

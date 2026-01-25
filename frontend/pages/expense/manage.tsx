@@ -61,8 +61,8 @@ const ExpenseManagementPage: React.FC = () => {
         endDate: endDateFilter || undefined,
         projectId: projectIdFilter || undefined, // Use new project filter
       };
-      const response = await api.get<{ expenses: LiveExpense[]; total: number }>("/wbs/expenses", { params });
-      setExpenses(response.data.expenses);
+      const response = await api.get<{ data: LiveExpense[]; total: number }>("/wbs/expenses", { params });
+      setExpenses(response.data.data);
       setTotal(response.data.total);
     } catch (e: any) {
       setError(`Failed to fetch expenses: ${e.response?.data?.message || e.message}`);

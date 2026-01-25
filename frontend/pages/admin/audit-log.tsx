@@ -60,7 +60,7 @@ const AuditLogPage: React.FC = () => {
       }
 
 
-      const response = await api.get<{ logs: AuditLogEntity[]; total: number }>('/admin/audit/logs', { params });
+      const response = await api.get<{ logs: AuditLogEntity[]; total: number }>('/admin/audit-logs', { params });
       setAuditLogs(response.data.logs);
       setTotalLogs(response.data.total);
 

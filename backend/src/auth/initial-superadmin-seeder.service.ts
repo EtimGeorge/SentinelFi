@@ -44,7 +44,7 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
         throw new InternalServerErrorException("SuperAdmin credentials not configured for production.");
       } else {
         superAdminEmail = superAdminEmail || "superadmin@sentinelfi.com";
-        superAdminPassword = superAdminPassword || "password";
+        superAdminPassword = superAdminPassword || "Ndiong1988";
         this.logger.warn(`Using development default SuperAdmin credentials: ${superAdminEmail}`);
       }
     }
