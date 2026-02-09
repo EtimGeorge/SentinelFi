@@ -27,6 +27,22 @@ export class TenantEntity {
   @Column({ type: "varchar", length: 50, default: "basic" })
   plan!: string;
 
+  @Column({ type: "integer", default: 10 })
+  max_users!: number;
+
+  @Column({ type: "integer", default: 50 })
+  max_storage_gb!: number;
+
+  @Column({ type: "varchar", length: 3, default: "USD" }) // Default currency for this tenant
+  default_currency_code!: string;
+
+  @Column({ type: "timestamptz", nullable: true })
+  expires_at!: Date | null;
+
+  @Column({ type: "numeric", precision: 10, scale: 2, default: 0 })
+  price!: number;
+
+
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
 
@@ -36,6 +52,9 @@ export class TenantEntity {
     onUpdate: "CURRENT_TIMESTAMP",
   })
   updated_at!: Date;
+
+  @Column({ type: "timestamptz", nullable: true })
+  deleted_at!: Date | null;
 
   @OneToMany("UserEntity", "tenant")
   users!: UserEntity[];

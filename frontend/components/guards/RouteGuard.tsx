@@ -37,7 +37,7 @@ const AuthErrorScreen = ({ error, onRetry }: { error: Error; onRetry: () => void
             </svg>
             Attempt Reconnection
           </button>
-          
+
           <button
             onClick={() => window.location.reload()}
             className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-6 rounded-lg transition-all"
@@ -45,7 +45,7 @@ const AuthErrorScreen = ({ error, onRetry }: { error: Error; onRetry: () => void
             Refresh Application
           </button>
         </div>
-        
+
         <p className="text-xs text-gray-500 font-mono pt-4 italic">
           SentinelFi Resilience Protocol Active
         </p>
@@ -110,34 +110,54 @@ interface RouteGuardProps {
 
 const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
   const router = useRouter();
-  const { 
-    user, 
-    isAuthenticated, 
+  const {
+    user,
+    isAuthenticated,
     isLoading, // Global auth loading state
     error,
     refreshUser,
-    getDefaultRoute 
+    getDefaultRoute
   } = useAuth();
 
-  const [authorized, setAuthorized] = useState(false);
+  const [authorized, setAuthorized] = useState(isAuthenticated); // Initialize based on current auth status
+
+  // OPTIMIZATION: Determine if we really need to show the full screen loading
+  const isPublicRoute = PUBLIC_ROUTES.includes(router.pathname);
+  const needsAuth = !isPublicRoute;
 
   useEffect(() => {
-    // If auth is still loading (initial mount), do nothing yet
-    if (isLoading) return;
+    // Determine if we should show the loading screen during transition
+    // We only reset 'authorized' if we're not authenticated yet (initial load)
+    // or if we're navigating between radically different route types.
+    if (!isAuthenticated) {
+      setAuthorized(false);
+    }
 
-    // If there's a system error, we stop authorization and show the error screen
+    // If auth is strictly INITIALIZING (not hydrating), do nothing.
+    // If it's hydrating, we let it through because isAuthenticated is true (if cached).
+    if (isLoading && !isAuthenticated) return;
+
     if (error) return;
 
     const checkAuthorization = async () => {
       const currentPath = router.pathname;
+
+      // DEBUG: Log authorization check details
+      AuthLogger.info(`[RouteGuard] Checking authorization for ${currentPath}`, {
+        isAuthenticated,
+        userEmail: user?.email,
+        isLoading,
+        authorized,
+        roles: user?.roles?.map(r => typeof r === 'string' ? r : r.name)
+      });
 
       // 1. Public Routes
       if (PUBLIC_ROUTES.includes(currentPath)) {
         if (isAuthenticated && user) {
           // If logged in and on public page, redirect to dashboard
           if (['/login', '/register', '/forgot-password', '/reset-password'].includes(currentPath)) {
-             await router.replace(getDefaultRoute());
-             return;
+            await router.replace(getDefaultRoute());
+            return;
           }
         }
         setAuthorized(true);
@@ -156,8 +176,12 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
       }
 
       // 3. Role-Based Access Control (Synchronous)
-      const hasSuperAdminRole = user.roles.some(r => (typeof r === 'string' ? r : r.name) === 'SuperAdmin');
-      
+      const getRoleName = (r: any): string | undefined => {
+        return typeof r === 'string' ? r : r?.name;
+      };
+
+      const hasSuperAdminRole = user.roles.some(r => getRoleName(r) === 'SuperAdmin');
+
       // SuperAdmin Logic
       if (hasSuperAdminRole) {
         if (currentPath === '/') {
@@ -165,20 +189,20 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
           return;
         }
         // Allow access to all routes for SuperAdmin (or restrict if needed)
-        setAuthorized(true); 
+        setAuthorized(true);
         return;
       }
 
       // Non-SuperAdmin Logic
       if (currentPath.startsWith('/super')) {
-          AuthLogger.warn(`[RouteGuard] Non-SuperAdmin attempts to access ${currentPath}`);
-          await router.replace(getDefaultRoute());
-          return;
+        AuthLogger.warn(`[RouteGuard] Non-SuperAdmin attempts to access ${currentPath}`);
+        await router.replace(getDefaultRoute());
+        return;
       }
 
-      if (currentPath.startsWith('/admin') && !user.roles.some(r => r.name === Role.Admin)) {
-          await router.replace(getDefaultRoute());
-          return;
+      if (currentPath.startsWith('/admin') && !user.roles.some(r => getRoleName(r) === Role.Admin)) {
+        await router.replace(getDefaultRoute());
+        return;
       }
 
       if (currentPath === '/') {
@@ -194,14 +218,15 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
 
   }, [router.pathname, isAuthenticated, user, isLoading, error, getDefaultRoute]); // minimized dependencies
 
-  // Handle system-level authentication errors
-  if (error) {
+  // Handle system-level authentication errors (Only for protected routes)
+  if (error && needsAuth) {
     return <AuthErrorScreen error={error} onRetry={refreshUser} />;
   }
 
-  // Show loading ONLY if global auth is loading OR we haven't authorized yet
-  // But strictly rely on isLoading from context for the big wait
-  if (isLoading || (!authorized && !PUBLIC_ROUTES.includes(router.pathname))) {
+  // Show loading screen if:
+  // 1. We are on a protected route AND 
+  // 2. We are NOT authenticated OR are still in the absolute INITIAL load (isLoading)
+  if (needsAuth && (!isAuthenticated || (isLoading && !authorized))) {
     return <AuthLoadingScreen />;
   }
 

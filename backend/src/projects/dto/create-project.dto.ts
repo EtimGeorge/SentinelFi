@@ -4,6 +4,8 @@ import {
   IsOptional,
   IsEnum,
   MaxLength,
+  IsNumber,
+  IsUUID,
 } from "class-validator";
 import { ProjectStatus } from "../enums/project.enum";
 
@@ -35,14 +37,22 @@ export class CreateProjectDto {
   currency?: string;
 
   @IsOptional()
+  @IsNumber()
   contract_value?: number;
 
   @IsOptional()
+  @IsNumber()
   contingency_percent?: number;
 
   @IsOptional()
+  @IsNumber()
   vat_rate?: number;
 
   @IsOptional()
+  @IsNumber()
   wht_rate?: number;
+
+  @IsOptional()
+  @IsUUID()
+  client_id?: string;
 }

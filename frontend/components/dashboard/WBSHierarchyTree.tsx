@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, MessageSquare } from 'lucide-react';
 import Tooltip from '../common/Tooltip';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, getWBSColor } from '../../lib/utils';
@@ -23,29 +23,29 @@ interface WBSHierarchyTreeProps {
 // Helper component for a single WBS Node
 const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupData[], data: RollupData[], onWBSClick?: (wbsId: string, wbsCode: string, description: string) => void }> = ({ node, level, childNodes, data, onWBSClick }) => {
   const [isExpanded, setIsExpanded] = useState(level === 0);
-  
+
   const budgeted = Number(node.total_cost_budgeted);
   const spent = Number(node.total_paid_rollup);
   const variance = budgeted - spent;
   const variancePercent = budgeted > 0 ? (variance / budgeted) * 100 : 0;
-  
+
   // Get color for Level 1 WBS (e.g., '1.0', '2.0', etc.)
   const wbsColor = getWBSColor(node.wbs_code.split('.')[0]);
 
   const toggleExpand = () => setIsExpanded(!isExpanded);
-  
+
   // Custom Class based on level for indent/font weight
   const depthClass = level === 0 ? 'font-bold text-lg' : (level === 1 ? 'font-semibold' : 'text-sm');
   const indentStyle = { paddingLeft: `${level * 1.5}rem` };
-  
+
   // Variance display logic
   const varianceClass = variancePercent <= -10 ? 'text-alert-critical' : (variancePercent > 0 ? 'text-alert-positive' : 'text-gray-400'); // Changed to gray-400 for consistency
   const varianceIcon = variancePercent <= -10 ? '🔴' : (variancePercent > 0 ? '🟢' : '⚫');
 
   return (
     <div>
-      <div 
-        className={`flex items-center py-2 transition-colors duration-100 ${depthClass} ${level % 2 === 0 ? 'bg-gray-800/20' : 'bg-gray-800/40'}`} 
+      <div
+        className={`flex items-center py-2 transition-colors duration-100 ${depthClass} ${level % 2 === 0 ? 'bg-gray-800/20' : 'bg-gray-800/40'}`}
         style={indentStyle}
       >
         {/* Toggle Button/WBS Code */}
@@ -57,22 +57,23 @@ const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupDat
           ) : (
             <span className="w-5 h-5 block"></span> // Spacer for alignment
           )}
-          <span 
-            className="ml-1 cursor-pointer hover:underline" 
+          <span
+            className="ml-1 cursor-pointer hover:underline flex items-center gap-1"
             style={{ color: wbsColor }}
             onClick={() => onWBSClick && onWBSClick(node.wbs_id, node.wbs_code, node.description)}
           >
             {node.wbs_code}
+            <MessageSquare className="w-3 h-3 opacity-40 hover:opacity-100 transition-opacity" />
           </span>
         </div>
-        
+
         {/* Description/Bar (Dynamic Element) */}
-        <div 
+        <div
           className="w-2/5 min-w-[120px] text-left whitespace-nowrap overflow-hidden text-ellipsis mr-2 cursor-pointer hover:underline text-gray-200"
           onClick={() => onWBSClick && onWBSClick(node.wbs_id, node.wbs_code, node.description)}
         >
           <Tooltip content={node.description}>
-             {node.description}
+            {node.description}
           </Tooltip>
         </div>
 
@@ -80,7 +81,7 @@ const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupDat
         <div className="w-1/6 text-right min-w-[100px] text-gray-200 font-medium">
           {formatCurrency(budgeted)}
         </div>
-        
+
         {/* Actual Paid (Rollup) */}
         <div className="w-1/6 text-right min-w-[100px] text-gray-200 font-medium">
           {formatCurrency(spent)}
@@ -92,18 +93,18 @@ const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupDat
             {varianceIcon} {variancePercent.toFixed(1)}%
           </Tooltip>
         </div>
-        
+
       </div>
-      
+
       {/* Recursively render childNodes */}
       {isExpanded && childNodes.length > 0 && (
         <div className="">
           {childNodes.map(child => (
-            <WBSNode 
-              key={child.wbs_id} 
-              node={child} 
-              level={level + 1} 
-              childNodes={data.filter(i => i.parent_wbs_id === child.wbs_id)} 
+            <WBSNode
+              key={child.wbs_id}
+              node={child}
+              level={level + 1}
+              childNodes={data.filter(i => i.parent_wbs_id === child.wbs_id)}
               data={data}
               onWBSClick={onWBSClick}
             />
@@ -120,7 +121,7 @@ const WBSNode: React.FC<{ node: RollupData, level: number, childNodes: RollupDat
  */
 const WBSHierarchyTree: React.FC<WBSHierarchyTreeProps> = ({ data, onWBSClick }) => {
   const { user } = useAuth();
-  
+
   if (!data || data.length === 0) {
     return <div className="p-4 text-center text-gray-500">No WBS/Budget data found for the selected period.</div>;
   }
@@ -133,7 +134,7 @@ const WBSHierarchyTree: React.FC<WBSHierarchyTreeProps> = ({ data, onWBSClick })
 
   return (
     <div className="bg-gray-900 rounded-xl shadow-lg overflow-hidden border border-gray-700">
-      
+
       {/* Table Header (Grid Layout) */}
       <div className="flex bg-brand-dark/50 text-gray-300 text-xs font-semibold uppercase px-4 py-3 border-b border-gray-700">
         <div className="w-1/6 min-w-[70px]">Code</div>
@@ -147,10 +148,10 @@ const WBSHierarchyTree: React.FC<WBSHierarchyTreeProps> = ({ data, onWBSClick })
       <div className="p-4 space-y-1">
         {rootNodes.map(node => {
           return (
-            <WBSNode 
-              key={node.wbs_id} 
-              node={node} 
-              level={0} 
+            <WBSNode
+              key={node.wbs_id}
+              node={node}
+              level={0}
               childNodes={data.filter(i => i.parent_wbs_id === node.wbs_id)}
               data={data}
               onWBSClick={onWBSClick}

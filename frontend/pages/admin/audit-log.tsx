@@ -45,13 +45,13 @@ const AuditLogPage: React.FC = () => {
         targetType: targetTypeFilter,
         startDate: startDate,
         endDate: endDate,
-        tenantId: hasAnyRole(['SuperAdmin', Role.ITHead]) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/ITHead can filter, otherwise undefined means no filter by query param
+        tenantId: hasAnyRole([Role.SuperAdmin, Role.ITHead]) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/ITHead can filter, otherwise undefined means no filter by query param
       };
 
       // If user is Admin, they can only see their own tenant's logs
-      if (hasAnyRole([Role.Admin]) && user?.tenantId) {
-        params.tenantId = user.tenantId;
-      } else if (hasAnyRole([Role.Admin]) && !user?.tenantId) {
+      if (hasAnyRole([Role.Admin]) && user?.tenant_id) {
+        params.tenantId = user.tenant_id;
+      } else if (hasAnyRole([Role.Admin]) && !user?.tenant_id) {
         // Admin user without tenantId should not see any logs
         setAuditLogs([]);
         setTotalLogs(0);
@@ -76,14 +76,15 @@ const AuditLogPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [api, addToast, currentPage, userSearchTerm, actionTypeFilter, targetTypeFilter, startDate, endDate, tenantIdFilter, user, hasAnyRole]); // Added hasAnyRole to dep array
+  }, [api, addToast, currentPage, userSearchTerm, actionTypeFilter, targetTypeFilter, startDate, endDate, tenantIdFilter, user]); // FIXED: Removed hasAnyRole - unstable function
 
   useEffect(() => {
     // Only fetch if user is authenticated and has appropriate roles
-    if (!isInitialLoad && (hasAnyRole([Role.Admin, 'SuperAdmin', Role.ITHead]))) {
+    // CRITICAL FIX: Call hasAnyRole inside useEffect, don't depend on it
+    if (!isInitialLoad && (hasAnyRole([Role.Admin, Role.SuperAdmin, Role.ITHead]))) {
       fetchAuditLogs();
     }
-  }, [user, isInitialLoad, fetchAuditLogs, hasAnyRole]); // Added hasAnyRole to dep array
+  }, [user, isInitialLoad, fetchAuditLogs]); // FIXED: Removed hasAnyRole from dependencies
 
   const totalPages = Math.ceil(totalLogs / ITEMS_PER_PAGE);
 
@@ -96,7 +97,7 @@ const AuditLogPage: React.FC = () => {
   }
 
   // Access Control: Only Admin, SuperAdmin, ITHead can access
-  if (!user || !(hasAnyRole([Role.Admin, 'SuperAdmin', Role.ITHead]))) {
+  if (!user || !(hasAnyRole([Role.Admin, Role.SuperAdmin, Role.ITHead]))) {
     return (
       <PageContainer title="Access Denied" subtitle="Unauthorized Access">
         <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
@@ -107,7 +108,7 @@ const AuditLogPage: React.FC = () => {
     );
   }
 
-  const isSuperAdminOrITHead = hasAnyRole(['SuperAdmin', Role.ITHead]);
+  const isSuperAdminOrITHead = hasAnyRole([Role.SuperAdmin, Role.ITHead]);
 
   return (
     <>

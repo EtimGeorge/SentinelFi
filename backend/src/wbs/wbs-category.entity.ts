@@ -6,20 +6,20 @@ import {
   JoinColumn,
   OneToMany,
   Unique,
-} from "typeorm";
-import { WbsBudgetEntity } from "./wbs-budget.entity"; // NEW: Import WbsBudgetEntity
-import { LiveExpenseEntity } from "./live-expense.entity"; // NEW: Import LiveExpenseEntity
+} from 'typeorm';
+import { WbsBudgetEntity } from './wbs-budget.entity';
+import { LiveExpenseEntity } from './live-expense.entity';
 
-@Entity({ name: "wbs_category", schema: "client_template" })
-@Unique(["name", "tenant_id"]) // Categories should be unique per tenant
+@Entity('wbs_category')
+@Unique(['name', 'tenant_id'])
 export class WbsCategoryEntity {
-  @PrimaryGeneratedColumn("uuid")
+  @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: "varchar", length: 255 })
-  name!: string; // Renamed from description
+  @Column({ type: 'varchar', length: 255 })
+  name!: string;
 
-  @Column({ type: "uuid", nullable: false })
+  @Column({ type: 'uuid', nullable: false })
   tenant_id!: string;
 
   @OneToMany(() => WbsBudgetEntity, (wbsBudget) => wbsBudget.category)
@@ -28,6 +28,7 @@ export class WbsCategoryEntity {
   @OneToMany(() => LiveExpenseEntity, (liveExpense) => liveExpense.category)
   liveExpenses!: LiveExpenseEntity[];
 
-  @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
+  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   created_at!: Date;
 }
+

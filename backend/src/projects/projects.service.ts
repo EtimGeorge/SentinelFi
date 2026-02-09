@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, Inject } from "@nestjs/common";
+import { Injectable, NotFoundException, Logger, Inject, ConflictException } from "@nestjs/common";
 import { Repository, SelectQueryBuilder, DataSource } from "typeorm";
 import { ProjectEntity } from "./project.entity";
 import { LpoEntity } from "./lpo.entity";
@@ -143,12 +143,41 @@ export class ProjectsService {
     userId: string,
     tenantId: string,
   ): Promise<ProjectEntity> {
+    // Check for duplicate project name within the same tenant
+    const existing = await this.projectRepository.findOne({
+      where: { project_name: createProjectDto.project_name, tenant_id: tenantId }
+    });
+
+    if (existing) {
+      throw new ConflictException(`A project with the name "${createProjectDto.project_name}" already exists.`);
+    }
+
     const project = this.projectRepository.create({
       ...createProjectDto,
+      // Fallback defaults to prevent "Not Null" constraints if payload has nulls
+      contract_value: createProjectDto.contract_value ?? 0,
+      contingency_percent: createProjectDto.contingency_percent ?? 0,
+      vat_rate: createProjectDto.vat_rate ?? 7.5,
+      wht_rate: createProjectDto.wht_rate ?? 5.0,
       created_by_user_id: userId,
       tenant_id: tenantId, // Ensure tenant_id is set on creation
+      client_id: createProjectDto.client_id || null, // Handle client_id
     });
-    return this.projectRepository.save(project);
+
+    const savedProject = await this.projectRepository.save(project);
+
+    // Initial Audit Log
+    await this.logAudit(
+      savedProject.project_id,
+      tenantId,
+      userId,
+      'PROJECT_INITIALIZED',
+      null,
+      savedProject.contract_value,
+      `Project "${savedProject.project_name}" initialized with contract value ${savedProject.contract_value}`
+    );
+
+    return savedProject;
   }
 
   async findAll(
@@ -168,6 +197,7 @@ export class ProjectsService {
     let queryBuilder = this.projectRepository
       .createQueryBuilder("project")
       .leftJoinAndSelect("project.createdBy", "user")
+      .leftJoinAndSelect("project.client", "client")
       .where("project.tenant_id = :tenantId", { tenantId });
 
     queryBuilder = this._addRollupSubqueries(queryBuilder);
@@ -181,8 +211,8 @@ export class ProjectsService {
       queryBuilder.andWhere("project.status = :status", { status });
     }
 
-    // Group by all selected non-aggregate columns from ProjectEntity and joined UserEntity
-    queryBuilder.groupBy("project.project_id, user.id");
+    // Group by all selected non-aggregate columns from ProjectEntity and joined entities
+    queryBuilder.groupBy("project.project_id, user.id, client.id");
 
     const { entities, raw } = await queryBuilder
       .skip(skip)
@@ -213,6 +243,7 @@ export class ProjectsService {
   async findOne(project_id: string, tenantId: string): Promise<ProjectEntity> {
     const project = await this.projectRepository.findOne({
       where: { project_id, tenant_id: tenantId },
+      relations: ['createdBy', 'client']
     });
     if (!project) {
       throw new NotFoundException(`Project with ID "${project_id}" not found.`);
@@ -233,7 +264,8 @@ export class ProjectsService {
       .andWhere("project.tenant_id = :tenantId", { tenantId });
 
     queryBuilder = this._addRollupSubqueries(queryBuilder);
-    queryBuilder.groupBy("project.project_id, user.id");
+    queryBuilder.leftJoinAndSelect("project.client", "client"); // Join Client relation
+    queryBuilder.groupBy("project.project_id, user.id, client.id");
 
     const { entities, raw } = await queryBuilder.getRawAndEntities();
 
@@ -326,13 +358,24 @@ export class ProjectsService {
     return this.projectRepository.save(project);
   }
 
-  async remove(project_id: string, tenantId: string): Promise<void> {
+  async remove(project_id: string, tenantId: string, userId?: string): Promise<void> {
+    const project = await this.findOne(project_id, tenantId);
+    
     const result = await this.projectRepository.delete({
       project_id,
       tenant_id: tenantId,
     });
+
     if (result.affected === 0) {
       throw new NotFoundException(`Project with ID "${project_id}" not found.`);
+    }
+
+    if (userId) {
+       // Log deletion (this will stay in the audit log even if project is gone, depending on FK constraints)
+       // Actually, project_audit has a FK to project. If we delete project, audit might be deleted too
+       // unless CASCADE is NOT set or it's handled differently.
+       // For now, simple log.
+       this.logger.log(`Project ${project_id} deleted by user ${userId}`);
     }
   }
 

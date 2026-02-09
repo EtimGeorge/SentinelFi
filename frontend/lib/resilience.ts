@@ -125,7 +125,7 @@ export class CircuitBreaker {
     }
   }
 
-  private reset(): void {
+  reset(): void {
     this.failures = 0;
     this.state = 'CLOSED';
   }

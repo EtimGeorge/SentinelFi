@@ -90,8 +90,8 @@ export class DatabaseConfig {
   private static keepAliveInterval: NodeJS.Timeout;
   private static connectionAttempts = 0;
   private static readonly MAX_RETRY_ATTEMPTS = 5;
-  private static readonly RETRY_DELAY = 5000;
-  private static readonly KEEP_ALIVE_INTERVAL = 240000; // 4 minutes (before Neon's 5-min idle timeout)
+  private static readonly RETRY_DELAY = 2000;
+  private static readonly KEEP_ALIVE_INTERVAL = 45000; // 45s (Keep Neon compute HOT)
   private static dataSourceRef: DataSource | null = null;
   private static circuitBreaker = new ConnectionCircuitBreaker();
   private static isReconnecting = false;
@@ -131,16 +131,18 @@ export class DatabaseConfig {
           sslmode: 'verify-full', // Explicitly set sslmode as recommended
           // rejectUnauthorized is managed by the top-level ssl config
         },
-        max: 20,
-        min: 5,
-        idleTimeoutMillis: 300000, // 5 minutes - increased from 15s to match Neon's timeout
-        connectionTimeoutMillis: 30000, // Allow 30 seconds to establish a connection
-        statement_timeout: 30000,
-        query_timeout: 30000,
+        max: 6, // Set within Neon's limit (up to 10)
+        min: 2, // Maintain 2 connections ready
+        idleTimeoutMillis: 30000, 
+        connectionTimeoutMillis: 60000, // Increased for Neon cold starts
+        statement_timeout: 45000, // Allow more time for first query after suspend
+        query_timeout: 45000,
         idle_in_transaction_session_timeout: 10000,
         keepAlive: true,
-        keepAliveInitialDelayMillis: 5000, // Send keep-alive probes more frequently
+        keepAliveInitialDelayMillis: 10000,
         application_name: 'sentinelfi_backend',
+        // DNS Resilience: Manual retry for EAI_AGAIN
+        maxUses: 7500, // Recycle connections to prevent memory fragmentation
       },
       retryAttempts: this.MAX_RETRY_ATTEMPTS,
       retryDelay: this.RETRY_DELAY,
@@ -212,8 +214,17 @@ export class DatabaseConfig {
       this.logger.log(`Waiting ${backoffDelay}ms before reconnection attempt ${this.connectionAttempts + 1}/${this.MAX_RETRY_ATTEMPTS}`);
       await new Promise(resolve => setTimeout(resolve, backoffDelay));
 
-      // Re-initialize
-      await dataSource.initialize();
+      // Re-initialize with timeout to prevent hanging on cold starts
+      const initTimeout = 45000; // 45s match query timeout
+      this.logger.log(`Initializing pool (Timeout: ${initTimeout}ms)...`);
+      
+      await Promise.race([
+        dataSource.initialize(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Pool initialization timed out')), initTimeout)
+        )
+      ]);
+      
       this.logger.log('✓ Database reconnection successful');
       
       // Validate the new connection
@@ -263,11 +274,19 @@ export class DatabaseConfig {
 
       // Handle pool-level errors (e.g., connection termination)
       pool.on('error', async (err: Error) => {
-        this.logger.error(`⚠️ Postgres pool error: ${err.message}`);
+        const msg = err.message;
+        this.logger.error(`⚠️ Postgres pool error: ${msg}`);
         
-        // Check if this is a connection termination
-        if (err.message.includes('Connection terminated') || err.message.includes('ECONNRESET')) {
-          this.logger.error('🔴 Connection pool died unexpectedly, initiating reconnection');
+        // Critical connectivity errors that require a pool reset
+        const isTerminalError = 
+          msg.includes('Connection terminated') || 
+          msg.includes('ECONNRESET') || 
+          msg.includes('Driver not Connected') ||
+          msg.includes('is closed') ||
+          msg.includes('EAI_AGAIN');
+
+        if (isTerminalError) {
+          this.logger.error(`🔴 Terminal connection error detected, initiating reconnection: ${msg}`);
           await this.attemptReconnection(dataSource);
         }
       });
@@ -301,8 +320,15 @@ export class DatabaseConfig {
         this.logger.error(`Keep-alive query failed: ${errorMessage}`);
         this.circuitBreaker.recordFailure();
         
-        // Trigger reconnection if keep-alive fails
-        if (errorMessage.includes('Connection terminated') || errorMessage.includes('ECONNRESET')) {
+        // Trigger reconnection if keep-alive fails with terminal errors
+        const isTerminal = 
+          errorMessage.includes('Connection terminated') || 
+          errorMessage.includes('ECONNRESET') ||
+          errorMessage.includes('Driver not Connected') ||
+          errorMessage.includes('is closed');
+
+        if (isTerminal) {
+          this.logger.warn(`Triggering emergency reconnection from keep-alive failure: ${errorMessage}`);
           await this.attemptReconnection(dataSource);
         }
       }
@@ -326,31 +352,50 @@ export class DatabaseConfig {
     this.startKeepAliveScheduler(dataSource);
 
     // Enhanced health check with actual query execution
+    let consecutiveFailures = 0;
     this.healthCheckInterval = setInterval(async () => {
       try {
+        // Proactive check: If DataSource is somehow not initialized, try to recover
+        if (!dataSource.isInitialized && !this.isReconnecting) {
+          this.logger.error('🔴 DataSource is NOT initialized! Attempting recovery...');
+          await this.attemptReconnection(dataSource);
+          return;
+        }
+
         const pool = (dataSource.driver as any).master;
         if (pool) {
           const { totalCount, idleCount, waitingCount } = pool;
           
-          // Execute validation query as part of health check
+          // Execute validation query
           const isValid = await this.validateConnection(dataSource);
           const circuitState = this.circuitBreaker.getState();
           
           this.logger.log(`Pool Health - Total: ${totalCount}, Idle: ${idleCount}, Waiting: ${waitingCount} | Valid: ${isValid} | Circuit: ${circuitState}`);
           
+          if (!isValid) {
+            consecutiveFailures++;
+            if (consecutiveFailures >= 2) {
+              this.logger.error(`🔴 Connection invalid for ${consecutiveFailures} consecutive checks. Forcing reconnection.`);
+              await this.attemptReconnection(dataSource);
+              consecutiveFailures = 0;
+            }
+          } else {
+            consecutiveFailures = 0; // Reset on success
+          }
+
           if (waitingCount > 5) {
             this.logger.warn(`⚠️ Pool Exhaustion Warning: ${waitingCount} queries waiting for connections!`);
           }
           if (idleCount === 0 && totalCount >= 15) {
             this.logger.warn('⚠️ Pool Running Hot: No idle connections!');
           }
-          if (totalCount === 0) {
+          if (totalCount === 0 && !this.isReconnecting) {
             this.logger.error('🔴 Pool is empty! Initiating emergency reconnection...');
             await this.attemptReconnection(dataSource);
           }
-          if (!isValid && circuitState === CircuitState.CLOSED) {
-            this.logger.warn('Connection validation failed, circuit breaker may be opening');
-          }
+        } else if (!this.isReconnecting) {
+          this.logger.error('🔴 Postgres pool object missing in health check. Initiating reconnection.');
+          await this.attemptReconnection(dataSource);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error during health check';
@@ -473,7 +518,7 @@ export class RetryableQuery {
         }
 
         if (attempt < maxRetries - 1) {
-          const delay = baseDelay * Math.pow(2, attempt);
+          const delay = lastError.message.includes('EAI_AGAIN') ? 500 : baseDelay * Math.pow(2, attempt); // Faster retry for DNS
           this.logger.warn(`Query failed (attempt ${attempt + 1}/${maxRetries}), retrying in ${delay}ms... Error: ${lastError.message}`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }

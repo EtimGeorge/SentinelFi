@@ -36,7 +36,13 @@ export class TenantController {
   @Get()
   @UsePipes(new ValidationPipe({ transform: true }))
   async findAllTenants(@Query() query: GetTenantsDto): Promise<any> {
-    return this.tenantService.findAllTenants();
+    try {
+      console.log('TenantController.findAllTenants called');
+      return await this.tenantService.findAllTenants();
+    } catch (error) {
+      console.error('CRITICAL ERROR in TenantController.findAllTenants:', error);
+      throw error;
+    }
   }
 
   @Post()

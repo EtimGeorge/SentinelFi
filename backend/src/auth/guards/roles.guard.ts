@@ -1,11 +1,11 @@
 // backend/src/auth/guards/roles.guard.ts
 import { Injectable, CanActivate, ExecutionContext, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Role } from 'shared/types/role.enum';
+import { Role } from '@shared/types/role.enum';
 import { ROLES_KEY } from '../decorators/roles.decorator';
-import { UserPayload, SimpleRole } from '@shared/types/user'; // UserPayload potentially defines roles as SimpleRole[] or string[]
+import { UserPayload, SimpleRole } from '@shared/types/user'; 
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request.interface';
-import { CorrelatedLogger } from 'common/logger/correlated-logger'; // NEW IMPORT
+import { CorrelatedLogger } from '../../common/logger/correlated-logger'; 
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -38,7 +38,8 @@ export class RolesGuard implements CanActivate {
     // This handles both `string[]` from token payload and `SimpleRole[]` from DB user entity
     const userRoleNames: string[] = user.roles.map((role: string | SimpleRole) => {
         const roleName = typeof role === 'string' ? role : role.name;
-        this.logger.debug(`Processing user role: ${JSON.stringify(role)} -> Name: ${roleName}`);
+        // Safe logging - avoid JSON.stringify on potential entities
+        this.logger.debug(`Processing user role: ${roleName}`);
         return roleName;
     });
 

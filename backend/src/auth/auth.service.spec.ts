@@ -104,9 +104,14 @@ const createMockUserEntity = (overrides: Partial<UserEntity> = {}): UserEntity =
       schema_name: 'test_schema',
       is_active: true,
       plan: 'basic',
+      max_users: 10,
+      max_storage_gb: 50,
+      expires_at: null,
+      price: 0,
       created_at: new Date(),
       updated_at: new Date(),
-      users: [],
+      deleted_at: null,
+      users: [] as any,
     } as TenantEntity,
     
     // REAL: roles with permissions (line 132: relations: ["roles", "roles.permissions"])

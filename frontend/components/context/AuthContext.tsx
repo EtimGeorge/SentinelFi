@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { apiClient } from 'lib/api';
 import { Role } from '@shared/types/role.enum';
@@ -51,8 +51,8 @@ export interface User {
 // NEW: Auth State Enum
 export enum AuthState {
   INITIALIZING = 'INITIALIZING',
-  HYDRATING = 'HYDRATING',
   AUTHENTICATED = 'AUTHENTICATED',
+  SYNCING = 'SYNCING', // Verified session but re-checking in background
   UNAUTHENTICATED = 'UNAUTHENTICATED',
   ERROR = 'ERROR',
 }
@@ -64,7 +64,8 @@ interface AuthContextType {
   isInitialized: boolean;
   isInitialLoad: boolean; // FOR BACKWARD COMPATIBILITY
   isLoading: boolean;
-  error: Error | null; // NEW: Track auth errors
+  isSyncing: boolean; // NEW: Background verification status
+  error: Error | null;
   login: (email: string, password: string, role: Role) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: (silent?: boolean) => Promise<void>; // Updated signature
@@ -162,30 +163,48 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [isOnline, setIsOnline] = useState(true); // NEW
+  const [isOnline, setIsOnline] = useState(true);
   const router = useRouter();
-  
+
   const smartAbortRef = useRef(new SmartAbortController());
   const loginInProgressRef = useRef(false);
   const rateLimiterRef = useRef(new LoginRateLimiter());
+  // 1. Core Refs (Stable across transitions)
+  const authStateRef = useRef<AuthState>(AuthState.INITIALIZING);
+  const logoutRef = useRef<() => Promise<void>>();
+  const routerRef = useRef(router);
   const isMountedRef = useRef(true);
+  const requestQueue = useRef<any[]>([]);
+
+
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
+
+  // 1.1 CRITICAL FIX: Synchronously update authStateRef when auth state changes
+  // Using useEffect instead of useMemo ensures immediate, synchronous updates
+  // preventing the race condition where isInitialized=true but authStateRef=INITIALIZING
+  useEffect(() => {
+    if (!isInitialized) {
+      authStateRef.current = AuthState.INITIALIZING;
+    } else if (!user) {
+      authStateRef.current = AuthState.UNAUTHENTICATED;
+    } else {
+      authStateRef.current = isSyncing ? AuthState.SYNCING : AuthState.AUTHENTICATED;
+    }
+  }, [isInitialized, user, isSyncing]);
+
+
+
+  // 1. Core Functions (useCallback) - Defined FIRST to avoid ReferenceErrors
 
   const getPrimaryRole = useCallback((): Role | null => {
     if (!user || !user.roles || user.roles.length === 0) return null;
-    
-    const getRoleName = (r: any): string | undefined => {
-      return typeof r === 'string' ? r : r?.name;
-    }
-
-    // Directly compare with the string literal 'SuperAdmin' to avoid module loading race conditions
-    const isSuperAdmin = user.roles.some(r => getRoleName(r) === 'SuperAdmin');
-
-    if (isSuperAdmin) {
-      return Role.SuperAdmin;
-    }
-
+    const getRoleName = (r: any): string | undefined => typeof r === 'string' ? r : r?.name;
+    if (user.roles.some(r => getRoleName(r) === 'SuperAdmin')) return Role.SuperAdmin;
     return getRoleName(user.roles[0]) as Role;
   }, [user]);
 
@@ -200,15 +219,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasPermission = useCallback((permission: string): boolean => {
     if (!user) return false;
-    // SuperAdmin implicitly has all permissions
     if (hasRole(Role.SuperAdmin)) return true;
-    
-    // Check permissions from user object if available, otherwise would need to check roles
-    // The User type from AuthContext.tsx doesn't have permissions, but let's check roles
-    return user.roles.some(role => {
-        // This is a bit simplified, but follows the logic that permissions are often handled via roles in this app
-        return false; // placeholder if specific permission check is needed
-    });
+    return false;
   }, [user, hasRole]);
 
   const getDefaultRoute = useCallback((): string => {
@@ -219,17 +231,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchCurrentUser = useCallback(async (): Promise<User | null> => {
     const cacheKey = 'current-user-fetch';
-    
     try {
       return await authCircuitBreaker.execute(async () => {
         return await globalDeduplicator.execute(cacheKey, async () => {
           const signal = smartAbortRef.current.createSignal();
           AuthLogger.info('Fetching current user session...');
-          
           try {
-            const response = await apiClient.get<{ user: User }>('/auth/me', { signal });
+            const response = await apiClient.get<User>('/auth/me', { signal });
             if (isMountedRef.current) setError(null);
-            return response.user;
+            return response;
           } finally {
             smartAbortRef.current.releaseSignal();
           }
@@ -237,13 +247,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     } catch (err: any) {
       if (axios.isCancel(err) || err.name === 'AbortError' || err.name === 'CanceledError') {
-        AuthLogger.info('User fetch request aborted (expected during navigation/cleanup).');
+        AuthLogger.info('User fetch request aborted.');
         return null;
       }
-
       AuthLogger.error('Failed to fetch user session:', err);
       if (isMountedRef.current) {
-        // Only set error state if it's not a 401 (Unauthorized is a valid state, not a system failure)
         if (!axios.isAxiosError(err) || err.response?.status !== 401) {
           setError(err instanceof Error ? err : new Error(String(err)));
         }
@@ -252,117 +260,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // 1. Initial Handshake (Runs once on mount)
-  useEffect(() => {
-    isMountedRef.current = true;
-    AuthLogger.info('AuthProvider mounting...');
-
-    // Try to restore from localStorage first (instant)
-    const cachedUser = SessionStorage.load();
-    if (cachedUser) {
-      setUser(cachedUser);
-      setIsInitialized(true);
-      AuthLogger.info('Auth hydrated from cache, verifying with backend...');
-      
-      // Verify in background WITHOUT abort signal (critical for page reload in StrictMode)
-      // We want this verification to complete even if component unmounts temporarily
-      apiClient.get<{ user: User }>('/auth/me')
-        .then(response => {
-          if (isMountedRef.current) {
-            setUser(response.user);
-            SessionStorage.save(response.user);
-            AuthLogger.info('Background verification successful, session updated');
-          }
-        })
-        .catch(err => {
-          if (axios.isCancel(err)) return; // Ignore cancellations
-          
-          // Only clear session if it's a real auth failure (401)
-          if (axios.isAxiosError(err) && err.response?.status === 401) {
-            AuthLogger.warn('Cached session invalid (401), clearing');
-            if (isMountedRef.current) {
-              setUser(null);
-              SessionStorage.clear();
-            }
-          } else {
-            // Network error or other issue - keep cached session
-            AuthLogger.warn('Background verification failed but keeping cached session', err.message);
-          }
-        });
-    } else {
-      // No cache, fetch from backend
-      fetchCurrentUser().then(currentUser => {
-        if (isMountedRef.current) {
-          setUser(currentUser);
-          setIsInitialized(true);
-          if (currentUser) {
-            SessionStorage.save(currentUser);
-          }
-          AuthLogger.success('Auth initialization complete.');
-        }
-      });
-    }
-
-    return () => {
-      isMountedRef.current = false;
-      smartAbortRef.current.releaseSignal();
-    };
-  }, [fetchCurrentUser]);
-
-  // 2. Connectivity Tracking
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    setIsOnline(navigator.onLine);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // 3. Session Heartbeat (Isolated)
-  useEffect(() => {
-    if (!user || !isOnline) return;
-
-    const intervalMs = 5 * 60 * 1000; // 5 minutes
-    const heartbeatId = setInterval(() => {
-      fetchCurrentUser().then(currentUser => {
-        if (isMountedRef.current && currentUser === null) {
-          AuthLogger.warn('Heartbeat: Session expired or invalid. Clearing state.');
-          setUser(null);
-          router.push('/login?reason=session_expired');
-        }
-      });
-    }, intervalMs);
-
-    return () => clearInterval(heartbeatId);
-  }, [!!user, isOnline, fetchCurrentUser, router]);
-
   const login = useCallback(async (email: string, password: string, role: Role) => {
     if (loginInProgressRef.current) throw new Error('Login already in progress.');
     if (rateLimiterRef.current.isRateLimited(email)) {
-      throw new Error('Too many login attempts. Please try again in a minute.');
+      throw new Error('Too many login attempts.');
     }
-
     loginInProgressRef.current = true;
     setIsLoading(true);
     setError(null);
-
     try {
       const endpoint = role === Role.SuperAdmin ? '/auth/login/super' : '/auth/login/tenant';
       const response = await apiClient.post<{ user: User }>(endpoint, { email, password });
-      
       AuthLogger.success(`Authenticated as ${email}`);
       rateLimiterRef.current.reset(email);
       setUser(response.user);
-      SessionStorage.save(response.user); // Persist to localStorage
+      SessionStorage.save(response.user);
+
+      // BROADCAST: Notify other tabs of successful login
+      try {
+        const channel = new BroadcastChannel('sentinelfi_auth_sync');
+        channel.postMessage({ type: 'LOGIN', user: response.user });
+        channel.close();
+      } catch (e) {
+        // Fallback for environments without BroadcastChannel
+        AuthLogger.warn('BroadcastChannel not supported for sync');
+      }
     } catch (err: any) {
       rateLimiterRef.current.recordAttempt(email);
-      if (axios.isCancel(err)) throw err;
-      
       const message = err.response?.data?.message || err.message || 'Login failed';
       throw new Error(message);
     } finally {
@@ -382,21 +306,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setError(null);
       setIsLoading(false);
-      SessionStorage.clear(); // Clear localStorage
-      router.push('/login');
+      SessionStorage.clear();
+
+      // BROADCAST: Notify other tabs of logout
+      try {
+        const channel = new BroadcastChannel('sentinelfi_auth_sync');
+        channel.postMessage({ type: 'LOGOUT' });
+        channel.close();
+      } catch (e) {
+        // Graceful degradation
+      }
+
+      routerRef.current.push('/login');
     }
-  }, [router]);
+  }, []);
+
+  // Update logoutRef whenever logout changes
+  useEffect(() => {
+    logoutRef.current = logout;
+  }, [logout]);
+
 
   const refreshUser = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
+    authCircuitBreaker.reset(); // Reset circuit on manual/explicit refresh
     const currentUser = await fetchCurrentUser();
     if (isMountedRef.current) {
       setUser(currentUser);
       if (!silent) setIsLoading(false);
     }
   }, [fetchCurrentUser]);
-
-  const isImpersonating = !!user?.impersonator_id;
 
   const stopImpersonation = useCallback(async () => {
     AuthLogger.info('Stopping impersonation...');
@@ -415,37 +354,268 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshUser, router]);
 
-  // Determine high-level AuthState
-  let authState = AuthState.INITIALIZING;
-  if (isInitialized) {
-    if (user) authState = AuthState.AUTHENTICATED;
-    else authState = AuthState.UNAUTHENTICATED;
-  }
-  // If we wanted 'HYDRATING', we'd need more granular state, but this covers useSecuredApi needs
+  const isImpersonating = !!user?.impersonator_id;
 
-  const value: AuthContextType = {
-    user,
-    authState,
-    isAuthenticated: !!user,
-    isInitialized,
-    isInitialLoad: !isInitialized,
-    isLoading,
-    error,
-    login,
-    logout,
-    refreshUser,
-    getPrimaryRole,
-    getDefaultRoute,
-    stopImpersonation,
-    isImpersonating,
-    isOnline,
-    hasRole,
-    hasAnyRole,
-    hasPermission,
-  };
-  
+  // 2. Effects Hooks - Defined AFTER callbacks they depend on
+
+  // Initial Handshake
+  useEffect(() => {
+    isMountedRef.current = true;
+    const cachedUser = SessionStorage.load();
+
+    if (cachedUser) {
+      // NON-BLOCKING HYDRATION: Trust cache initially
+      setUser(cachedUser);
+      setIsInitialized(true);
+      setIsSyncing(true); // Verifying in background
+
+      apiClient.get<User>('/auth/me')
+        .then(response => {
+          if (isMountedRef.current) {
+            setUser(response);
+            SessionStorage.save(response);
+            setIsSyncing(false);
+            AuthLogger.success('Background verification complete: Session valid.');
+          }
+        })
+        .catch(err => {
+          if (axios.isCancel(err)) return;
+          AuthLogger.warn('Background verification failed.', err.message);
+          if (axios.isAxiosError(err) && err.response?.status === 401) {
+            if (isMountedRef.current) {
+              setUser(null);
+              SessionStorage.clear();
+              router.push('/login?reason=session_expired');
+            }
+          }
+          if (isMountedRef.current) setIsSyncing(false);
+        });
+
+    } else {
+      setIsLoading(true);
+      fetchCurrentUser().then(currentUser => {
+        if (isMountedRef.current) {
+          setUser(currentUser);
+          setIsInitialized(true);
+          setIsLoading(false);
+          if (currentUser) SessionStorage.save(currentUser);
+        }
+      });
+    }
+    return () => { isMountedRef.current = false; };
+  }, [fetchCurrentUser, router]);
+
+  // Connectivity
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Sync: Multi-Tab Synchronization
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('sentinelfi_auth_sync');
+    } catch (e) {
+      // Graceful degradation for environments without BroadcastChannel
+      return;
+    }
+
+    channel.onmessage = (event) => {
+      if (!isMountedRef.current) return;
+
+      const type = event.data?.type;
+
+      AuthLogger.info(`[SYNC] Received ${type} from another tab`);
+
+      if (type === 'LOGOUT') {
+        // Another tab logged out -> We must logout too
+        if (user) {
+          AuthLogger.warn('[SYNC] Session terminated in another tab. Logging out locally.');
+          setUser(null);
+          SessionStorage.clear();
+          router.push('/login?reason=multi_tab_logout');
+        }
+      } else if (type === 'LOGIN') {
+        const newUser = event.data.user;
+        // Another tab logged in
+        // If we are unauthenticated OR have a different user ID, we MUST sync
+        if (!user || (newUser && user.id !== newUser.id)) {
+          AuthLogger.success(`[SYNC] Login detected for ${newUser?.email}. Syncing session.`);
+
+          setUser(newUser);
+          SessionStorage.save(newUser);
+
+          // FORCE REDIRECT: Ensure we are on a valid page for the new user/role
+          // If we don't redirect, we might be a SuperAdmin looking at a Tenant Dashboard (broken UI)
+          const roles = newUser.roles?.map((r: any) => typeof r === 'string' ? r : r.name) || [];
+          const isSuper = roles.includes('SuperAdmin');
+
+          // Always redirect to safe home to clear any stale component state
+          const target = isSuper ? '/super' : '/dashboard/home';
+          router.push(target);
+        }
+      }
+    };
+
+    // Fallback: Listen for localStorage changes (for older browsers / edge cases)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'sentinelfi_auth_user') {
+        if (e.newValue === null && user) {
+          setUser(null);
+          router.push('/login');
+        }
+        // Note: Logic to picking up login from storage is complex due to JSON parsing, 
+        // BroadcastChannel is preferred for Login sync.
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [user, router]);
+
+  // 2.3 Permanent Interceptors (Installed once, dynamic via Refs)
+  useEffect(() => {
+    AuthLogger.info('Initializing permanent API interceptors...');
+
+    const requestInterceptor = apiClient.getAxiosInstance().interceptors.request.use(
+      async (config) => {
+        // Consult Ref for current state to avoid reconstruction churn
+        const state = authStateRef.current;
+
+        // FIX: Only queue requests if BOTH conditions are true:
+        // 1. We're still initializing AND
+        // 2. We have no user (prevents blocking when cached session exists)
+        if (state === AuthState.INITIALIZING && !user) {
+          return new Promise((resolve, reject) => {
+            const queueItem = { config, resolve, reject };
+            requestQueue.current.push(queueItem);
+
+            // FIX: Add timeout protection to prevent indefinite queueing
+            // Auto-reject after 10 seconds if still queued
+            setTimeout(() => {
+              const index = requestQueue.current.findIndex(
+                item => item.config === config
+              );
+              if (index !== -1) {
+                requestQueue.current.splice(index, 1);
+                reject(new Error('Request queue timeout - auth initialization took too long'));
+                AuthLogger.warn('[Request Queue] Timeout: Request rejected after 10s');
+              }
+            }, 10000);
+          });
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    const responseInterceptor = apiClient.getAxiosInstance().interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          AuthLogger.warn('[SECURED API] 401 Unauthorized detected. Executing logout.');
+          if (logoutRef.current) logoutRef.current().catch(() => { });
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      AuthLogger.info('Ejecting API interceptors...');
+      apiClient.getAxiosInstance().interceptors.request.eject(requestInterceptor);
+      apiClient.getAxiosInstance().interceptors.response.eject(responseInterceptor);
+    };
+  }, []); // ZERO DEPENDENCIES: Install once per app lifecycle
+
+  // 2.4 Queue Management Effect (Decoupled from interceptor lifecycle)
+  useEffect(() => {
+    const state = authStateRef.current;
+
+    if (state === AuthState.AUTHENTICATED && requestQueue.current.length > 0) {
+      AuthLogger.info(`Flushing ${requestQueue.current.length} queued requests...`);
+      const queue = [...requestQueue.current];
+      requestQueue.current = [];
+      queue.forEach(({ config, resolve, reject }) => {
+        apiClient.getAxiosInstance().request(config).then(resolve).catch(reject);
+      });
+    } else if (state === AuthState.UNAUTHENTICATED && requestQueue.current.length > 0) {
+      AuthLogger.warn(`Clearing ${requestQueue.current.length} queued requests as user is unauthenticated.`);
+      requestQueue.current.forEach(({ reject }) => reject(new Error('Unauthenticated')));
+      requestQueue.current = [];
+    }
+  }, [user, isInitialized, isSyncing]);
+
+
+
+  // Heartbeat
+  useEffect(() => {
+    if (!user || !isOnline || isSyncing) return;
+    const intervalMs = 5 * 60 * 1000;
+    const heartbeatId = setInterval(() => {
+      fetchCurrentUser().then(currentUser => {
+        if (isMountedRef.current && currentUser === null) {
+          setUser(null);
+          router.push('/login?reason=session_expired');
+        }
+      });
+    }, intervalMs);
+    return () => clearInterval(heartbeatId);
+  }, [!!user, isOnline, isSyncing, fetchCurrentUser, router]);
+
+  // 3. Render
+
+  const value: AuthContextType = useMemo(() => {
+    // Determine high-level AuthState for memoized object
+    let currentAuthState = AuthState.INITIALIZING;
+    if (isInitialized) {
+      if (user) {
+        currentAuthState = isSyncing ? AuthState.SYNCING : AuthState.AUTHENTICATED;
+      } else {
+        currentAuthState = AuthState.UNAUTHENTICATED;
+      }
+    }
+
+    return {
+      user,
+      authState: currentAuthState,
+      isAuthenticated: !!user,
+      isInitialized,
+      isInitialLoad: !isInitialized,
+      isLoading,
+      isSyncing,
+      error,
+      login,
+      logout,
+      refreshUser,
+      getPrimaryRole,
+      getDefaultRoute,
+      stopImpersonation,
+      isImpersonating,
+      isOnline,
+      hasRole,
+      hasAnyRole,
+      hasPermission,
+    };
+  }, [
+    user, isInitialized, isSyncing, isLoading, error, isOnline,
+    login, logout, refreshUser, getPrimaryRole, getDefaultRoute,
+    stopImpersonation, isImpersonating, hasRole, hasAnyRole, hasPermission
+  ]);
+
+
   if (!isInitialized) {
-      return <AppLoadingFallback message="Initializing Secure Session..." />;
+    return <AppLoadingFallback message="Initializing Secure Session..." />;
   }
 
   return (
@@ -463,12 +633,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           <div className="flex-1 text-center font-bold">
             ⚠️ SYSTEM ADVISORY: IMPERSONATING AS {user?.first_name} {user?.last_name} ({user?.email})
           </div>
-          <button 
+          <button
             onClick={() => stopImpersonation()}
             className="bg-white text-red-600 px-4 py-1 rounded-md text-sm font-bold hover:bg-gray-100 transition-colors mr-4 shadow-sm"
           >
             END SESSION
           </button>
+        </div>
+      )}
+      {/* BACKGROUND SYNC INDICATOR */}
+      {isSyncing && (
+        <div className="fixed bottom-4 right-4 z-[10000] flex items-center gap-2 bg-brand-dark/80 backdrop-blur-sm border border-brand-primary/30 text-brand-primary px-3 py-1.5 rounded-full shadow-lg text-xs font-semibold animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse" />
+          <span>SYNCING SESSION...</span>
         </div>
       )}
       {children}

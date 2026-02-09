@@ -26,8 +26,9 @@ import { RoleEntity } from "./role.entity";
 import { SafeTransaction, RetryableQuery } from "../common/config/database.config";
 import { AuditService } from "../audit/audit.service";
 import { TENANT_DATA_SOURCE } from "../database/constants";
-import { CorrelatedLogger } from 'common/logger/correlated-logger';
-import { getCorrelationId } from "common/interceptors/correlation.interceptor"; // Import for logger
+import { CorrelatedLogger } from '../common/logger/correlated-logger';
+import { getCorrelationId } from "../common/interceptors/correlation.interceptor";
+import { JwtStrategy } from "./jwt.strategy";
 
 // Interface for DTOs used within AuthService
 interface AuthCredentialDto {
@@ -67,10 +68,13 @@ class LoginCache {
   }
 }
 
-@Injectable({ scope: Scope.REQUEST }) // Critical: Service must be request-scoped
+@Injectable() // Changed from Scope.REQUEST to DEFAULT (Singleton)
 export class AuthService {
   private readonly logger = new CorrelatedLogger(AuthService.name);
   private readonly loginCache = new LoginCache();
+  
+  // Static timer to ensure only one cleanup interval exists for the whole app
+  private static cleanupInterval: NodeJS.Timeout | null = null;
 
   // ============================================================================
   // PASSWORD HASH CACHE - Prevent repeated bcrypt calls
@@ -85,8 +89,35 @@ export class AuthService {
     private tenantDataSource: DataSource, // TenancyAwareDataSource for tenant-aware logic
     private readonly auditService: AuditService,
   ) {
-    // Clean cache periodically
-    setInterval(() => this.cleanPasswordCache(), 60000); // Every minute
+    // Start global cache cleanup ONLY if it's not already running
+    if (!AuthService.cleanupInterval) {
+      AuthService.cleanupInterval = setInterval(() => this.cleanPasswordCache(), 60000);
+      this.logger.log('Starting global password cache cleanup timer (60s)');
+    }
+  }
+
+
+
+  // Helper to prevent indefinite hangs
+  private async runWithTimeout<T>(
+    promise: Promise<T>, 
+    timeoutMs: number, 
+    operationName: string
+  ): Promise<T> {
+    let timer: NodeJS.Timeout;
+    const timeoutPromise = new Promise<T>((_, reject) => {
+      timer = setTimeout(() => {
+        const msg = `Operation '${operationName}' timed out after ${timeoutMs}ms`;
+        this.logger.error(msg);
+        reject(new InternalServerErrorException('Database operation timed out. Please try again.'));
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      clearTimeout(timer!);
+    }
   }
 
   async impersonate(impersonator: UserPayload, targetUserId: string): Promise<{ access_token: string; user: UserResponseDto }> {
@@ -113,7 +144,7 @@ export class AuthService {
       impersonator_id: impersonator.id, // Add impersonator ID to the token
     };
 
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '1h' }); // Short-lived token
+    const accessToken = this.jwtService.sign(payload, { expiresIn: '4h' }); // 4 hours - allows longer work sessions
 
     this.auditService.log( // Use new audit service log method signature
         impersonator.id,
@@ -193,19 +224,21 @@ export class AuthService {
     try {
       const t1 = Date.now();
       this.logger.debug(`[LOGIN DIAGNOSTIC] Querying public schema for user: ${email}`);
-      // CRITICAL: Always use the global dataSource for authentication to ensure "public" schema access
-      // OPTIMIZED: Use a more direct query for the login lookup. 
-      // We trust the Eager loading defined in the entities for performance consistency.
-      user = await RetryableQuery.execute(() => 
-        this.dataSource.getRepository(UserEntity)
-          .createQueryBuilder("user")
-          .addSelect("user.password_hash") // explicitly needed as select: false
-          .leftJoinAndSelect("user.tenant", "tenant")
-          .leftJoinAndSelect("user.roles", "role")
-          .leftJoinAndSelect("role.permissions", "permission")
-          .where("user.email = :email", { email })
-          .getOne(),
-        3, 100 // maxRetries, baseDelay
+      // GRACEFUL TIMEOUT: Wrap the query in a timeout to fail fast if DB hangs (10s)
+      user = await this.runWithTimeout(
+        RetryableQuery.execute(() => 
+          this.dataSource.getRepository(UserEntity)
+            .createQueryBuilder("user")
+            .addSelect("user.password_hash") 
+            .leftJoinAndSelect("user.tenant", "tenant")
+            .leftJoinAndSelect("user.roles", "role")
+            .leftJoinAndSelect("role.permissions", "permission")
+            .where("user.email = :email", { email })
+            .getOne(),
+          3, 100 
+        ),
+        10000,
+        `LoginQuery:${email}`
       );
 
       const queryTime = Date.now() - t1;
@@ -753,6 +786,11 @@ export class AuthService {
     
     const savedUser = await this.dataSource.getRepository(UserEntity).save(user);
     
+    // Invalidate JWT validation cache to reflect changes immediately
+    await JwtStrategy.invalidateUserCache(savedUser.id).catch(err => 
+      this.logger.error(`Failed to invalidate cache for user ${savedUser.id}: ${err.message}`)
+    );
+
     this.logger.log(`User ${savedUser.email} updated successfully by ${requestingUser.email}`);
 
     return this.findUserById(savedUser.id);

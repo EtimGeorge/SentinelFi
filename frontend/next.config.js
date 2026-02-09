@@ -39,6 +39,21 @@ const proxyCircuitBreaker = new CircuitBreaker(5, 30000);
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['shared'],
+  
+  // Exclude test files from being treated as pages
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'].map(ext => {
+    return ext;
+  }).filter(ext => !ext.includes('spec') && !ext.includes('test')),
+
+  // API Proxy Rewrites
+  async rewrites() {
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: 'http://127.0.0.1:3001/api/v1/:path*',
+      },
+    ];
+  },
 
   // Enhanced Webpack configuration for optimization
   webpack: (config, { isServer }) => {
@@ -80,18 +95,6 @@ const nextConfig = {
     };
     
     return config;
-  },
-
-  // More flexible rewrites using an environment variable
-  async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-    console.log(`[Next.js Config] Proxying /api/v1 to ${backendUrl}`);
-    return [
-      {
-        source: '/api/v1/:path*',
-        destination: `${backendUrl}/:path*`,
-      },
-    ];
   },
 
   // Add crucial security headers

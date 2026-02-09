@@ -3,6 +3,7 @@ import LayoutNav from "./LayoutNav";
 import Sidebar from "./Sidebar";
 import useUIStore from "../../store/uiStore";
 import SessionTimeoutWarning from "../auth/SessionTimeoutWarning"; // Import SessionTimeoutWarning
+import Breadcrumbs from "../common/Breadcrumbs"; // Breadcrumb navigation
 
 interface SecuredLayoutContentProps {
   children: React.ReactNode;
@@ -29,6 +30,7 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children })
       >
         <LayoutNav toggleSidebar={toggleMobileSidebar} />
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+          <Breadcrumbs />
           {children}
         </main>
       </div>

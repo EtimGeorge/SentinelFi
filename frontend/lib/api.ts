@@ -8,8 +8,8 @@ const BASE_URL = "/api/v1";
  */
 class RetryHandler {
   static readonly MAX_RETRIES = 3;
-  private static readonly RETRY_DELAY_MS = 300;
-  private static readonly RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
+  private static readonly RETRY_DELAY_MS = 150;
+  private static readonly RETRYABLE_STATUS_CODES = [408, 429, 502, 503, 504];
   
   static shouldRetry(error: AxiosError, retryCount: number): boolean {
     if (retryCount >= this.MAX_RETRIES) return false;
@@ -20,6 +20,9 @@ class RetryHandler {
     
     if (error.response) {
       const { status } = error.response;
+      if (status === 500) {
+        return false;
+      }
       if (status >= 400 && status < 500 && !this.RETRYABLE_STATUS_CODES.includes(status)) {
         return false;
       }
@@ -49,7 +52,7 @@ class RetryHandler {
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000, // Increased to 30s to handle backend cold starts (Neon)
+  timeout: 120000, // 2 minutes - allows time for complex operations (project creation, reports)
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -79,7 +82,8 @@ api.interceptors.request.use(
     const correlationId = generateCorrelationId();
     config.headers['X-Correlation-ID'] = correlationId;
     
-    console.log(`[API] [CID:${correlationId}] → ${config.method?.toUpperCase()} ${config.url}`);
+    const fullSource = config.baseURL ? `${config.baseURL}${config.url}` : config.url;
+    console.log(`[API] [CID:${correlationId}] → ${config.method?.toUpperCase()} ${fullSource}`);
     return config;
   },
   (error) => {
@@ -166,9 +170,10 @@ export const apiClient = {
     return response.data;
   },
   delete: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await apiRequest<T>({ method: 'DELETE', url, ...config }, { deduplicate: false });
+    const response = await apiRequest<T>({ method: 'DELETE', url, ...config });
     return response.data;
   },
+  getAxiosInstance: () => api,
 };
 
 export default api;

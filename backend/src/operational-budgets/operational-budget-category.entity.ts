@@ -11,6 +11,7 @@ import {
 } from "typeorm";
 import { OperationalBudgetEntity } from "./operational-budget.entity";
 import { OperationalExpenseEntity } from "./operational-expense.entity"; // Will be created next
+import { OperationalBudgetPeriodAllocationEntity } from "./operational-budget-period-allocation.entity";
 
 @Entity("operational_budget_category")
 export class OperationalBudgetCategoryEntity {
@@ -42,6 +43,12 @@ export class OperationalBudgetCategoryEntity {
 
   @OneToMany(() => OperationalExpenseEntity, (expense) => expense.category)
   expenses!: OperationalExpenseEntity[];
+
+  @OneToMany(
+    () => OperationalBudgetPeriodAllocationEntity,
+    (allocation) => allocation.category
+  )
+  allocations!: OperationalBudgetPeriodAllocationEntity[];
 
   @CreateDateColumn({ type: "timestamp" })
   created_at!: Date;

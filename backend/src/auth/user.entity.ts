@@ -63,6 +63,9 @@ export class UserEntity {
   @JoinColumn({ name: "tenant_id" })
   tenant!: TenantEntity;
 
+  @Column({ type: "varchar", length: 3, default: "USD" }) // User's preferred display currency
+  display_currency_code!: string;
+
   // Password Reset Fields
   @Column({ nullable: true, name: "reset_password_token" })
   resetPasswordToken?: string; // Stores the hashed reset token

@@ -11,7 +11,7 @@ import { ProjectEntity } from "../projects/project.entity"; // NEW: Import Proje
 import { WbsCategoryEntity } from "./wbs-category.entity"; // NEW: Import WbsCategoryEntity
 import { WbsBudgetStatus } from "../../../shared/types/wbs-budget-status.enum"; // NEW: Import WbsBudgetStatus
 
-@Entity({ name: "wbs_budget", schema: "client_template" })
+@Entity({ name: "wbs_budget" })
 export class WbsBudgetEntity {
   @PrimaryGeneratedColumn("uuid")
   wbs_id!: string;

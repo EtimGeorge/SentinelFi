@@ -7,6 +7,7 @@ import { TenantEntity } from "./tenant.entity";
 import { WbsModule } from "../wbs/wbs.module"; // <-- New Import
 import { AuditModule } from "../audit/audit.module";
 import { TenantMigrationModule } from "../database/tenant-migration.module"; // NEW: Import Module
+import { AuthModule } from "../auth/auth.module"; // NEW: Import AuthModule
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { TenantMigrationModule } from "../database/tenant-migration.module"; // 
     WbsModule, // <-- Add WbsModule here
     AuditModule,
     TenantMigrationModule, // <-- New Import for TenantService dependency
+    AuthModule, // NEW: Add AuthModule for AuthService dependency
   ],
   controllers: [TenantController],
   providers: [TenantService], // Removed TenantProvisioningService

@@ -14,6 +14,7 @@ import {
   ParseUUIDPipe,
   UnauthorizedException,
   Req,
+  Delete,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -22,6 +23,8 @@ import { Role } from 'shared/types/role.enum';
 import { SuperAdminService } from './superadmin.service';
 import { CreateTenantDto, UpdateTenantDto, GetTenantsDto } from './dto/create-tenant.dto';
 import { UpdateTenantPlanDto } from './dto/tenant-plan.dto';
+import { ResetTenantAdminPasswordDto } from './dto/tenant-management.dto'; // NEW
+import { UpdateSuperAdminProfileDto } from './dto/superadmin-profile.dto'; // NEW
 import { ImpersonateUserDto } from './dto/impersonate-user.dto'; // NEW: Import ImpersonateUserDto
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
@@ -135,6 +138,13 @@ export class SuperAdminController {
     return this.superAdminService.getOperationalBudgetMetrics(tenantId);
   }
 
+  @Get('analytics/plan-distribution')
+  @Roles('SuperAdmin')
+  @HttpCode(HttpStatus.OK)
+  async getPlanDistribution() {
+    return this.superAdminService.getPlanDistribution();
+  }
+
   @Post('impersonate') // Changed path
   @Roles('SuperAdmin')
   @HttpCode(HttpStatus.OK)
@@ -177,5 +187,39 @@ export class SuperAdminController {
     }
     await this.superAdminService.stopImpersonation(req.user.id, userId);
     return { success: true };
+  }
+
+  // --- NEW TENANT MANAGEMENT ENDPOINTS ---
+
+  @Delete('tenants/:id')
+  @Roles('SuperAdmin')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async softDeleteTenant(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.superAdminService.softDeleteTenant(id);
+  }
+
+  @Patch('tenants/:id/reset-password')
+  @Roles('SuperAdmin')
+  @HttpCode(HttpStatus.OK)
+  async resetTenantAdminPassword(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() resetDto: ResetTenantAdminPasswordDto,
+  ) {
+    return this.superAdminService.resetTenantAdminPassword(id, resetDto);
+  }
+
+  // --- SUPERADMIN SELF-MANAGEMENT ---
+
+  @Patch('profile')
+  @Roles('SuperAdmin')
+  @HttpCode(HttpStatus.OK)
+  async updateProfile(
+    @Req() req: AuthenticatedRequest,
+    @Body() updateDto: UpdateSuperAdminProfileDto,
+  ) {
+    if (!req.user || !req.user.id) {
+        throw new UnauthorizedException('User ID not found in token.');
+    }
+    return this.superAdminService.updateSuperAdminProfile(req.user.id, updateDto);
   }
 }

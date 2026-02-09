@@ -14,6 +14,8 @@ import { GetOperationalBudgetsDto } from "./dto/get-operational-budgets.dto";
 import { OperationalBudgetCategoryEntity } from "./operational-budget-category.entity";
 import { OperationalExpenseEntity } from "./operational-expense.entity";
 import { PayrollEntryEntity } from "./payroll-entry.entity";
+import { BudgetCategoryEntity } from "./budget-category.entity";
+import { OperationalBudgetPeriodAllocationEntity, PeriodType } from "./operational-budget-period-allocation.entity";
 import { BudgetControlService } from "../common/budget-control.service";
 import { PdfUtility } from "../common/pdf.utility";
 import { ExcelUtility } from "../common/excel.utility";
@@ -32,6 +34,10 @@ export class OperationalBudgetsService {
     private payrollEntryRepository: Repository<PayrollEntryEntity>,
     @Inject("OPERATIONALEXPENSE_REPOSITORY")
     private operationalExpenseRepository: Repository<OperationalExpenseEntity>,
+    @Inject("BUDGETCATEGORY_REPOSITORY")
+    private budgetCategoryRepository: Repository<BudgetCategoryEntity>,
+    @Inject("OPERATIONALBUDGETPERIODALLOCATION_REPOSITORY")
+    private allocationRepository: Repository<OperationalBudgetPeriodAllocationEntity>,
     private readonly budgetControlService: BudgetControlService,
   ) {}
 
@@ -362,6 +368,111 @@ export class OperationalBudgetsService {
 
     const csvString = [headers, ...rows].join("\n");
     return Buffer.from(csvString, "utf-8");
+  }
+
+  // --- Category Management ---
+
+  async getAvailableCategories(tenantId: string): Promise<BudgetCategoryEntity[]> {
+    // Fetch system defaults (tenant_id is null) AND tenant specific categories
+    return this.budgetCategoryRepository.find({
+      where: [
+        { is_system_default: true, is_active: true },
+        { tenant_id: tenantId, is_active: true },
+      ],
+      order: { name: "ASC" },
+    });
+  }
+
+  async createCustomCategory(
+    name: string,
+    type: string, // Cast to enum in implementation if needed
+    tenantId: string,
+    description?: string
+  ): Promise<BudgetCategoryEntity> {
+    const category = this.budgetCategoryRepository.create({
+      name,
+      type: type as any,
+      tenant_id: tenantId,
+      description,
+      is_system_default: false,
+    });
+    return this.budgetCategoryRepository.save(category);
+  }
+
+  // --- Grid & Allocation Management ---
+
+  async getBudgetGrid(
+    operational_budget_id: string,
+    tenantId: string
+  ): Promise<OperationalBudgetCategoryEntity[]> {
+    // Fetch budget categories with their allocations
+    return this.dataSource.getRepository(OperationalBudgetCategoryEntity).find({
+      where: { operational_budget_id, tenant_id: tenantId },
+      relations: ["allocations"],
+      order: { name: "ASC" },
+    });
+  }
+
+  async upsertAllocation(
+    operational_budget_category_id: string,
+    period_date: string, // YYYY-MM-DD
+    amount: number,
+    period_type: PeriodType,
+    tenantId: string
+  ): Promise<OperationalBudgetPeriodAllocationEntity> {
+    // Verify ownership via category
+    const category = await this.dataSource.getRepository(OperationalBudgetCategoryEntity).findOne({
+      where: { operational_budget_category_id, tenant_id: tenantId },
+    });
+
+    if (!category) {
+      throw new NotFoundException("Budget Category not found or access denied.");
+    }
+
+    const date = new Date(period_date);
+    
+    let allocation = await this.allocationRepository.findOne({
+      where: {
+        operational_budget_category_id,
+        period_date: date, // TypeORM handles date string/object comparison well usually
+      },
+    });
+
+    if (allocation) {
+      allocation.planned_amount = amount;
+      // We might update period_type here if it changes, but usually it's fixed for the view
+      allocation.period_type = period_type; 
+    } else {
+      allocation = this.allocationRepository.create({
+        operational_budget_category_id,
+        period_date: date,
+        planned_amount: amount,
+        period_type,
+      });
+    }
+
+    const saved = await this.allocationRepository.save(allocation);
+    
+    // Recalculate Total Budgeted for the Category
+    await this.recalculateCategoryTotal(operational_budget_category_id);
+    
+    return saved;
+  }
+
+  private async recalculateCategoryTotal(categoryId: string) {
+    const { sum } = await this.allocationRepository
+      .createQueryBuilder("allocation")
+      .select("SUM(allocation.planned_amount)", "sum")
+      .where("allocation.operational_budget_category_id = :categoryId", { categoryId })
+      .getRawOne();
+      
+    await this.dataSource.getRepository(OperationalBudgetCategoryEntity).update(
+      categoryId, 
+      { budgeted_amount: sum || 0 }
+    );
+     
+    // We should also roll up to the Parent Budget, but ensuring consistency in a distributed update requires locking or careful steps.
+    // For now, we update the category. The Parent Budget update can be triggered or handled separately.
   }
 
   /**

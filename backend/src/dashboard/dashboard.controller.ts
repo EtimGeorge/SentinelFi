@@ -6,6 +6,9 @@ import { DashboardService } from './dashboard.service';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@shared/types/role.enum';
+import { Query, Post, Body } from '@nestjs/common';
+import { CreateAnnotationDto } from './dto/create-annotation.dto';
+import { AnnotationTargetType } from './annotation.entity';
 
 @Controller('dashboard')
 @UseGuards(RolesGuard, TenantAccessGuard)
@@ -17,12 +20,45 @@ export class DashboardController {
   async getSummary(@Req() req: AuthenticatedRequest) {
     const tenantId = req.user.tenant_id;
     
-    // Although the TenantAccessGuard should prevent this, this check satisfies TypeScript
-    // and provides a fallback in case the guard chain is misconfigured.
     if (!tenantId) {
       throw new BadRequestException('Cannot get summary for a user without a tenant.');
     }
 
     return this.dashboardService.getTenantSummary(tenantId);
+  }
+
+  @Get('executive')
+  @Roles(Role.CEO, Role.Finance, Role.Admin)
+  async getExecutive(@Req() req: AuthenticatedRequest, @Query('projectId') projectId?: string) {
+    const tenantId = req.user.tenant_id;
+    if (!tenantId) {
+      throw new BadRequestException('Cannot get analytics for a user without a tenant.');
+    }
+    return this.dashboardService.getExecutiveAnalytics(tenantId, projectId);
+  }
+
+  @Post('annotations')
+  @Roles(Role.CEO, Role.Finance, Role.Admin)
+  async addAnnotation(@Req() req: AuthenticatedRequest, @Body() dto: CreateAnnotationDto) {
+    const tenantId = req.user.tenant_id;
+    const userId = req.user.id;
+    if (!tenantId) {
+      throw new BadRequestException('Cannot add annotation without a tenant.');
+    }
+    return this.dashboardService.addAnnotation(tenantId, userId, dto);
+  }
+
+  @Get('annotations')
+  @Roles(Role.CEO, Role.Finance, Role.Admin)
+  async getAnnotations(
+    @Req() req: AuthenticatedRequest,
+    @Query('targetType') targetType: AnnotationTargetType,
+    @Query('targetId') targetId: string,
+  ) {
+    const tenantId = req.user.tenant_id;
+    if (!tenantId) {
+      throw new BadRequestException('Cannot get annotations without a tenant.');
+    }
+    return this.dashboardService.getAnnotations(tenantId, targetType, targetId);
   }
 }

@@ -6,6 +6,23 @@ import { RoleEntity } from "../auth/role.entity";
 import { PermissionEntity } from "../auth/permission.entity";
 import { AuditLogEntity } from "../audit/audit.entity";
 import { TenantEntity } from "../tenants/tenant.entity";
+import { ProjectEntity } from "../projects/project.entity";
+import { ProjectInflowEntity } from "../projects/project-inflow.entity";
+import { ProjectAuditEntity } from "../projects/project-audit.entity";
+import { LpoEntity } from "../projects/lpo.entity";
+import { WbsCategoryEntity } from "../wbs/wbs-category.entity";
+import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
+import { LiveExpenseEntity } from "../wbs/live-expense.entity";
+import { SettingsEntity } from "../settings/settings.entity";
+import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
+import { OperationalBudgetCategoryEntity } from "../operational-budgets/operational-budget-category.entity";
+import { OperationalExpenseEntity } from "../operational-budgets/operational-expense.entity";
+import { PayrollEntryEntity } from "../operational-budgets/payroll-entry.entity";
+import { BudgetCategoryEntity } from "../operational-budgets/budget-category.entity";
+import { OperationalBudgetPeriodAllocationEntity } from "../operational-budgets/operational-budget-period-allocation.entity";
+import { ClientEntity } from "../clients/client.entity";
+import { CurrencyExchangeRateEntity } from "../currency/currency.entity";
+import { CEOAnnotationEntity } from "../dashboard/annotation.entity";
 
 /**
  * Custom DataSource that wraps the standard TypeORM DataSource to implement multi-tenancy.
@@ -26,7 +43,23 @@ export class TenancyAwareDataSource extends DataSource {
         PermissionEntity,
         AuditLogEntity,
         TenantEntity,
-        // Add other tenant-specific entities here as they are created
+        ProjectEntity,
+        ProjectInflowEntity,
+        ProjectAuditEntity,
+        LpoEntity,
+        WbsCategoryEntity,
+        WbsBudgetEntity,
+        LiveExpenseEntity,
+        SettingsEntity,
+        OperationalBudgetEntity,
+        OperationalBudgetCategoryEntity,
+        OperationalExpenseEntity,
+        PayrollEntryEntity,
+        BudgetCategoryEntity,
+        OperationalBudgetPeriodAllocationEntity,
+        ClientEntity,
+        CurrencyExchangeRateEntity,
+        CEOAnnotationEntity,
       ],
     });
   }
@@ -45,18 +78,22 @@ export class TenancyAwareDataSource extends DataSource {
       await originalConnect();
 
       // 2. Retrieve the schema name from the CLS context
-      // The context is populated by the TenancyMiddleware
-      const schemaName = this.cls.get("SCHEMA_NAME") || "public";
+      const schemaName = this.cls.get("SCHEMA_NAME");
 
       // 3. Set the search_path for this connection session
-      // This ensures all subsequent queries on this runner use the correct schema
-      if (schemaName) {
-        // Sanitize schemaName to prevent SQL injection (basic check)
-        const sanitizedSchema = schemaName.replace(/[^a-z0-9_]/gi, "");
-        console.log(`[TenancyAwareDataSource] Setting search_path for queryRunner to: ${sanitizedSchema}`); // Add logging
-        await queryRunner.query(
-          `SET search_path TO ${sanitizedSchema}, public`,
-        );
+      // Optimization: Only run the query if schema is explicitly set and NOT public
+      // Default connection in Postgres usually starts in 'public' or search_path defaults.
+      if (schemaName && schemaName !== "public") {
+        try {
+          const sanitizedSchema = schemaName.replace(/[^a-z0-9_]/gi, "");
+          await queryRunner.query(
+            `SET search_path TO ${sanitizedSchema}, public`,
+          );
+        } catch (err) {
+          console.error(`[TenancyAwareDataSource] Critical: Failed to switch schema to ${schemaName}`, err);
+          // If we can't switch schema, we shouldn't proceed as it might leak data from another tenant
+          throw err;
+        }
       }
     };
 

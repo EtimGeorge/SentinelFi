@@ -3,7 +3,8 @@ import React from 'react';
 // Extend the standard input attributes
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string; // Optional label
-  icon?: React.ReactNode; // Optional icon
+  icon?: React.ReactNode; // Optional left icon
+  rightElement?: React.ReactNode; // Optional right element
   containerClassName?: string; // Optional class for the container div
 }
 
@@ -11,6 +12,7 @@ const Input: React.FC<InputProps> = ({
   className,
   label,
   icon,
+  rightElement,
   id,
   containerClassName,
   ...props
@@ -39,9 +41,15 @@ const Input: React.FC<InputProps> = ({
             focus:outline-none focus:ring-brand-primary focus:border-brand-primary
             bg-brand-dark/50 text-white
             ${icon ? 'pl-10' : 'px-4'} 
+            ${rightElement ? 'pr-10' : ''}
             ${className}`}
           {...props}
         />
+        {rightElement && (
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+            {rightElement}
+          </div>
+        )}
       </div>
     </div>
   );

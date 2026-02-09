@@ -297,4 +297,69 @@ export class OperationalBudgetsController {
       req.user.tenant_id,
     );
   }
+
+  // --- Category Endpoints ---
+
+  @Get("categories/list")
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin, Role.CEO, Role.OperationalHead)
+  async getCategories(@Req() req: AuthenticatedRequest) {
+     if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.getAvailableCategories(req.user.tenant_id);
+  }
+
+  @Post("categories")
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  async createCategory(
+    @Body() body: { name: string; type: string; description?: string },
+    @Req() req: AuthenticatedRequest
+  ) {
+     if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.createCustomCategory(
+      body.name,
+      body.type,
+      req.user.tenant_id,
+      body.description
+    );
+  }
+
+  // --- Grid Endpoints ---
+
+  @Get(":id/grid")
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin, Role.CEO, Role.OperationalHead)
+  async getBudgetGrid(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+     if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.getBudgetGrid(id, req.user.tenant_id);
+  }
+
+  @Post("allocation")
+  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  async upsertAllocation(
+    @Body() body: { 
+      operational_budget_category_id: string; 
+      period_date: string; 
+      amount: number; 
+      period_type: any 
+    },
+    @Req() req: AuthenticatedRequest
+  ) {
+     if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.upsertAllocation(
+      body.operational_budget_category_id,
+      body.period_date,
+      body.amount,
+      body.period_type,
+      req.user.tenant_id
+    );
+  }
 }

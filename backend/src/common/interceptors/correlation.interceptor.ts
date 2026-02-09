@@ -37,7 +37,8 @@ export const getCorrelationId = (): string | undefined => {
 // ============================================================================
 @Injectable()
 export class CorrelationInterceptor implements NestInterceptor {
-  private readonly logger = new Logger(CorrelationInterceptor.name);
+  // Make logger static to avoid creating new instance per request
+  private static readonly logger = new Logger(CorrelationInterceptor.name);
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -62,10 +63,12 @@ export class CorrelationInterceptor implements NestInterceptor {
     response.setHeader('X-Correlation-ID', correlationId);
     response.setHeader('X-Request-ID', requestId);
 
-    // Log incoming request
-    this.logger.log(
-      `[CID:${correlationId}] → ${request.method} ${request.url}`,
-    );
+    // Reduced logging verbosity - only log on start for important requests
+    if (request.method !== 'GET' || request.url.includes('/auth/')) {
+      CorrelationInterceptor.logger.log(
+        `[CID:${correlationId}] → ${request.method} ${request.url}`,
+      );
+    }
 
     // Run the request handler within the correlation context
     return correlationStorage.run(correlationContext, () => {
@@ -73,13 +76,16 @@ export class CorrelationInterceptor implements NestInterceptor {
         tap({
           next: () => {
             const duration = Date.now() - correlationContext.startTime;
-            this.logger.log(
-              `[CID:${correlationId}] ← ${response.statusCode} ${request.method} ${request.url} (${duration}ms)`,
-            );
+            // Only log slow requests or errors
+            if (duration > 1000) {
+              CorrelationInterceptor.logger.warn(
+                `[CID:${correlationId}] ← SLOW ${response.statusCode} ${request.method} ${request.url} (${duration}ms)`,
+              );
+            }
           },
           error: (error) => {
             const duration = Date.now() - correlationContext.startTime;
-            this.logger.error(
+            CorrelationInterceptor.logger.error(
               `[CID:${correlationId}] ← ERROR ${request.method} ${request.url} (${duration}ms): ${error.message}`,
             );
           },

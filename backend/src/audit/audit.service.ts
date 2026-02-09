@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, FindManyOptions, Between, Like } from "typeorm";
 import { AuditLogEntity } from "./audit.entity";
 import { GetAuditLogsDto } from './dto/get-audit-logs.dto';
-import { CorrelatedLogger } from 'common/logger/correlated-logger'; // NEW IMPORT
+import { CorrelatedLogger } from '../common/logger/correlated-logger'; 
 
 @Injectable()
 export class AuditService {
@@ -75,7 +75,10 @@ export class AuditService {
         userEmail,
         ipAddress,
       } = options;
-      const skip = (page - 1) * limit;
+      
+      // Enforce maximum limit to prevent memory issues
+      const safeLimit = Math.min(limit,  100);
+      const skip = (page - 1) * safeLimit;
   
       const where: FindManyOptions<AuditLogEntity>['where'] = {};
   
@@ -113,7 +116,7 @@ export class AuditService {
           where,
           order: { timestamp: "DESC" },
           skip: skip,
-          take: limit,
+          take: safeLimit,
         });
   
       return { logs, total };

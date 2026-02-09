@@ -19,9 +19,12 @@ const config: DataSourceOptions = {
     path.resolve(__dirname, 'src/operational-budgets/operational-budget.entity.ts'),
     path.resolve(__dirname, 'src/operational-budgets/operational-budget-category.entity.ts'),
     path.resolve(__dirname, 'src/operational-budgets/operational-expense.entity.ts'),
+    path.resolve(__dirname, 'src/dashboard/annotation.entity.ts'),
     // Public entities referenced by tenant entities or their dependencies
-    path.resolve(__dirname, 'src/auth/user.entity.ts'), // WbsBudgetEntity references UserEntity
-    path.resolve(__dirname, 'src/tenants/tenant.entity.ts'), // UserEntity references TenantEntity
+    path.resolve(__dirname, 'src/auth/user.entity.ts'), 
+    path.resolve(__dirname, 'src/auth/role.entity.ts'),
+    path.resolve(__dirname, 'src/auth/permission.entity.ts'),
+    path.resolve(__dirname, 'src/tenants/tenant.entity.ts'),
   ],
   migrations: [
     path.resolve(__dirname, 'src/migrations/tenant/*.ts'), // Tenant schema migrations

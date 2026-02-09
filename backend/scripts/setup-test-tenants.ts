@@ -4,6 +4,8 @@ import { Logger } from '@nestjs/common';
 import { SuperAdminService } from '../src/superadmin/superadmin.service';
 import { AuthService } from '../src/auth/auth.service';
 import { Role } from '@shared/types/role.enum';
+import { UserEntity } from '../src/auth/user.entity';
+import * as bcrypt from 'bcryptjs';
 
 async function setupTestTenants() {
   const logger = new Logger('SetupTestTenantsScript');
@@ -36,6 +38,7 @@ async function setupTestTenants() {
       // createTenant now handles schema creation AND migrations internally
       tenant1 = await superAdminService.createTenant({
         name: tenant1Name,
+        admin_email: tenant1Email,
         is_active: true,
         plan: 'premium',
       });
@@ -46,22 +49,36 @@ async function setupTestTenants() {
     }
 
     logger.log(`Creating/Updating admin user for Tenant 1: ${tenant1Email}`);
-    // Use authService.createUser for consistency with RBAC
-    const admin1 = await authService.createUser(
-      { // Mock UserPayload for requesting user (SuperAdmin)
-        id: 'script-superadmin', email: 'script@example.com', roles: [{id: 's', name: Role.SuperAdmin, description: ''}], permissions: [], tenant_id: null, is_active: true
-      },
-      {
-        email: tenant1Email,
-        password: tenant1Password,
-        first_name: 'Tenant1',
-        last_name: 'Admin',
-        role: Role.Admin, // Assign 'Admin' role using RBAC
-        tenant_id: tenant1.tenant_id,
-        is_active: true,
-      },
-    );
-    logger.log(`✅ Admin user ${admin1.email} for Tenant 1 created/updated. Password: ${tenant1Password}`);
+    try {
+      const admin1 = await authService.createUser(
+        { // Mock UserPayload for requesting user (SuperAdmin)
+          id: 'script-superadmin', email: 'script@example.com', roles: [{id: 's', name: Role.SuperAdmin, description: ''}], permissions: [], tenant_id: null, is_active: true
+        },
+        {
+          email: tenant1Email,
+          password: tenant1Password,
+          first_name: 'Tenant1',
+          last_name: 'Admin',
+          role: Role.Admin, // Assign 'Admin' role using RBAC
+          tenant_id: tenant1.tenant_id,
+          is_active: true,
+        },
+      );
+      logger.log(`✅ Admin user ${admin1.email} for Tenant 1 created. Password: ${tenant1Password}`);
+    } catch (err: any) {
+      if (err.status === 409) {
+        logger.log(`Admin user ${tenant1Email} already exists for Tenant 1. Updating password...`);
+        const salt = await bcrypt.genSalt(10);
+        const password_hash = await bcrypt.hash(tenant1Password, salt);
+        await app.get(AuthService)['dataSource'].getRepository(UserEntity).update(
+          { email: tenant1Email },
+          { password_hash }
+        );
+        logger.log(`✅ Admin user ${tenant1Email} for Tenant 1 password updated.`);
+      } else {
+        throw err;
+      }
+    }
 
 
     // --- Tenant 2: SAENCRYSTAL_GLOBAL_SERVICES (sgs_schema) ---
@@ -77,6 +94,7 @@ async function setupTestTenants() {
       // createTenant now handles schema creation AND migrations internally
       tenant2 = await superAdminService.createTenant({
         name: tenant2Name,
+        admin_email: tenant2Email,
         is_active: true,
         plan: 'basic',
       });
@@ -85,22 +103,36 @@ async function setupTestTenants() {
       logger.log(`Tenant ${tenant2Name} already exists (ID: ${tenant2.tenant_id}).`);
     }
 
-    logger.log(`Creating/Updating admin user for Tenant 2: ${tenant2Email}`);
-    const admin2 = await authService.createUser(
-      { // Mock UserPayload for requesting user (SuperAdmin)
-        id: 'script-superadmin', email: 'script@example.com', roles: [{id: 's', name: Role.SuperAdmin, description: ''}], permissions: [], tenant_id: null, is_active: true
-      },
-      {
-        email: tenant2Email,
-        password: tenant2Password,
-        first_name: 'Tenant2',
-        last_name: 'Admin',
-        role: Role.Admin, // Assign 'Admin' role using RBAC
-        tenant_id: tenant2.tenant_id,
-        is_active: true,
-      },
-    );
-    logger.log(`✅ Admin user ${admin2.email} for Tenant 2 created/updated. Password: ${tenant2Password}`);
+    try {
+      const admin2 = await authService.createUser(
+        { // Mock UserPayload for requesting user (SuperAdmin)
+          id: 'script-superadmin', email: 'script@example.com', roles: [{id: 's', name: Role.SuperAdmin, description: ''}], permissions: [], tenant_id: null, is_active: true
+        },
+        {
+          email: tenant2Email,
+          password: tenant2Password,
+          first_name: 'Tenant2',
+          last_name: 'Admin',
+          role: Role.Admin, // Assign 'Admin' role using RBAC
+          tenant_id: tenant2.tenant_id,
+          is_active: true,
+        },
+      );
+      logger.log(`✅ Admin user ${admin2.email} for Tenant 2 created. Password: ${tenant2Password}`);
+    } catch (err: any) {
+      if (err.status === 409) {
+        logger.log(`Admin user ${tenant2Email} already exists for Tenant 2. Updating password...`);
+        const salt = await bcrypt.genSalt(10);
+        const password_hash = await bcrypt.hash(tenant2Password, salt);
+        await app.get(AuthService)['dataSource'].getRepository(UserEntity).update(
+          { email: tenant2Email },
+          { password_hash }
+        );
+        logger.log(`✅ Admin user ${tenant2Email} for Tenant 2 password updated.`);
+      } else {
+        throw err;
+      }
+    }
 
     logger.log('\n=== Test Credentials Ready ===');
     logger.log(`Tenant 1 (${tenant1Name}): ${tenant1Email} / ${tenant1Password}`);

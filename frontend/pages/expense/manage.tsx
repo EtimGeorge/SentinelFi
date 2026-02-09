@@ -6,42 +6,42 @@ import PageContainer from "../../components/Layout/PageContainer";
 import Card from "../../components/common/Card";
 import Input from "../../components/common/Input";
 import Button from "../../components/common/Button";
-import { formatCurrency } from "../../lib/utils";
-import { GetLiveExpensesDto, VarianceFlag } from "@shared/types/get-live-expenses.dto"; // Corrected alias and shared interface
-import { LiveExpense } from "../../../shared/types/expense"; // Shared Live Expense Entity
+import { useCurrency } from "../../components/context/CurrencyContext"; // Import Context
+import { GetLiveExpensesDto, VarianceFlag } from "@shared/types/get-live-expenses.dto";
+import { LiveExpense } from "@shared/types/expense";
 import { DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2 } from "lucide-react";
-import Select from "../../components/common/Select"; // Assuming a Select component exists
-import { ProjectEntity } from "../../../backend/src/projects/project.entity"; // Import ProjectEntity
+import Select from "../../components/common/Select";
+import { ProjectEntity } from "../../../backend/src/projects/project.entity";
 
 const ExpenseManagementPage: React.FC = () => {
   const api = useSecuredApi();
   const router = useRouter();
+  const { convertToDisplay } = useCurrency(); // Use Hook
 
   const [expenses, setExpenses] = useState<LiveExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [projects, setProjects] = useState<ProjectEntity[]>([]); // For project filter dropdown
+  const [projects, setProjects] = useState<ProjectEntity[]>([]);
 
   // Filters and Pagination State
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
-  const [wbsIdFilter, setWbsIdFilter] = useState(""); // Not directly used in GetLiveExpensesDto, but if we want to filter specific WBS items
+  const [wbsIdFilter, setWbsIdFilter] = useState("");
   const [descriptionFilter, setDescriptionFilter] = useState("");
   const [varianceFlagFilter, setVarianceFlagFilter] = useState<VarianceFlag | "">("");
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
-  const [projectIdFilter, setProjectIdFilter] = useState(""); // New project filter
+  const [projectIdFilter, setProjectIdFilter] = useState("");
 
   // Fetch projects for dropdown
   useEffect(() => {
     const fetchProjectsForFilter = async () => {
       try {
-        const response = await api.get<{ projects: ProjectEntity[]; total: number }>("/projects?limit=9999"); // Fetch all projects for filter
+        const response = await api.get<{ projects: ProjectEntity[]; total: number }>("/projects?limit=9999");
         setProjects(response.data.projects);
       } catch (e: any) {
         console.error("Failed to fetch projects for filter:", e);
-        // Optionally set an error state here
       }
     };
     fetchProjectsForFilter();
@@ -55,11 +55,11 @@ const ExpenseManagementPage: React.FC = () => {
         page,
         limit,
         wbsId: wbsIdFilter || undefined,
-        description: descriptionFilter || undefined, // Fixed
+        description: descriptionFilter || undefined,
         varianceFlag: varianceFlagFilter || undefined,
         startDate: startDateFilter || undefined,
         endDate: endDateFilter || undefined,
-        projectId: projectIdFilter || undefined, // Use new project filter
+        projectId: projectIdFilter || undefined,
       };
       const response = await api.get<{ data: LiveExpense[]; total: number }>("/wbs/expenses", { params });
       setExpenses(response.data.data);
@@ -76,7 +76,7 @@ const ExpenseManagementPage: React.FC = () => {
   }, [fetchExpenses]);
 
   const handleApplyFilters = () => {
-    setPage(1); // Reset to first page on new filter
+    setPage(1);
     fetchExpenses();
   };
 
@@ -86,21 +86,19 @@ const ExpenseManagementPage: React.FC = () => {
     setVarianceFlagFilter("");
     setStartDateFilter("");
     setEndDateFilter("");
-    setProjectIdFilter(""); // Clear project filter
+    setProjectIdFilter("");
     setPage(1);
-    // fetchExpenses will be called by useEffect due to state changes
   };
 
   const handleDownloadCsv = async () => {
     try {
       const params: GetLiveExpensesDto = {
         wbsId: wbsIdFilter || undefined,
-        description: descriptionFilter || undefined, // Fixed
+        description: descriptionFilter || undefined,
         varianceFlag: varianceFlagFilter || undefined,
         startDate: startDateFilter || undefined,
         endDate: endDateFilter || undefined,
-        projectId: projectIdFilter || undefined, // Use new project filter
-        // No pagination for export
+        projectId: projectIdFilter || undefined,
       };
       const response = await api.get(`/wbs/expenses/export`, { params, responseType: "blob" });
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -119,7 +117,7 @@ const ExpenseManagementPage: React.FC = () => {
     window.print();
   };
 
-  if (loading && expenses.length === 0) { // Only show full loading screen if no data is present yet
+  if (loading && expenses.length === 0) {
     return (
       <PageContainer title="Expense Management" subtitle="Manage all live expense entries across projects.">
         <div className="text-brand-primary text-lg text-center my-10">Loading live expenses...</div>
@@ -207,34 +205,57 @@ const ExpenseManagementPage: React.FC = () => {
               <>
                 <div className="overflow-x-auto rounded-lg border border-gray-700">
                   <table className="min-w-full divide-y divide-gray-700">
-                    <thead className="bg-brand-dark/50">
+                    <thead className="bg-brand-dark/80 backdrop-blur-md sticky top-0">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Project Name</th> {/* NEW */}
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">WBS Code</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Description</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Expense Date</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Amount Paid</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Variance Flag</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">User</th>
-                        <th className="px-6 py-3">Actions</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Project</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">WBS Code</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Description</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Date</th>
+                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Amount</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Status / Flag</th>
+                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
-                      {expenses.map(expense => (
-                        <tr key={expense.expense_id} className="hover:bg-gray-700/50 transition">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-primary">{expense.wbsBudget?.project?.project_name || "N/A"}</td> {/* NEW */}
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.wbsBudget?.wbs_code || "N/A"}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-primary">{expense.description}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{new Date(expense.expense_date).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white">{formatCurrency(expense.actual_paid_amount)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.variance_flag}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{expense.wbsBudget?.user?.email || "N/A"}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <Button variant="ghost" size="sm" className="mr-2"><Edit className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="sm"><Trash2 className="w-4 h-4" /></Button>
-                          </td>
-                        </tr>
-                      ))}
+                      {expenses.map(expense => {
+                        let badgeColor = 'bg-gray-800 text-gray-400';
+                        if (expense.variance_flag === VarianceFlag.NO_VARIANCE || expense.variance_flag === VarianceFlag.WITHIN_BUDGET) badgeColor = 'bg-green-900/40 text-green-400 border border-green-800/50';
+                        if (expense.variance_flag === VarianceFlag.NEGATIVE_VARIANCE) badgeColor = 'bg-blue-900/40 text-blue-400 border border-blue-800/50';
+                        if (expense.variance_flag === VarianceFlag.MAJOR_VARIANCE_OVERRUN || expense.variance_flag === VarianceFlag.MAJOR_VARIANCE_UNBUDGETED) badgeColor = 'bg-red-900/50 text-red-400 border border-red-700/50 animate-pulse';
+                        if (expense.variance_flag === VarianceFlag.OVER_BUDGET) badgeColor = 'bg-orange-900/40 text-orange-400 border border-orange-800/50';
+
+                        return (
+                          <tr key={expense.expense_id} className="hover:bg-white/5 transition border-b border-gray-800/50 last:border-0">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <p className="text-sm font-bold text-gray-200">{expense.wbsBudget?.project?.project_name || "N/A"}</p>
+                              <p className="text-10px text-gray-500 uppercase tracking-tighter">Tenant Project</p>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="font-mono text-xs font-black text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded">{expense.wbsBudget?.wbs_code || "N/A"}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <p className="text-sm text-gray-200 font-medium truncate max-w-[200px]">{expense.description}</p>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                              {new Date(expense.expense_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <p className="text-sm font-black text-white">{convertToDisplay(expense.actual_paid_amount)}</p>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${badgeColor}`}>
+                                {expense.variance_flag.replace(/_/g, ' ')}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <div className="flex justify-end items-center gap-1">
+                                <Button variant="ghost" size="sm" className="hover:bg-brand-primary/20 text-brand-primary"><Edit className="w-4 h-4" /></Button>
+                                <Button variant="ghost" size="sm" className="hover:bg-red-900/30 text-red-400"><Trash2 className="w-4 h-4" /></Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

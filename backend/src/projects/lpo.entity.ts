@@ -19,7 +19,7 @@ export enum LpoStatus {
   CANCELLED = "CANCELLED",
 }
 
-@Entity({ name: "lpo", schema: "client_template" })
+@Entity({ name: "lpo" })
 export class LpoEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

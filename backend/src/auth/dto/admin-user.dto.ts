@@ -57,4 +57,8 @@ export class UserResponseDto implements User {
   @IsOptional()
   @IsString()
   tenant_name?: string | null;
+
+  @IsOptional()
+  @IsString()
+  display_currency_code?: string; // NEW
 }

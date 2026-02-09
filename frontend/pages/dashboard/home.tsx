@@ -2,17 +2,24 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import { useAuth, Role } from '../../components/context/AuthContext';
-import { LayoutDashboard, Zap, FileText, Bell, Clock, BarChart2, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Zap, FileText, Bell, Clock, BarChart2, Loader2, Briefcase, TrendingUp, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import { formatCurrency } from '../../lib/utils';
+import { useCurrency } from '../../components/context/CurrencyContext'; // Import Currency Hook
+import Button from '../../components/common/Button';
 
 interface SummaryStats {
   totalBudgeted: number;
   totalActualPaid: number;
-  pendingApprovals: number;
   variancePercentage: number;
+  burnRatePercentage: number;
+  pendingApprovals?: number;
+}
+
+interface ProjectData {
+  project_id: string;
+  project_name: string;
 }
 
 interface ActivityLog {
@@ -25,29 +32,75 @@ interface ActivityLog {
 const DashboardHome: React.FC = () => {
   const { user, hasAnyRole, getPrimaryRole } = useAuth();
   const api = useSecuredApi();
+  const { convertToDisplay } = useCurrency(); // Destructure convertToDisplay
   const [stats, setStats] = useState<SummaryStats | null>(null);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+  const [viewContext, setViewContext] = useState<'project' | 'operational'>('project');
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Fetch projects list
   useEffect(() => {
+    if (!user) return;
+    api.get('/projects?limit=100').then(res => {
+      setProjects(res.data.projects || []);
+    }).catch(err => console.error('Failed to fetch projects:', err));
+  }, [user?.id, api]);
+
+  useEffect(() => {
+    // Guard: Don't fetch if user isn't loaded yet
+    if (!user) return;
+
+    const controller = new AbortController();
+    let isCancelled = false;
+
     const fetchDashboardContent = async () => {
       setLoading(true);
       try {
-        const [statsRes, activityRes] = await Promise.all([
-          api.get('/dashboard/summary'),
-          api.get('/admin/audit-logs?limit=5')
+        const role = getPrimaryRole();
+        const isSuperAdmin = role === Role.SuperAdmin;
+        const auditLogPath = isSuperAdmin ? '/admin/audit-logs' : '/admin/audit-logs/tenant';
+
+        // Choose endpoint based on viewContext
+        // If 'operational', we might want a different filtering or just consolidated
+        const dashboardUrl = selectedProjectId === 'all'
+          ? '/dashboard/executive'
+          : `/dashboard/executive?projectId=${selectedProjectId}`;
+
+        const [execRes, summaryRes, activityRes] = await Promise.all([
+          api.get(dashboardUrl, { signal: controller.signal }),
+          api.get('/dashboard/summary', { signal: controller.signal }),
+          api.get(`${auditLogPath}?limit=5`, { signal: controller.signal })
         ]);
-        setStats(statsRes.data);
-        setActivities(activityRes.data.logs || []);
-      } catch (error) {
-        console.error('Failed to load dashboard data:', error);
+
+        if (!isCancelled) {
+          setStats(execRes.data.overview);
+          setPendingCount(summaryRes.data.pendingApprovals);
+          setActivities(activityRes.data.logs || activityRes.data.data || []);
+        }
+      } catch (error: any) {
+        if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+          return;
+        }
+        if (!isCancelled) {
+          console.error('Failed to load dashboard data:', error);
+        }
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchDashboardContent();
-  }, [api]);
+
+    return () => {
+      isCancelled = true;
+      controller.abort();
+    };
+  }, [user?.id, api, selectedProjectId, viewContext]);
 
   const actionLinks = [
     { label: 'View Executive Dashboard', href: '/dashboard/ceo', icon: LayoutDashboard, roles: [Role.CEO, Role.Finance, Role.Admin, Role.ITHead, Role.OperationalHead] },
@@ -55,7 +108,7 @@ const DashboardHome: React.FC = () => {
     { label: 'Draft a New Budget', href: '/budget/draft', icon: FileText, roles: [Role.Finance, Role.Admin] },
     { label: 'View Financial Reports', href: '/reporting/variance', icon: LayoutDashboard, roles: [Role.Finance, Role.Admin, Role.OperationalHead, Role.CEO] },
   ];
-  
+
   const relevantActions = actionLinks.filter(link => hasAnyRole(link.roles));
 
   return (
@@ -65,94 +118,157 @@ const DashboardHome: React.FC = () => {
         title={`Welcome, ${user?.email.split('@')[0]}!`}
         subtitle={`You are logged in as a ${getPrimaryRole()}.`}
       >
-        <h2 className="text-2xl font-semibold text-white mb-6 border-b border-gray-700 pb-2">Quick Navigation</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          {relevantActions.map((action, index) => (
-            <Link 
-              key={index} 
-              href={action.href}
-              className="flex flex-col items-center justify-center p-6 bg-brand-dark rounded-lg shadow-md hover:bg-brand-dark/60 hover:border-brand-primary/50 transition duration-150 border border-gray-700 text-center group"
+        {/* Executive Controls Row */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-brand-dark rounded-2xl border border-gray-700 mb-8">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setViewContext('project')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 ${viewContext === 'project' ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'bg-gray-800 text-gray-400'}`}
             >
-              <action.icon className="w-10 h-10 text-brand-primary mb-3 group-hover:scale-110 transition-transform" />
+              <Zap className="w-4 h-4" /> Project & Operations
+            </button>
+            <button
+              onClick={() => setViewContext('operational')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 ${viewContext === 'operational' ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'bg-gray-800 text-gray-400'}`}
+            >
+              <BarChart2 className="w-4 h-4" /> Operational Overhead
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-bold text-gray-500 uppercase">Target Project:</label>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="p-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-brand-primary outline-none min-w-[200px]"
+            >
+              <option value="all">Consolidated (Tenant-wide)</option>
+              {projects.map(p => (
+                <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+          {relevantActions.map((action, index) => (
+            <Link
+              key={index}
+              href={action.href}
+              className="flex flex-col items-center justify-center p-6 bg-brand-dark/40 rounded-2xl border border-gray-700 hover:border-brand-primary/50 hover:bg-white/5 transition duration-300 text-center group"
+            >
+              <div className="w-12 h-12 rounded-full bg-brand-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                <action.icon className="w-6 h-6 text-brand-primary" />
+              </div>
               <p className="font-bold text-white mb-1">{action.label}</p>
-              <p className="text-xs text-gray-400">Manage {action.label.split(' ').pop()} tasks</p>
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest">Perform Action</p>
             </Link>
           ))}
         </div>
-        
-        <h2 className="text-2xl font-semibold text-white mb-6 border-b border-gray-700 pb-2">Your Summary</h2>
 
-        {loading ? (
-            <div className="flex items-center justify-center h-48">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <div className="md:col-span-4 flex flex-col gap-6">
+            <Card title="Activity Stream" borderTopColor="secondary" className="h-full">
+              <div className="space-y-4">
+                {activities.length > 0 ? (
+                  activities.map(log => (
+                    <div key={log.id} className="flex items-start gap-3 p-2 hover:bg-white/5 rounded-lg transition">
+                      <div className="mt-1 p-1 bg-gray-800 rounded">
+                        <Clock className="w-3 h-3 text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-200 capitalize">{log.action.replace(/_/g, ' ')}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-tighter">{new Date(log.timestamp).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-sm italic">Quiescent. No activities recorded.</p>
+                )}
+                <Link href="/admin/audit-logs" className="text-brand-primary text-xs font-bold mt-4 block hover:underline uppercase tracking-widest">Monitor Full Audit</Link>
+              </div>
+            </Card>
+          </div>
+
+          <div className="md:col-span-8">
+            {loading ? (
+              <div className="flex items-center justify-center h-full min-h-[300px] bg-brand-dark rounded-2xl border border-dashed border-gray-700">
                 <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
-            </div>
-        ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card title="Recent Activity" borderTopColor="secondary">
-                    <div className="space-y-3">
-                        {activities.length > 0 ? (
-                            activities.map(log => (
-                                <p key={log.id} className="flex items-start text-sm text-gray-400">
-                                    <Clock className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                                    <span>
-                                        <strong className="text-gray-200 capitalize">{log.action.replace(/_/g, ' ')}</strong>
-                                        <br />
-                                        <small className="text-gray-500">{new Date(log.timestamp).toLocaleString()}</small>
-                                    </span>
-                                </p>
-                            ))
-                        ) : (
-                            <p className="text-gray-500 text-sm">No recent activity found.</p>
-                        )}
-                        <Link href="/admin/audit/logs" className="text-brand-primary text-sm mt-4 block hover:underline">View All Activity</Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Financial Snapshot - Dynamic based on selection */}
+                <Card title="Financial Snapshot" borderTopColor="primary">
+                  <div className="flex justify-between items-end mb-4">
+                    <div>
+                      <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total Allocated</p>
+                      <p className="text-2xl font-bold text-white">{convertToDisplay(stats?.totalBudgeted || 0)}</p>
                     </div>
-                </Card>
-                
-                <Card title="Notifications & Alerts" borderTopColor="alert">
-                    <div className="space-y-3 text-gray-400">
-                        {stats && stats.variancePercentage > 5 && (
-                            <p className="flex items-center text-sm"><Bell className="w-4 h-4 mr-2 text-alert-critical" /> High Variance Alert: {stats.variancePercentage.toFixed(1)}%</p>
-                        )}
-                        {stats && stats.pendingApprovals > 0 && (
-                            <p className="flex items-center text-sm"><Bell className="w-4 h-4 mr-2 text-brand-primary" /> {stats.pendingApprovals} Budget Drafts Pending</p>
-                        )}
-                        {(!stats || (stats.variancePercentage <= 5 && stats.pendingApprovals === 0)) && (
-                            <p className="text-gray-500 text-sm">All clear! No critical alerts.</p>
-                        )}
-                        <Link href="/approvals" className="text-brand-primary text-sm mt-4 block hover:underline">View All Notifications</Link>
+                    <div className="text-right">
+                      <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Spent to Date</p>
+                      <p className="text-2xl font-bold text-white">{convertToDisplay(stats?.totalActualPaid || 0)}</p>
                     </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-400 font-bold uppercase tracking-tight">Relative Variance</span>
+                      <span className={`px-2 py-0.5 rounded text-black font-black ${stats && stats.variancePercentage > 0 ? 'bg-alert-critical' : 'bg-alert-positive'}`}>
+                        {stats?.variancePercentage.toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-1000 ${stats && stats.variancePercentage > 5 ? 'bg-alert-critical' : 'bg-brand-primary'}`}
+                        style={{ width: `${Math.min(100, (stats?.totalActualPaid || 0) / (stats?.totalBudgeted || 1) * 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
                 </Card>
 
-                <Card title="Financial Snapshot" borderTopColor="primary">
-                    <div className="space-y-4">
-                        <div>
-                            <p className="text-xs text-gray-500 uppercase font-bold mb-1">Total Budget</p>
-                            <p className="text-xl font-semibold text-white">{formatCurrency(stats?.totalBudgeted || 0)}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-gray-500 uppercase font-bold mb-1">Total Actual Spent</p>
-                            <p className="text-xl font-semibold text-white">{formatCurrency(stats?.totalActualPaid || 0)}</p>
-                        </div>
-                        <div className="pt-2 border-t border-gray-800">
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-400">Variance</span>
-                                <span className={`text-sm font-bold ${stats && stats.variancePercentage > 0 ? 'text-alert-critical' : 'text-alert-positive'}`}>
-                                    {stats?.variancePercentage.toFixed(2)}%
-                                </span>
-                            </div>
-                            <div className="w-full bg-gray-700 h-1.5 rounded-full mt-1">
-                                <div 
-                                    className={`h-1.5 rounded-full ${stats && stats.variancePercentage > 5 ? 'bg-alert-critical' : 'bg-brand-primary'}`}
-                                    style={{ width: `${Math.min(100, (stats?.totalActualPaid || 0) / (stats?.totalBudgeted || 1) * 100)}%` }}
-                                ></div>
-                            </div>
-                        </div>
+                {/* Burn Rate - Performance indicator */}
+                <Card title="Operational Burn Rate" borderTopColor="alert">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-3xl font-black text-white">
+                      {stats?.burnRatePercentage.toFixed(1)}%
+                    </p>
+                    <div className={`p-2 rounded-full ${stats && stats.burnRatePercentage > 90 ? 'bg-red-900/40' : 'bg-brand-primary/20'}`}>
+                      <TrendingUp className={`w-5 h-5 ${stats && stats.burnRatePercentage > 90 ? 'text-red-500' : 'text-brand-primary'}`} />
                     </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-4">Budget utilization relative to project lifecycle targets.</p>
+                  <div className="flex gap-1 h-3">
+                    {[...Array(10)].map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex-grow rounded-sm transition-all duration-500 ${stats && stats.burnRatePercentage > (i * 10) ? (i > 7 ? 'bg-alert-critical' : 'bg-brand-primary') : 'bg-gray-800'}`}
+                      />
+                    ))}
+                  </div>
                 </Card>
-            </div>
-        )}
-        
+
+                {/* Notifications & Approvals */}
+                <Card title="Pending Review" borderTopColor="alert" className="md:col-span-2">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-alert-critical/10 flex items-center justify-center">
+                        <Bell className="w-6 h-6 text-alert-critical" />
+                      </div>
+                      <div>
+                        <p className="text-xl font-bold text-white">{pendingCount} Items Pending</p>
+                        <p className="text-xs text-gray-500">Budget drafts and exceptions awaiting your directive.</p>
+                      </div>
+                    </div>
+                    <Link href="/approvals">
+                      <Button variant="primary" className="whitespace-nowrap">Go to Approvals <ArrowRight className="w-4 h-4 ml-2" /></Button>
+                    </Link>
+                  </div>
+                </Card>
+              </div>
+            )}
+          </div>
+        </div>
+
         <p className="mt-8 text-sm text-gray-500 italic">
           Tip: You can use the left-hand sidebar for quick access to specific modules like the WBS Manager or Executive Reports.
         </p>

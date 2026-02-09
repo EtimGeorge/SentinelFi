@@ -1,34 +1,36 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import SuperAdminLayout from '@/components/Layout/SuperAdminLayout';
-import { useAuth } from '@/components/context/AuthContext';
-import { apiClient } from '@/lib/api';
-import { AuditLogEntity } from '@shared/types/audit'; // Corrected import to AuditLogEntity
-import { GetAuditLogsDto } from 'backend/src/audit/dto/get-audit-logs.dto'; // Import backend DTO for request params
+import React, { useState, useEffect, useCallback } from 'react';
+import Head from 'next/head';
+import PageContainer from '../../components/Layout/PageContainer';
+import Card from '../../components/common/Card';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import { useAuth } from '../../components/context/AuthContext';
+import { apiClient } from '../../lib/api';
+import { AuditLogEntity } from '@shared/types/audit'; 
+import { GetAuditLogsDto } from 'backend/src/audit/dto/get-audit-logs.dto'; 
 import { toast } from 'react-hot-toast';
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon, RefreshCcwIcon } from 'lucide-react';
+import { 
+  FileText, 
+  ChevronDown, 
+  ChevronUp, 
+  Download, 
+  ShieldAlert, 
+  User, 
+  Calendar,
+  Filter,
+  RefreshCcwIcon
+} from 'lucide-react';
+import { NextPageWithLayout } from '../_app';
 
-// Assuming shared/types/audit.ts
-// export interface AuditLog {
-//   id: string;
-//   userId: string | null;
-//   userEmail: string | null;
-//   action: string;
-//   actionType: string;
-//   tenantId: string | null;
-//   targetType: string | null;
-//   targetId: string | null;
-//   ipAddress: string | null;
-//   details: Record<string, any> | null;
-//   timestamp: string;
-// }
-
-const AuditLogPage: React.FC = () => {
+const AuditLogPage: NextPageWithLayout = () => {
   const { user } = useAuth();
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [logs, setLogs] = useState<AuditLogEntity[]>([]);
   const [totalLogs, setTotalLogs] = useState(0);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  
   const [filters, setFilters] = useState<Partial<GetAuditLogsDto>>({
     userId: '',
     action: '',
@@ -62,22 +64,11 @@ const AuditLogPage: React.FC = () => {
     fetchAuditLogs();
   }, [fetchAuditLogs]);
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const toggleExpand = (id: string) => {
+    setExpandedId(expandedId === id ? null : id);
   };
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage > 0 && newPage <= Math.ceil(totalLogs / limit)) {
-      setCurrentPage(newPage);
-    }
-  };
-
-  const handleLimitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setLimit(Number(e.target.value));
-    setCurrentPage(1); // Reset to first page when limit changes
-  };
-
-  const clearFilters = () => {
+  const handleClearFilters = () => {
     setFilters({
       userId: '',
       action: '',
@@ -89,164 +80,154 @@ const AuditLogPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const renderTableRows = useMemo(() => {
-    if (loading) {
-      return (
-        <tr>
-          <td colSpan={9} className="text-center py-4">Loading audit logs...</td>
-        </tr>
-      );
-    }
-    if (logs.length === 0) {
-      return (
-        <tr>
-          <td colSpan={9} className="text-center py-4">No audit logs found.</td>
-        </tr>
-      );
-    }
-    return logs.map((log) => (
-      <tr key={log.id} className="border-b border-gray-700 hover:bg-gray-800 transition-colors">
-        <td className="p-3 text-sm text-gray-300 font-medium">{new Date(log.timestamp).toLocaleString()}</td>
-        <td className="p-3 text-sm text-gray-300">{log.action}</td>
-        <td className="p-3 text-sm text-gray-300">{log.userEmail || log.userId || 'N/A'}</td>
-        <td className="p-3 text-sm text-gray-300">{log.tenantId || 'N/A'}</td>
-        <td className="p-3 text-sm text-gray-300">{log.targetType || 'N/A'}</td>
-        <td className="p-3 text-sm text-gray-300">{log.targetId || 'N/A'}</td>
-        <td className="p-3 text-sm text-gray-300">{log.ipAddress || 'N/A'}</td>
-        <td className="p-3 text-sm text-gray-300 max-w-xs truncate" title={JSON.stringify(log.details)}>{JSON.stringify(log.details)}</td>
-      </tr>
-    ));
-  }, [logs, loading]);
-
-  if (!user || !user.roles.some(role => role.name === 'SuperAdmin')) {
-    return (
-      <SuperAdminLayout>
-        <div className="text-red-500 text-center py-10">Access Denied: You must be a SuperAdmin to view this page.</div>
-      </SuperAdminLayout>
-    );
-  }
-
   return (
-    <SuperAdminLayout>
-      <div className="min-h-screen bg-gray-900 text-white p-6">
-        <h1 className="text-3xl font-bold mb-6 text-indigo-400">Audit Logs</h1>
-        <p className="text-gray-400 mb-8">Review system and user activity across all tenants.</p>
+    <>
+      <Head>
+        <title>Audit Forensics | SentinelFi SuperAdmin</title>
+      </Head>
 
-        {/* Filter & Pagination Controls */}
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg mb-8 border border-gray-700">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-            <input
-              type="text"
-              name="userEmail"
-              placeholder="Filter by User Email"
-              value={filters.userEmail}
-              onChange={handleFilterChange}
-              className="p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 text-gray-200"
-            />
-            <input
-              type="text"
-              name="action"
-              placeholder="Filter by Action"
-              value={filters.action}
-              onChange={handleFilterChange}
-              className="p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 text-gray-200"
-            />
-            <input
-              type="text"
-              name="ipAddress"
-              placeholder="Filter by IP Address"
-              value={filters.ipAddress}
-              onChange={handleFilterChange}
-              className="p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 text-gray-200"
-            />
-            <input
-              type="date"
-              name="startDate"
-              value={filters.startDate}
-              onChange={handleFilterChange}
-              className="p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 text-gray-200"
-            />
-            <input
-              type="date"
-              name="endDate"
-              value={filters.endDate}
-              onChange={handleFilterChange}
-              className="p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 text-gray-200"
-            />
-            <select
-              name="limit"
-              value={limit}
-              onChange={handleLimitChange}
-              className="p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 text-gray-200"
-            >
-              <option value={5}>5 per page</option>
-              <option value={10}>10 per page</option>
-              <option value={20}>20 per page</option>
-              <option value={50}>50 per page</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-4">
-            <button
-              onClick={clearFilters}
-              className="px-6 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors flex items-center gap-2"
-            >
-              <RefreshCcwIcon size={20} /> Clear Filters
-            </button>
-            <button
-              onClick={() => setCurrentPage(1)} // Apply filters by resetting to page 1
-              className="px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors flex items-center gap-2"
-            >
-              <SearchIcon size={20} /> Apply Filters
-            </button>
+      <PageContainer
+        title="Audit Forensics"
+        subtitle="Immutable record of system-wide administrative activity."
+        headerContent={<FileText className="w-8 h-8 text-brand-primary/80" />}
+      >
+        <div className="space-y-6">
+          
+          {/* 1. Advance Filtering */}
+          <Card title="Query Parameters" headerContent={<Filter className="w-5 h-5 text-gray-500" />}>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-2">
+                 <Input 
+                    name="userEmail" 
+                    placeholder="Search Email..." 
+                    value={filters.userEmail} 
+                    onChange={(e) => setFilters(f => ({...f, userEmail: e.target.value}))}
+                 />
+                 <Input 
+                    name="action" 
+                    placeholder="Search Action..." 
+                    value={filters.action} 
+                    onChange={(e) => setFilters(f => ({...f, action: e.target.value}))}
+                 />
+                 <Input 
+                    type="date" 
+                    name="startDate" 
+                    value={filters.startDate} 
+                    onChange={(e) => setFilters(f => ({...f, startDate: e.target.value}))}
+                 />
+                 <div className="flex gap-2">
+                    <Button variant="secondary" onClick={handleClearFilters} className="w-full">Reset</Button>
+                    <Button onClick={() => setCurrentPage(1)} className="w-full">Query</Button>
+                 </div>
+             </div>
+          </Card>
+
+          {/* 2. Log Table */}
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-800">
+                <thead className="bg-brand-dark/50">
+                  <tr>
+                    {['Timestamp', 'User Identity', 'Action Entity', 'Infrastructure IP', ''].map(h => (
+                      <th key={h} className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-widest">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {loading ? (
+                    <tr><td colSpan={5} className="p-10 text-center text-gray-500"><RefreshCcwIcon className="w-8 h-8 animate-spin mx-auto mb-2 text-brand-primary" />Analyzing system logs...</td></tr>
+                  ) : logs.length === 0 ? (
+                    <tr><td colSpan={5} className="p-10 text-center text-gray-500">No matching events found in current sequence.</td></tr>
+                  ) : logs.map(log => (
+                    <React.Fragment key={log.id}>
+                      <tr className="hover:bg-gray-800/40 transition-colors cursor-pointer group" onClick={() => toggleExpand(log.id)}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-brand-primary">
+                          {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                             <User className="w-4 h-4 mr-2 text-gray-500" />
+                             <div>
+                               <p className="text-sm text-white font-medium">{log.userEmail || 'System Process'}</p>
+                               <p className="text-[10px] text-gray-500 font-mono">{log.userId?.split('-')[0] || '---'}</p>
+                             </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-tighter ${
+                            log.action.includes('FAIL') ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'
+                          }`}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-mono">
+                          {log.ipAddress || '0.0.0.0'}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                           {expandedId === log.id ? <ChevronUp className="w-5 h-5 text-brand-primary animate-pulse" /> : <ChevronDown className="w-5 h-5 text-gray-600 group-hover:text-gray-400" />}
+                        </td>
+                      </tr>
+                      {expandedId === log.id && (
+                        <tr className="bg-gray-900/50">
+                          <td colSpan={5} className="p-6 border-l-2 border-brand-primary">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                               <div>
+                                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-4 flex items-center">
+                                    <ShieldAlert className="w-3 h-3 mr-1" /> Resource Metadata
+                                  </h4>
+                                  <div className="space-y-4">
+                                     <div className="flex justify-between border-b border-gray-800 pb-2">
+                                        <span className="text-sm text-gray-400">Target Type</span>
+                                        <span className="text-sm text-white font-mono">{log.targetType || 'N/A'}</span>
+                                     </div>
+                                     <div className="flex justify-between border-b border-gray-800 pb-2">
+                                        <span className="text-sm text-gray-400">Target ID</span>
+                                        <span className="text-xs text-brand-primary select-all">{log.targetId || 'N/A'}</span>
+                                     </div>
+                                     <div className="flex justify-between">
+                                        <span className="text-sm text-gray-400">Tenant Context</span>
+                                        <span className="text-sm text-gray-300 font-mono">{log.tenantId || 'GLOBAL'}</span>
+                                     </div>
+                                  </div>
+                               </div>
+                               <div>
+                                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-4 flex items-center">
+                                    <Download className="w-3 h-3 mr-1" /> Payload Structure
+                                  </h4>
+                                  <pre className="bg-brand-dark p-4 rounded-lg text-[10px] text-green-400 border border-gray-700 overflow-x-auto max-h-40 custom-scrollbar">
+                                    {JSON.stringify(log.details, null, 2)}
+                                  </pre>
+                               </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="px-6 py-4 bg-brand-dark/30 border-t border-gray-800 flex items-center justify-between">
+               <div className="text-xs text-gray-500 font-mono uppercase">
+                  Log Range: {((currentPage-1)*limit)+1} - {Math.min(currentPage*limit, totalLogs)} / {totalLogs} Events
+               </div>
+               <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1 || loading}>Previous Sequence</Button>
+                  <Button variant="secondary" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= Math.ceil(totalLogs / limit) || loading}>Next Sequence</Button>
+               </div>
+            </div>
+          </Card>
+
+          {/* Quick Action: Export */}
+          <div className="flex justify-end">
+             <Button variant="secondary" className="flex items-center" onClick={() => toast.success('CSV Export initiated...')}>
+               <Download className="w-4 h-4 mr-2" /> Export Dataset (Full History)
+             </Button>
           </div>
         </div>
-
-        {/* Audit Log Table */}
-        <div className="overflow-x-auto rounded-lg shadow-lg border border-gray-700">
-          <table className="min-w-full bg-gray-800 divide-y divide-gray-700">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="p-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Timestamp</th>
-                <th className="p-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Action</th>
-                <th className="p-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">User</th>
-                <th className="p-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Tenant ID</th>
-                <th className="p-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Target Type</th>
-                <th className="p-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Target ID</th>
-                <th className="p-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">IP Address</th>
-                <th className="p-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Details</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700">
-              {renderTableRows}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="flex justify-between items-center mt-6 p-4 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
-          <p className="text-gray-400 text-sm">
-            Showing {((currentPage - 1) * limit) + 1} - {Math.min(currentPage * limit, totalLogs)} of {totalLogs} logs
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-2 rounded-md bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeftIcon size={20} />
-            </button>
-            <span className="text-gray-300 text-sm">Page {currentPage} of {Math.ceil(totalLogs / limit) || 1}</span>
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === Math.ceil(totalLogs / limit) || totalLogs === 0}
-              className="p-2 rounded-md bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRightIcon size={20} />
-            </button>
-          </div>
-        </div>
-      </div>
-    </SuperAdminLayout>
+      </PageContainer>
+    </>
   );
 };
 

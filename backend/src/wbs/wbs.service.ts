@@ -537,12 +537,38 @@ export class WbsService {
 
   async getWbsBudgetRollup(
     tenant_id: string,
-    filters: { startDate?: string; endDate?: string } = {},
+    filters: { startDate?: string; endDate?: string; projectId?: string } = {},
   ): Promise<WbsBudgetRollupDto[]> {
-    const { startDate, endDate } = filters;
+    const { startDate, endDate, projectId } = filters;
     
-    // Advanced SQL with native PostgreSQL parameterization ($1, $2, etc.) for absolute security.
-    // Calculates recursive rollups for budget, actuals (live_expense), and committed costs (lpo).
+    const queryParams: any[] = [tenant_id];
+    let paramIdx = 2;
+    
+    let projectIdClause = '';
+    if (projectId) {
+      projectIdClause = `AND w.project_id = $${paramIdx++}`;
+      queryParams.push(projectId);
+    }
+
+    let dateFiltersLive = '';
+    let startDateIdx = -1;
+    let endDateIdx = -1;
+
+    if (startDate) {
+      startDateIdx = paramIdx++;
+      queryParams.push(startDate);
+      dateFiltersLive += ` AND e.created_at >= $${startDateIdx}`;
+    }
+    if (endDate) {
+      endDateIdx = paramIdx++;
+      queryParams.push(endDate);
+      dateFiltersLive += ` AND e.created_at <= $${endDateIdx}`;
+    }
+
+    let dateFiltersLpo = '';
+    if (startDate) dateFiltersLpo += ` AND l.created_at >= $${startDateIdx}`;
+    if (endDate) dateFiltersLpo += ` AND l.created_at <= $${endDateIdx}`;
+
     const query = `
       SELECT 
           w.wbs_id,
@@ -562,15 +588,13 @@ export class WbsService {
                   )
                   SELECT wbs_id FROM descendants
               )
-              ${startDate ? 'AND e.created_at >= $2' : ''}
-              ${endDate ? `AND e.created_at <= ${startDate ? '$3' : '$2'}` : ''}
+              ${dateFiltersLive}
           ) as total_paid_rollup,
           (
               SELECT COALESCE(SUM(amount), 0) 
               FROM live_expense e 
               WHERE e.wbs_id = w.wbs_id
-              ${startDate ? 'AND e.created_at >= $2' : ''}
-              ${endDate ? `AND e.created_at <= ${startDate ? '$3' : '$2'}` : ''}
+              ${dateFiltersLive}
           ) as total_paid_self,
           (
               SELECT COALESCE(SUM(amount_committed), 0) 
@@ -584,17 +608,13 @@ export class WbsService {
                   )
                   SELECT wbs_id FROM descendants
               )
-              ${startDate ? 'AND l.created_at >= $2' : ''}
-              ${endDate ? `AND l.created_at <= ${startDate ? '$3' : '$2'}` : ''}
+              ${dateFiltersLpo}
           ) as total_committed_lpo
       FROM wbs_budget w
       WHERE w.tenant_id = $1
+      ${projectIdClause}
       ORDER BY w.wbs_code ASC
     `;
-
-    const queryParams: any[] = [tenant_id];
-    if (startDate) queryParams.push(startDate);
-    if (endDate) queryParams.push(endDate);
 
     const finalResults = await this.dataSource.query(query, queryParams);
 

@@ -5,9 +5,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 // Custom components
-import { useAuth, AuthLogger, Role } from '../components/context/AuthContext'; // Import Role from AuthContext
+import { useAuth, AuthLogger, Role } from '../components/context/AuthContext';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
+import { Eye, EyeOff, Shield, ShieldCheck } from 'lucide-react';
 
 // ============================================================================
 // MFA VERIFICATION COMPONENT (NOT YET IMPLEMENTED)
@@ -116,23 +117,24 @@ enum LoginMode {
 const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPageWithLayout
   const router = useRouter();
   const { login, isAuthenticated, error: authContextError, isLoading: authContextLoading } = useAuth();
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     tenantId: '',
     rememberMe: false,
   });
-  
+
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
-  const [loginMode, setLoginMode] = useState<LoginMode>(LoginMode.TENANT); // Default to tenant login
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginMode, setLoginMode] = useState<LoginMode>(LoginMode.TENANT);
 
   // Use useEffect to clear local error when AuthContext error changes
   useEffect(() => {
     if (authContextError) {
-      setError(authContextError);
+      setError(authContextError.message);
     } else {
       setError('');
     }
@@ -173,17 +175,17 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
 
     try {
       AuthLogger.info(`Attempting ${loginMode} login for: ${formData.email}`);
-      
+
       // Convert loginMode to Role
       const role = loginMode === LoginMode.SUPER_ADMIN ? Role.SuperAdmin : Role.Admin;
-      
+
       // FIXED: Call login with individual parameters, not an object
       await login(formData.email.trim(), formData.password, role);
 
       // Success case: AuthContext handles navigation automatically after state update.
       // No explicit router.push here.
       AuthLogger.success('[Login] Login successful - AuthContext will handle navigation');
-      
+
     } catch (err: any) {
       AuthLogger.error('[Login] Unexpected error during login:', err);
       setError(err.message || 'An unexpected error occurred. Please try again.');
@@ -219,157 +221,129 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
   // RENDER LOGIN FORM
   // ============================================================================
 
-    return (
+  return (
 
-      <div className="min-h-screen flex items-center justify-center bg-brand-dark p-4">
+    <div className="min-h-screen flex items-center justify-center bg-brand-dark p-4">
 
-        <div className="w-full max-w-md bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-md bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
 
-          {/* Header */}
+        {/* Header */}
 
-          <div className="p-8 text-center border-b border-gray-700">
+        <div className="p-8 text-center border-b border-gray-700">
 
-            <div className="flex justify-center mb-4">
+          <div className="flex justify-center mb-4">
 
-              <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="App Logo" height={60} width={240} />
+            <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="App Logo" height={60} width={240} />
+
+          </div>
+
+          <h1 className="text-3xl font-extrabold text-white mb-2">SentinelFi</h1>
+
+          <p className="text-sm text-gray-400">Financial Intelligence Platform</p>
+
+        </div>
+
+        {/* BACKEND STATUS WARNING */}
+        {authContextError && (
+          <div className="bg-yellow-600/20 border-b border-yellow-600/50 p-3 flex items-center justify-center gap-2 text-yellow-500 text-xs font-bold animate-pulse">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            BACKEND CONNECTIVITY ISSUES DETECTED
+          </div>
+        )}
+
+
+
+        {/* Mode Switcher */}
+
+        <div className="flex p-4 bg-gray-700">
+
+          <Button
+
+            type="button"
+
+            onClick={() => handleModeSwitch(LoginMode.TENANT)}
+
+            disabled={isSubmitting || authContextLoading}
+
+            className={`flex-1 py-3 text-sm font-medium rounded-lg transition-all ${loginMode === LoginMode.TENANT ? 'bg-brand-primary text-white shadow-md' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+
+              } ${(isSubmitting || authContextLoading) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+
+          >
+
+            Tenant Login
+
+          </Button>
+
+          <Button
+
+            type="button"
+
+            onClick={() => handleModeSwitch(LoginMode.SUPER_ADMIN)}
+
+            disabled={isSubmitting || authContextLoading}
+
+            className={`ml-2 flex-1 py-3 text-sm font-medium rounded-lg transition-all ${loginMode === LoginMode.SUPER_ADMIN ? 'bg-brand-primary text-white shadow-md' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+
+              } ${(isSubmitting || authContextLoading) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+
+          >
+
+            Super Admin
+
+          </Button>
+
+        </div>
+
+
+
+        {/* Form */}
+
+        <form onSubmit={handleSubmit} className="p-8">
+
+          {error && (
+
+            <div className="bg-red-900 bg-opacity-30 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative mb-6 flex items-start space-x-3">
+
+              <svg className="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+
+              </svg>
+
+              <p className="text-sm font-medium flex-1">{error}</p>
 
             </div>
 
-            <h1 className="text-3xl font-extrabold text-white mb-2">SentinelFi</h1>
+          )}
 
-            <p className="text-sm text-gray-400">Financial Intelligence Platform</p>
 
-          </div>
 
-  
-
-          {/* Mode Switcher */}
-
-          <div className="flex p-4 bg-gray-700">
-
-            <Button
-
-              type="button"
-
-              onClick={() => handleModeSwitch(LoginMode.TENANT)}
-
-              disabled={isSubmitting || authContextLoading}
-
-              className={`flex-1 py-3 text-sm font-medium rounded-lg transition-all ${
-
-                loginMode === LoginMode.TENANT ? 'bg-brand-primary text-white shadow-md' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-
-              } ${(isSubmitting || authContextLoading) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-
-            >
-
-              Tenant Login
-
-            </Button>
-
-            <Button
-
-              type="button"
-
-              onClick={() => handleModeSwitch(LoginMode.SUPER_ADMIN)}
-
-              disabled={isSubmitting || authContextLoading}
-
-              className={`ml-2 flex-1 py-3 text-sm font-medium rounded-lg transition-all ${
-
-                loginMode === LoginMode.SUPER_ADMIN ? 'bg-brand-primary text-white shadow-md' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-
-              } ${(isSubmitting || authContextLoading) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-
-            >
-
-              Super Admin
-
-            </Button>
-
-          </div>
-
-  
-
-          {/* Form */}
-
-          <form onSubmit={handleSubmit} className="p-8">
-
-            {error && (
-
-              <div className="bg-red-900 bg-opacity-30 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative mb-6 flex items-start space-x-3">
-
-                <svg className="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-
-                </svg>
-
-                <p className="text-sm font-medium flex-1">{error}</p>
-
-              </div>
-
-            )}
-
-  
-
-            {loginMode === LoginMode.TENANT && (
-
-              <div className="mb-5">
-
-                <label htmlFor="tenantId" className="block text-sm font-medium text-gray-300 mb-2">
-
-                  Tenant ID
-
-                </label>
-
-                <Input
-
-                  id="tenantId"
-
-                  type="text"
-
-                  value={formData.tenantId}
-
-                  onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
-
-                  disabled={isSubmitting || authContextLoading}
-
-                  placeholder="Enter your tenant ID"
-
-                  required
-
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-
-                />
-
-              </div>
-
-            )}
-
-  
+          {loginMode === LoginMode.TENANT && (
 
             <div className="mb-5">
 
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="tenantId" className="block text-sm font-medium text-gray-300 mb-2">
 
-                Email Address
+                Tenant ID
 
               </label>
 
               <Input
 
-                id="email"
+                id="tenantId"
 
-                type="email"
+                type="text"
 
-                value={formData.email}
+                value={formData.tenantId}
 
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
 
                 disabled={isSubmitting || authContextLoading}
 
-                placeholder={loginMode === LoginMode.SUPER_ADMIN ? 'superadmin@sentinelfi.com' : 'your.email@company.com'}
+                placeholder="Enter your tenant ID"
 
                 required
 
@@ -379,174 +353,215 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
 
             </div>
 
-  
+          )}
 
-            <div className="mb-6">
 
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
 
-                Password
+          <div className="mb-5">
 
-              </label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
 
-              <Input
+              Email Address
 
-                id="password"
+            </label>
 
-                type="password"
+            <Input
 
-                value={formData.password}
+              id="email"
 
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              type="email"
 
-                disabled={isSubmitting || authContextLoading}
+              value={formData.email}
 
-                placeholder="••••••••"
-
-                required
-
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-
-              />
-
-            </div>
-
-  
-
-            {/* Remember Me Checkbox and Forgot Password */}
-
-            <div className="mb-6 flex items-center justify-between">
-
-              <div className="flex items-center">
-
-                <input
-
-                  id="remember-me"
-
-                  name="remember-me"
-
-                  type="checkbox"
-
-                  className="h-4 w-4 text-brand-primary focus:ring-brand-primary border-gray-600 rounded bg-gray-700"
-
-                  checked={formData.rememberMe}
-
-                  onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
-
-                />
-
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300">
-
-                  Remember me
-
-                </label>
-
-              </div>
-
-              <Link href="/forgot-password" className="text-brand-primary hover:underline text-sm">
-
-                Forgot Password?
-
-              </Link>
-
-            </div>
-
-  
-
-            {/* Submit Button */}
-
-            <Button
-
-              type="submit"
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
 
               disabled={isSubmitting || authContextLoading}
 
-              className={`w-full py-3 text-base font-semibold rounded-lg transition-colors ${
+              placeholder={loginMode === LoginMode.SUPER_ADMIN ? 'superadmin@sentinelfi.com' : 'your.email@company.com'}
 
-                (isSubmitting || authContextLoading) ? 'bg-brand-primary-light cursor-not-allowed' : 'bg-brand-primary hover:bg-brand-primary-dark'
+              required
 
-              }`}
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-primary"
 
-            >
+            />
 
-              {(isSubmitting || authContextLoading) ? (
+          </div>
 
-                <span className="flex items-center justify-center">
 
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <div className="mb-6">
 
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
 
-                  </svg>
+              Password
 
-                  Signing in...
+            </label>
 
-                </span>
+            <Input
 
-              ) : (
+              id="password"
 
-                `Sign in as ${loginMode === LoginMode.SUPER_ADMIN ? 'Super Admin' : 'Tenant User'}`
+              type={showPassword ? 'text' : 'password'}
 
-              )}
+              value={formData.password}
 
-            </Button>
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
 
-  
+              disabled={isSubmitting || authContextLoading}
 
-            {/* Register Link */}
+              placeholder="••••••••"
 
-            <div className="mt-6 text-center text-sm">
+              required
 
-              <p className="mt-2 text-gray-400">
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-primary"
 
-                Don&apos;t have an account?{' '}
+              rightElement={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-gray-400 hover:text-white transition-colors focus:outline-none pr-2"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              }
+            />
 
-                <Link href="/register" className="text-brand-primary hover:underline">
+          </div>
 
-                  Register
 
-                </Link>
 
-              </p>
+          {/* Remember Me Checkbox and Forgot Password */}
+
+          <div className="mb-6 flex items-center justify-between">
+
+            <div className="flex items-center">
+
+              <input
+
+                id="remember-me"
+
+                name="remember-me"
+
+                type="checkbox"
+
+                className="h-4 w-4 text-brand-primary focus:ring-brand-primary border-gray-600 rounded bg-gray-700"
+
+                checked={formData.rememberMe}
+
+                onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
+
+              />
+
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300">
+
+                Remember me
+
+              </label>
 
             </div>
 
-          </form>
+            <Link href="/forgot-password" className="text-brand-primary hover:underline text-sm">
 
-  
+              Forgot Password?
 
-          {/* Footer */}
+            </Link>
 
-          <div className="p-5 bg-gray-700 border-t border-gray-600 text-center">
+          </div>
 
-            <p className="text-xs text-gray-400">
 
-              © 2026 SentinelFi. All rights reserved.
+
+          {/* Submit Button */}
+
+          <Button
+
+            type="submit"
+
+            disabled={isSubmitting || authContextLoading}
+
+            className={`w-full py-3 text-base font-semibold rounded-lg transition-colors ${(isSubmitting || authContextLoading) ? 'bg-brand-primary-light cursor-not-allowed' : 'bg-brand-primary hover:bg-brand-primary-dark'
+
+              }`}
+
+          >
+
+            {(isSubmitting || authContextLoading) ? (
+
+              <span className="flex items-center justify-center">
+
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+
+                </svg>
+
+                Signing in...
+
+              </span>
+
+            ) : (
+
+              `Sign in as ${loginMode === LoginMode.SUPER_ADMIN ? 'Super Admin' : 'Tenant User'}`
+
+            )}
+
+          </Button>
+
+
+
+          {/* Register Link */}
+
+          <div className="mt-6 text-center text-sm">
+
+            <p className="mt-2 text-gray-400">
+
+              Don&apos;t have an account?{' '}
+
+              <Link href="/register" className="text-brand-primary hover:underline">
+
+                Register
+
+              </Link>
 
             </p>
 
           </div>
 
+        </form>
+
+
+
+        {/* Footer */}
+
+        <div className="p-5 bg-gray-700 border-t border-gray-600 text-center">
+
+          <p className="text-xs text-gray-400">
+
+            © 2026 SentinelFi. All rights reserved.
+
+          </p>
+
         </div>
 
       </div>
 
-    );
+    </div>
 
-  }
+  );
 
-  
+}
 
-  LoginPage.getLayout = function getLayout(page: ReactElement) {
 
-    return <PublicLayout>{page}</PublicLayout>;
 
-  };
+LoginPage.getLayout = function getLayout(page: ReactElement) {
 
-  
+  return <PublicLayout>{page}</PublicLayout>;
 
-  export default LoginPage;
+};
 
-  
+
+
+export default LoginPage;
+

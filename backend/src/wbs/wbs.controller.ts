@@ -28,8 +28,8 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { CreateWbsCategoryDto } from "./dto/create-wbs-category.dto";
 import { UpdateWbsCategoryDto } from "./dto/update-wbs-category.dto";
-import { Role } from "shared/types/role.enum";
-import { AuthenticatedRequest } from "../common/interfaces/authenticated-request.interface"; // Use this correct import path
+import { Role } from "@shared/types/role.enum";
+import { AuthenticatedRequest } from "../common/interfaces/authenticated-request.interface";
 import { WbsBudgetRollupDto } from "./dto/wbs-budget-rollup.dto";
 import { UpdateWbsBudgetDto } from "./dto/update-wbs-budget.dto";
 import { UpdateLiveExpenseDto } from "./dto/update-live-expense.dto";
@@ -74,12 +74,13 @@ export class WbsController {
     @Req() req: AuthenticatedRequest,
     @Query("startDate") startDate?: string,
     @Query("endDate") endDate?: string,
+    @Query("projectId") projectId?: string,
   ) {
     if (!req.user || !req.user.tenant_id) {
       throw new UnauthorizedException("User not authenticated.");
     }
     const tenantId = req.user.tenant_id;
-    return this.wbsService.getWbsBudgetRollup(tenantId, { startDate, endDate });
+    return this.wbsService.getWbsBudgetRollup(tenantId, { startDate, endDate, projectId });
   }
 
   @Get("budgets/export")

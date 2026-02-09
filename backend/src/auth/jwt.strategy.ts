@@ -7,7 +7,7 @@ import { UserEntity } from './user.entity';
 import { UserPayload, JwtPayload, SimpleRole } from "@shared/types/user";
 import { Request } from "express";
 import { Role } from "@shared/types/role.enum"; // Import Role
-import { CorrelatedLogger } from 'common/logger/correlated-logger'; // NEW IMPORT
+import { CorrelatedLogger } from '../common/logger/correlated-logger'; 
 
 const cookieExtractor = (req: Request): string | null => {
   const logger = new CorrelatedLogger("CookieExtractor"); // CHANGED LINE
@@ -27,15 +27,31 @@ const cookieExtractor = (req: Request): string | null => {
   return token;
 };
 
+import { InMemoryAuthCache } from "./auth-cache";
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   private usersRepository: Repository<UserEntity>;
-  private readonly logger = new CorrelatedLogger(JwtStrategy.name); // CHANGED LINE
+  private readonly logger = new CorrelatedLogger(JwtStrategy.name);
+  
+  // Singleton cache shared across all validations
+  private static readonly authCache = new InMemoryAuthCache();
+  private readonly CACHE_TTL = 300; // seconds (5 minutes)
+
+  /**
+   * Static method to invalidate a user's auth cache entry.
+   * Useful when user roles or status change.
+   */
+  static async invalidateUserCache(userId: string): Promise<void> {
+    const cacheKey = `auth_meta:${userId}`;
+    await this.authCache.delete(cacheKey);
+  }
 
   constructor(
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
   ) {
+    // ... rest of constructor ...
     // Logger can be instantiated here as it doesn't depend on 'this' context yet that needs 'super()'
     const constructorLogger = new CorrelatedLogger(JwtStrategy.name + ':Constructor'); // CHANGED LINE
 
@@ -60,7 +76,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<UserPayload> {
-    this.logger.debug(`[Validate] Received payload: ${JSON.stringify(payload)}`);
+    const startTimeTotal = Date.now();
+    this.logger.debug(`[Validate] Received payload for sub: ${payload.sub}`);
 
     if (!payload.sub) {
       this.logger.error("[Validate] Missing sub (user ID) in JWT payload");
@@ -68,7 +85,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     try {
-      // Find the user with their roles. The permissions from the token are trusted.
+      // 1. Check Cache FIRST
+      const cacheKey = `auth_meta:${payload.sub}`;
+      const cachedUser = await JwtStrategy.authCache.get(cacheKey);
+      
+      if (cachedUser) {
+        const cacheHitDuration = Date.now() - startTimeTotal;
+        this.logger.log(`[Validate] [PERF] Cache HIT for ${cachedUser.email} in ${cacheHitDuration}ms`);
+        return cachedUser;
+      }
+
+      // 2. Cache MISS: Query Database
+      const queryStartTime = Date.now();
       const user = await this.usersRepository.findOne({
         where: { id: payload.sub, is_active: true },
         relations: ['roles', 'tenant'], // Eager load roles and tenant
@@ -79,18 +107,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException("User no longer active or token invalid.");
       }
 
-      const simpleRoles: SimpleRole[] = user.roles.map(r => ({id: r.id, name: r.name as Role, description: r.description})); // Cast r.name
+      const simpleRoles: SimpleRole[] = user.roles.map(r => ({id: r.id, name: r.name as Role, description: r.description}));
 
-      this.logger.log(
-        `[Validate] User found in DB: ${JSON.stringify({
-          id: user.id,
-          email: user.email,
-          roles: simpleRoles.map(r => r.name),
-          tenant_id: user.tenant_id,
-        })}`,
-      );
-
-      // Construct UserPayload from the UserEntity and the trusted token payload
       const userPayloadToReturn: UserPayload = {
         id: user.id,
         email: user.email,
@@ -103,8 +121,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         tenant_name: user.tenant?.name || null
       };
 
-      this.logger.debug(`[Validate] UserPayload returned: ${JSON.stringify(userPayloadToReturn)}`);
-      this.logger.log(`[Validate] Returning user payload with tenant_id: ${userPayloadToReturn.tenant_id}`);
+      const queryDuration = Date.now() - queryStartTime;
+      const totalDuration = Date.now() - startTimeTotal;
+      this.logger.log(`[Validate] [PERF] Cache MISS. DB Query took ${queryDuration}ms. Total validation: ${totalDuration}ms.`);
+
+      // 3. Save to Cache
+      await JwtStrategy.authCache.set(cacheKey, userPayloadToReturn, this.CACHE_TTL);
 
       return userPayloadToReturn;
     } catch (error: unknown) {

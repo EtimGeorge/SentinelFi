@@ -22,6 +22,10 @@ import { RoleEntity } from "../auth/role.entity"; // NEW
 import { PermissionEntity } from "../auth/permission.entity"; // NEW
 import { TenantEntity } from "../tenants/tenant.entity";
 import { AuditLogEntity } from "../audit/audit.entity"; // NEW
+import { BudgetCategoryEntity } from "../operational-budgets/budget-category.entity";
+import { OperationalBudgetPeriodAllocationEntity } from "../operational-budgets/operational-budget-period-allocation.entity";
+import { ClientEntity } from "../clients/client.entity";
+import { CEOAnnotationEntity } from "../dashboard/annotation.entity";
 
 @Injectable()
 export class TenantMigrationService {
@@ -77,11 +81,15 @@ export class TenantMigrationService {
         OperationalBudgetCategoryEntity,
         OperationalExpenseEntity,
         PayrollEntryEntity,
-        UserEntity,           // Public entity
-        RoleEntity,           // Public entity (for UserEntity relations)
-        PermissionEntity,     // Public entity (for RoleEntity relations)
-        TenantEntity,         // Public entity (for UserEntity relations)
-        AuditLogEntity,       // Public entity (for UserEntity relations)
+        BudgetCategoryEntity,
+        OperationalBudgetPeriodAllocationEntity,
+        ClientEntity,
+        CEOAnnotationEntity,
+        UserEntity,           // Public entity (for reference)
+        RoleEntity,           // Public entity (for reference)
+        PermissionEntity,     // Public entity (for reference)
+        TenantEntity,         // Public entity (for reference)
+        AuditLogEntity,       // Public entity (for reference)
       ],
       migrations: [
         path.join(

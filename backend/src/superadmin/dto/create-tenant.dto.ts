@@ -22,6 +22,14 @@ export class CreateTenantDto {
   @IsOptional()
   @IsString()
   plan?: string;
+
+  @IsOptional()
+  @IsString()
+  schema_name?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  admin_email!: string;
 }
 
 export class UpdateTenantDto extends PartialType(CreateTenantDto) {

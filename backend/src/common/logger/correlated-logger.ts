@@ -27,11 +27,17 @@ export class CorrelatedLogger extends Logger {
 
   private addCorrelationId(message: any): string {
     const correlationId = getCorrelationId();
-    if (correlationId) {
-      // Ensure message is a string before prepending
-      return `[CID:${correlationId}] ${typeof message === 'string' ? message : JSON.stringify(message)}`;
+    let stringMessage: string;
+
+    try {
+        stringMessage = typeof message === 'string' ? message : JSON.stringify(message);
+    } catch (error) {
+        stringMessage = '[Circular/Error in JSON.stringify]';
     }
-    // If no correlation ID, just return the original message (stringified if not already a string)
-    return typeof message === 'string' ? message : JSON.stringify(message);
+
+    if (correlationId) {
+      return `[CID:${correlationId}] ${stringMessage}`;
+    }
+    return stringMessage;
   }
 }

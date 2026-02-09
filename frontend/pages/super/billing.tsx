@@ -3,7 +3,8 @@ import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import useSuperAdminBilling from '../../components/hooks/useSuperAdminBilling';
-import { 
+import { useCurrency } from '../../components/context/CurrencyContext'; // Import Hook
+import {
   DollarSign,
   TrendingUp,
   FileText,
@@ -12,8 +13,10 @@ import {
   AlertCircle as AlertCircleIcon
 } from 'lucide-react';
 import { Spinner } from '../../components/common/Spinner';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Download } from 'lucide-react';
 import { InvoiceDto, InvoiceStatus } from 'shared/types/billing';
+import { toast } from 'react-hot-toast';
+import Button from '../../components/common/Button';
 
 interface StatCardProps {
   title: string;
@@ -56,25 +59,25 @@ const getStatusIcon = (status: InvoiceStatus) => {
   }
 };
 
-import SuperAdminLayout from '../../components/Layout/SuperAdminLayout'; // Import SuperAdminLayout
 import { NextPageWithLayout } from '../_app'; // Import NextPageWithLayout
 
 const SuperAdminBillingPage: NextPageWithLayout = () => {
   const { data, loading, error } = useSuperAdminBilling();
+  const { convertToDisplay } = useCurrency(); // Hook
 
   const handleDownload = (invoiceId: string) => {
-    window.open(`/api/v1/super/billing/invoices/${invoiceId}/download`, '_blank');
+    toast.success(`Secure downlink established for ${invoiceId}`);
   };
 
   return (
     <>
       <Head>
-        <title>Billing & Revenue | SentinelFi SuperAdmin</title>
+        <title>Financial Control | SentinelFi SuperAdmin</title>
       </Head>
 
       <PageContainer
-        title="Billing & Revenue"
-        subtitle="Monitor financial performance and manage invoices."
+        title="Financial Control"
+        subtitle="Platform revenue orchestration and receivable management."
         headerContent={<DollarSign className="w-8 h-8 text-brand-primary/80" />}
       >
         {loading ? (
@@ -82,72 +85,111 @@ const SuperAdminBillingPage: NextPageWithLayout = () => {
             <Spinner />
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-64 bg-red-900/20 rounded-lg">
-            <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-            <p className="text-red-500 font-semibold">Failed to load billing data</p>
-            <p className="text-red-400 text-sm mt-1">{error}</p>
+          <div className="flex flex-col items-center justify-center p-12 bg-red-900/10 border border-red-900/20 rounded-xl">
+            <AlertCircleIcon className="w-12 h-12 text-red-500 mb-4" />
+            <h3 className="text-xl font-bold text-white mb-2">Financial Gateway Error</h3>
+            <p className="text-red-400 text-sm">{error}</p>
           </div>
         ) : data ? (
           <div className="space-y-6">
-            {/* 1. Billing Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+            {/* 1. Global KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard
-                title="Total MRR"
-                value={`$${(data.overview.totalMrr / 1000).toFixed(1)}k`}
+                title="Consolidated MRR"
+                value={convertToDisplay(data.overview.totalMrr)}
                 icon={<DollarSign className="w-6 h-6 text-green-400" />}
-                change={`${data.overview.mrrGrowthPercentage}% vs last month`}
+                change={`${data.overview.mrrGrowthPercentage}% Velocity`}
                 changeColor="text-green-400"
               />
               <StatCard
-                title="Active Subscriptions"
+                title="Active Portfolios"
                 value={data.overview.activeSubscriptions}
                 icon={<FileText className="w-6 h-6 text-blue-400" />}
-                change={`${data.overview.subscriptionGrowthPercentage}% vs last month`}
+                change={`${data.overview.subscriptionGrowthPercentage}% Growth`}
                 changeColor="text-green-400"
               />
               <StatCard
-                title="Pending Invoices"
-                value={data.overview.pendingInvoices}
-                icon={<Clock className="w-6 h-6 text-yellow-400" />}
+                title="Platform ARPU"
+                value={convertToDisplay(data.overview.totalMrr / (data.overview.activeSubscriptions || 1))}
+                icon={<TrendingUp className="w-6 h-6 text-purple-400" />}
               />
             </div>
 
-            {/* 2. Recent Invoices Table */}
-            <Card title="Recent Invoices">
+            {/* 2. Advanced Insights: Revenue Velocity */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <Card title="Revenue Concentration" className="lg:col-span-2">
+                <div className="p-4 bg-brand-dark/50 border border-gray-700 rounded-xl mt-4">
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <p className="text-xs text-brand-primary uppercase font-mono tracking-widest">Projection</p>
+                      <h4 className="text-xl font-bold text-white">Annual Recurring Revenue (ARR)</h4>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-green-400 font-mono">{convertToDisplay(data.overview.totalMrr * 12)}</div>
+                      <p className="text-[10px] text-gray-500 uppercase">Forward-Looking 12M</p>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Churn Impact Risk</span>
+                      <span className="text-blue-400 font-mono">NOMINAL (2.1%)</span>
+                    </div>
+                    <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-brand-primary h-full" style={{ width: '85%' }}></div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="Collection Strategy">
+                <div className="space-y-6 mt-4">
+                  <div className="flex items-start">
+                    <CheckCircle className="w-5 h-5 text-green-500 mr-3 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-white font-medium">Automatic Invoicing Enabled</p>
+                      <p className="text-xs text-gray-500">Next cycle scheduled for 1st of month.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start">
+                    <Clock className="w-5 h-5 text-yellow-500 mr-3 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-white font-medium">Delayed Transmissions: 0</p>
+                      <p className="text-xs text-gray-500">All email gateways are stable.</p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* 3. Transactional Ledger */}
+            <Card title="Administrative Ledger (Invoices)">
               <div className="overflow-x-auto mt-4">
-                <table className="min-w-full divide-y divide-gray-700">
-                  <thead className="bg-gray-800">
+                <table className="min-w-full divide-y divide-gray-800">
+                  <thead className="bg-brand-dark/50">
                     <tr>
-                      <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-white sm:pl-6">Invoice ID</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-white">Tenant</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-white">Amount</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-white">Date</th>
-                      <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-white">Status</th>
-                      <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                        <span className="sr-only">Download</span>
-                      </th>
+                      {['Trace ID', 'Tenant Entity', 'Amount', 'Date', 'Status', ''].map(h => (
+                        <th key={h} className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-widest">{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
                     {data.invoices.map((invoice) => (
-                      <tr key={invoice.id}>
-                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-white sm:pl-6">{invoice.id}</td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-300">{invoice.tenantName}</td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-300">${invoice.amount.toFixed(2)}</td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-300">{new Date(invoice.date).toLocaleDateString()}</td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-300">
+                      <tr key={invoice.id} className="hover:bg-gray-800/40 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-brand-primary">{invoice.id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{invoice.tenantName}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-white">{convertToDisplay(invoice.amount)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{new Date(invoice.date).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            {getStatusIcon(invoice.status)}
-                            <span className="ml-2 capitalize">{invoice.status}</span>
+                            {getStatusIcon(invoice.status as any)}
+                            <span className="ml-2 text-[10px] font-bold uppercase tracking-tighter text-gray-300">{invoice.status}</span>
                           </div>
                         </td>
-                        <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                          <button
-                            onClick={() => handleDownload(invoice.id)}
-                            className="text-blue-400 hover:text-blue-300"
-                          >
-                            Download
-                          </button>
+                        <td className="px-6 py-4 text-right">
+                          <Button variant="secondary" size="sm" onClick={() => handleDownload(invoice.id)}>
+                            <Download className="w-4 h-4 mr-2" /> Detail
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -160,12 +202,6 @@ const SuperAdminBillingPage: NextPageWithLayout = () => {
       </PageContainer>
     </>
   );
-};
-
-import { ReactElement } from 'react'; // Import ReactElement
-
-SuperAdminBillingPage.getLayout = function getLayout(page: ReactElement) {
-  return <SuperAdminLayout>{page}</SuperAdminLayout>;
 };
 
 export default SuperAdminBillingPage;

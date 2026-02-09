@@ -5,17 +5,21 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  UpdateDateColumn,
+  Index,
 } from "typeorm";
-import { UserEntity } from "../auth/user.entity"; // Assuming UserEntity exists for creator
-import { WbsBudgetEntity } from "../wbs/wbs-budget.entity"; // Link to WBS Budgets
 import { ProjectStatus } from "./enums/project.enum";
+import { ClientEntity } from "../clients/client.entity";
+import { UserEntity } from "../auth/user.entity";
+import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
 
-@Entity({ name: "project", schema: "client_template" }) // Multi-tenancy
+@Entity({ name: "project" }) // Multi-tenancy
+@Index(["project_name", "tenant_id"], { unique: true })
 export class ProjectEntity {
   @PrimaryGeneratedColumn("uuid")
   project_id!: string;
 
-  @Column({ type: "varchar", length: 255, unique: true })
+  @Column({ type: "varchar", length: 255 })
   project_name!: string;
 
   @Column({ type: "text", nullable: true })
@@ -59,12 +63,19 @@ export class ProjectEntity {
   @Column({ type: "uuid", nullable: false })
   tenant_id!: string;
 
+  @Column({ type: "uuid", nullable: true })
+  client_id!: string | null;
+
+  @ManyToOne(() => ClientEntity, (client) => client.projects)
+  @JoinColumn({ name: "client_id" })
+  client!: ClientEntity | null;
+
   // Foreign Key to User who created the project
   @Column({ type: "uuid" })
   created_by_user_id!: string;
 
-  @ManyToOne('UserEntity') // Reference UserEntity by string name
-  @JoinColumn({ name: "created_by_user_id", referencedColumnName: "id" }) // Explicitly define referencedColumnName
+  @ManyToOne(() => UserEntity)
+  @JoinColumn({ name: "created_by_user_id", referencedColumnName: "id" })
   createdBy!: UserEntity;
 
   // One-to-Many relation with WbsBudgetEntity

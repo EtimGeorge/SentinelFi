@@ -37,7 +37,7 @@ import { Public } from "../common/decorators/public.decorator";
 import { TimeoutInterceptor } from "../common/interceptors/timeout.interceptor";
 import { Roles } from "./decorators/roles.decorator";
 import { RequirePermissions } from "./decorators/permissions.decorator";
-import { CorrelatedLogger } from 'common/logger/correlated-logger'; // NEW IMPORT
+import { CorrelatedLogger } from '../common/logger/correlated-logger'; 
 
 
 /**
@@ -163,8 +163,28 @@ export class AuthController {
   async register(@Body() registerDto: RegisterUserDto): Promise<UserResponseDto> {
     return this.authService.register(registerDto);
   }
+
+  @Public()
+  @Get("health")
+  @HttpCode(HttpStatus.OK)
+  async healthCheck() {
+    return { status: "ok", timestamp: new Date().toISOString() };
+  }
   
   // --- PROTECTED ROUTES ---
+
+  @Patch("profile")
+  @HttpCode(HttpStatus.OK)
+  async updateProfile(@Req() req: AuthenticatedRequest, @Body() updateUserDto: UpdateUserDto): Promise<UserResponseDto> {
+      // Users can only update their own profile, so we force the ID to match the requester
+      // and strip out restricted fields like role or tenant_id if they are present (sanity check)
+      const safeDto = { ...updateUserDto };
+      delete safeDto.role;
+      delete safeDto.tenant_id;
+      delete safeDto.is_active;
+
+      return this.authService.updateUser(req.user, req.user.id, safeDto);
+  }
 
   @Get("me")
   async getCurrentUser(@Req() req: AuthenticatedRequest): Promise<UserResponseDto> {

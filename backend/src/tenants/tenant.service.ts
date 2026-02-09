@@ -15,6 +15,9 @@ import {
 import { WbsService } from "../wbs/wbs.service"; // For seeding data
 import { AuditService } from "../audit/audit.service"; // NEW: Import AuditService
 import { TenantMigrationService } from "../database/tenant-migration.service"; // NEW: Import TenantMigrationService
+import { AuthService } from "../auth/auth.service"; // NEW: Import AuthService
+
+import { Role } from "@shared/types/role.enum"; // NEW: Import Role enum
 
 @Injectable()
 export class TenantService {
@@ -27,6 +30,7 @@ export class TenantService {
     private readonly wbsService: WbsService, // Inject WbsService
     private readonly auditService: AuditService, // NEW: Inject AuditService
     private readonly tenantMigrationService: TenantMigrationService, // NEW: Inject TenantMigrationService
+    private readonly authService: AuthService, // NEW: Inject AuthService for user creation
   ) {}
 
   /**
@@ -49,8 +53,8 @@ export class TenantService {
   async createTenant(
     createTenantDto: CreateTenantDto,
     initialBudgetFile?: Express.Multer.File,
-  ): Promise<TenantEntity> {
-    const schema_name = createTenantDto.name
+  ): Promise<TenantEntity & { admin_password?: string }> {
+    const schema_name = (createTenantDto.schema_name || createTenantDto.name)
       .toLowerCase()
       .replace(/[^a-z0-9_]/gi, "_");
 
@@ -158,6 +162,26 @@ export class TenantService {
 
           await tenantQueryRunner.commitTransaction();
 
+          // PHASE 3: Create Initial Admin User (Now that tenant exists)
+          this.logger.log(`[Phase 3] Creating initial admin user for tenant '${savedTenant.name}'...`);
+          let adminUser;
+          try {
+             adminUser = await this.authService.createTenantUser({
+                email: createTenantDto.admin_email,
+                tenant_id: savedTenant.tenant_id,
+                is_active: true,
+                first_name: 'Admin', // Default
+                last_name: 'User',   // Default
+                role: Role.Admin     // Explicitly set role using Enum
+             });
+             this.logger.log(`[Phase 3] ✅ Admin user '${adminUser.email}' created successfully.`);
+          } catch (userError: any) {
+             this.logger.error(`[Phase 3] ❌ Failed to create admin user: ${userError.message}`);
+             // Note: We do NOT rollback schema/tenant here as they are committed. 
+             // The SuperAdmin can manually add a user later, but better to warn.
+             // Ideally, we might want to compensate (delete tenant), but for now, we Log & Return partial success.
+          }
+
           this.logger.log(
             `[Phase 2] ✅ Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`,
           );
@@ -171,11 +195,16 @@ export class TenantService {
               name: savedTenant.name,
               schema_name: savedTenant.schema_name,
               plan: savedTenant.plan,
+              admin_email: adminUser?.email
             },
             "SYSTEM"
           ).catch(err => this.logger.error(`Failed to log tenant creation success: ${err.message}`));
 
-          return savedTenant;
+          // RETURN both tenant and password
+          return {
+              ...savedTenant,
+              admin_password: adminUser?.generatedPassword
+          };
         } catch (tenantRecordError) {
           await tenantQueryRunner.rollbackTransaction();
           this.logger.error(
@@ -222,7 +251,7 @@ export class TenantService {
     this.logger.log("Attempting to find all tenants...");
     const tenants = await this.tenantRepository.find();
     this.logger.log(
-      `Found ${tenants.length} tenants. Data: ${JSON.stringify(tenants)}`,
+      `Found ${tenants.length} tenants.`,
     );
     return tenants;
   }

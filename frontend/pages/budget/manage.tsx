@@ -8,7 +8,7 @@ import Button from '../../components/common/Button';
 import { formatCurrency } from '../../lib/utils';
 import { GetWbsBudgetsDto } from '../../../backend/src/wbs/dto/get-wbs-budgets.dto';
 import { WbsBudgetStatus } from '@shared/types/wbs-budget-status.enum'; // Import directly from shared
-import { WbsBudget } from '../../../shared/types/wbs';
+import { WbsBudget } from '@shared/types/wbs';
 import { DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2 } from 'lucide-react';
 import Select from '../../components/common/Select';
 import { ProjectEntity } from '../../../backend/src/projects/project.entity';
@@ -158,7 +158,7 @@ const BudgetManagementPage: React.FC = () => {
                 label="Project"
                 value={projectIdFilter}
                 onChange={(e) => setProjectIdFilter(e.target.value)}
-                options={[ { value: '', label: 'All Projects' }, ...projects.map(p => ({ value: p.project_id, label: p.project_name })) ]}
+                options={[{ value: '', label: 'All Projects' }, ...projects.map(p => ({ value: p.project_id, label: p.project_name }))]}
               />
             </div>
             <div className="flex justify-between items-center">

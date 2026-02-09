@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe, Logger } from "@nestjs/common";
@@ -97,7 +98,7 @@ async function bootstrap() {
     
     // --- END SENIOR DEV ENHANCEMENTS ---
 
-    await app.listen(port, "localhost");
+    await app.listen(port, "0.0.0.0");
 
     logger.log(`🚀 SentinelFi API is running on: http://localhost:${port}/api/v1`);
     logger.log(`📡 CORS enabled for: ${frontendUrl}`);

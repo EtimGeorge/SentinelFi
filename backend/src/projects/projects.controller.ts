@@ -203,7 +203,7 @@ export class ProjectsController {
         "User not authenticated or tenant ID is missing.",
       );
     }
-    await this.projectsService.remove(id, req.user.tenant_id);
+    await this.projectsService.remove(id, req.user.tenant_id, req.user.id);
   }
 
   /**

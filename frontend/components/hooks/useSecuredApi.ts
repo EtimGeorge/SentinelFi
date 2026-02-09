@@ -1,82 +1,75 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { useAuth, AuthState } from '../context/AuthContext';
+import { useMemo, useEffect, useRef } from 'react';
 import { AxiosInstance, AxiosRequestConfig } from 'axios';
-import api from '../../lib/api'; // <-- Centralized API instance
-
-interface QueuedRequest {
-  config: AxiosRequestConfig;
-  resolve: (value: any) => void;
-  reject: (error: any) => void;
-}
+import api from '../../lib/api';
 
 /**
- * Custom hook to return the configured Axios instance.
- * It handles 401/403 errors and queues requests until auth is ready.
+ * Advanced hook to return a secured Axios instance with automatic request cancellation.
+ * It manages an Internal AbortController linked to the component lifecycle.
+ * Any request initiated via this hook will be automatically cancelled on unmount.
  */
 export const useSecuredApi = (): AxiosInstance => {
-  const { logout, authState } = useAuth();
-  const requestQueue = useRef<QueuedRequest[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Ensure we have a fresh, non-aborted controller
+  if (!abortControllerRef.current || abortControllerRef.current.signal.aborted) {
+    abortControllerRef.current = new AbortController();
+  }
 
-  // 1. Queue Interceptor: Pauses requests if auth is hydrating
+  // Cleanup: Cancel all pending requests when component unmounts
   useEffect(() => {
-    const requestInterceptor = api.interceptors.request.use(
-      async (config) => {
-        // If auth is strictly loading (INITIALIZING or HYDRATING), we queue
-        // We do NOT queue if unauthenticated (let it fail) or authenticated (let it pass)
-        if (authState === AuthState.INITIALIZING || authState === AuthState.HYDRATING) {
-          console.log(`[SECURED API] Auth not ready (${authState}), queuing request: ${config.url}`);
-          return new Promise((resolve, reject) => {
-            requestQueue.current.push({ config, resolve, reject });
-          });
-        }
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-
     return () => {
-      api.interceptors.request.eject(requestInterceptor);
-    };
-  }, [authState]);
-
-  // 2. Queue Processor: Flushes queue when auth becomes READY
-  useEffect(() => {
-    if (authState === AuthState.AUTHENTICATED && requestQueue.current.length > 0) {
-      console.log(`[SECURED API] Auth ready! Flushing ${requestQueue.current.length} queued requests.`);
-      const queue = [...requestQueue.current];
-      requestQueue.current = [];
-
-      queue.forEach(({ config, resolve, reject }) => {
-        // Re-request using the base axios instance (bypassing the queue interceptor if possible, 
-        // or relying on the fact that authState is now AUTHENTICATED)
-        api.request(config).then(resolve).catch(reject);
-      });
-    } else if (authState === AuthState.UNAUTHENTICATED && requestQueue.current.length > 0) {
-       // If auth failed, reject all queued requests
-       console.warn(`[SECURED API] Auth failed. Rejecting ${requestQueue.current.length} queued requests.`);
-       const queue = [...requestQueue.current];
-       requestQueue.current = [];
-       queue.forEach(({ reject }) => reject(new Error('Authentication failed during initialization')));
-    }
-  }, [authState]);
-
-  // 3. Response Interceptor: 401/403 handling (Existing logic)
-  useEffect(() => {
-    const responseInterceptor = api.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401 || error.response?.status === 403) {
-          console.error(`[SECURED API] ${error.response.status} detected. Logging out.`, error.config?.url);
-          logout(); 
-        }
-        return Promise.reject(error);
+      // Use the ref directly in cleanup
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
-    );
-
-    return () => {
-      api.interceptors.response.eject(responseInterceptor);
     };
-  }, [logout]);
+  }, []);
 
-  return api;
+  const securedApi = useMemo(() => {
+    // Create a proxy/wrapper around the global api instance
+    const instance = api;
+
+    // We'll wrap the common request methods to inject the signal automatically
+    const methods = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options', 'request'] as const;
+    
+    // Create a specialized instance (or proxy)
+    // For simplicity and to avoid complex proxying of Axios, we return the instance 
+    // but warn that manual signal passing is still the gold standard, OR
+    // we can return a "per-hook" instance.
+    
+    // Actually, the most robust way is to provide a wrapper that merges signals.
+    return new Proxy(instance, {
+      get(target, prop: keyof AxiosInstance) {
+        const value = target[prop];
+        
+        if (typeof value === 'function' && methods.includes(prop as any)) {
+          return (...args: any[]) => {
+            // Identify where the config object is (usually last or second to last)
+            let configIndex = -1;
+            if (prop === 'get' || prop === 'delete' || prop === 'head' || prop === 'options') {
+              configIndex = 1;
+            } else if (prop === 'post' || prop === 'put' || prop === 'patch') {
+              configIndex = 2;
+            } else if (prop === 'request') {
+              configIndex = 0;
+            }
+
+            // Inject our hook-level signal if not already provided
+            if (configIndex !== -1) {
+              const config = (args[configIndex] || {}) as AxiosRequestConfig;
+              if (!config.signal) {
+                config.signal = abortControllerRef.current.signal;
+              }
+              args[configIndex] = config;
+            }
+
+            return value.apply(target, args);
+          };
+        }
+        return value;
+      }
+    });
+  }, []);
+
+  return securedApi as AxiosInstance;
 };

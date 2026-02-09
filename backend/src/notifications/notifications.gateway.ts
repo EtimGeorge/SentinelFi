@@ -9,7 +9,7 @@ import { Server, WebSocket } from "ws";
 import { Logger, Inject, forwardRef } from "@nestjs/common";
 import { NotificationsService } from "./notifications.service";
 
-@WebSocketGateway(3001, {
+@WebSocketGateway({
   path: "/ws-notifications",
   cors: {
     origin: "http://localhost:3000",

@@ -8,7 +8,7 @@ import {
 import { WbsBudgetEntity } from "./wbs-budget.entity";
 import { WbsCategoryEntity } from "./wbs-category.entity"; // NEW: Import WbsCategoryEntity
 
-@Entity({ name: "live_expense", schema: "client_template" })
+@Entity({ name: "live_expense" })
 export class LiveExpenseEntity {
   // ADDED ! NON-NULL ASSERTION OPERATOR
   @PrimaryGeneratedColumn("uuid")

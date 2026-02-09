@@ -1,238 +1,125 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
-import { useRouter } from 'next/router';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
-import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
-import { formatCurrency } from '../../lib/utils';
-import { OperationalBudgetEntity } from '../../../backend/src/operational-budgets/operational-budget.entity'; // Import OperationalBudgetEntity
-import { GetOperationalBudgetsDto } from '../../../backend/src/operational-budgets/dto/get-operational-budgets.dto'; // Import DTO
-import { DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2 } from 'lucide-react';
-import Select from '../../components/common/Select'; // Assuming a Select component exists
+import { DollarSign, Settings, LayoutGrid, List } from 'lucide-react';
+import CategoryManager from '../../components/budgets/CategoryManager';
+import BudgetGrid from '../../components/budgets/BudgetGrid';
+import { OperationalBudgetEntity } from '../../../backend/src/operational-budgets/operational-budget.entity';
 
-const OperationalBudgetManagementPage: React.FC = () => {
+const OperationalBudgetWorkspace: React.FC = () => {
   const api = useSecuredApi();
-  const router = useRouter();
-
-  const [operationalBudgets, setOperationalBudgets] = useState<OperationalBudgetEntity[]>([]);
+  const [budgets, setBudgets] = useState<OperationalBudgetEntity[]>([]);
+  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
+  const [view, setView] = useState<'workspace' | 'categories'>('workspace');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Filters and Pagination State
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
-  const [total, setTotal] = useState(0);
-  const [nameFilter, setNameFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState<OperationalBudgetEntity['type'] | ''>('');
-  const [statusFilter, setStatusFilter] = useState<OperationalBudgetEntity['status'] | ''>('');
-  const [startDateFilter, setStartDateFilter] = useState('');
-  const [endDateFilter, setEndDateFilter] = useState('');
-
-  const fetchOperationalBudgets = useCallback(async () => {
+  const fetchBudgets = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      const params: GetOperationalBudgetsDto = {
-        page,
-        limit,
-        name: nameFilter || undefined,
-        type: typeFilter || undefined,
-        status: statusFilter || undefined,
-        startDate: startDateFilter || undefined,
-        endDate: endDateFilter || undefined,
-      };
-      const response = await api.get<{ operationalBudgets: OperationalBudgetEntity[]; total: number }>('/operational-budgets', { params });
-      setOperationalBudgets(response.data.operationalBudgets);
-      setTotal(response.data.total);
-    } catch (e: any) {
-      setError(`Failed to fetch operational budgets: ${e.response?.data?.message || e.message}`);
+      const res = await api.get('/operational-budgets');
+      const data = res.data.operationalBudgets || [];
+      setBudgets(data);
+      if (data.length > 0 && !selectedBudgetId) {
+        setSelectedBudgetId(data[0].operational_budget_id);
+      }
+    } catch (error) {
+      console.error('Failed to fetch budgets');
     } finally {
       setLoading(false);
     }
-  }, [api, page, limit, nameFilter, typeFilter, statusFilter, startDateFilter, endDateFilter]);
+  }, [api, selectedBudgetId]);
 
   useEffect(() => {
-    fetchOperationalBudgets();
-  }, [fetchOperationalBudgets]);
-
-  const handleApplyFilters = () => {
-    setPage(1); // Reset to first page on new filter
-    fetchOperationalBudgets();
-  };
-
-  const handleClearFilters = () => {
-    setNameFilter('');
-    setTypeFilter('');
-    setStatusFilter('');
-    setStartDateFilter('');
-    setEndDateFilter('');
-    setPage(1);
-    // fetchOperationalBudgets will be called by useEffect due to state changes
-  };
-
-  const handleDownloadCsv = async () => {
-    try {
-      const params: GetOperationalBudgetsDto = {
-        name: nameFilter || undefined,
-        type: typeFilter || undefined,
-        status: statusFilter || undefined,
-        startDate: startDateFilter || undefined,
-        endDate: endDateFilter || undefined,
-        // No pagination for export
-      };
-      const response = await api.get(`/operational-budgets/export`, { params, responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `operational_budgets_${new Date().toISOString()}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (e: any) {
-      alert(`Failed to download CSV: ${e.response?.data?.message || e.message}`);
-    }
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  if (loading && operationalBudgets.length === 0) { // Only show full loading screen if no data is present yet
-    return (
-      <PageContainer title="Operational Budget Management" subtitle="Manage all company-wide and departmental budgets.">
-        <div className="text-brand-primary text-lg text-center my-10">Loading operational budgets...</div>
-      </PageContainer>
-    );
-  }
-
-  if (error) {
-    return (
-      <PageContainer title="Operational Budget Management" subtitle="Manage all company-wide and departmental budgets.">
-        <div className="text-alert-critical text-lg text-center my-10">{error}</div>
-      </PageContainer>
-    );
-  }
+    fetchBudgets();
+  }, [fetchBudgets]);
 
   return (
     <>
-      <Head><title>Operational Budget Management | SentinelFi</title></Head>
+      <Head><title>Operational Budget Workspace | SentinelFi</title></Head>
       <PageContainer
-        title="Operational Budget Management"
-        subtitle="View, filter, and manage all company-wide and departmental budgets."
+        title="Operational Budgeting Engine"
+        subtitle="Manage your company monthly allocations and categories."
         headerContent={<DollarSign className="w-8 h-8 text-brand-secondary" />}
       >
         <div className="space-y-6">
-          {/* Filter and Actions Section */}
-          <Card title="Filters & Actions" borderTopColor="primary" className="border border-gray-700">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-              <Input
-                label="Budget Name"
-                placeholder="e.g., Q1 Marketing"
-                value={nameFilter}
-                onChange={(e) => setNameFilter(e.target.value)}
-              />
-              <Select
-                label="Type"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as OperationalBudgetEntity['type'] | '')}
-                options={[
-                  { value: '', label: 'All Types' },
-                  { value: 'departmental', label: 'Departmental' },
-                  { value: 'company-wide', label: 'Company-Wide' },
-                  { value: 'recurring', label: 'Recurring' },
-                ]}
-              />
-              <Select
-                label="Status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as OperationalBudgetEntity['status'] | '')}
-                options={[
-                  { value: '', label: 'All Statuses' },
-                  { value: 'active', label: 'Active' },
-                  { value: 'closed', label: 'Closed' },
-                  { value: 'archived', label: 'Archived' },
-                ]}
-              />
-              <Input
-                type="date"
-                label="Start Date"
-                value={startDateFilter}
-                onChange={(e) => setStartDateFilter(e.target.value)}
-              />
-              <Input
-                type="date"
-                label="End Date"
-                value={endDateFilter}
-                onChange={(e) => setEndDateFilter(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button onClick={handleClearFilters} variant="secondary">Clear Filters</Button>
-              <Button onClick={handleApplyFilters} variant="primary"><Search className="w-4 h-4 mr-2" />Apply Filters</Button>
-            </div>
-            <div className="flex justify-start space-x-2 mt-4">
-              <Button onClick={fetchOperationalBudgets} variant="outline" disabled={loading}><RefreshCcw className="w-4 h-4 mr-2" />{loading ? 'Refreshing...' : 'Refresh Data'}</Button>
-              <Button onClick={handlePrint} variant="outline"><Printer className="w-4 h-4 mr-2" />Print</Button>
-              <Button onClick={handleDownloadCsv} variant="outline"><Download className="w-4 h-4 mr-2" />Download CSV</Button>
-            </div>
-          </Card>
+          {/* Workspace Controls */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+            <div className="flex items-center gap-3">
+              <div className="flex bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => setView('workspace')}
+                  className={`px-4 py-2 rounded-md text-xs font-bold uppercase flex items-center gap-2 transition-all ${view === 'workspace' ? 'bg-brand-primary text-black' : 'text-gray-400 hover:text-white'}`}
+                >
+                  <LayoutGrid className="w-4 h-4" /> Workspace
+                </button>
+                <button
+                  onClick={() => setView('categories')}
+                  className={`px-4 py-2 rounded-md text-xs font-bold uppercase flex items-center gap-2 transition-all ${view === 'categories' ? 'bg-brand-primary text-black' : 'text-gray-400 hover:text-white'}`}
+                >
+                  <Settings className="w-4 h-4" /> Categories
+                </button>
+              </div>
 
-          {/* Operational Budgets Table */}
-          <Card title="All Operational Budgets" borderTopColor="primary" className="border border-gray-700">
-            {operationalBudgets.length === 0 && !loading ? (
-              <p className="text-gray-500">No operational budgets found.</p>
-            ) : (
-              <>
-                <div className="overflow-x-auto rounded-lg border border-gray-700">
-                  <table className="min-w-full divide-y divide-gray-700">
-                    <thead className="bg-brand-dark/50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Budget Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Type</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Budgeted Amount</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Actual Spent</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Start Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">End Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
-                        <th className="px-6 py-3">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-700">
-                      {operationalBudgets.map(budget => (
-                        <tr key={budget.operational_budget_id} className="hover:bg-gray-700/50 transition">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-primary">{budget.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{budget.type}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white">{formatCurrency(budget.budgeted_amount)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white">{formatCurrency(budget.actual_spent)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{new Date(budget.start_date).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{new Date(budget.end_date).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{budget.status}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <Button variant="ghost" size="sm" className="mr-2"><Edit className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="sm"><Trash2 className="w-4 h-4" /></Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {/* Pagination */}
-                <div className="flex justify-between items-center mt-4 text-gray-400">
-                  <span>Showing {(page - 1) * limit + 1} - {Math.min(page * limit, total)} of {total} budgets</span>
-                  <div className="flex space-x-2">
-                    <Button onClick={() => setPage(prev => Math.max(1, prev - 1))} disabled={page === 1}>Previous</Button>
-                    <Button onClick={() => setPage(prev => (prev * limit < total ? prev + 1 : prev))} disabled={page * limit >= total}>Next</Button>
+              {view === 'workspace' && budgets.length > 0 && (
+                <select
+                  value={selectedBudgetId || ''}
+                  onChange={(e) => setSelectedBudgetId(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block w-64 p-2.5 outline-none"
+                >
+                  {budgets.map(b => (
+                    <option key={b.operational_budget_id} value={b.operational_budget_id}>
+                      {b.name} ({new Date(b.start_date).getFullYear()})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => fetchBudgets()}>
+                <RefreshCcw className="w-4 h-4 mr-2" /> Refresh
+              </Button>
+            </div>
+          </div>
+
+          {/* Content Area */}
+          {view === 'categories' ? (
+            <CategoryManager />
+          ) : (
+            <div className="space-y-6">
+              {budgets.length === 0 && !loading ? (
+                <Card>
+                  <div className="p-10 text-center">
+                    <DollarSign className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-2">No Budgets Found</h3>
+                    <p className="text-gray-400 mb-6">Create your first operational budget to start managing allocations.</p>
+                    <Button onClick={() => window.location.href = '/operational-budgets/create'}>Create Budget</Button>
                   </div>
+                </Card>
+              ) : selectedBudgetId ? (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <BudgetGrid budgetId={selectedBudgetId} />
                 </div>
-              </>
-            )}
-          </Card>
+              ) : (
+                <div className="p-10 text-center text-gray-500">
+                  Loading workspace...
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </PageContainer>
     </>
   );
 };
 
-export default OperationalBudgetManagementPage;
+// Simple Refresh icon for the button since it was removed from imports
+const RefreshCcw = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h5" /></svg>
+);
+
+export default OperationalBudgetWorkspace;

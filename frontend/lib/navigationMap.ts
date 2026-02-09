@@ -147,6 +147,12 @@ export const navigationMap: NavItem[] = [
             roles: [Role.Admin, Role.ITHead, Role.CEO],
         },
         {
+            name: 'Client Management',
+            icon: Building,
+            path: '/admin/clients',
+            roles: [Role.Admin, Role.CEO, Role.Finance],
+        },
+        {
             name: 'Tenant Setup',
             icon: Building,
             path: '/admin/tenant-setup',
@@ -218,6 +224,16 @@ export const superAdminNavigationMap: NavItem[] = [
 ];
 
 
+// ============================================================================
+// NAVIGATION CACHE - Prevent recomputation of navigation items
+// ============================================================================
+
+/**
+ * Cache for computed navigation maps per role
+ * This prevents expensive filtering operations on every render
+ */
+const navigationCache = new Map<Role, NavItem[]>();
+
 /**
  * Filters the navigation map based on the user's role.
  * It recursively filters children and removes parent items that have no visible children.
@@ -225,6 +241,11 @@ export const superAdminNavigationMap: NavItem[] = [
  * @returns A filtered array of NavItem objects.
  */
 export const getNavItemsForRole = (role: Role): NavItem[] => {
+    // If SuperAdmin, return the dedicated map
+    if (role === Role.SuperAdmin) {
+        return superAdminNavigationMap;
+    }
+
     const filterItems = (items: NavItem[]): NavItem[] => {
         return items
             .filter(item => item.roles.includes(role))
@@ -237,4 +258,31 @@ export const getNavItemsForRole = (role: Role): NavItem[] => {
     };
 
     return filterItems(navigationMap);
+}
+
+/**
+ * Get navigation items with caching for optimal performance
+ * Use this function instead of getNavItemsForRole when performance matters
+ * @param role The role of the current user
+ * @returns Cached navigation items for the role
+ */
+export const getStaticNavItemsForRole = (role: Role): NavItem[] => {
+    // Return from cache if exists
+    if (navigationCache.has(role)) {
+        return navigationCache.get(role)!;
+    }
+
+    // Compute and cache
+    const items = getNavItemsForRole(role);
+    navigationCache.set(role, items);
+    
+    return items;
+}
+
+/**
+ * Clear the navigation cache
+ * Call this when navigation structure changes at runtime
+ */
+export const clearNavigationCache = (): void => {
+    navigationCache.clear();
 }

@@ -47,6 +47,12 @@ import { CommonModule } from "./common/common.module";
 import { DatabaseConfig } from "./common/config/database.config";
 import { PayrollEntryEntity } from "./operational-budgets/payroll-entry.entity";
 import { TenantRepositoriesModule } from "./tenant-repositories.module"; // Import TenantRepositoriesModule
+import { BudgetCategoryEntity } from "./operational-budgets/budget-category.entity";
+import { OperationalBudgetPeriodAllocationEntity } from "./operational-budgets/operational-budget-period-allocation.entity";
+import { CurrencyModule } from "./currency/currency.module";
+import { CurrencyExchangeRateEntity } from "./currency/currency.entity";
+import { ClientModule } from "./clients/client.module";
+import { ClientEntity } from "./clients/client.entity";
 
 @Module({
   imports: [
@@ -78,6 +84,10 @@ import { TenantRepositoriesModule } from "./tenant-repositories.module"; // Impo
           OperationalExpenseEntity,
           SettingsEntity,
           PayrollEntryEntity,
+          BudgetCategoryEntity,
+          OperationalBudgetPeriodAllocationEntity,
+          CurrencyExchangeRateEntity,
+          ClientEntity,
         ];
 
         // Delegate the entire configuration generation to the new, centralized DatabaseConfig class.
@@ -100,6 +110,8 @@ import { TenantRepositoriesModule } from "./tenant-repositories.module"; // Impo
     SettingsModule,
     EmailModule,
     DashboardModule,
+    CurrencyModule,
+    ClientModule,
     ClsModule.forRoot({
       global: true,
       middleware: { mount: true },

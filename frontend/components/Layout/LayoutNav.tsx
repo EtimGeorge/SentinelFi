@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, Role } from '../context/AuthContext';
 import { Search, Bell, Menu, User as UserIcon, LogOut } from 'lucide-react'; // Renamed User to avoid conflict
 import Tooltip from '../common/Tooltip';
 import { useSecuredApi } from '../hooks/useSecuredApi';
@@ -8,6 +8,7 @@ import useUIStore from '../../store/uiStore';
 import { WbsBudget } from '../../../shared/types/wbs'; // CORRECTED IMPORT
 import { User } from '../../../shared/types/user'; // CORRECTED IMPORT
 import { LiveExpense } from '../../../shared/types/expense'; // CORRECTED IMPORT
+import { CurrencySelector } from '../common/CurrencySelector'; // Currency Switcher
 
 const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -27,7 +28,7 @@ interface LayoutNavProps {
 }
 
 const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasRole } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<{
     wbsItems: WbsBudget[]; // Use shared type
@@ -118,13 +119,16 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
       </div>
 
       <div className="flex items-center">
+        <div className="mr-2">
+          <CurrencySelector />
+        </div>
         <Tooltip content="Notifications" position="bottom">
           <button className="relative flex items-center mx-2 text-gray-400 focus:outline-none hover:text-white transition p-1">
             <Bell className="h-5 w-5" />
             {unreadNotificationsCount > 0 && (
-                <span className="absolute top-0 right-0 flex items-center justify-center h-3.5 w-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full border border-gray-800">
-                    {unreadNotificationsCount}
-                </span>
+              <span className="absolute top-0 right-0 flex items-center justify-center h-3.5 w-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full border border-gray-800">
+                {unreadNotificationsCount}
+              </span>
             )}
           </button>
         </Tooltip>
@@ -137,21 +141,24 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
               </div>
             </button>
           </Tooltip>
-          
+
           {isUserDropdownOpen && (
-            <div 
+            <div
               onMouseLeave={() => setIsUserDropdownOpen(false)}
-              className="absolute right-0 z-10 w-48 mt-2 overflow-hidden bg-gray-800 border border-gray-700 rounded-md shadow-xl"
+              className="absolute right-0 z-10 w-48 mt-2 overflow-hidden bg-gray-800 border-b-2 border-brand-primary rounded-md shadow-xl"
             >
-              <Link href="/settings" className="block px-4 py-2 text-sm text-gray-300 hover:bg-brand-primary hover:text-white">
+              <Link
+                href={hasRole(Role.SuperAdmin) ? "/super/settings" : "/settings"}
+                className="block px-4 py-2 text-sm text-gray-300 hover:bg-brand-primary hover:text-white border-b border-gray-700/50"
+              >
                 <UserIcon className="inline-block w-4 h-4 mr-2" />
-                Profile
+                Profile Settings
               </Link>
-              <button 
+              <button
                 onClick={(e) => {
                   e.preventDefault();
                   logout();
-                }} 
+                }}
                 className="w-full text-left block px-4 py-2 text-sm text-gray-300 hover:bg-brand-primary hover:text-white"
               >
                 <LogOut className="inline-block w-4 h-4 mr-2" />

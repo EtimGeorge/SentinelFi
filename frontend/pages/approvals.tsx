@@ -36,7 +36,7 @@ const ApprovalsPage: React.FC = () => {
   const { hasAnyRole } = useAuth();
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
-  
+
   const [pendingDrafts, setPendingDrafts] = useState<PendingDraft[]>([]);
   const [loadingDrafts, setLoadingDrafts] = useState(true);
   const [majorExceptions, setMajorExceptions] = useState<MajorException[]>([]);
@@ -109,41 +109,54 @@ const ApprovalsPage: React.FC = () => {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-700">
-                    <thead className="bg-brand-dark/50">
+                    <thead className="bg-brand-dark/80 backdrop-blur-md sticky top-0">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">WBS Code</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Submitter</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Description</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Amount</th>
-                        <th className="px-6 py-3 text-right">Actions</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">WBS Code</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Submitter</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Description</th>
+                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Requested Amt</th>
+                        <th className="px-6 py-4 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Policy Directive</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
                       {pendingDrafts.map((draft) => (
-                        <tr key={draft.wbs_id} className="hover:bg-gray-800/50 transition">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-brand-primary">{draft.wbs_code}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{draft.user?.email || 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{draft.description}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white">{formatCurrency(draft.total_cost_budgeted)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDecision(draft.wbs_id, 'approve')}
-                              isLoading={processingId === draft.wbs_id}
-                              className="text-alert-positive hover:text-white"
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDecision(draft.wbs_id, 'reject')}
-                              isLoading={processingId === draft.wbs_id}
-                              className="text-red-500 hover:text-white"
-                            >
-                              Reject
-                            </Button>
+                        <tr key={draft.wbs_id} className="hover:bg-white/5 transition border-b border-gray-800/50 last:border-0">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="font-mono text-xs font-black text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded">{draft.wbs_code}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-gray-200">{draft.user?.email.split('@')[0] || 'N/A'}</span>
+                              <span className="text-[10px] text-gray-500 uppercase tracking-tighter">Submitter</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <p className="text-sm text-gray-400 truncate max-w-[200px]">{draft.description}</p>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-white font-black">
+                            {formatCurrency(draft.total_cost_budgeted)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="flex justify-end items-center gap-2">
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleDecision(draft.wbs_id, 'approve')}
+                                isLoading={processingId === draft.wbs_id}
+                                className="bg-alert-positive hover:bg-alert-positive/80 text-black font-black uppercase text-[10px] tracking-widest px-4"
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDecision(draft.wbs_id, 'reject')}
+                                isLoading={processingId === draft.wbs_id}
+                                className="text-red-400 hover:bg-red-900/30 font-black uppercase text-[10px] tracking-widest"
+                              >
+                                Reject
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}

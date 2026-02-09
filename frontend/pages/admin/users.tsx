@@ -5,8 +5,8 @@ import { Users, Plus, X, Edit3, Save, Loader2, AlertTriangle, Trash2, Search, Ke
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth } from '../../components/context/AuthContext';
-import { User, ICreateUserPayload, IUpdateUserPayload } from '../../../shared/types/user';
-import { Role } from '../../../shared/types/role.enum';
+import { User, ICreateUserPayload, IUpdateUserPayload } from '@shared/types/user';
+import { Role } from '@shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import Switch from '../../components/common/Switch';
 
@@ -27,6 +27,7 @@ interface CreateUserModalProps extends ModalProps {
   error: string | null;
   isSuperAdmin: boolean; // NEW: Added prop
   roles: Role[];
+  tenants: TenantOption[];
 }
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onCreate, loading, error, roles, tenants, isSuperAdmin }) => {
@@ -93,25 +94,25 @@ interface ConfirmationModalProps extends ModalProps {
 }
 
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, loading, title, message, onConfirm, confirmText, confirmVariant = 'primary' }) => {
-    if (!isOpen) return null;
+  if (!isOpen) return null;
 
-    const confirmButtonClass = confirmVariant === 'danger'
-        ? 'bg-red-600 hover:bg-red-500'
-        : 'bg-brand-primary hover:bg-brand-primary/90';
+  const confirmButtonClass = confirmVariant === 'danger'
+    ? 'bg-red-600 hover:bg-red-500'
+    : 'bg-brand-primary hover:bg-brand-primary/90';
 
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-            <Card title={title} borderTopColor={confirmVariant === 'danger' ? 'alert' : 'primary'} className="w-full max-w-sm">
-                <div className="text-gray-300 mb-6">{message}</div>
-                <div className="flex justify-end space-x-4">
-                    <button onClick={onClose} disabled={loading} className="px-4 py-2 bg-gray-600 rounded-lg text-white hover:bg-gray-500 transition disabled:opacity-50">Cancel</button>
-                    <button onClick={onConfirm} disabled={loading} className={`px-4 py-2 rounded-lg text-white transition flex items-center justify-center min-w-[120px] disabled:opacity-50 ${confirmButtonClass}`}>
-                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : confirmText}
-                    </button>
-                </div>
-            </Card>
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <Card title={title} borderTopColor={confirmVariant === 'danger' ? 'alert' : 'primary'} className="w-full max-w-sm">
+        <div className="text-gray-300 mb-6">{message}</div>
+        <div className="flex justify-end space-x-4">
+          <button onClick={onClose} disabled={loading} className="px-4 py-2 bg-gray-600 rounded-lg text-white hover:bg-gray-500 transition disabled:opacity-50">Cancel</button>
+          <button onClick={onConfirm} disabled={loading} className={`px-4 py-2 rounded-lg text-white transition flex items-center justify-center min-w-[120px] disabled:opacity-50 ${confirmButtonClass}`}>
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : confirmText}
+          </button>
         </div>
-    );
+      </Card>
+    </div>
+  );
 };
 
 
@@ -122,17 +123,17 @@ const UserManagementPage: React.FC = () => {
   const { user: currentUser, hasAnyRole } = useAuth();
   const api = useSecuredApi();
   const addToast = useToast(state => state.addToast);
-  
+
   const [users, setUsers] = useState<User[]>([]);
   const [tenants, setTenants] = useState<TenantOption[]>([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
-  
+
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editedRole, setEditedRole] = useState<Role | string>('');
   const [editedTenantId, setEditedTenantId] = useState<string | null>(null);
-  
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -172,14 +173,15 @@ const UserManagementPage: React.FC = () => {
   }, [api, addToast]);
 
   useEffect(() => {
-    if (hasAnyRole([Role.Admin, Role.ITHead, 'SuperAdmin'])) {
+    // CRITICAL FIX: Check roles inside useEffect, don't depend on hasAnyRole function
+    if (hasAnyRole([Role.Admin, Role.ITHead, Role.SuperAdmin])) {
       fetchUsers();
       fetchTenants();
     } else {
       setLoading(false);
       addToast('Access Denied: You do not have permission to manage users.', 'error');
     }
-  }, [hasAnyRole, fetchUsers, fetchTenants, addToast]);
+  }, [fetchUsers, fetchTenants, addToast]); // FIXED: Removed hasAnyRole - it's unstable
 
   const handleCreateUser = async (userData: ICreateUserPayload) => {
     setFormLoading(true);
@@ -213,23 +215,22 @@ const UserManagementPage: React.FC = () => {
     setFormLoading(true);
     try {
       // This is the key change: ensure tenant_id is included in the payload.
-      const updatePayload: IUpdateUserPayload = { 
-        role: editedRole as Role, 
+      const updatePayload: IUpdateUserPayload = {
+        role: editedRole as Role,
         tenant_id: editedTenantId,
       };
       await api.patch<User>(`/auth/users/${userId}`, updatePayload);
       addToast('User updated successfully!', 'success');
       setEditingUserId(null);
       fetchUsers(); // Refetch users to show the updated data
-    } catch (e: any)
-       {
+    } catch (e: any) {
       const msg = e.response?.data?.message || e.message;
       addToast(`Update failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`, 'error');
     } finally {
       setFormLoading(false);
     }
   };
-  
+
   const handleStatusToggle = async (userId: string, currentStatus: boolean) => {
     const user = users.find(u => u.id === userId);
     if (!user) return;
@@ -306,7 +307,7 @@ const UserManagementPage: React.FC = () => {
 
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
 
-  if (!(hasAnyRole([Role.Admin, Role.ITHead, 'SuperAdmin']))) {
+  if (!(hasAnyRole([Role.Admin, Role.ITHead, Role.SuperAdmin]))) {
     return (
       <PageContainer title="User & Role Management" subtitle="Access Restricted">
         <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
@@ -329,48 +330,48 @@ const UserManagementPage: React.FC = () => {
       >
         <Card> {/* Removed noPadding */}
           <div className="p-4 border-b border-gray-700 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex-grow flex items-center gap-4">
-                  <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input 
-                          type="text"
-                          placeholder="Search by email..."
-                          value={searchTerm}
-                          onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                          className="pl-10 p-2 w-full sm:w-64 bg-brand-dark/50 border border-gray-600 rounded-lg shadow-sm text-white focus:ring-brand-primary focus:border-brand-primary"
-                      />
-                  </div>
-                  <select
-                      value={roleFilter}
-                      onChange={(e) => { setRoleFilter(e.target.value); setCurrentPage(1); }}
-                      className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white appearance-none focus:ring-brand-primary focus:border-brand-primary"
-                  >
-                      <option value="">All Roles</option>
-                      {allRoles.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                  <select
-                      value={statusFilter}
-                      onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                      className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white appearance-none focus:ring-brand-primary focus:border-brand-primary"
-                  >
-                      <option value="">All Statuses</option>
-                      <option value="true">Active</option>
-                      <option value="false">Inactive</option>
-                  </select>
+            <div className="flex-grow flex items-center gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by email..."
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                  className="pl-10 p-2 w-full sm:w-64 bg-brand-dark/50 border border-gray-600 rounded-lg shadow-sm text-white focus:ring-brand-primary focus:border-brand-primary"
+                />
               </div>
-              <button onClick={() => setShowCreateModal(true)} className="flex items-center px-4 py-2 bg-brand-primary rounded-lg font-semibold hover:bg-brand-primary/80 transition disabled:opacity-50" disabled={formLoading}>
-                  <Plus className="w-5 h-5 mr-2" /> Create New User
-              </button>
+              <select
+                value={roleFilter}
+                onChange={(e) => { setRoleFilter(e.target.value); setCurrentPage(1); }}
+                className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white appearance-none focus:ring-brand-primary focus:border-brand-primary"
+              >
+                <option value="">All Roles</option>
+                {allRoles.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white appearance-none focus:ring-brand-primary focus:border-brand-primary"
+              >
+                <option value="">All Statuses</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+            <button onClick={() => setShowCreateModal(true)} className="flex items-center px-4 py-2 bg-brand-primary rounded-lg font-semibold hover:bg-brand-primary/80 transition disabled:opacity-50" disabled={formLoading}>
+              <Plus className="w-5 h-5 mr-2" /> Create New User
+            </button>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-800">
               <thead className="bg-brand-dark/50">
                 <tr>
                   {['Email', 'Current Role', 'Status', 'Tenant', 'Actions'].map(header => (
-                     <th key={header} className={`px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider ${header === 'Actions' ? 'text-right' : ''}`}>
-                       {header}
-                     </th>
+                    <th key={header} className={`px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider ${header === 'Actions' ? 'text-right' : ''}`}>
+                      {header}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -378,7 +379,7 @@ const UserManagementPage: React.FC = () => {
                 {loading ? (
                   <tr><td colSpan={5} className="p-4 text-center text-gray-400"><div className="flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading user data...</div></td></tr>
                 ) : paginatedUsers.length === 0 ? (
-                    <tr><td colSpan={5} className="p-8 text-center text-gray-500">No users found matching your criteria.</td></tr>
+                  <tr><td colSpan={5} className="p-8 text-center text-gray-500">No users found matching your criteria.</td></tr>
                 ) : (
                   paginatedUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-800/50 transition-colors duration-150">
@@ -388,24 +389,24 @@ const UserManagementPage: React.FC = () => {
                           <select value={editedRole} onChange={(e) => setEditedRole(e.target.value as Role)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={user.roles.some(r => r.name === Role.Admin) || formLoading}>
                             {allRoles.map(role => <option key={role} value={role}>{role}</option>)}
                           </select>
-                        ) : ( <span className="text-brand-primary/80 font-medium">{user.roles[0]?.name || 'N/A'}</span> )}
+                        ) : (<span className="text-brand-primary/80 font-medium">{user.roles[0]?.name || 'N/A'}</span>)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {editingUserId === user.id ? (
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.is_active ? 'bg-alert-positive text-green-900' : 'bg-red-500/50 text-red-200'}`}>
-                                {user.is_active ? 'Active' : 'Inactive'}
-                            </span>
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.is_active ? 'bg-alert-positive text-green-900' : 'bg-red-500/50 text-red-200'}`}>
+                            {user.is_active ? 'Active' : 'Inactive'}
+                          </span>
                         ) : (
-                            <Switch checked={user.is_active} onChange={() => handleStatusToggle(user.id, user.is_active)} disabled={user.roles.some(r => r.name === Role.Admin) || formLoading} />
+                          <Switch checked={user.is_active} onChange={() => handleStatusToggle(user.id, user.is_active)} disabled={user.roles.some(r => r.name === Role.Admin) || formLoading} />
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                         {editingUserId === user.id ? (
-                            <select value={editedTenantId || ''} onChange={(e) => setEditedTenantId(e.target.value || null)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={! (hasAnyRole(['SuperAdmin'])) || formLoading}>
-                              <option value="">-- System User --</option>
-                              {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                            </select>
-                         ) : ( <span className="text-gray-400">{user.tenant_name || 'System User'}</span> )}
+                        {editingUserId === user.id ? (
+                          <select value={editedTenantId || ''} onChange={(e) => setEditedTenantId(e.target.value || null)} className="bg-brand-dark border border-gray-600 rounded-md p-1 text-white focus:ring-brand-primary focus:border-brand-primary" disabled={!(hasAnyRole([Role.SuperAdmin])) || formLoading}>
+                            <option value="">-- System User --</option>
+                            {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                        ) : (<span className="text-gray-400">{user.tenant_name || 'System User'}</span>)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         {editingUserId === user.id ? (
@@ -428,38 +429,38 @@ const UserManagementPage: React.FC = () => {
             </table>
           </div>
           {totalPages > 1 && (
-              <div className="p-4 border-t border-gray-700 flex items-center justify-between">
-                  <span className="text-sm text-gray-400">Page {currentPage} of {totalPages}</span>
-                  <div className="space-x-2">
-                      <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1 || loading} className="px-4 py-2 bg-gray-700 rounded-lg text-white hover:bg-gray-600 transition disabled:opacity-50">Previous</button>
-                      <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages || loading} className="px-4 py-2 bg-gray-700 rounded-lg text-white hover:bg-gray-600 transition disabled:opacity-50">Next</button>
-                  </div>
+            <div className="p-4 border-t border-gray-700 flex items-center justify-between">
+              <span className="text-sm text-gray-400">Page {currentPage} of {totalPages}</span>
+              <div className="space-x-2">
+                <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1 || loading} className="px-4 py-2 bg-gray-700 rounded-lg text-white hover:bg-gray-600 transition disabled:opacity-50">Previous</button>
+                <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages || loading} className="px-4 py-2 bg-gray-700 rounded-lg text-white hover:bg-gray-600 transition disabled:opacity-50">Next</button>
               </div>
+            </div>
           )}
         </Card>
       </PageContainer>
-      
-      <CreateUserModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateUser} loading={formLoading} error={createError} roles={allRoles} tenants={tenants} isSuperAdmin={hasAnyRole(['SuperAdmin'])} />
-      
+
+      <CreateUserModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateUser} loading={formLoading} error={createError} roles={allRoles} tenants={tenants} isSuperAdmin={hasAnyRole([Role.SuperAdmin])} />
+
       <ConfirmationModal
-          isOpen={showDeleteConfirm}
-          onClose={() => setShowDeleteConfirm(false)}
-          loading={formLoading}
-          title="Confirm User Deactivation"
-          message={<p>Are you sure you want to deactivate user <strong>{users.find(u => u.id === deletingUserId)?.email}</strong>? They will no longer be able to log in.</p>}
-          onConfirm={handleDeleteConfirm}
-          confirmText="Deactivate"
-          confirmVariant="danger"
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        loading={formLoading}
+        title="Confirm User Deactivation"
+        message={<p>Are you sure you want to deactivate user <strong>{users.find(u => u.id === deletingUserId)?.email}</strong>? They will no longer be able to log in.</p>}
+        onConfirm={handleDeleteConfirm}
+        confirmText="Deactivate"
+        confirmVariant="danger"
       />
 
       <ConfirmationModal
-          isOpen={showPasswordResetConfirm}
-          onClose={() => setShowPasswordResetConfirm(false)}
-          loading={formLoading}
-          title="Confirm Password Reset"
-          message={<p>This will send a password reset link to <strong>{users.find(u => u.id === passwordResettingUserId)?.email}</strong>. Are you sure?</p>}
-          onConfirm={handlePasswordResetConfirm}
-          confirmText="Send Reset Link"
+        isOpen={showPasswordResetConfirm}
+        onClose={() => setShowPasswordResetConfirm(false)}
+        loading={formLoading}
+        title="Confirm Password Reset"
+        message={<p>This will send a password reset link to <strong>{users.find(u => u.id === passwordResettingUserId)?.email}</strong>. Are you sure?</p>}
+        onConfirm={handlePasswordResetConfirm}
+        confirmText="Send Reset Link"
       />
     </>
   );
