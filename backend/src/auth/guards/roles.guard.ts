@@ -51,6 +51,18 @@ export class RolesGuard implements CanActivate {
         return found;
     });
 
+    // --- SUPERADMIN NON-INTERFERENCE POLICY ---
+    // If the route requires Tenant roles (any role other than SuperAdmin), 
+    // we block SuperAdmin from accessing it directly to prevent accidental interference.
+    // They must use 'Impersonation Mode' if they need to access tenant-scoped data.
+    const isTenantScopedRoute = requiredRoles.some(role => role !== Role.SuperAdmin);
+    const isActingAsSuperAdmin = userRoleNames.includes(Role.SuperAdmin) && !user.impersonator_id;
+
+    if (hasPermission && isTenantScopedRoute && isActingAsSuperAdmin) {
+        this.logger.warn(`Access denied for SuperAdmin ${user.email} on tenant-scoped route. Non-interference policy enforced. Use impersonation for access.`);
+        return false; 
+    }
+
     if (hasPermission) {
         this.logger.log(`Access granted for user ${user.email}. Has required role.`);
     } else {

@@ -172,7 +172,7 @@ export class TenantService {
                 is_active: true,
                 first_name: 'Admin', // Default
                 last_name: 'User',   // Default
-                role: Role.Admin     // Explicitly set role using Enum
+                role: Role.AdminDirector     // Assign AdminDirector as the initial tenant admin
              });
              this.logger.log(`[Phase 3] ✅ Admin user '${adminUser.email}' created successfully.`);
           } catch (userError: any) {

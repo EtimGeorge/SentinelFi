@@ -5,7 +5,7 @@ import PageContainer from '../../components/Layout/PageContainer';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth } from '../../components/context/AuthContext';
 import { useCurrency } from '../../components/context/CurrencyContext'; // Import Hook
-import { formatCurrency } from '../../lib/utils'; // Keep just in case or remove if unused
+// No formatting required here anymore
 import WBSHierarchyTree from '../../components/dashboard/WBSHierarchyTree';
 import SpendingChart from '../../components/dashboard/SpendingChart';
 import Card from '../../components/common/Card';
@@ -76,7 +76,8 @@ const CEODashboard: React.FC = () => {
     try {
       const resp = await api.get('/projects');
       setProjects(resp.data.data || []);
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
       console.error('Failed to fetch projects:', err);
     } finally {
       setLoadingProjects(false);
@@ -113,6 +114,7 @@ const CEODashboard: React.FC = () => {
       });
 
     } catch (err: any) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
       console.error('Failed to fetch dashboard data:', err);
       setError(err.response?.data?.message || err.message || 'An unknown error occurred');
     } finally {
@@ -353,4 +355,4 @@ const CEODashboard: React.FC = () => {
   );
 };
 
-export default withAuth(CEODashboard, [Role.CEO, Role.Finance]);
+export default withAuth(CEODashboard, [Role.CEO, Role.FinanceManager]);

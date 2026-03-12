@@ -4,6 +4,7 @@ import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
+import { useCurrency } from '../../components/context/CurrencyContext';
 import useToast from '../../store/toastStore';
 import axios from 'axios';
 // Use explicit imports if barrel fails, but first try to fix the usage
@@ -89,6 +90,7 @@ import { NextPageWithLayout } from '../_app'; // Import NextPageWithLayout
 
 const SuperAdminDashboardPage: NextPageWithLayout = () => {
     const api = useSecuredApi();
+    const { userCurrency, convertToDisplay } = useCurrency();
     const addToast = useToast(state => state.addToast);
 
     // --- State ---
@@ -109,13 +111,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
     const [wbsMetrics, setWbsMetrics] = useState<{ total_budget: number, total_spent: number } | null>(null);
     const [opMetrics, setOpMetrics] = useState<OperationalBudgetMetrics | null>(null);
 
-    // --- Helpers ---
-    const formatCurrency = (val: number) => {
-        if (val >= 1000000000) return `$${(val / 1000000000).toFixed(1)}B`;
-        if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
-        if (val >= 1000) return `$${(val / 1000).toFixed(1)}k`;
-        return `$${val.toLocaleString()}`;
-    };
+
 
 
     // --- Data Fetching ---
@@ -337,9 +333,8 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                         <TrendingUp className="w-24 h-24 text-green-500" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium text-gray-400 uppercase tracking-wider">Gross MRR</p>
                                         <div className="flex items-baseline mt-2">
-                                            <span className="text-4xl font-bold text-white">${(mrrEstimate ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                                            <span className="text-4xl font-bold text-white">{convertToDisplay(mrrEstimate ?? 0, 'NGN')}</span>
                                         </div>
                                         <p className="text-xs text-green-400 mt-1 uppercase">Platform Revenue</p>
                                     </div>
@@ -359,14 +354,14 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                 </div>
                                 <div className="text-right">
                                     <div className="text-3xl font-bold text-white font-mono">
-                                        {formatCurrency(wbsMetrics?.total_budget || 0)}
+                                        {convertToDisplay(wbsMetrics?.total_budget || 0, 'NGN')}
                                     </div>
                                     <p className="text-xs text-gray-500 uppercase">Total Budgeted Asset Value</p>
                                 </div>
                             </div>
                             <div className="mt-8">
                                 <div className="flex justify-between text-xs text-gray-400 mb-2">
-                                    <span>Portfolio Spent: {formatCurrency(wbsMetrics?.total_spent || 0)}</span>
+                                    <span>Portfolio Spent: {convertToDisplay(wbsMetrics?.total_spent || 0, 'NGN')}</span>
                                     <span>System Utilization: {wbsMetrics?.total_budget ? Math.round((wbsMetrics.total_spent / wbsMetrics.total_budget) * 100) : 0}%</span>
                                 </div>
                                 <div className="w-full bg-gray-800 h-3 rounded-full overflow-hidden border border-gray-700">
@@ -382,13 +377,9 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                             <p className="text-xs font-mono text-orange-400 uppercase tracking-widest mb-1">Operational Health</p>
                             <h3 className="text-xl font-bold text-white mb-4">Portflio Liquidity</h3>
                             <div className="space-y-4">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-400">Total Allocated</span>
-                                    <span className="text-white font-mono">{formatCurrency(opMetrics?.totalBudgetAmount || 0)}</span>
-                                </div>
                                 <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
                                     <span className="text-gray-400">Used Liquidity</span>
-                                    <span className="text-orange-400 font-mono">{formatCurrency(opMetrics?.totalActualSpent || 0)}</span>
+                                    <span className="text-orange-400 font-mono">{convertToDisplay(opMetrics?.totalActualSpent || 0, 'NGN')}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-sm pt-1">
                                     <span className="text-gray-400">Efficiency Index</span>

@@ -13,6 +13,7 @@ export interface JwtPayload {
   id: string; // User ID
   sub: string; // User ID (standard JWT subject)
   email: string;
+  username?: string;
   roles: Role[]; // User's roles (by name)
   permissions: string[]; // All permissions flattened from roles
   tenant_id: string | null;
@@ -25,6 +26,7 @@ export interface JwtPayload {
 export interface UserPayload {
   id: string; 
   email: string;
+  username?: string;
   first_name?: string;
   last_name?: string;
   roles: SimpleRole[];
@@ -39,6 +41,7 @@ export interface UserPayload {
 export interface User {
   id: string;
   email: string;
+  username?: string;
   first_name?: string;
   last_name?: string;
   roles: SimpleRole[];
@@ -52,6 +55,7 @@ export interface User {
 export interface ICreateUserPayload {
   email: string;
   password?: string;
+  username?: string;
   first_name?: string;
   last_name?: string;
   role: Role;
@@ -66,4 +70,6 @@ export interface IUpdateUserPayload {
   tenant_id?: string | null;
   first_name?: string;
   last_name?: string;
+  email?: string;
+  username?: string;
 }

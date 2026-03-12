@@ -1,28 +1,5 @@
 import { DataSource, DataSourceOptions, QueryRunner } from "typeorm";
-import { ClsService } from "nestjs-cls";
-
-import { UserEntity } from "../auth/user.entity";
-import { RoleEntity } from "../auth/role.entity";
-import { PermissionEntity } from "../auth/permission.entity";
-import { AuditLogEntity } from "../audit/audit.entity";
-import { TenantEntity } from "../tenants/tenant.entity";
-import { ProjectEntity } from "../projects/project.entity";
-import { ProjectInflowEntity } from "../projects/project-inflow.entity";
-import { ProjectAuditEntity } from "../projects/project-audit.entity";
-import { LpoEntity } from "../projects/lpo.entity";
-import { WbsCategoryEntity } from "../wbs/wbs-category.entity";
-import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
-import { LiveExpenseEntity } from "../wbs/live-expense.entity";
-import { SettingsEntity } from "../settings/settings.entity";
-import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
-import { OperationalBudgetCategoryEntity } from "../operational-budgets/operational-budget-category.entity";
-import { OperationalExpenseEntity } from "../operational-budgets/operational-expense.entity";
-import { PayrollEntryEntity } from "../operational-budgets/payroll-entry.entity";
-import { BudgetCategoryEntity } from "../operational-budgets/budget-category.entity";
-import { OperationalBudgetPeriodAllocationEntity } from "../operational-budgets/operational-budget-period-allocation.entity";
-import { ClientEntity } from "../clients/client.entity";
-import { CurrencyExchangeRateEntity } from "../currency/currency.entity";
-import { CEOAnnotationEntity } from "../dashboard/annotation.entity";
+import { ClsService, ClsServiceManager } from "nestjs-cls";
 
 /**
  * Custom DataSource that wraps the standard TypeORM DataSource to implement multi-tenancy.
@@ -33,35 +10,9 @@ import { CEOAnnotationEntity } from "../dashboard/annotation.entity";
 export class TenancyAwareDataSource extends DataSource {
   constructor(
     options: DataSourceOptions,
-    private readonly cls: ClsService,
+    private readonly cls?: ClsService,
   ) {
-    super({
-      ...options,
-      entities: [
-        UserEntity,
-        RoleEntity,
-        PermissionEntity,
-        AuditLogEntity,
-        TenantEntity,
-        ProjectEntity,
-        ProjectInflowEntity,
-        ProjectAuditEntity,
-        LpoEntity,
-        WbsCategoryEntity,
-        WbsBudgetEntity,
-        LiveExpenseEntity,
-        SettingsEntity,
-        OperationalBudgetEntity,
-        OperationalBudgetCategoryEntity,
-        OperationalExpenseEntity,
-        PayrollEntryEntity,
-        BudgetCategoryEntity,
-        OperationalBudgetPeriodAllocationEntity,
-        ClientEntity,
-        CurrencyExchangeRateEntity,
-        CEOAnnotationEntity,
-      ],
-    });
+    super(options);
   }
 
   /**
@@ -71,30 +22,70 @@ export class TenancyAwareDataSource extends DataSource {
   createQueryRunner(mode?: "master" | "slave"): QueryRunner {
     const queryRunner = super.createQueryRunner(mode);
     const originalConnect = queryRunner.connect.bind(queryRunner);
+    let isSwitching = false;
 
     // Override the connect method of the QueryRunner
     queryRunner.connect = async () => {
-      // 1. Establish the physical connection using the original method
-      await originalConnect();
+      let correlationId = 'N/A';
+      let schemaName = 'public';
 
-      // 2. Retrieve the schema name from the CLS context
-      const schemaName = this.cls.get("SCHEMA_NAME");
+      try {
+        const cls = ClsServiceManager.getClsService();
+        correlationId = cls.get("correlationId") || "N/A";
+        schemaName = cls.get("SCHEMA_NAME") || "public";
+      } catch (e) {
+        // CLS not available in this context (e.g. background task)
+      }
 
-      // 3. Set the search_path for this connection session
-      // Optimization: Only run the query if schema is explicitly set and NOT public
-      // Default connection in Postgres usually starts in 'public' or search_path defaults.
-      if (schemaName && schemaName !== "public") {
+      // 1. Establish the physical connection
+      // We MUST return the connection object that TypeORM expects
+      const connection = await originalConnect();
+
+      // 2. Set search_path if not public and not currently switching (recursion guard)
+      if (schemaName && schemaName !== "public" && !isSwitching) {
+        isSwitching = true;
         try {
           const sanitizedSchema = schemaName.replace(/[^a-z0-9_]/gi, "");
-          await queryRunner.query(
-            `SET search_path TO ${sanitizedSchema}, public`,
-          );
+          const setSearchPath = async () => {
+            if (this.driver && typeof (this.driver as any).query === 'function') {
+              await (this.driver as any).query(
+                `SET search_path TO ${sanitizedSchema}, public`,
+                undefined,
+                queryRunner
+              );
+            } else {
+              await queryRunner.query(
+                `SET search_path TO ${sanitizedSchema}, public`,
+              );
+            }
+          };
+
+          try {
+            await setSearchPath();
+          } catch (firstErr: any) {
+            // If a previous query left the connection in a broken transaction state,
+            // issue ROLLBACK to clean it up and retry the search_path switch.
+            if (firstErr?.message?.includes('current transaction is aborted')) {
+              console.warn(`[TenancyAwareDataSource][CID: ${correlationId}] Recovering from aborted transaction, issuing ROLLBACK and retrying...`);
+              try {
+                await queryRunner.query('ROLLBACK');
+              } catch (_rollbackErr) {
+                // ROLLBACK itself might fail if no transaction is active, that's OK
+              }
+              await setSearchPath();
+            } else {
+              throw firstErr;
+            }
+          }
         } catch (err) {
-          console.error(`[TenancyAwareDataSource] Critical: Failed to switch schema to ${schemaName}`, err);
-          // If we can't switch schema, we shouldn't proceed as it might leak data from another tenant
+          console.error(`[TenancyAwareDataSource][CID: ${correlationId}] Connection/Schema switch failed:`, err);
           throw err;
+        } finally {
+          isSwitching = false;
         }
       }
+
+      return connection;
     };
 
     return queryRunner;

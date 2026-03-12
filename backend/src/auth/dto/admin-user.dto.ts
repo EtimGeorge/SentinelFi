@@ -36,6 +36,10 @@ export class UserResponseDto implements User {
 
   @IsOptional()
   @IsString()
+  username?: string;
+
+  @IsOptional()
+  @IsString()
   first_name?: string;
 
   @IsOptional()

@@ -12,6 +12,7 @@ import {
 /**
  * DTO for the Live Expense Entry (Write Operation)
  * Strictly constrained to the Assigned Project User role.
+ * Uses a "Senior Authorizer Override" mechanism for budget overruns.
  */
 export class CreateLiveExpenseDto {
   @IsNotEmpty()
@@ -19,31 +20,38 @@ export class CreateLiveExpenseDto {
     message:
       "WBS ID must be a valid UUID v4 and link to an existing budget line.",
   })
-  wbs_id!: string; // ADDED !
+  wbs_id!: string;
 
   @IsOptional()
   @IsUUID("4")
-  project_id?: string; // NEW: Project ID
+  project_id?: string;
 
-  // User ID is NOT in the DTO body - it will be extracted from the JWT token (Phase 3) for security.
+  @IsOptional()
+  @IsUUID("4")
+  category_id?: string; // Optional direct category tag for reporting
 
   @IsOptional()
   @IsDateString()
-  expense_date?: Date; // Optional: Defaults to current date
+  expense_date?: Date;
 
   @IsNotEmpty()
   @IsString()
-  description!: string; // Renamed from item_description
+  description!: string;
 
   @IsNotEmpty()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0, { message: "Unit cost must be a non-negative number." })
-  unit_cost!: number; // Renamed from actual_unit_cost
+  unit_cost!: number;
 
   @IsNotEmpty()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0.01, { message: "Quantity must be greater than zero." })
-  quantity!: number; // Renamed from actual_quantity
+  quantity!: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0.01, { message: "Days must be greater than zero." })
+  days?: number;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 4 })
@@ -53,7 +61,7 @@ export class CreateLiveExpenseDto {
   @IsNotEmpty()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0, { message: "Amount must be a non-negative number." })
-  amount!: number; // Renamed from actual_paid_amount
+  amount!: number;
 
   @IsOptional()
   @IsString()
@@ -63,4 +71,15 @@ export class CreateLiveExpenseDto {
   @IsOptional()
   @IsString()
   notes_justification?: string;
+
+  /**
+   * SENIOR AUTHORIZER OVERRIDE:
+   * Required when the expense amount causes a CRITICAL_VARIANCE (>= 10% budget overrun).
+   * Must be provided by a user with CFO, CEO, or AdminDirector role.
+   * Absence of this field on a critical overrun results in a HARD BLOCK (403).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  override_reason?: string;
 }

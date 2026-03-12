@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { Folder, TrendingUp, CheckCircle, AlertTriangle, TrendingDown, Percent, DollarSign, ExternalLink, Plus, ArrowRight, ArrowLeft as ArrowLeftIcon, Search, Filter, Edit, Trash2 } from 'lucide-react';
-import { useSecuredApi } from '../components/hooks/useSecuredApi';
+import toast from 'react-hot-toast';
+import { Folder, TrendingUp, CheckCircle, AlertTriangle, TrendingDown, Percent, DollarSign, ExternalLink, Plus, ArrowRight, ArrowLeft as ArrowLeftIcon, Search, Filter, Edit, Trash2, Archive, ShieldAlert, RefreshCcw } from 'lucide-react';
+import api from '../lib/api';
 import PageContainer from '../components/Layout/PageContainer';
 import Card from '../components/common/Card';
 import Modal from '../components/common/Modal';
@@ -35,10 +36,13 @@ interface ProjectSummary {
   statusIcon?: React.ReactNode;
 }
 
+import useGlobalStore from '../store/globalStore';
+
 const ProjectsPage: React.FC = () => {
   const router = useRouter();
-  const api = useSecuredApi();
-  const { convertToDisplay, displayCurrency, currencies } = useCurrency();
+  const apiRef = useRef(api);
+  const { convertToDisplay, userCurrency, currencies } = useCurrency();
+  const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
   const [projectRawData, setProjectRawData] = useState<ProjectData[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +50,13 @@ const ProjectsPage: React.FC = () => {
 
   // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'risk' | 'critical'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'risk' | 'critical' | 'ARCHIVED'>('all');
+
+  // Deletion/Archiving State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<ProjectData | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [step, setStep] = useState(1);
@@ -62,6 +72,8 @@ const ProjectsPage: React.FC = () => {
     wht_rate: 5,
     sow_details: '',
   });
+  const [isNewClient, setIsNewClient] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
 
   const { autoSave, restoreData, clearData } = useFormAutoSave('new-project-wizard');
 
@@ -74,37 +86,91 @@ const ProjectsPage: React.FC = () => {
     }
   }, [isModalOpen]);
 
-  const fetchProjectData = async () => {
+  const fetchProjectData = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<{ projects: ProjectData[]; total: number }>('/projects');
-      setProjectRawData(response.data.projects);
+      console.log('[ProjectsPage] Fetching project data...');
+      const response = await apiRef.current.get<{ projects: ProjectData[]; total: number }>('/projects', { signal });
+      console.log('[ProjectsPage] Received projects:', response.data.projects?.length || 0, response.data);
+      setProjectRawData(response.data.projects || []);
     } catch (e: any) {
+      if (e.name === 'CanceledError' || e.code === 'ERR_CANCELED') return;
       setError(`Failed to fetch project data: ${e.response?.data?.message || e.message}`);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const fetchClients = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const response = await apiRef.current.get<Client[]>('/clients', { signal });
+      setClients(response.data);
+    } catch (e: any) {
+      if (e.name === 'CanceledError' || e.code === 'ERR_CANCELED') return;
+      console.error('Failed to fetch clients', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchProjectData(controller.signal);
+    fetchClients(controller.signal);
+    return () => controller.abort();
+  }, [fetchProjectData, fetchClients]);
+
+  // Step validation before advancing in wizard
+  const validateStep = (currentStep: number): boolean => {
+    if (currentStep === 1) {
+      if (!formData.project_name.trim()) {
+        toast.error('Project name is required.');
+        return false;
+      }
+      if (formData.project_name.trim().length < 3) {
+        toast.error('Project name must be at least 3 characters.');
+        return false;
+      }
+      if (isNewClient && !newClientName.trim()) {
+        toast.error('Please enter a name for the new client, or switch to an existing client.');
+        return false;
+      }
+    }
+    if (currentStep === 2) {
+      if (!formData.contract_value || formData.contract_value <= 0) {
+        toast.error('Contract value must be greater than zero.');
+        return false;
+      }
+      if (formData.contingency_percent < 0 || formData.contingency_percent > 100) {
+        toast.error('Contingency percentage must be between 0 and 100.');
+        return false;
+      }
+      if (formData.vat_rate < 0 || formData.vat_rate > 100) {
+        toast.error('VAT rate must be between 0 and 100.');
+        return false;
+      }
+    }
+    return true;
   };
 
-  const fetchClients = async () => {
-    try {
-      const response = await api.get<Client[]>('/clients');
-      setClients(response.data);
-    } catch (e) {
-      console.error('Failed to fetch clients', e);
+  const advanceStep = () => {
+    if (validateStep(step)) {
+      setStep(step + 1);
     }
   };
 
-  useEffect(() => {
-    fetchProjectData();
-    fetchClients();
-  }, [api]);
-
   const handleCreateProject = async () => {
+    console.log('[handleCreateProject] Triggered. FormData:', formData);
     setIsSubmitting(true);
     try {
-      const response = await api.post<ProjectData>('/projects', formData);
+      const payload = {
+        ...formData,
+        client_id: !!formData.client_id && !isNewClient ? formData.client_id : undefined,
+        client_name: isNewClient ? newClientName : undefined,
+      };
+
+      console.log('[handleCreateProject] Sending payload to /projects:', payload);
+      const response = await apiRef.current.post<ProjectData>('/projects', payload);
+      console.log('[handleCreateProject] API response received:', response.data);
       const newProject = response.data;
 
       clearData();
@@ -122,35 +188,106 @@ const ProjectsPage: React.FC = () => {
         sow_details: '',
       });
 
-      // Navigate to the newly created project's overview
-      alert(`Project "${newProject.project_name}" initialized successfully!`);
+      toast.success(`Project "${newProject.project_name}" initialized successfully!`);
       router.push(`/projects/${newProject.project_id}/overview`);
 
-    } catch (e: any) {
-      alert(`Error creating project: ${e.response?.data?.message || e.message}`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleArchiveProject = async (projectId: string) => {
+    setIsProcessing(projectId);
+    try {
+      await apiRef.current.patch(`/projects/${projectId}/archive`);
+      toast.success('Project archived successfully.');
+      fetchProjectData();
+    } catch (e: any) {
+      toast.error(`Failed to archive project: ${e.response?.data?.message || e.message}`);
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
+  const handleRestoreProject = async (projectId: string) => {
+    setIsProcessing(projectId);
+    try {
+      await apiRef.current.patch(`/projects/${projectId}/restore`);
+      toast.success('Project restored successfully.');
+      fetchProjectData();
+    } catch (e: any) {
+      toast.error(`Failed to restore project: ${e.response?.data?.message || e.message}`);
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+
+    setIsProcessing(projectToDelete.project_id);
+    try {
+      await apiRef.current.delete(`/projects/${projectToDelete.project_id}`);
+      toast.success('Project soft-deleted successfully.');
+      setIsDeleteModalOpen(false);
+      setProjectToDelete(null);
+      setDeleteConfirmText('');
+      fetchProjectData();
+    } catch (e: any) {
+      toast.error(`Deletion Blocked: ${e.response?.data?.message || e.message}`);
+    } finally {
+      setIsProcessing(null);
     }
   };
 
   const projects = projectRawData;
 
   const totalActiveProjects = projects.length;
-  const averagePortfolioVariance = totalActiveProjects > 0
-    ? projects.reduce((sum, p) => sum + parseFloat(p.variance_pct || '0'), 0) / totalActiveProjects
-    : 0;
+  
+  // KPI Aggregates using Budget Management pattern
+  const portfolioKPIs = useMemo(() => {
+    let totalContractValue = 0;
+    let atRiskCount = 0;
+    const totalVarianceSum = projects.reduce((sum, p) => sum + parseFloat(p.variance_pct || '0'), 0);
+    const averagePortfolioVariance = totalActiveProjects > 0 ? totalVarianceSum / totalActiveProjects : 0;
+
+    projects.forEach(p => {
+      // Convert individual project value to user currency before summing
+      const valueInUserCurrency = convertAmount(
+        Number(p.contract_value || 0),
+        p.currency || 'NGN',
+        userCurrency.code
+      );
+      totalContractValue += valueInUserCurrency;
+      if (parseFloat(p.variance_pct || '0') > 2) atRiskCount++;
+    });
+
+    return { totalContractValue, atRiskCount, averagePortfolioVariance };
+  }, [projects, convertAmount, userCurrency.code, totalActiveProjects]);
 
   // Optimized Filter Logic
   const filteredProjects = useMemo(() => {
     return projects.filter(p => {
-      const matchesSearch = p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.client?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      // Defensive check for project identity
+      if (!p || !p.project_name) return false;
+
+      const projectNameLower = p.project_name.toLowerCase();
+      const clientNameLower = (p.client?.name || '').toLowerCase();
+      const searchLower = searchTerm.toLowerCase();
+
+      const matchesSearch = projectNameLower.includes(searchLower) ||
+        clientNameLower.includes(searchLower);
 
       const variance = parseFloat(p.variance_pct || '0');
       let matchesStatus = true;
       if (statusFilter === 'ACTIVE') matchesStatus = p.status === ProjectStatus.ACTIVE;
-      if (statusFilter === 'risk') matchesStatus = variance > 2 && variance <= 5;
-      if (statusFilter === 'critical') matchesStatus = variance > 5;
+      if (statusFilter === 'ARCHIVED') matchesStatus = p.status === ProjectStatus.ARCHIVED;
+      if (statusFilter === 'risk') matchesStatus = variance > 2 && variance <= 5 && p.status !== ProjectStatus.ARCHIVED;
+      if (statusFilter === 'critical') matchesStatus = variance > 5 && p.status !== ProjectStatus.ARCHIVED;
+
+      // Hide archived from 'all' view unless explicitly selected? 
+      // Actually, 'all' usually means 'active' in these UIs. Let's make 'all' exclude archived for clarity.
+      if (statusFilter === 'all' && p.status === ProjectStatus.ARCHIVED) return false;
 
       return matchesSearch && matchesStatus;
     });
@@ -185,17 +322,22 @@ const ProjectsPage: React.FC = () => {
               </Card>
               <Card className="p-6 bg-brand-dark/40 border border-gray-700">
                 <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Portfolio Variance</p>
-                <p className={`text-3xl font-bold ${averagePortfolioVariance > 0 ? 'text-red-500' : 'text-alert-positive'}`}>
-                  {averagePortfolioVariance.toFixed(2)}%
+                <p className={`text-3xl font-bold ${portfolioKPIs.averagePortfolioVariance > 0 ? 'text-red-500' : 'text-alert-positive'}`}>
+                  {portfolioKPIs.averagePortfolioVariance.toFixed(2)}%
                 </p>
               </Card>
               <Card className="p-6 bg-brand-dark/40 border border-gray-700">
-                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Pending Approvals</p>
-                <p className="text-3xl font-bold text-brand-primary">4</p>
+                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total Contract Value</p>
+                <p className="text-3xl font-bold text-brand-primary">
+                  {convertToDisplay(portfolioKPIs.totalContractValue, userCurrency.code)}
+                </p>
               </Card>
               <Card className="p-6 bg-brand-dark/40 border border-gray-700">
-                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Audit Status</p>
-                <p className="text-sm font-bold text-green-400 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" /> Compliant</p>
+                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Projects at Risk</p>
+                <p className={`text-3xl font-bold flex items-center gap-2 ${portfolioKPIs.atRiskCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  <span className={`w-2.5 h-2.5 rounded-full ${portfolioKPIs.atRiskCount > 0 ? 'bg-red-400 animate-pulse' : 'bg-green-400'}`} />
+                  {portfolioKPIs.atRiskCount > 0 ? `${portfolioKPIs.atRiskCount} at risk` : 'All clear'}
+                </p>
               </Card>
             </div>
 
@@ -225,10 +367,10 @@ const ProjectsPage: React.FC = () => {
                   At Risk
                 </button>
                 <button
-                  onClick={() => setStatusFilter('critical')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${statusFilter === 'critical' ? 'bg-alert-critical text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                  onClick={() => setStatusFilter('ARCHIVED')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${statusFilter === 'ARCHIVED' ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                 >
-                  Critical Overrun
+                  Archive
                 </button>
               </div>
             </div>
@@ -245,6 +387,7 @@ const ProjectsPage: React.FC = () => {
                   const isCritical = variance > 5;
                   const totalBudget = Number(project.total_budgeted_rollup || 0);
                   const totalActual = Number(project.total_paid_rollup || 0);
+                  const contractValue = Number(project.contract_value || 0);
 
                   return (
                     <Card
@@ -261,7 +404,7 @@ const ProjectsPage: React.FC = () => {
                             <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">{project.client?.name || 'Internal Operations'}</p>
                           </div>
                         </div>
-                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter ${project.status === ProjectStatus.ACTIVE ? 'bg-brand-primary/20 text-brand-primary' : 'bg-gray-800 text-gray-400'}`}>
+                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter ${project.status === ProjectStatus.ACTIVE ? 'bg-brand-primary/20 text-brand-primary' : project.status === ProjectStatus.ARCHIVED ? 'bg-gray-700 text-gray-400' : 'bg-gray-800 text-gray-400'}`}>
                           {project.status}
                         </span>
                       </div>
@@ -269,8 +412,8 @@ const ProjectsPage: React.FC = () => {
                       <div className="space-y-4 flex-grow">
                         <div className="flex justify-between items-end">
                           <div>
-                            <p className="text-[10px] text-gray-500 uppercase font-bold">Allocated Budget</p>
-                            <p className="text-xl font-bold text-gray-100">{convertToDisplay(totalBudget)}</p>
+                            <p className="text-[10px] text-gray-500 uppercase font-bold">Contract Value</p>
+                            <p className="text-xl font-bold text-brand-primary">{convertToDisplay(contractValue, project.currency || 'NGN')}</p>
                           </div>
                           <div className="text-right">
                             <p className={`text-sm font-black ${isCritical ? 'text-alert-critical' : 'text-alert-positive'}`}>
@@ -279,6 +422,12 @@ const ProjectsPage: React.FC = () => {
                             <p className="text-[10px] text-gray-500 uppercase font-bold">Variance</p>
                           </div>
                         </div>
+                        {totalBudget > 0 && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-400">Allocated Budget</span>
+                            <span className="text-gray-100 font-mono">{convertToDisplay(totalBudget, project.currency || 'NGN')}</span>
+                          </div>
+                        )}
 
                         <div className="space-y-1">
                           <p className="text-[10px] text-gray-500 uppercase font-bold">Progress</p>
@@ -292,12 +441,53 @@ const ProjectsPage: React.FC = () => {
                       </div>
 
                       <div className="mt-8 pt-4 border-t border-gray-800 flex items-center justify-between">
-                        <div className="flex -space-x-2">
-                          {[...Array(3)].map((_, i) => (
-                            <div key={i} className="w-6 h-6 rounded-full border-2 border-brand-dark bg-gray-700 flex items-center justify-center text-[8px] font-bold text-gray-400">
-                              U{i}
+                        <div className="flex items-center gap-2">
+                          {project.createdBy && (
+                            <div className="w-7 h-7 rounded-full border-2 border-brand-primary/30 bg-brand-primary/10 flex items-center justify-center text-[9px] font-bold text-brand-primary" title={project.createdBy.email}>
+                              {project.createdBy.email?.substring(0, 2).toUpperCase()}
                             </div>
-                          ))}
+                          )}
+                          <span className="text-[10px] text-gray-500 font-medium">
+                            {project.createdBy?.email ? project.createdBy.email.split('@')[0] : 'System'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {project.status === ProjectStatus.ARCHIVED ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-yellow-500 hover:bg-yellow-500/10 p-1.5"
+                              title="Restore Project"
+                              onClick={() => handleRestoreProject(project.project_id)}
+                              disabled={isProcessing === project.project_id}
+                            >
+                              <RefreshCcw className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-gray-500 hover:bg-gray-500/10 p-1.5"
+                              title="Archive Project"
+                              onClick={() => handleArchiveProject(project.project_id)}
+                              disabled={isProcessing === project.project_id}
+                            >
+                              <Archive className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-alert-critical hover:bg-alert-critical/10 p-1.5"
+                            title="Delete Project"
+                            onClick={() => {
+                              setProjectToDelete(project);
+                              setIsDeleteModalOpen(true);
+                            }}
+                            disabled={isProcessing === project.project_id}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                         <Link href={`/projects/${project.project_id}/overview`}>
                           <Button variant="ghost" size="sm" className="text-brand-primary font-black uppercase text-[10px] tracking-widest hover:bg-brand-primary/10">
@@ -311,8 +501,9 @@ const ProjectsPage: React.FC = () => {
               )}
             </div>
           </>
-        )}
-      </PageContainer>
+        )
+        }
+      </PageContainer >
 
       <Modal
         isOpen={isModalOpen}
@@ -331,7 +522,7 @@ const ProjectsPage: React.FC = () => {
             ) : <div />}
 
             {step < 3 ? (
-              <Button variant="primary" onClick={() => setStep(step + 1)}>
+              <Button variant="primary" onClick={advanceStep}>
                 Next Step <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             ) : (
@@ -370,15 +561,31 @@ const ProjectsPage: React.FC = () => {
                   autoSave(updated);
                 }}
               />
-              <div className="space-y-1">
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-sm font-medium text-gray-400">Associated Client</label>
-                  <Link href="/admin/clients">
-                    <span className="text-xs text-brand-primary hover:underline cursor-pointer flex items-center">
-                      <Plus className="w-3 h-3 mr-1" /> New Client
-                    </span>
-                  </Link>
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-sm font-medium text-gray-400">Associated Client</label>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="newClientToggle"
+                    checked={isNewClient}
+                    onChange={(e) => setIsNewClient(e.target.checked)}
+                    className="mr-2 h-3 w-3 accent-brand-primary"
+                  />
+                  <label htmlFor="newClientToggle" className="text-xs text-brand-primary cursor-pointer select-none">
+                    {isNewClient ? 'Switch to Existing' : 'Create New Client'}
+                  </label>
                 </div>
+              </div>
+
+              {isNewClient ? (
+                <input
+                  type="text"
+                  placeholder="Enter Name for New Client"
+                  value={newClientName}
+                  onChange={(e) => setNewClientName(e.target.value)}
+                  className="w-full bg-brand-dark border border-gray-700 rounded-xl p-3 text-gray-200 focus:border-brand-primary outline-none transition"
+                />
+              ) : (
                 <select
                   className="w-full bg-brand-dark border border-gray-700 rounded-xl p-3 text-gray-200 focus:border-brand-primary outline-none transition"
                   value={formData.client_id}
@@ -393,8 +600,9 @@ const ProjectsPage: React.FC = () => {
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
-              </div>
+              )}
             </div>
+
           )}
 
           {step === 2 && (
@@ -495,7 +703,57 @@ const ProjectsPage: React.FC = () => {
             </div>
           )}
         </div>
+      </Modal >
+
+      {/* Project Deletion Safety Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setProjectToDelete(null);
+          setDeleteConfirmText('');
+        }}
+        title="CRITICAL: Confirm Project Deletion"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3 w-full">
+            <Button variant="secondary" onClick={() => setIsDeleteModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              className="bg-alert-critical hover:bg-red-600 border-none shadow-lg shadow-alert-critical/20"
+              disabled={deleteConfirmText !== projectToDelete?.project_name || isProcessing === projectToDelete?.project_id}
+              onClick={handleDeleteProject}
+            >
+              {isProcessing === projectToDelete?.project_id ? 'Deleting...' : 'Confirm Deletion'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-alert-critical/10 border border-alert-critical/30 rounded-xl text-alert-critical">
+            <ShieldAlert className="w-10 h-10 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-black uppercase tracking-tight">Financial Integrity Warning</p>
+              <p className="text-xs opacity-80">Deletion is only permitted for projects with ZERO fiscal activity. If this project has budgets or expenses, the system will BLOCK deletion.</p>
+            </div>
+          </div>
+
+          <div className="py-2">
+            <p className="text-sm text-gray-300">You are about to delete <span className="text-white font-bold underline decoration-alert-critical">{projectToDelete?.project_name}</span>.</p>
+            <p className="text-xs text-gray-500 mt-2">To confirm, please type the exact project name below:</p>
+          </div>
+
+          <Input
+            placeholder="Type project name here..."
+            className="border-alert-critical/30 focus:border-alert-critical"
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+          />
+        </div>
       </Modal>
+
     </>
   );
 };

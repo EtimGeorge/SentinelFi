@@ -39,6 +39,7 @@ export interface SimpleRole {
 export interface User {
   id: string;
   email: string;
+  username?: string;
   roles: SimpleRole[];
   tenant_id: string | null;
   tenant_name?: string | null;
@@ -66,7 +67,7 @@ interface AuthContextType {
   isLoading: boolean;
   isSyncing: boolean; // NEW: Background verification status
   error: Error | null;
-  login: (email: string, password: string, role: Role) => Promise<void>;
+  login: (uid: string, password: string, role: Role) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: (silent?: boolean) => Promise<void>; // Updated signature
   getPrimaryRole: () => Role | null;
@@ -88,20 +89,20 @@ class LoginRateLimiter {
   private readonly maxAttempts = 5;
   private readonly windowMs = 60000;
 
-  isRateLimited(email: string): boolean {
+  isRateLimited(uid: string): boolean {
     const now = Date.now();
-    const userAttempts = (this.attempts.get(email) || []).filter(time => now - time < this.windowMs);
+    const userAttempts = (this.attempts.get(uid) || []).filter(time => now - time < this.windowMs);
     if (userAttempts.length >= this.maxAttempts) return true;
     return false;
   }
-  recordAttempt(email: string): void {
+  recordAttempt(uid: string): void {
     const now = Date.now();
-    const userAttempts = (this.attempts.get(email) || []).filter(time => now - time < this.windowMs);
+    const userAttempts = (this.attempts.get(uid) || []).filter(time => now - time < this.windowMs);
     userAttempts.push(now);
-    this.attempts.set(email, userAttempts);
+    this.attempts.set(uid, userAttempts);
   }
-  reset(email: string): void {
-    this.attempts.delete(email);
+  reset(uid: string): void {
+    this.attempts.delete(uid);
   }
 }
 
@@ -260,9 +261,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (email: string, password: string, role: Role) => {
+  const login = useCallback(async (uid: string, password: string, role: Role) => {
     if (loginInProgressRef.current) throw new Error('Login already in progress.');
-    if (rateLimiterRef.current.isRateLimited(email)) {
+    if (rateLimiterRef.current.isRateLimited(uid)) {
       throw new Error('Too many login attempts.');
     }
     loginInProgressRef.current = true;
@@ -270,9 +271,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const endpoint = role === Role.SuperAdmin ? '/auth/login/super' : '/auth/login/tenant';
-      const response = await apiClient.post<{ user: User }>(endpoint, { email, password });
-      AuthLogger.success(`Authenticated as ${email}`);
-      rateLimiterRef.current.reset(email);
+      const response = await apiClient.post<{ user: User }>(endpoint, { email: uid, password });
+      AuthLogger.success(`Authenticated as ${uid}`);
+      rateLimiterRef.current.reset(uid);
       setUser(response.user);
       SessionStorage.save(response.user);
 
@@ -286,7 +287,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         AuthLogger.warn('BroadcastChannel not supported for sync');
       }
     } catch (err: any) {
-      rateLimiterRef.current.recordAttempt(email);
+      rateLimiterRef.current.recordAttempt(uid);
       const message = err.response?.data?.message || err.message || 'Login failed';
       throw new Error(message);
     } finally {
@@ -662,11 +663,16 @@ export function useAuth() {
 export const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password', '/_error', '/404', '/500'];
 
 export const ROLE_ROUTES: Record<Role, string[]> = {
-  ['SuperAdmin']: ['/super'],
-  [Role.Admin]: ['/dashboard', '/admin'],
-  [Role.ITHead]: ['/dashboard'],
-  [Role.Finance]: ['/dashboard'],
-  [Role.OperationalHead]: ['/dashboard'],
+  [Role.SuperAdmin]: ['/super'],
   [Role.CEO]: ['/dashboard'],
+  [Role.CFO]: ['/dashboard'],
+  [Role.AdminDirector]: ['/dashboard', '/admin'],
+  [Role.OperationalDirector]: ['/dashboard'],
+  [Role.TechnicalDirector]: ['/dashboard'],
+  [Role.FinanceManager]: ['/dashboard'],
+  [Role.AdminManager]: ['/dashboard', '/admin'],
+  [Role.ProjectManager]: ['/dashboard'],
+  [Role.FinanceOfficer]: ['/dashboard'],
+  [Role.AdminOfficer]: ['/dashboard'],
   [Role.AssignedProjectUser]: ['/dashboard'],
 };

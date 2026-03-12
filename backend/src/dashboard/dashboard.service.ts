@@ -96,14 +96,18 @@ export class DashboardService {
   }
 
   async getRecentActivity(tenantId: string, limit: number = 5) {
-    // This could query the AuditLogEntity filtered by tenantId
-    // Since AuditLog is in the public schema (usually), we query it via the main dataSource
-    return this.dataSource.getRepository('AuditLogEntity')
-      .createQueryBuilder('log')
-      .where('log.tenantId = :tenantId', { tenantId })
-      .orderBy('log.timestamp', 'DESC')
-      .limit(limit)
-      .getMany();
+    const auditRepo = this.dataSource.getRepository('AuditLogEntity');
+    
+    return this.runWithTimeout(
+      auditRepo
+        .createQueryBuilder('log')
+        .where('log.tenantId = :tenantId', { tenantId })
+        .orderBy('log.timestamp', 'DESC')
+        .limit(limit)
+        .getMany(),
+      5000,
+      'getRecentActivity'
+    );
   }
 
   /**
@@ -131,15 +135,55 @@ export class DashboardService {
       expenseQuery.andWhere('expense.project_id = :projectId', { projectId });
     }
 
-    const budgetSum = await budgetQuery.getRawOne();
-    const expenseSum = await expenseQuery.getRawOne();
+    const budgetSum = await this.runWithTimeout(
+      budgetQuery.getRawOne(),
+      8000,
+      'getExecutiveAnalytics:budgetSum'
+    );
+    const expenseSum = await this.runWithTimeout(
+      expenseQuery.getRawOne(),
+      8000,
+      'getExecutiveAnalytics:expenseSum'
+    );
 
     const totalBudgeted = parseFloat(budgetSum?.total || '0');
     const totalActualPaid = parseFloat(expenseSum?.total || '0');
     const variance = totalBudgeted > 0 ? ((totalActualPaid - totalBudgeted) / totalBudgeted) * 100 : 0;
 
-    // 2. Burn Rate (Mocked for now based on budget usage, but could be time-decay based)
-    // In a real system, you'd calculate % time elapsed vs % budget spent.
+    // 2. Burn Rate & Historical Trend
+    // Fetch last 30 days of spending history
+    const historyQuery = expenseRepo
+      .createQueryBuilder('expense')
+      .select("DATE(expense.expense_date)", "date")
+      .addSelect("SUM(expense.amount)", "amount")
+      .where('expense.tenant_id = :tenantId', { tenantId })
+      .andWhere('expense.expense_date >= CURRENT_DATE - INTERVAL \'30 days\'')
+      .groupBy("DATE(expense.expense_date)")
+      .orderBy("DATE(expense.expense_date)", "ASC");
+
+    if (projectId) {
+      historyQuery.andWhere('expense.project_id = :projectId', { projectId });
+    }
+
+    const history = await this.runWithTimeout(
+      historyQuery.getRawMany(),
+      8000,
+      'getExecutiveAnalytics:history'
+    );
+
+    // 3. Predictive Forecasting
+    const totalSpentLast30Days = history.reduce((sum, h) => sum + parseFloat(h.amount), 0);
+    const avgDailySpend = totalSpentLast30Days / 30;
+    const remainingBudget = Math.max(0, totalBudgeted - totalActualPaid);
+    
+    let estimatedExhaustionDate = null;
+    if (avgDailySpend > 0) {
+      const daysRemaining = Math.floor(remainingBudget / avgDailySpend);
+      const exhaustionDate = new Date();
+      exhaustionDate.setDate(exhaustionDate.getDate() + daysRemaining);
+      estimatedExhaustionDate = exhaustionDate.toISOString();
+    }
+
     const burnRate = totalBudgeted > 0 ? (totalActualPaid / totalBudgeted) * 100 : 0;
 
     return {
@@ -148,7 +192,13 @@ export class DashboardService {
         totalActualPaid,
         variancePercentage: variance,
         burnRatePercentage: burnRate,
+        avgDailySpend,
+        estimatedExhaustionDate,
       },
+      history: history.map(h => ({
+        date: h.date,
+        amount: parseFloat(h.amount)
+      })),
       context: {
         projectId: projectId || 'ALL',
         type: projectId ? 'PROJECT' : 'OPERATIONAL_CONSOLIDATED'

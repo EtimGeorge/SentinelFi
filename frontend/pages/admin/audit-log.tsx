@@ -45,13 +45,13 @@ const AuditLogPage: React.FC = () => {
         targetType: targetTypeFilter,
         startDate: startDate,
         endDate: endDate,
-        tenantId: hasAnyRole([Role.SuperAdmin, Role.ITHead]) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/ITHead can filter, otherwise undefined means no filter by query param
+        tenantId: hasAnyRole([Role.SuperAdmin, Role.TechnicalDirector]) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/TechnicalDirector can filter, otherwise undefined means no filter by query param
       };
 
       // If user is Admin, they can only see their own tenant's logs
-      if (hasAnyRole([Role.Admin]) && user?.tenant_id) {
+      if (hasAnyRole([Role.AdminDirector]) && user?.tenant_id) {
         params.tenantId = user.tenant_id;
-      } else if (hasAnyRole([Role.Admin]) && !user?.tenant_id) {
+      } else if (hasAnyRole([Role.AdminDirector]) && !user?.tenant_id) {
         // Admin user without tenantId should not see any logs
         setAuditLogs([]);
         setTotalLogs(0);
@@ -81,7 +81,7 @@ const AuditLogPage: React.FC = () => {
   useEffect(() => {
     // Only fetch if user is authenticated and has appropriate roles
     // CRITICAL FIX: Call hasAnyRole inside useEffect, don't depend on it
-    if (!isInitialLoad && (hasAnyRole([Role.Admin, Role.SuperAdmin, Role.ITHead]))) {
+    if (!isInitialLoad && (hasAnyRole([Role.AdminDirector, Role.SuperAdmin, Role.TechnicalDirector]))) {
       fetchAuditLogs();
     }
   }, [user, isInitialLoad, fetchAuditLogs]); // FIXED: Removed hasAnyRole from dependencies
@@ -96,8 +96,8 @@ const AuditLogPage: React.FC = () => {
     );
   }
 
-  // Access Control: Only Admin, SuperAdmin, ITHead can access
-  if (!user || !(hasAnyRole([Role.Admin, Role.SuperAdmin, Role.ITHead]))) {
+  // Access Control: Only AdminDirector, SuperAdmin, TechnicalDirector can access
+  if (!user || !(hasAnyRole([Role.AdminDirector, Role.SuperAdmin, Role.TechnicalDirector]))) {
     return (
       <PageContainer title="Access Denied" subtitle="Unauthorized Access">
         <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">
@@ -108,7 +108,7 @@ const AuditLogPage: React.FC = () => {
     );
   }
 
-  const isSuperAdminOrITHead = hasAnyRole([Role.SuperAdmin, Role.ITHead]);
+  const isSuperAdminOrITHead = hasAnyRole([Role.SuperAdmin, Role.TechnicalDirector]);
 
   return (
     <>
@@ -122,72 +122,72 @@ const AuditLogPage: React.FC = () => {
       >
         <Card>
           <div className="p-4 border-b border-gray-700 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex-grow flex flex-wrap items-center gap-4">
-                  <Input 
-                      type="text"
-                      placeholder="User ID or Email..."
-                      value={userSearchTerm}
-                      onChange={(e) => setUserSearchTerm(e.target.value)}
-                      className="w-full sm:w-64"
-                      icon={<Search className="w-5 h-5 text-gray-400" />}
-                      label="User"
-                  />
-                  <select
-                      value={actionTypeFilter}
-                      onChange={(e) => setActionTypeFilter(e.target.value)}
-                      className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white appearance-none focus:ring-brand-primary focus:border-brand-primary"
-                  >
-                      <option value="">All Actions</option>
-                      {uniqueActionTypes.map(action => <option key={action} value={action}>{action}</option>)}
-                  </select>
-                  <select
-                      value={targetTypeFilter}
-                      onChange={(e) => setTargetTypeFilter(e.target.value)}
-                      className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white appearance-none focus:ring-brand-primary focus:border-brand-primary"
-                  >
-                      <option value="">All Target Types</option>
-                      {uniqueTargetTypes.map(type => <option key={type} value={type}>{type}</option>)}
-                  </select>
-                  {isSuperAdminOrITHead && (
-                     <Input 
-                         type="text"
-                         placeholder="Filter by Tenant ID"
-                         value={tenantIdFilter}
-                         onChange={(e) => setTenantIdFilter(e.target.value)}
-                         className="w-full sm:w-64"
-                         icon={<Building className="w-5 h-5 text-gray-400" />}
-                         label="Tenant ID"
-                     />
-                  )}
-                  <Input 
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full sm:w-auto"
-                      icon={<Calendar className="w-5 h-5 text-gray-400" />}
-                      label="Start Date"
-                  />
-                  <Input 
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full sm:w-auto"
-                      icon={<Calendar className="w-5 h-5 text-gray-400" />}
-                      label="End Date"
-                  />
-                  <Button onClick={() => setCurrentPage(1)} disabled={loading}>Apply Filters</Button>
-                  <Button onClick={() => { setUserSearchTerm(''); setActionTypeFilter(''); setTargetTypeFilter(''); setStartDate(''); setEndDate(''); setTenantIdFilter(''); setCurrentPage(1); }} variant="secondary" disabled={loading}>Reset</Button>
-              </div>
+            <div className="flex-grow flex flex-wrap items-center gap-4">
+              <Input
+                type="text"
+                placeholder="User ID or Email..."
+                value={userSearchTerm}
+                onChange={(e) => setUserSearchTerm(e.target.value)}
+                className="w-full sm:w-64"
+                icon={<Search className="w-5 h-5 text-gray-400" />}
+                label="User"
+              />
+              <select
+                value={actionTypeFilter}
+                onChange={(e) => setActionTypeFilter(e.target.value)}
+                className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white appearance-none focus:ring-brand-primary focus:border-brand-primary"
+              >
+                <option value="">All Actions</option>
+                {uniqueActionTypes.map(action => <option key={action} value={action}>{action}</option>)}
+              </select>
+              <select
+                value={targetTypeFilter}
+                onChange={(e) => setTargetTypeFilter(e.target.value)}
+                className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white appearance-none focus:ring-brand-primary focus:border-brand-primary"
+              >
+                <option value="">All Target Types</option>
+                {uniqueTargetTypes.map(type => <option key={type} value={type}>{type}</option>)}
+              </select>
+              {isSuperAdminOrITHead && (
+                <Input
+                  type="text"
+                  placeholder="Filter by Tenant ID"
+                  value={tenantIdFilter}
+                  onChange={(e) => setTenantIdFilter(e.target.value)}
+                  className="w-full sm:w-64"
+                  icon={<Building className="w-5 h-5 text-gray-400" />}
+                  label="Tenant ID"
+                />
+              )}
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full sm:w-auto"
+                icon={<Calendar className="w-5 h-5 text-gray-400" />}
+                label="Start Date"
+              />
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full sm:w-auto"
+                icon={<Calendar className="w-5 h-5 text-gray-400" />}
+                label="End Date"
+              />
+              <Button onClick={() => setCurrentPage(1)} disabled={loading}>Apply Filters</Button>
+              <Button onClick={() => { setUserSearchTerm(''); setActionTypeFilter(''); setTargetTypeFilter(''); setStartDate(''); setEndDate(''); setTenantIdFilter(''); setCurrentPage(1); }} variant="secondary" disabled={loading}>Reset</Button>
+            </div>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-800">
               <thead className="bg-brand-dark/50">
                 <tr>
                   {['Timestamp', 'User', 'Action', 'Target Type', 'Target ID', 'Tenant ID', 'Details'].map(header => (
-                     <th key={header} className={`px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider`}>
-                       {header}
-                     </th>
+                    <th key={header} className={`px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider`}>
+                      {header}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -195,7 +195,7 @@ const AuditLogPage: React.FC = () => {
                 {loading ? (
                   <tr><td colSpan={7} className="p-4 text-center text-gray-400"><div className="flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading audit logs...</div></td></tr>
                 ) : auditLogs.length === 0 ? (
-                    <tr><td colSpan={7} className="p-8 text-center text-gray-500">No audit logs found matching your criteria.</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-gray-500">No audit logs found matching your criteria.</td></tr>
                 ) : (
                   auditLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-gray-800/50 transition-colors duration-150">
@@ -215,13 +215,13 @@ const AuditLogPage: React.FC = () => {
             </table>
           </div>
           {totalPages > 1 && (
-              <div className="p-4 border-t border-gray-700 flex items-center justify-between">
-                  <span className="text-sm text-gray-400">Page {currentPage} of {totalPages}</span>
-                  <div className="space-x-2">
-                      <Button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1 || loading} variant="secondary">Previous</Button>
-                      <Button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages || loading} variant="secondary">Next</Button>
-                  </div>
+            <div className="p-4 border-t border-gray-700 flex items-center justify-between">
+              <span className="text-sm text-gray-400">Page {currentPage} of {totalPages}</span>
+              <div className="space-x-2">
+                <Button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1 || loading} variant="secondary">Previous</Button>
+                <Button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages || loading} variant="secondary">Next</Button>
               </div>
+            </div>
           )}
         </Card>
       </PageContainer>

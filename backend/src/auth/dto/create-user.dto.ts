@@ -24,6 +24,10 @@ export class CreateUserDto implements ICreateUserPayload {
 
   @IsOptional()
   @IsString()
+  username?: string;
+
+  @IsOptional()
+  @IsString()
   first_name?: string;
 
   @IsOptional()

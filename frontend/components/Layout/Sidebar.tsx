@@ -83,53 +83,47 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
 };
 
 
+import useGlobalStore from '../../store/globalStore';
+import { useCurrency } from '../../components/context/CurrencyContext';
+import api from '../../lib/api';
+
 const Sidebar: React.FC = () => {
-  // ============================================================================
-  // CRITICAL FIX: Compute navigation items ONCE at mount, not on every render
-  // This eliminates the circular dependency with AuthContext
-  // ============================================================================
   const [navItems, setNavItems] = useState<NavItem[]>([]);
   const [isNavReady, setIsNavReady] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
 
   const {
     isMobileSidebarOpen, closeMobileSidebar,
     isDesktopSidebarCollapsed, toggleDesktopSidebar
   } = useUIStore();
 
-  // Initialize navigation items ONCE on mount
-  useEffect(() => {
-    const initializeNavigation = () => {
-      try {
-        // Load user from localStorage (no AuthContext dependency)
-        const cachedUser = loadUserFromStorage();
+  const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
+  const { userCurrency, availableCurrencies, setUserCurrencyCode } = useCurrency();
 
+  // Initialize navigation items and fetch projects
+  useEffect(() => {
+    const initializeSidebar = async () => {
+      try {
+        const cachedUser = loadUserFromStorage();
         if (cachedUser) {
           const role = getPrimaryRoleFromUser(cachedUser);
-
           if (role) {
-            // Use cached navigation map for optimal performance
             const items = getStaticNavItemsForRole(role);
             setNavItems(items);
             setIsNavReady(true);
-          } else {
-            console.warn('[Sidebar] User has no valid role, navigation empty');
-            setNavItems([]);
-            setIsNavReady(true);
           }
-        } else {
-          // No cached user, navigation will be empty until login
-          setNavItems([]);
-          setIsNavReady(true);
         }
+
+        // Fetch projects for global selector
+        const res = await api.get('/projects?limit=100');
+        setProjects(res.data.projects || []);
       } catch (error) {
-        console.error('[Sidebar] Failed to initialize navigation:', error);
-        setNavItems([]);
-        setIsNavReady(true);
+        console.error('[Sidebar] Failed to initialize:', error);
       }
     };
 
-    initializeNavigation();
-  }, []); // ZERO DEPENDENCIES - Compute ONCE on mount
+    initializeSidebar();
+  }, []);
 
   // ============================================================================
   // ADVANCED: Multi-tab synchronization for navigation
@@ -174,10 +168,15 @@ const Sidebar: React.FC = () => {
   // Close mobile sidebar on navigation
   const router = useRouter();
   React.useEffect(() => {
-    if (isMobileSidebarOpen) {
+    const handleRouteChange = () => {
       closeMobileSidebar();
-    }
-  }, [router.asPath, isMobileSidebarOpen, closeMobileSidebar]);
+    };
+
+    router.events.on('routeChangeComplete', handleRouteChange);
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChange);
+    };
+  }, [router.events, closeMobileSidebar]);
 
 
   return (

@@ -99,7 +99,10 @@ export class TenancyGuard implements CanActivate {
       return true;
     } catch (error: unknown) {
        const message = error instanceof Error ? error.message : String(error);
-       this.logger.error(`Failed to resolve tenant schema: ${message}`);
+       this.logger.error(`[TenancyGuard] ❌ Failed to resolve tenant schema for User ${user.id} (Tenant: ${tenantId}): ${message}`);
+       if (error instanceof Error && error.stack) {
+         this.logger.error(error.stack);
+       }
        throw error;
     }
   }

@@ -149,7 +149,41 @@ async function apiRequest<T = any>(
   }
   
   const cacheKey = getCacheKey(config);
-  return globalDeduplicator.execute(cacheKey, () => api.request<T>(config));
+  
+  // To prevent RequestDeduplicator race conditions where one component's 
+  // unmount aborts the shared network request for all others, we remove 
+  // the signal from the actual Axios call, but simulate abortion for the caller.
+  const executeConfig = { ...config };
+  const callerSignal = config.signal as AbortSignal | undefined;
+  delete executeConfig.signal;
+
+  const sharedPromise = globalDeduplicator.execute(cacheKey, () => api.request<T>(executeConfig));
+
+  if (!callerSignal) {
+    return sharedPromise;
+  }
+
+  // Wrap the shared promise to respect the caller's individual AbortSignal
+  return new Promise((resolve, reject) => {
+    if (callerSignal.aborted) {
+      return reject(new axios.Cancel("canceled"));
+    }
+
+    const abortHandler = () => {
+      reject(new axios.Cancel("canceled"));
+    };
+    callerSignal.addEventListener('abort', abortHandler);
+
+    sharedPromise
+      .then((res) => {
+        callerSignal.removeEventListener('abort', abortHandler);
+        if (!callerSignal.aborted) resolve(res);
+      })
+      .catch((err) => {
+        callerSignal.removeEventListener('abort', abortHandler);
+        if (!callerSignal.aborted) reject(err);
+      });
+  });
 }
 
 export const apiClient = {

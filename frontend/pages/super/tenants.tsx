@@ -15,13 +15,15 @@ import {
   CreditCard,
   ChevronDown,
   ChevronRight,
-  Activity
+  Activity,
+  CloudUpload
 } from 'lucide-react';
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input'; // Re-using Input component
 import Button from '../../components/common/Button'; // Re-using Button component
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth } from '../../components/context/AuthContext'; // CORRECTED IMPORT PATH
+import { useCurrency } from '../../components/context/CurrencyContext';
 import { Role } from '@shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import Switch from '../../components/common/Switch';
@@ -39,11 +41,13 @@ interface Tenant {
   admin_password?: string;
 }
 
-// DTOs for create/update from backend (assuming similar structure to User DTOs)
+// DTOs for create/update from backend
 interface CreateTenantDto {
   name: string;
   schema_name: string;
   admin_email: string;
+  projectName?: string;
+  initialBudgetFile?: File | null;
 }
 
 interface UpdateTenantDto {
@@ -58,7 +62,7 @@ interface ModalProps {
 }
 
 interface CreateTenantModalProps extends ModalProps {
-  onCreate: (tenantData: CreateTenantDto) => Promise<void>;
+  onCreate: (tenantData: FormData) => Promise<void>; // Use FormData for file upload
   error: string | null;
 }
 
@@ -66,38 +70,91 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
   const [name, setName] = useState('');
   const [schemaName, setSchemaName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [initialBudgetFile, setInitialBudgetFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setName('');
       setSchemaName('');
       setAdminEmail('');
+      setProjectName('');
+      setInitialBudgetFile(null);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('schema_name', schemaName);
+    formData.append('admin_email', adminEmail);
+    formData.append('projectName', projectName);
+    if (initialBudgetFile) {
+      formData.append('initialBudgetFile', initialBudgetFile);
+    }
+    await onCreate(formData);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <Card title="Create New Tenant" borderTopColor="primary" className="w-full max-w-md">
-        <form onSubmit={async (e) => { e.preventDefault(); await onCreate({ name, schema_name: schemaName, admin_email: adminEmail }); }} className="space-y-4">
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <Card title="Provision New Enterprise Tenant" borderTopColor="primary" className="w-full max-w-lg">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && <p className="text-sm text-red-400 mb-3 bg-red-900/50 p-2 rounded-md">{error}</p>}
-          <div>
-            <label className="block text-sm font-medium text-gray-300">Tenant Name</label>
-            <Input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="mt-1 block w-full" />
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Internal ID (Unique)</label>
+              <Input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. ALPHA_CORP" className="w-full" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Schema Name</label>
+              <Input type="text" value={schemaName} onChange={(e) => setSchemaName(e.target.value)} required placeholder="e.g. tenant_alpha" className="w-full" />
+            </div>
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-300">Schema Name (e.g., tenant_xyz)</label>
-            <Input type="text" value={schemaName} onChange={(e) => setSchemaName(e.target.value)} required className="mt-1 block w-full" />
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Display Project Name</label>
+            <Input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} required placeholder="e.g. Alpha Headquarters 2026" className="w-full" />
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-300">Admin Email</label>
-            <Input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required className="mt-1 block w-full" />
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Tenant Administrator Email</label>
+            <Input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required placeholder="admin@client.com" className="w-full" />
           </div>
-          <div className="flex justify-end space-x-4 pt-2">
+
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Initial Budget Template (AI Processing)</label>
+            <div className="border-2 border-dashed border-gray-700 p-4 rounded-lg text-center cursor-pointer hover:border-brand-primary transition">
+               <input 
+                 type="file" 
+                 id="tenant-file-upload" 
+                 className="hidden" 
+                 onChange={(e) => setInitialBudgetFile(e.target.files?.[0] || null)}
+                 accept=".pdf,.docx,.xlsx"
+               />
+               <label htmlFor="tenant-file-upload" className="cursor-pointer">
+                 {initialBudgetFile ? (
+                   <div className="flex items-center justify-center text-brand-primary">
+                     <CloudUpload className="w-5 h-5 mr-2" />
+                     <span className="text-sm font-medium">{initialBudgetFile.name}</span>
+                   </div>
+                 ) : (
+                   <div className="text-gray-500">
+                     <CloudUpload className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                     <p className="text-xs">Drag & drop or click to upload PDF/Excel</p>
+                   </div>
+                 )}
+               </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-4 pt-4 border-t border-gray-800">
             <Button type="button" onClick={onClose} variant="secondary" disabled={loading}>Cancel</Button>
-            <Button type="submit" disabled={loading} className="min-w-[120px]">
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Create Tenant'}
+            <Button type="submit" disabled={loading || !name || !adminEmail} className="min-w-[140px]">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Provision Tenant'}
             </Button>
           </div>
         </form>
@@ -155,6 +212,7 @@ interface ManagePlanModalProps extends ModalProps {
 
 const ManagePlanModal: React.FC<ManagePlanModalProps> = ({ isOpen, onClose, tenantId, tenantName, onUpdate, loading }) => { // ADD loading here
   const api = useSecuredApi();
+  const { userCurrency } = useCurrency();
   const addToast = useToast(state => state.addToast);
   const [plan, setPlan] = useState<TenantPlan | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true); // Renamed to avoid conflict
@@ -260,7 +318,7 @@ const ManagePlanModal: React.FC<ManagePlanModalProps> = ({ isOpen, onClose, tena
               <Input type="number" name="max_storage_gb" value={formData.max_storage_gb || ''} onChange={handleInputChange} required className="mt-1 block w-full" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300">Price</label>
+              <label className="block text-sm font-medium text-gray-300">Price ({userCurrency.symbol})</label>
               <Input type="number" name="price" value={formData.price || ''} onChange={handleInputChange} required className="mt-1 block w-full" />
             </div>
             <div>
@@ -425,17 +483,19 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
     return () => controller.abort();
   }, [user, fetchTenants]);
 
-  const handleCreateTenant = async (tenantData: CreateTenantDto) => {
+  const handleCreateTenant = async (tenantData: FormData) => {
     setFormLoading(true);
     setCreateError(null);
     try {
-      const newTenant = await api.post<Tenant>('/super/tenants', tenantData);
-      addToast(`Tenant ${newTenant.data.name} created successfully! Admin password: ${newTenant.data.admin_password || 'Generated'}`, 'success', 8000);
+      const newTenant = await api.post<Tenant>('/super/tenants', tenantData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      addToast(`Tenant ${newTenant.data.name} provisioned successfully! Admin password: ${newTenant.data.admin_password || 'Securely Generated'}`, 'success', 8000);
       setShowCreateModal(false);
       fetchTenants();
     } catch (e: any) {
       const msg = e.response?.data?.message || e.message;
-      const errorText = `Tenant creation failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`;
+      const errorText = `Tenant provisioning failed: ${Array.isArray(msg) ? msg.join(', ') : msg}`;
       setCreateError(errorText);
       addToast(errorText, 'error');
     } finally {

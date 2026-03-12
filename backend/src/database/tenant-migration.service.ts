@@ -21,11 +21,13 @@ import { UserEntity } from "../auth/user.entity";
 import { RoleEntity } from "../auth/role.entity"; // NEW
 import { PermissionEntity } from "../auth/permission.entity"; // NEW
 import { TenantEntity } from "../tenants/tenant.entity";
+import { getTenantMigrationsPath } from "../common/utils/path.utils";
 import { AuditLogEntity } from "../audit/audit.entity"; // NEW
 import { BudgetCategoryEntity } from "../operational-budgets/budget-category.entity";
 import { OperationalBudgetPeriodAllocationEntity } from "../operational-budgets/operational-budget-period-allocation.entity";
 import { ClientEntity } from "../clients/client.entity";
 import { CEOAnnotationEntity } from "../dashboard/annotation.entity";
+import { ApprovalLogEntity } from "../common/entities/approval-log.entity";
 
 @Injectable()
 export class TenantMigrationService {
@@ -90,16 +92,9 @@ export class TenantMigrationService {
         PermissionEntity,     // Public entity (for reference)
         TenantEntity,         // Public entity (for reference)
         AuditLogEntity,       // Public entity (for reference)
+        ApprovalLogEntity,    // Added
       ],
-      migrations: [
-        path.join(
-          process.cwd(),
-          isProduction ? 'dist/backend/src' : 'backend/src', // Adjusted for typical NestJS build output
-          'migrations',
-          'tenant',
-          '*{.ts,.js}',
-        ),
-      ],
+      migrations: [getTenantMigrationsPath()],
       migrationsTableName: 'tenant_migrations', // Dedicated migrations table for tenant schemas
       synchronize: false, // Always false in production
       logging: ['error', 'warn'], // Only log errors and warnings for migrations

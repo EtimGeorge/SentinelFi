@@ -14,7 +14,7 @@ import { useAuth } from '../../components/context/AuthContext';
 // const uiStoreSelector = (state) => ({
 //     unreadNotificationsCount: state.unreadNotificationsCount,
 // });
-  
+
 const Header: React.FC = () => {
   console.log("Header component rendered");
   const { user, logout, getPrimaryRole } = useAuth();
@@ -24,7 +24,7 @@ const Header: React.FC = () => {
   const unreadNotificationsCount = useUIStore((state) => state.unreadNotificationsCount);
 
   console.log("unreadNotificationsCount from useUIStore:", unreadNotificationsCount);
-  
+
   // Connect/disconnect WebSocket on mount/unmount // Temporarily commented out
   // useEffect(() => {
   //   const { connectWebSocket, disconnectWebSocket } = useUIStore.getState();
@@ -82,9 +82,8 @@ const Header: React.FC = () => {
             <span className="font-medium hidden sm:inline">
               {user.email.split('@')[0]}
             </span>
-            <span className="capitalize text-xs sm:text-sm hidden md:inline">
-              {" "}
-              ({getPrimaryRole()})
+            <span className="text-xs sm:text-sm hidden md:inline ml-1 text-gray-400">
+              ({(getPrimaryRole() || '').replace(/_/g, ' ').replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.substring(1).toLowerCase())})
             </span>
           </span>
         )}

@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, Inject, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, DataSource } from 'typeorm';
 import { ClientEntity } from './client.entity';
+import { ProjectEntity } from '../projects/project.entity';
+import { ProjectStatus } from '../projects/enums/project.enum';
 import { CreateClientDto, UpdateClientDto } from './client.dto';
 import { ClsService } from 'nestjs-cls';
 
@@ -12,6 +14,7 @@ export class ClientService {
     @Inject('CLIENT_REPOSITORY')
     private readonly clientRepository: Repository<ClientEntity>,
     private readonly cls: ClsService,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -90,7 +93,34 @@ export class ClientService {
       throw new NotFoundException(`Client with ID "${id}" not found or has been deleted`);
     }
 
-    return client;
+    // --- PHASE 12: PORTFOLIO HEALTH AGGREGATION ---
+    const projects = await this.dataSource.getRepository(ProjectEntity).find({
+      where: { client_id: id, tenant_id: tenantId },
+      relations: ['wbsBudgets']
+    });
+
+    // Aggregate health metrics
+    const portfolioMetrics = projects.map(p => {
+      const totalBudget = p.wbsBudgets.reduce((acc: number, w) => acc + Number(w.total_cost_budgeted), 0);
+      const totalActual = p.wbsBudgets.reduce((acc: number, w) => acc + Number(w.total_cost_actual), 0);
+      const variance = totalBudget - totalActual;
+      return {
+        project_id: p.project_id,
+        name: p.project_name,
+        status: p.status,
+        total_budget: totalBudget,
+        total_actual: totalActual,
+        variance: variance,
+        health_index: totalBudget > 0 ? (totalActual / totalBudget) : 0
+      };
+    });
+
+    return {
+      ...client,
+      portfolio_summary: portfolioMetrics,
+      total_active_projects: projects.filter(p => p.status === ProjectStatus.ACTIVE).length,
+      overall_portfolio_value: portfolioMetrics.reduce((acc: number, m) => acc + m.total_budget, 0)
+    } as any;
   }
 
   /**

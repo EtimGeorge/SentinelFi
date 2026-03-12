@@ -16,7 +16,7 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('summary')
-  @Roles(Role.Admin, Role.Finance, Role.CEO, Role.OperationalHead, Role.ITHead, Role.AssignedProjectUser)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO, Role.OperationalDirector, Role.TechnicalDirector, Role.AssignedProjectUser)
   async getSummary(@Req() req: AuthenticatedRequest) {
     const tenantId = req.user.tenant_id;
     
@@ -28,7 +28,7 @@ export class DashboardController {
   }
 
   @Get('executive')
-  @Roles(Role.CEO, Role.Finance, Role.Admin)
+  @Roles(Role.CEO, Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager)
   async getExecutive(@Req() req: AuthenticatedRequest, @Query('projectId') projectId?: string) {
     const tenantId = req.user.tenant_id;
     if (!tenantId) {
@@ -38,7 +38,7 @@ export class DashboardController {
   }
 
   @Post('annotations')
-  @Roles(Role.CEO, Role.Finance, Role.Admin)
+  @Roles(Role.CEO, Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager)
   async addAnnotation(@Req() req: AuthenticatedRequest, @Body() dto: CreateAnnotationDto) {
     const tenantId = req.user.tenant_id;
     const userId = req.user.id;
@@ -49,7 +49,7 @@ export class DashboardController {
   }
 
   @Get('annotations')
-  @Roles(Role.CEO, Role.Finance, Role.Admin)
+  @Roles(Role.CEO, Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager)
   async getAnnotations(
     @Req() req: AuthenticatedRequest,
     @Query('targetType') targetType: AnnotationTargetType,

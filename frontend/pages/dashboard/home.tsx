@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import { useAuth, Role } from '../../components/context/AuthContext';
-import { LayoutDashboard, Zap, FileText, Bell, Clock, BarChart2, Loader2, Briefcase, TrendingUp, ArrowRight } from 'lucide-react';
+import { LayoutDashboard, Zap, FileText, Bell, Clock, BarChart2, Loader2, Briefcase, TrendingUp, ArrowRight, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
@@ -15,7 +15,12 @@ interface SummaryStats {
   variancePercentage: number;
   burnRatePercentage: number;
   pendingApprovals?: number;
+  avgDailySpend?: number;
+  estimatedExhaustionDate?: string | null;
+  history?: { date: string; amount: number }[];
 }
+
+import PredictiveAnalytics from '../../components/dashboard/PredictiveAnalytics';
 
 interface ProjectData {
   project_id: string;
@@ -29,25 +34,18 @@ interface ActivityLog {
   timestamp: string;
 }
 
+import useGlobalStore from '../../store/globalStore';
+
 const DashboardHome: React.FC = () => {
   const { user, hasAnyRole, getPrimaryRole } = useAuth();
   const api = useSecuredApi();
-  const { convertToDisplay } = useCurrency(); // Destructure convertToDisplay
+  const { convertToDisplay, userCurrency } = useCurrency();
+  const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
   const [stats, setStats] = useState<SummaryStats | null>(null);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [projects, setProjects] = useState<ProjectData[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [viewContext, setViewContext] = useState<'project' | 'operational'>('project');
   const [pendingCount, setPendingCount] = useState(0);
-
-  // Fetch projects list
-  useEffect(() => {
-    if (!user) return;
-    api.get('/projects?limit=100').then(res => {
-      setProjects(res.data.projects || []);
-    }).catch(err => console.error('Failed to fetch projects:', err));
-  }, [user?.id, api]);
 
   useEffect(() => {
     // Guard: Don't fetch if user isn't loaded yet
@@ -76,7 +74,11 @@ const DashboardHome: React.FC = () => {
         ]);
 
         if (!isCancelled) {
-          setStats(execRes.data.overview);
+          const executiveData = execRes.data;
+          setStats({
+            ...executiveData.overview,
+            history: executiveData.history
+          });
           setPendingCount(summaryRes.data.pendingApprovals);
           setActivities(activityRes.data.logs || activityRes.data.data || []);
         }
@@ -103,10 +105,11 @@ const DashboardHome: React.FC = () => {
   }, [user?.id, api, selectedProjectId, viewContext]);
 
   const actionLinks = [
-    { label: 'View Executive Dashboard', href: '/dashboard/ceo', icon: LayoutDashboard, roles: [Role.CEO, Role.Finance, Role.Admin, Role.ITHead, Role.OperationalHead] },
-    { label: 'Log New Expense', href: '/expense/tracker', icon: Zap, roles: [Role.AssignedProjectUser, Role.Admin, Role.CEO, Role.Finance, Role.ITHead, Role.OperationalHead] },
-    { label: 'Draft a New Budget', href: '/budget/draft', icon: FileText, roles: [Role.Finance, Role.Admin] },
-    { label: 'View Financial Reports', href: '/reporting/variance', icon: LayoutDashboard, roles: [Role.Finance, Role.Admin, Role.OperationalHead, Role.CEO] },
+    { label: 'View Executive Dashboard', href: '/dashboard/ceo', icon: LayoutDashboard, roles: [Role.CEO, Role.FinanceManager, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector] },
+    { label: 'Initiate Spend (P2P)', href: '/budget/p2p', icon: ShoppingCart, roles: [Role.CEO, Role.FinanceManager, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector] },
+    { label: 'Log New Expense', href: '/expense/tracker', icon: Zap, roles: [Role.AssignedProjectUser, Role.AdminDirector, Role.CEO, Role.FinanceManager, Role.TechnicalDirector, Role.OperationalDirector] },
+    { label: 'Draft a New Budget', href: '/budget/draft', icon: FileText, roles: [Role.FinanceManager, Role.AdminDirector] },
+    { label: 'View Financial Reports', href: '/reporting/variance', icon: LayoutDashboard, roles: [Role.FinanceManager, Role.AdminDirector, Role.OperationalDirector, Role.CEO] },
   ];
 
   const relevantActions = actionLinks.filter(link => hasAnyRole(link.roles));
@@ -116,10 +119,10 @@ const DashboardHome: React.FC = () => {
       <Head><title>Welcome | SentinelFi</title></Head>
       <PageContainer
         title={`Welcome, ${user?.email.split('@')[0]}!`}
-        subtitle={`You are logged in as a ${getPrimaryRole()}.`}
+        subtitle={`You are logged in as a ${(getPrimaryRole() || '').replace(/_/g, ' ').replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.substring(1).toLowerCase())}.`}
       >
         {/* Executive Controls Row */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-brand-dark rounded-2xl border border-gray-700 mb-8">
+        <div className="flex items-center justify-start gap-4 p-4 bg-brand-dark rounded-2xl border border-gray-700 mb-8">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setViewContext('project')}
@@ -133,20 +136,6 @@ const DashboardHome: React.FC = () => {
             >
               <BarChart2 className="w-4 h-4" /> Operational Overhead
             </button>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-bold text-gray-500 uppercase">Target Project:</label>
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="p-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-brand-primary outline-none min-w-[200px]"
-            >
-              <option value="all">Consolidated (Tenant-wide)</option>
-              {projects.map(p => (
-                <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
-              ))}
-            </select>
           </div>
         </div>
 
@@ -165,6 +154,20 @@ const DashboardHome: React.FC = () => {
             </Link>
           ))}
         </div>
+
+        {/* Unified Intelligence Section (Forecasting & Trend) */}
+        {stats && (
+          <div className="mb-12">
+            <PredictiveAnalytics
+              history={stats.history || []}
+              totalBudgeted={stats.totalBudgeted}
+              totalActualPaid={stats.totalActualPaid}
+              avgDailySpend={stats.avgDailySpend || 0}
+              estimatedExhaustionDate={stats.estimatedExhaustionDate || null}
+              currency={userCurrency.code}
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
           <div className="md:col-span-4 flex flex-col gap-6">
@@ -259,7 +262,7 @@ const DashboardHome: React.FC = () => {
                         <p className="text-xs text-gray-500">Budget drafts and exceptions awaiting your directive.</p>
                       </div>
                     </div>
-                    <Link href="/approvals">
+                    <Link href="/financials/approvals">
                       <Button variant="primary" className="whitespace-nowrap">Go to Approvals <ArrowRight className="w-4 h-4 ml-2" /></Button>
                     </Link>
                   </div>

@@ -29,6 +29,7 @@ const Breadcrumbs: React.FC = () => {
     const activeMap = isSuperAdmin ? superAdminNavigationMap : navigationMap;
 
     const items: BreadcrumbItem[] = [];
+    const seenPaths = new Set<string>();
 
     // Always add home/dashboard as root
     const rootPath = isSuperAdmin ? '/super' : '/dashboard/home';
@@ -37,11 +38,21 @@ const Breadcrumbs: React.FC = () => {
       path: rootPath,
       isLast: pathSegments.length === 0
     });
+    seenPaths.add(rootPath);
+
+    // For tenant users, /dashboard is logically part of "Home" (/dashboard/home)
+    if (!isSuperAdmin) {
+      seenPaths.add('/dashboard');
+    }
 
     let currentPath = '';
     pathSegments.forEach((segment, index) => {
       currentPath += `/${segment}`;
       const isLast = index === pathSegments.length - 1;
+
+      // Skip if path already represented (e.g. root or intermediate dashboard path)
+      if (seenPaths.has(currentPath)) return;
+      seenPaths.add(currentPath);
 
       // 1. Resolve label from Context (ID matching)
       let label = labels[segment] || labels[currentPath];

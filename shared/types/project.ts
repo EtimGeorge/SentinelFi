@@ -5,7 +5,9 @@ export enum ProjectStatus {
     ACTIVE = "active",
     INACTIVE = "inactive",
     COMPLETED = "completed",
-  }
+    ARCHIVED = "archived",
+    ON_HOLD = "on_hold",
+}
   
 export interface Project {
   project_id: string;

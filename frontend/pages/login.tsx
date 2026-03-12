@@ -177,7 +177,7 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
       AuthLogger.info(`Attempting ${loginMode} login for: ${formData.email}`);
 
       // Convert loginMode to Role
-      const role = loginMode === LoginMode.SUPER_ADMIN ? Role.SuperAdmin : Role.Admin;
+      const role = loginMode === LoginMode.SUPER_ADMIN ? Role.SuperAdmin : Role.AdminDirector;
 
       // FIXED: Call login with individual parameters, not an object
       await login(formData.email.trim(), formData.password, role);
@@ -360,16 +360,14 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
           <div className="mb-5">
 
             <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-
-              Email Address
-
+              Email or Username
             </label>
 
             <Input
 
               id="email"
 
-              type="email"
+              type="text"
 
               value={formData.email}
 
@@ -377,7 +375,7 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
 
               disabled={isSubmitting || authContextLoading}
 
-              placeholder={loginMode === LoginMode.SUPER_ADMIN ? 'superadmin@sentinelfi.com' : 'your.email@company.com'}
+              placeholder={loginMode === LoginMode.SUPER_ADMIN ? 'superadmin@sentinelfi.com or super_admin' : 'email@example.com or username'}
 
               required
 

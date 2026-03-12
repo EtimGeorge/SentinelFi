@@ -18,6 +18,7 @@ import {
   UseInterceptors,
   HttpException,
   BadRequestException,
+  ParseUUIDPipe,
 } from "@nestjs/common";
 import { Response, Request } from "express";
 import { AuthService } from "./auth.service";
@@ -193,13 +194,14 @@ export class AuthController {
   }
 
   @Get("users")
-  @Roles(Role.SuperAdmin, Role.Admin)
-  async getUsers(): Promise<UserResponseDto[]> {
-    return this.authService.findAllUsers();
+  @Roles(Role.SuperAdmin, Role.AdminDirector, Role.CEO)
+  async getUsers(@Req() req: AuthenticatedRequest): Promise<UserResponseDto[]> {
+    const isSuperAdmin = req.user.roles.some(role => role.name === Role.SuperAdmin);
+    return this.authService.findAllUsers(isSuperAdmin ? undefined : (req.user.tenant_id ?? undefined));
   }
 
   @Post("users")
-  @Roles(Role.SuperAdmin, Role.Admin)
+  @Roles(Role.SuperAdmin, Role.AdminDirector, Role.CEO)
   @RequirePermissions('users:create')
   @UseGuards(PermissionsGuard)
   @HttpCode(HttpStatus.CREATED)
@@ -208,23 +210,47 @@ export class AuthController {
   }
 
   @Patch("users/:id")
-  @Roles(Role.SuperAdmin, Role.Admin)
+  @Roles(Role.SuperAdmin, Role.AdminDirector, Role.CEO)
   @RequirePermissions('users:update')
   @UseGuards(PermissionsGuard)
   async updateUser(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() updateUserDto: UpdateUserDto): Promise<UserResponseDto> {
     return this.authService.updateUser(req.user, id, updateUserDto);
   }
 
+  @Patch("users/batch")
+  @Roles(Role.SuperAdmin, Role.AdminDirector, Role.CEO)
+  @RequirePermissions('users:update')
+  @UseGuards(PermissionsGuard)
+  @HttpCode(HttpStatus.OK)
+  async batchUpdateUsers(
+    @Req() req: AuthenticatedRequest, 
+    @Body() batchDto: { ids: string[], update: Partial<UpdateUserDto> }
+  ): Promise<{ updated: number, errors: string[] }> {
+    if (!batchDto.ids || !Array.isArray(batchDto.ids) || batchDto.ids.length === 0) {
+      throw new BadRequestException("Multiple User IDs must be provided.");
+    }
+    return this.authService.batchUpdateUsers(req.user, batchDto.ids, batchDto.update);
+  }
+
   @Delete("users/:id")
-  @Roles(Role.SuperAdmin, Role.Admin)
+  @Roles(Role.SuperAdmin, Role.AdminDirector, Role.CEO)
   @RequirePermissions('users:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   async softDeleteUser(@Req() req: AuthenticatedRequest, @Param("id") id: string): Promise<void> {
     await this.authService.updateUser(req.user, id, { is_active: false });
   }
 
+  @Get("users/:id/profile")
+  @Roles(Role.SuperAdmin, Role.AdminDirector, Role.CEO)
+  async getUserProfile(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.authService.findUserProfileDossier(id, req.user.tenant_id ?? null);
+  }
+
   @Post("users/:id/reset-password")
-  @Roles(Role.SuperAdmin, Role.Admin)
+  @Roles(Role.SuperAdmin, Role.AdminDirector, Role.CEO)
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Param("id") id: string): Promise<{ message: string }> {
     // In a real app, this would generate a token and send an email or return a temporary password.

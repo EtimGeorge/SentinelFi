@@ -24,9 +24,10 @@ const WBSSelect: React.FC<WBSSelectProps> = ({ projectId, value, onChange, label
         setLoading(true);
         try {
           const response = await api.get<{ wbsBudgets: WbsBudget[] }>(`/wbs/budgets?projectId=${projectId}&limit=100`);
-          setWbsItems(response.data.wbsBudgets);
+          setWbsItems(response.data?.wbsBudgets || []);
         } catch (err) {
           console.error('Error fetching WBS:', err);
+          setWbsItems([]);
         } finally {
           setLoading(false);
         }
@@ -35,17 +36,17 @@ const WBSSelect: React.FC<WBSSelectProps> = ({ projectId, value, onChange, label
     }
   }, [projectId, api]);
 
-  const filteredItems = wbsItems.filter(item => 
-    item.wbs_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.description.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredItems = (wbsItems || []).filter(item =>
+    item?.wbs_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item?.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const selectedItem = wbsItems.find(item => item.wbs_id === value);
+  const selectedItem = (wbsItems || []).find(item => item.wbs_id === value);
 
   return (
     <div className="space-y-1.5 relative">
       {label && <label className="text-sm font-semibold text-gray-400 uppercase tracking-widest">{label}</label>}
-      
+
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -76,7 +77,7 @@ const WBSSelect: React.FC<WBSSelectProps> = ({ projectId, value, onChange, label
               />
             </div>
           </div>
-          
+
           <div className="max-h-[250px] overflow-y-auto">
             {filteredItems.length === 0 ? (
               <div className="p-4 text-center text-sm text-gray-500">No WBS items found.</div>
@@ -101,7 +102,7 @@ const WBSSelect: React.FC<WBSSelectProps> = ({ projectId, value, onChange, label
       )}
 
       {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
-      
+
       {/* Backdrop for closing */}
       {isOpen && <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />}
     </div>

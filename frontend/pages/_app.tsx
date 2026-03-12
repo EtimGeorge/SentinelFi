@@ -15,6 +15,8 @@ import AppLoadingFallback from '../components/common/AppLoadingFallback'; // New
 import '../styles/globals.css';
 import { Toaster } from 'react-hot-toast'; // For toast notifications
 import { Role } from '../components/context/AuthContext'; // Import Role for layout determination
+import { apiClient } from '../lib/api';
+import useUIStore from '../store/uiStore';
 
 // ============================================================================
 // LAYOUT TYPING (NEW)
@@ -54,6 +56,45 @@ function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPr
   });
 
   return getLayout(<Component {...pageProps} />);
+}
+
+// ============================================================================
+// NOTIFICATION SYNC (NEW)
+// Syncs the total pending actions to the global UI store for the header bell
+// ============================================================================
+function NotificationWatcher() {
+  const { isAuthenticated, user } = useAuth();
+  const setUnreadCount = useUIStore((state) => state.setUnreadNotificationsCount);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    const fetchCounts = async () => {
+      try {
+        // Fetch counts for both WBS and Requisitions
+        const [wbs, reqs] = await Promise.all([
+          apiClient.get('/wbs/budgets?status=pending&limit=1'),
+          apiClient.get('/finance-core/requisitions').catch(() => [])
+        ]);
+
+        const wbsCount = wbs?.total || (Array.isArray(wbs) ? wbs.length : 0);
+
+        const reqData: any[] = Array.isArray(reqs) ? reqs : (reqs?.data || []);
+        const reqCount = reqData.filter((r: any) => r.status === 'PENDING_APPROVAL').length;
+
+        setUnreadCount(wbsCount + reqCount);
+      } catch (error) {
+        console.error('[NotificationWatcher] Failed to sync counts:', error);
+      }
+    };
+
+    fetchCounts();
+    // Poll every 3 minutes for enterprise-level responsiveness
+    const interval = setInterval(fetchCounts, 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, user?.id, setUnreadCount]);
+
+  return null;
 }
 
 // ============================================================================
@@ -115,12 +156,33 @@ export default function App(props: AppProps) {
         <BreadcrumbProvider>
           <CurrencyProvider>
             <RouteGuard>
+              <NotificationWatcher />
               <AppContent {...props} />
             </RouteGuard>
           </CurrencyProvider>
         </BreadcrumbProvider>
       </AuthProvider>
-      <Toaster position="bottom-right" /> {/* Global toast notifications */}
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#1a1a2e',
+            color: '#e2e8f0',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            fontSize: '14px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+          },
+          success: {
+            iconTheme: { primary: '#22c55e', secondary: '#1a1a2e' },
+          },
+          error: {
+            iconTheme: { primary: '#ef4444', secondary: '#1a1a2e' },
+          },
+        }}
+      />
     </>
   );
 }

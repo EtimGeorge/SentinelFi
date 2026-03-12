@@ -2,6 +2,51 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { DataSource, EntityManager } from 'typeorm';
 import { Logger, InternalServerErrorException } from '@nestjs/common';
+import { getCorrelationId } from '../interceptors/correlation.interceptor';
+import { ProjectAuditEntity } from '../../projects/project-audit.entity';
+import { ApprovalLogEntity } from '../entities/approval-log.entity';
+import { ClientEntity } from '../../clients/client.entity';
+import { CurrencyExchangeRateEntity, CurrencyMetadataEntity } from '../../currency/currency.entity';
+import { TenantEntity } from '../../tenants/tenant.entity';
+import { TenantSettingsEntity } from '../../tenants/tenant-settings.entity';
+import { UserEntity } from '../../auth/user.entity';
+import { RoleEntity } from '../../auth/role.entity';
+import { PermissionEntity } from '../../auth/permission.entity';
+import { AuditLogEntity } from '../../audit/audit.entity';
+import { ProjectEntity } from '../../projects/project.entity';
+import { LpoEntity } from '../../projects/lpo.entity';
+import { ProjectInflowEntity } from '../../projects/project-inflow.entity';
+import { WbsCategoryEntity } from '../../wbs/wbs-category.entity';
+import { WbsBudgetEntity } from '../../wbs/wbs-budget.entity';
+import { LiveExpenseEntity } from '../../wbs/live-expense.entity';
+import { SettingsEntity } from '../../settings/settings.entity';
+import { OperationalBudgetEntity } from '../../operational-budgets/operational-budget.entity';
+import { OperationalBudgetCategoryEntity } from '../../operational-budgets/operational-budget-category.entity';
+import { OperationalExpenseEntity } from '../../operational-budgets/operational-expense.entity';
+import { PayrollEntryEntity } from '../../operational-budgets/payroll-entry.entity';
+import { BudgetCategoryEntity } from '../../operational-budgets/budget-category.entity';
+import { OperationalBudgetPeriodAllocationEntity } from '../../operational-budgets/operational-budget-period-allocation.entity';
+import { CEOAnnotationEntity } from '../../dashboard/annotation.entity';
+
+// Enterprise OPEX Entities
+import { FiscalYearEntity } from '../../finance-core/entities/fiscal-year.entity';
+import { FiscalPeriodEntity } from '../../finance-core/entities/fiscal-period.entity';
+import { DepartmentEntity } from '../../finance-core/entities/department.entity';
+import { CostCenterEntity } from '../../finance-core/entities/cost-center.entity';
+import { AccountClassEntity } from '../../finance-core/entities/account-class.entity';
+import { AccountGroupEntity } from '../../finance-core/entities/account-group.entity';
+import { GLAccountEntity } from '../../finance-core/entities/gl-account.entity';
+import { BudgetLedgerEntity } from '../../finance-core/entities/budget-ledger.entity';
+import { P2PRequisitionEntity } from '../../finance-core/entities/p2p-requisition.entity';
+import { P2PPurchaseOrderEntity } from '../../finance-core/entities/p2p-purchase-order.entity';
+import { P2PInvoiceEntity } from '../../finance-core/entities/p2p-invoice.entity';
+import { PayrollRunEntity } from '../../finance-core/entities/payroll-run.entity';
+import { PayrollLineItemEntity } from '../../finance-core/entities/payroll-line-item.entity';
+import { DocumentControlEntity } from '../entities/document-control.entity';
+import { ReportScheduleEntity } from '../entities/report-schedule.entity';
+import { MessageEntity } from '../../messaging/entities/message.entity';
+import { ConversationEntity } from '../../messaging/entities/conversation.entity';
+import { ConversationMemberEntity } from '../../messaging/entities/conversation-member.entity';
 
 // Define a custom error interface for database errors that include a 'code' property
 interface DbError extends Error {
@@ -25,8 +70,8 @@ class ConnectionCircuitBreaker {
   private state: CircuitState = CircuitState.CLOSED;
   private failureCount = 0;
   private lastFailureTime = 0;
-  private readonly failureThreshold = 5;
-  private readonly recoveryTimeout = 60000; // 60 seconds
+  private readonly failureThreshold = 3; // Aggressive: 3 failures trip the circuit
+  private readonly recoveryTimeout = 30000; // 30 seconds wait before half-open retry
   private readonly logger = new Logger('ConnectionCircuitBreaker');
 
   canAttemptConnection(): boolean {
@@ -73,6 +118,13 @@ class ConnectionCircuitBreaker {
     }
   }
 
+  reset(): void {
+    this.logger.log('Circuit breaker manually reset to CLOSED');
+    this.state = CircuitState.CLOSED;
+    this.failureCount = 0;
+    this.lastFailureTime = 0;
+  }
+
   getState(): CircuitState {
     return this.state;
   }
@@ -85,12 +137,60 @@ class ConnectionCircuitBreaker {
  * @class DatabaseConfig
  */
 export class DatabaseConfig {
+  static getEntities(): any[] {
+    return [
+      UserEntity,
+      RoleEntity,
+      PermissionEntity,
+      AuditLogEntity,
+      TenantEntity,
+      TenantSettingsEntity,
+      ProjectEntity,
+      ProjectInflowEntity,
+      ProjectAuditEntity,
+      LpoEntity,
+      WbsCategoryEntity,
+      WbsBudgetEntity,
+      LiveExpenseEntity,
+      SettingsEntity,
+      OperationalBudgetEntity,
+      OperationalBudgetCategoryEntity,
+      OperationalExpenseEntity,
+      PayrollEntryEntity,
+      BudgetCategoryEntity,
+      OperationalBudgetPeriodAllocationEntity,
+      ClientEntity,
+      CurrencyExchangeRateEntity,
+      CurrencyMetadataEntity,
+      FiscalYearEntity,
+      FiscalPeriodEntity,
+      DepartmentEntity,
+      CostCenterEntity,
+      AccountClassEntity,
+      AccountGroupEntity,
+      GLAccountEntity,
+      BudgetLedgerEntity,
+      P2PRequisitionEntity,
+      P2PPurchaseOrderEntity,
+      P2PInvoiceEntity,
+      PayrollRunEntity,
+      PayrollLineItemEntity,
+      ApprovalLogEntity,
+      CEOAnnotationEntity,
+      DocumentControlEntity,
+      ReportScheduleEntity,
+      MessageEntity,
+      ConversationEntity,
+      ConversationMemberEntity,
+    ];
+  }
+
   private static readonly logger = new Logger('DatabaseConfig');
   private static healthCheckInterval: NodeJS.Timeout;
   private static keepAliveInterval: NodeJS.Timeout;
   private static connectionAttempts = 0;
-  private static readonly MAX_RETRY_ATTEMPTS = 5;
-  private static readonly RETRY_DELAY = 2000;
+  private static readonly MAX_RETRY_ATTEMPTS = 3;
+  private static readonly RETRY_DELAY = 1000;
   private static readonly KEEP_ALIVE_INTERVAL = 45000; // 45s (Keep Neon compute HOT)
   private static dataSourceRef: DataSource | null = null;
   private static circuitBreaker = new ConnectionCircuitBreaker();
@@ -103,9 +203,10 @@ export class DatabaseConfig {
    * @static
    * @param {ConfigService} configService - The NestJS ConfigService for accessing environment variables.
    * @param {any[]} entities - An array of TypeORM entities to be loaded.
+   * @param {number} [maxPoolSize=12] - Optional maximum pool size (default 12).
    * @returns {TypeOrmModuleOptions}
    */
-  static getTypeOrmConfig(configService: ConfigService, entities: any[]): TypeOrmModuleOptions {
+  static getTypeOrmConfig(configService: ConfigService, entities: any[], maxPoolSize: number = 12): TypeOrmModuleOptions {
     // This logic is preserved from the original app.module.ts to ensure consistency
     let databaseUrl = configService.get<string>('DATABASE_URL');
     if (!databaseUrl) {
@@ -124,25 +225,23 @@ export class DatabaseConfig {
       url: databaseUrl,
       ssl: process.env.NODE_ENV === 'production'
         ? { rejectUnauthorized: true }
-        : { rejectUnauthorized: false }, // For development, allow self-signed or unverified certs if needed
+        : { rejectUnauthorized: false }, 
       entities: entities,
       extra: {
         ssl: {
-          sslmode: 'verify-full', // Explicitly set sslmode as recommended
-          // rejectUnauthorized is managed by the top-level ssl config
+          sslmode: process.env.NODE_ENV === 'production' ? 'verify-full' : 'require',
         },
-        max: 6, // Set within Neon's limit (up to 10)
-        min: 2, // Maintain 2 connections ready
-        idleTimeoutMillis: 30000, 
-        connectionTimeoutMillis: 60000, // Increased for Neon cold starts
-        statement_timeout: 45000, // Allow more time for first query after suspend
-        query_timeout: 45000,
+        max: Math.min(maxPoolSize, 8), // Cap production pool to avoid Neon connection churn
+        min: 1, 
+        idleTimeoutMillis: 15000, 
+        connectionTimeoutMillis: 15000, // FAST FAIL: 15s instead of 60s
+        statement_timeout: 25000, // 25s limit
+        query_timeout: 25000,
         idle_in_transaction_session_timeout: 10000,
         keepAlive: true,
         keepAliveInitialDelayMillis: 10000,
         application_name: 'sentinelfi_backend',
-        // DNS Resilience: Manual retry for EAI_AGAIN
-        maxUses: 7500, // Recycle connections to prevent memory fragmentation
+        maxUses: 7500, 
       },
       retryAttempts: this.MAX_RETRY_ATTEMPTS,
       retryDelay: this.RETRY_DELAY,
@@ -152,7 +251,7 @@ export class DatabaseConfig {
         : ['error'],
       cache: {
         type: 'database',
-        duration: 60000, // 1 minute default cache
+        duration: 60000, 
         tableName: 'query_result_cache',
       },
     };
@@ -201,6 +300,9 @@ export class DatabaseConfig {
 
     this.isReconnecting = true;
     this.logger.warn('🔄 Attempting database reconnection...');
+    
+    // Reset circuit breaker to allow the reconnection attempt to actually test the connection
+    this.circuitBreaker.reset();
 
     try {
       // Destroy existing connections
@@ -460,10 +562,19 @@ export class SafeTransaction {
   static async execute<T>(
     dataSource: DataSource,
     callback: (manager: EntityManager) => Promise<T>,
-    timeoutMs: number = 5000
+    timeoutMs: number = 35000
   ): Promise<T> {
+    const startTime = Date.now();
+    const correlationId = getCorrelationId() || 'N/A';
+    this.logger.log(`[SafeTransaction] Starting transaction. Timeout: ${timeoutMs}ms. CID: ${correlationId}`);
+
+    let timeoutId: NodeJS.Timeout;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`Transaction timed out after ${timeoutMs}ms`)), timeoutMs);
+      timeoutId = setTimeout(() => {
+        const msg = `Transaction timed out after ${timeoutMs}ms (CID: ${correlationId})`;
+        this.logger.error(msg);
+        reject(new Error(msg));
+      }, timeoutMs);
     });
 
     try {
@@ -471,11 +582,17 @@ export class SafeTransaction {
         dataSource.transaction(callback),
         timeoutPromise
       ]);
+      const duration = Date.now() - startTime;
+      this.logger.log(`[SafeTransaction] Transaction COMPLETED in ${duration}ms (CID: ${correlationId})`);
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error during transaction';
-      this.logger.error(`Transaction failed: ${errorMessage}`);
-      throw error; // Re-throw to be handled by the calling service
+      const duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[SafeTransaction] Transaction FAILED after ${duration}ms: ${errorMessage} (CID: ${correlationId})`);
+      throw error; 
+    } finally {
+      // @ts-ignore - timeoutId is assigned in the Promise executor
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 }

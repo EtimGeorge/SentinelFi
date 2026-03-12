@@ -1,45 +1,53 @@
+import { Client } from 'pg';
+console.log('Script started...');
 
-import { DataSource } from "typeorm";
-import * as dotenv from "dotenv";
-import * as path from "path";
+const connectionString = 'postgresql://neondb_owner:npg_Zj7Im1SgebkV@ep-spring-feather-ahvamwz8-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require';
 
-// Load environment variables from .env.local if available, otherwise .env
-dotenv.config({ path: path.join(__dirname, "../.env.local") });
-if (!process.env.DATABASE_URL) {
-  dotenv.config({ path: path.join(__dirname, "../.env") });
-}
-
-console.log("Using DATABASE_URL:", process.env.DATABASE_URL ? "Set" : "Not Set");
-
-const dataSource = new DataSource({
-  type: "postgres",
-  url: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
-async function checkColumns() {
-    try {
-        await dataSource.initialize();
-        console.log("Connected to DB.");
-
-        const columns = await dataSource.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_schema = 'public' 
-            AND table_name = 'user'
-        `);
-        
-        console.log("Columns in 'user' table:");
-        console.table(columns);
-
-        const migrations = await dataSource.query(`SELECT * FROM "public_migrations" ORDER BY "id" DESC LIMIT 5`);
-        console.log("Recent Migrations:");
-        console.table(migrations);
-
-        await dataSource.destroy();
-    } catch (error) {
-        console.error("Error:", error);
+async function checkSchema() {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const res = await client.query("SELECT schema_name FROM public.tenant WHERE tenant_id = '28c5e8aa-5270-4299-b062-2414575019b9'");
+    if (res.rows.length === 0) {
+      console.log('Tenant not found');
+      return;
     }
+    const schema = res.rows[0].schema_name;
+    console.log(`Checking schema: ${schema}`);
+    
+    const colRes = await client.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_schema = '${schema}' 
+      AND table_name = 'wbs_budget' 
+      AND column_name = 'uom'
+    `);
+    
+    if (colRes.rows.length > 0) {
+      console.log(`✅ Column 'uom' exists in schema '${schema}'`);
+    } else {
+      console.log(`❌ Column 'uom' DOES NOT exist in schema '${schema}'`);
+    }
+    
+    const metaRes = await client.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_schema = '${schema}' 
+      AND table_name = 'wbs_budget' 
+      AND column_name = 'custom_metadata'
+    `);
+    
+    if (metaRes.rows.length > 0) {
+      console.log(`✅ Column 'custom_metadata' exists in schema '${schema}'`);
+    } else {
+      console.log(`❌ Column 'custom_metadata' DOES NOT exist in schema '${schema}'`);
+    }
+
+  } catch (err) {
+    console.error('Error checking schema:', err);
+  } finally {
+    await client.end();
+  }
 }
 
-checkColumns();
+checkSchema();

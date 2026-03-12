@@ -7,8 +7,7 @@ import { ConfigService } from "@nestjs/config";
 import { Request, Response, NextFunction } from "express";
 import { DataSource } from "typeorm";
 import { DatabaseConfig } from "./common/config/database.config";
-import { CorrelationInterceptor } from './common/interceptors/correlation.interceptor'; // NEW IMPORT
-
+import { RedisIoAdapter } from './messaging/adapters/redis-io.adapter';
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
 
@@ -34,9 +33,13 @@ async function bootstrap() {
 
     app.use(cookieParser());
     app.setGlobalPrefix("api/v1");
+    // Register the Socket.io adapter (with optional Redis for scaling)
+    const redisIoAdapter = new RedisIoAdapter(app);
+    const redisUrl = configService.get<string>('REDIS_URL');
+    await redisIoAdapter.connectToRedis(redisUrl);
+    app.useWebSocketAdapter(redisIoAdapter);
 
-    // Apply correlation interceptor globally (NEW LINE)
-    app.useGlobalInterceptors(new CorrelationInterceptor());
+    // Correlation interceptor is registered globally in AppModule via APP_INTERCEPTOR provider
 
     app.useGlobalPipes(
       new ValidationPipe({
@@ -45,6 +48,9 @@ async function bootstrap() {
         transform: true,
       }),
     );
+
+    const { AllExceptionsFilter } = await import('./common/filters/all-exceptions.filter');
+    app.useGlobalFilters(new AllExceptionsFilter());
 
     if (nodeEnv === "development") {
       app.use((req: Request, res: Response, next: NextFunction) => {

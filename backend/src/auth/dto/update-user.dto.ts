@@ -38,4 +38,12 @@ export class UpdateUserDto implements IUpdateUserPayload {
   @IsString()
   @MinLength(3)
   display_currency_code?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  username?: string;
 }

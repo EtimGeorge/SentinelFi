@@ -55,4 +55,9 @@ export class CreateProjectDto {
   @IsOptional()
   @IsUUID()
   client_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  client_name?: string;
 }

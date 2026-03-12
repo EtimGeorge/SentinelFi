@@ -3,11 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CurrencyService } from './currency.service';
 import { CurrencyController } from './currency.controller';
-import { CurrencyExchangeRateEntity } from './currency.entity';
+import { CurrencyExchangeRateEntity, CurrencyMetadataEntity } from './currency.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CurrencyExchangeRateEntity]),
+    TypeOrmModule.forFeature([CurrencyExchangeRateEntity, CurrencyMetadataEntity]),
     ScheduleModule.forRoot(), // Enable cron scheduling
   ],
   controllers: [CurrencyController],

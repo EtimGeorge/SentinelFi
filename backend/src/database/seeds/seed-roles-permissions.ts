@@ -106,15 +106,15 @@ async function bootstrap() {
         permissions: allPermissions, // SuperAdmin gets all permissions
       },
       {
-        name: Role.Admin, // From shared enum
-        description: 'Tenant administrator with full control over their tenant',
+        name: 'Admin', // Legacy - retained in seeder for backward compatibility with migration
+        description: 'Legacy tenant admin role (migrated to Admin Director)',
         permissions: allPermissions.filter(p =>
           !p.name.startsWith('superadmin:') && !p.name.startsWith('roles:')
-        ), // All tenant-level permissions
+        ),
       },
       {
-          name: Role.Finance, // From shared enum
-          description: 'Tenant user focused on financial oversight and approvals',
+          name: 'Finance', // Legacy - retained in seeder for backward compatibility with migration
+          description: 'Legacy finance oversight role (migrated to Finance Manager)',
           permissions: allPermissions.filter(p =>
               p.name === 'expenses:read' ||
               p.name === 'expenses:approve' ||
@@ -124,6 +124,26 @@ async function bootstrap() {
               p.name === 'wbs:read' ||
               p.name === 'projects:read'
           ),
+      },
+      {
+        name: Role.CFO,
+        description: 'Chief Financial Officer - Ultimate financial authority (Tenant Tier)',
+        permissions: allPermissions.filter(p => !p.name.startsWith('superadmin:') && !p.name.startsWith('users:delete')),
+      },
+      {
+        name: Role.AdminDirector,
+        description: 'Director of Administration - Strategic resource management (Tenant Tier)',
+        permissions: allPermissions.filter(p => !p.name.startsWith('superadmin:') && !p.name.startsWith('expenses:approve')),
+      },
+      {
+        name: Role.OperationalDirector,
+        description: 'Director of Operations - Operational strategy and budget oversight (Tenant Tier)',
+        permissions: allPermissions.filter(p => !p.name.startsWith('superadmin:') && !p.name.startsWith('users:')),
+      },
+      {
+        name: Role.TechnicalDirector,
+        description: 'Director of Technology - Formerly IT Head, technical governance (Tenant Tier)',
+        permissions: allPermissions.filter(p => !p.name.startsWith('superadmin:') && (p.name.startsWith('users:') || p.name === 'reports:read')),
       },
       {
           name: Role.CEO, // From shared enum
@@ -138,8 +158,8 @@ async function bootstrap() {
           ),
       },
       {
-          name: Role.ITHead, // From shared enum
-          description: 'Tenant user responsible for IT-related aspects, user management',
+          name: 'IT Head', // Legacy - retained in seeder for backward compatibility with migration
+          description: 'Legacy IT management role (migrated to Technical Director)',
           permissions: allPermissions.filter(p =>
               p.name.startsWith('users:') ||
               p.name === 'tenant_settings:read' ||
@@ -147,17 +167,43 @@ async function bootstrap() {
           ),
       },
       {
-          name: Role.OperationalHead, // From shared enum
-          description: 'Tenant user overseeing operational budgets and project execution',
-          permissions: allPermissions.filter(p =>
-              p.name === 'operational_budgets:create' ||
-              p.name === 'operational_budgets:read' ||
-              p.name === 'operational_budgets:update' ||
-              p.name === 'projects:read' ||
-              p.name === 'wbs:read' ||
-              p.name === 'expenses:read' ||
-              p.name === 'reports:read'
+          name: Role.FinanceManager,
+          description: 'Finance Manager - Operational financial control and primary approvals (Tenant Tier)',
+          permissions: allPermissions.filter(p => 
+            p.name.startsWith('expenses:') || 
+            p.name.startsWith('operational_budgets:') || 
+            p.name.startsWith('reports:') ||
+            p.name.startsWith('wbs:')
           ),
+      },
+      {
+          name: Role.AdminManager,
+          description: 'Admin Manager - Human resources and administrative operations (Tenant Tier)',
+          permissions: allPermissions.filter(p => p.name.startsWith('users:') || p.name === 'reports:read'),
+      },
+      {
+          name: Role.ProjectManager,
+          description: 'Project Manager - Project-level WBS and budget management (Tenant Tier)',
+          permissions: allPermissions.filter(p => 
+            p.name.startsWith('projects:') || 
+            p.name.startsWith('wbs:') || 
+            p.name === 'expenses:read' || 
+            p.name === 'reports:read'
+          ),
+      },
+      {
+          name: Role.FinanceOfficer,
+          description: 'Finance Officer - Data entry and initial verification (Tenant Tier)',
+          permissions: allPermissions.filter(p => 
+            p.name === 'expenses:create' || 
+            p.name === 'expenses:read' || 
+            p.name === 'wbs:read'
+          ),
+      },
+      {
+          name: Role.AdminOfficer,
+          description: 'Admin Officer - Basic user support and administrative tasks (Tenant Tier)',
+          permissions: allPermissions.filter(p => p.name === 'users:read'),
       },
       {
           name: Role.AssignedProjectUser, // From shared enum

@@ -17,9 +17,10 @@ const config: DataSourceOptions = {
     path.resolve(__dirname, 'src/audit/audit.entity.ts'),
     path.resolve(__dirname, 'src/auth/role.entity.ts'),
     path.resolve(__dirname, 'src/auth/permission.entity.ts'),
+    path.resolve(__dirname, 'src/common/entities/approval-log.entity.ts'),
   ],
   migrations: [
-    path.resolve(process.cwd(), 'backend/src/migrations/public/*.ts'), // Public schema migrations
+    path.resolve(__dirname, 'src/migrations/public/*.ts'), // Public schema migrations
   ],
   migrationsTableName: 'public_migrations', // Dedicated migrations table for public schema
   synchronize: false, // Should always be false for production

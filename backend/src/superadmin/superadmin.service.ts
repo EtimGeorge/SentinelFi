@@ -209,7 +209,7 @@ export class SuperAdminService {
       where: { 
         tenant_id: tenantId,
         roles: {
-          name: Role.Admin
+          name: Role.AdminDirector
         }
       },
       relations: ['roles']
@@ -233,7 +233,7 @@ export class SuperAdminService {
     const adminUsers = await this.userRepository.createQueryBuilder("user")
         .innerJoin("user.roles", "role")
         .where("user.tenant_id = :tenantId", { tenantId })
-        .andWhere("role.name = :roleName", { roleName: Role.Admin })
+        .andWhere("role.name IN (:...roleNames)", { roleNames: [Role.AdminDirector, Role.CEO] })
         .select(['user.id', 'user.email', 'user.first_name', 'user.last_name'])
         .take(5)
         .getMany();
@@ -600,8 +600,8 @@ export class SuperAdminService {
     });
     if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found.`);
 
-    const adminUser = tenant.users.find(u => u.roles.some(r => r.name === Role.Admin));
-    if (!adminUser) throw new NotFoundException('No Admin user found for this tenant.');
+    const adminUser = tenant.users.find(u => u.roles.some(r => r.name === Role.AdminDirector || r.name === Role.CEO));
+    if (!adminUser) throw new NotFoundException('No AdminDirector or CEO user found for this tenant.');
 
     // 1. Hash the new password
     const salt = await bcrypt.genSalt(10);

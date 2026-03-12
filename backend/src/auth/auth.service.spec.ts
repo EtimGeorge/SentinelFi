@@ -291,7 +291,7 @@ describe('AuthService - REAL Implementation Tests', () => {
         roles: [
           {
             id: 'role-123',
-            name: Role.Admin, // NOT SuperAdmin
+            name: Role.AdminDirector, // NOT SuperAdmin
             description: 'Admin role',
             permissions: [{ id: 'perm-1', name: 'read_users' }],
           } as RoleEntity
@@ -698,7 +698,7 @@ function createTestTenantAdmin(tenantId: string = 'tenant-123'): UserEntity {
     roles: [
       {
         id: 'admin-role',
-        name: Role.Admin,
+        name: Role.AdminDirector,
         description: 'Tenant Admin',
         permissions: [],
         created_at: new Date(),

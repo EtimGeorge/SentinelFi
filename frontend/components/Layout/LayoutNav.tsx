@@ -9,6 +9,7 @@ import { WbsBudget } from '../../../shared/types/wbs'; // CORRECTED IMPORT
 import { User } from '../../../shared/types/user'; // CORRECTED IMPORT
 import { LiveExpense } from '../../../shared/types/expense'; // CORRECTED IMPORT
 import { CurrencySelector } from '../common/CurrencySelector'; // Currency Switcher
+import useGlobalStore from '../../store/globalStore';
 
 const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -38,6 +39,21 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const api = useSecuredApi();
   const unreadNotificationsCount = useUIStore((state) => state.unreadNotificationsCount);
+  const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
+  const [projects, setProjects] = useState<{ project_id: string; project_name: string }[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchProjects = async () => {
+      try {
+        const res = await api.get('/projects?limit=100');
+        setProjects(res.data.projects || []);
+      } catch (error) {
+        // Ignore aborts
+      }
+    };
+    fetchProjects();
+  }, [api, user]);
 
   const performSearch = useCallback(async (term: string) => {
     if (term.length > 2) {
@@ -119,7 +135,22 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
       </div>
 
       <div className="flex items-center">
-        <div className="mr-2">
+        {/* Project Selector */}
+        <div className="mr-1 sm:mr-2">
+          <select
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            className="bg-brand-dark/80 border border-gray-700 rounded-lg py-1.5 px-2 text-[10px] sm:text-xs text-brand-primary font-bold focus:border-brand-primary outline-none transition cursor-pointer max-w-[100px] sm:max-w-[150px] truncate"
+            title="Active Project Context"
+          >
+            <option value="all">All Projects</option>
+            {projects.map(p => (
+              <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mr-1 sm:mr-2">
           <CurrencySelector />
         </div>
         <Tooltip content="Notifications" position="bottom">

@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useSecuredApi } from '../../../components/hooks/useSecuredApi';
+import toast from 'react-hot-toast';
+import api from '../../../lib/api';
 import PageContainer from '../../../components/Layout/PageContainer';
 import Card from '../../../components/common/Card';
-import { formatCurrency } from '../../../lib/utils';
+// Replaced by useCurrency convertToDisplay in main content area
 import { useFormAutoSave } from '../../../lib/formAutoSave';
 import {
     ArrowLeft,
@@ -16,10 +17,7 @@ import {
     FileText,
     Plus,
     DollarSign,
-    TrendingUp,
     TrendingDown,
-    Percent,
-    ExternalLink,
     AlertCircle,
     History,
     CreditCard,
@@ -31,7 +29,7 @@ import {
 } from 'lucide-react';
 import { WbsBudget } from '@shared/types/wbs';
 import { LiveExpense } from '@shared/types/expense';
-import { Project } from '@shared/types/project';
+import { Project, ProjectStatus } from '@shared/types/project';
 import Modal from '../../../components/common/Modal';
 import Button from '../../../components/common/Button';
 import Input from '../../../components/common/Input';
@@ -48,7 +46,12 @@ import {
     Tooltip,
     ResponsiveContainer,
     Legend,
-    Cell
+    Cell,
+    PieChart,
+    Pie,
+    Area,
+    ComposedChart,
+    Line
 } from 'recharts';
 
 // Interface for Project details (from /projects/:id)
@@ -99,8 +102,8 @@ interface AuditLog {
 const ProjectOverviewPage: React.FC = () => {
     const router = useRouter();
     const { id } = router.query; // This will be the project_id
-    const api = useSecuredApi();
-    const { displayCurrency } = useCurrency();
+    const apiRef = useRef(api);
+    const { userCurrency, convertToDisplay, convertAmount } = useCurrency();
 
     const [project, setProject] = useState<ProjectDetail | null>(null);
     const [budgets, setBudgets] = useState<WbsBudget[]>([]);
@@ -135,45 +138,54 @@ const ProjectOverviewPage: React.FC = () => {
         description: ''
     });
 
-    const fetchProjectData = useCallback(async () => {
+    // Expense Correction State
+    const [selectedExpense, setSelectedExpense] = useState<LiveExpense | null>(null);
+    const [isDeleteExpenseModalOpen, setIsDeleteExpenseModalOpen] = useState(false);
+    const [isEditExpenseModalOpen, setIsEditExpenseModalOpen] = useState(false);
+    const [editExpenseAmount, setEditExpenseAmount] = useState('');
+    const [editExpenseDescription, setEditExpenseDescription] = useState('');
+    const [isSubmittingCorrection, setIsSubmittingCorrection] = useState(false);
+
+    const fetchProjectData = useCallback(async (signal?: AbortSignal) => {
         if (!id) return;
         setLoading(true);
         setError(null);
         try {
             // Fetch project details with rollups
-            const projectResponse = await api.get<ProjectDetail>(`/projects/${id}/rollup`);
+            const projectResponse = await apiRef.current.get<ProjectDetail>(`/projects/${id}/rollup`, { signal });
             setProject(projectResponse.data);
 
             // Fetch cashflow heatmap data
-            const cfResponse = await api.get<CashFlowPoint[]>(`/projects/${id}/cashflow`);
+            const cfResponse = await apiRef.current.get<CashFlowPoint[]>(`/projects/${id}/cashflow`, { signal });
             setCashflow(cfResponse.data);
 
             // Fetch associated budgets using projectId filter
-            const budgetsResponse = await api.get<{ data: WbsBudget[], total: number }>(`/wbs/budgets?projectId=${id}&limit=1000`);
+            const budgetsResponse = await apiRef.current.get<{ data: WbsBudget[], total: number }>(`/wbs/budgets?projectId=${id}&limit=100`, { signal });
             setBudgets(budgetsResponse.data.data);
 
             // Fetch associated expenses using projectId filter
-            const expensesResponse = await api.get<{ data: LiveExpense[], total: number }>(`/wbs/expenses?projectId=${id}&limit=1000`);
+            const expensesResponse = await apiRef.current.get<{ data: LiveExpense[], total: number }>(`/wbs/expenses?projectId=${id}&limit=100`, { signal });
             setExpenses(expensesResponse.data.data);
 
             // Fetch LPOs
-            const lposResponse = await api.get<LpoData[]>(`/projects/${id}/lpos`);
+            const lposResponse = await apiRef.current.get<LpoData[]>(`/projects/${id}/lpos`, { signal });
             setLpos(lposResponse.data);
 
             // Fetch Inflows raw
-            const inflowsResponse = await api.get<InflowData[]>(`/projects/${id}/inflows`);
+            const inflowsResponse = await apiRef.current.get<InflowData[]>(`/projects/${id}/inflows`, { signal });
             setInflowsRaw(inflowsResponse.data);
 
             // Fetch Audit Logs
-            const auditsResponse = await api.get<AuditLog[]>(`/projects/${id}/audits`);
+            const auditsResponse = await apiRef.current.get<AuditLog[]>(`/projects/${id}/audits`, { signal });
             setAudits(auditsResponse.data);
 
         } catch (e: any) {
+            if (e.name === 'CanceledError' || e.code === 'ERR_CANCELED') return;
             setError(`Failed to fetch project details: ${e.response?.data?.message || e.message}`);
         } finally {
             setLoading(false);
         }
-    }, [id, api]);
+    }, [id]);
 
     // Restore expense draft when modal opens
     useEffect(() => {
@@ -197,13 +209,13 @@ const ProjectOverviewPage: React.FC = () => {
 
     const handleLogExpense = async () => {
         if (!expenseForm.description || !expenseForm.amount || !expenseForm.wbs_id) {
-            alert('Please fill in all required fields.');
+            toast.error('Please fill in all required fields.');
             return;
         }
 
         setIsSubmittingExpense(true);
         try {
-            await api.post('/wbs/expense/live-entry', {
+            await apiRef.current.post('/wbs/expense/live-entry', {
                 ...expenseForm,
                 actual_paid_amount: Number(expenseForm.amount),
             });
@@ -217,7 +229,7 @@ const ProjectOverviewPage: React.FC = () => {
             });
             fetchProjectData();
         } catch (e: any) {
-            alert(`Error logging expense: ${e.response?.data?.message || e.message}`);
+            toast.error(`Error logging expense: ${e.response?.data?.message || e.message}`);
         } finally {
             setIsSubmittingExpense(false);
         }
@@ -225,12 +237,12 @@ const ProjectOverviewPage: React.FC = () => {
 
     const handleLogInflow = async () => {
         if (!inflowForm.milestone_name || !inflowForm.amount_received) {
-            alert('Please fill in required fields.');
+            toast.error('Please fill in required fields.');
             return;
         }
         setIsSubmittingInflow(true);
         try {
-            await api.post(`/projects/${id}/inflow`, inflowDataMapper(inflowForm));
+            await apiRef.current.post(`/projects/${id}/inflow`, inflowDataMapper(inflowForm));
             clearInflowData(); // Clear auto-save on success
             setIsInflowModalOpen(false);
             setInflowForm({
@@ -241,7 +253,7 @@ const ProjectOverviewPage: React.FC = () => {
             });
             fetchProjectData();
         } catch (e: any) {
-            alert(`Error logging inflow: ${e.message}`);
+            toast.error(`Error logging inflow: ${e.message}`);
         } finally {
             setIsSubmittingInflow(false);
         }
@@ -253,7 +265,9 @@ const ProjectOverviewPage: React.FC = () => {
     });
 
     useEffect(() => {
-        fetchProjectData();
+        const controller = new AbortController();
+        fetchProjectData(controller.signal);
+        return () => controller.abort();
     }, [fetchProjectData]);
 
     const handlePrint = () => {
@@ -262,7 +276,7 @@ const ProjectOverviewPage: React.FC = () => {
 
     const handleDownloadBudgets = async () => {
         try {
-            const response = await api.get(`/wbs/budgets/export?projectId=${id}`, { responseType: 'blob' });
+            const response = await apiRef.current.get(`/wbs/budgets/export?projectId=${id}`, { responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
@@ -271,13 +285,13 @@ const ProjectOverviewPage: React.FC = () => {
             link.click();
             link.remove();
         } catch (e: any) {
-            alert(`Failed to download budgets: ${e.response?.data?.message || e.message}`);
+            toast.error(`Failed to download budgets: ${e.response?.data?.message || e.message}`);
         }
     };
 
     const handleExportExpenses = async (format: 'csv' | 'pdf' | 'xlsx' = 'csv') => {
         try {
-            const response = await api.get(`/wbs/expenses/export?projectId=${id}&format=${format}`, { responseType: 'blob' });
+            const response = await apiRef.current.get(`/wbs/expenses/export?projectId=${id}&format=${format}`, { responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
@@ -287,41 +301,64 @@ const ProjectOverviewPage: React.FC = () => {
             link.click();
             link.remove();
         } catch (e: any) {
-            alert(`Failed to download expenses: ${e.response?.data?.message || e.message}`);
+            toast.error(`Failed to download expenses: ${e.response?.data?.message || e.message}`);
         }
     };
 
     const handleEditBudget = (wbs_id: string) => {
         console.log(`Edit budget: ${wbs_id}`);
-        alert(`Edit functionality for budget ${wbs_id} is not yet implemented.`);
+        toast('Budget editing coming in next release.', { icon: '🚧' });
     };
 
     const handleDeleteBudget = async (wbs_id: string) => {
         if (window.confirm(`Are you sure you want to delete WBS Budget ID: ${wbs_id}? This action cannot be undone.`)) {
             try {
-                await api.delete(`/wbs/budget-draft/${wbs_id}`);
-                alert('Budget deleted successfully!');
+                await apiRef.current.delete(`/wbs/budget-draft/${wbs_id}`);
+                toast.success('Budget deleted successfully!');
                 fetchProjectData();
             } catch (e: any) {
-                alert(`Failed to delete budget: ${e.response?.data?.message || e.message}`);
+                toast.error(`Failed to delete budget: ${e.response?.data?.message || e.message}`);
             }
         }
     };
 
-    const handleEditExpense = (expense_id: number) => {
-        console.log(`Edit expense: ${expense_id}`);
-        alert(`Edit functionality for expense ${expense_id} is not yet implemented.`);
+    const handleEditExpense = (expense: LiveExpense) => {
+        setSelectedExpense(expense);
+        setEditExpenseAmount(expense.amount.toString());
+        setEditExpenseDescription(expense.description);
+        setIsEditExpenseModalOpen(true);
     };
 
-    const handleDeleteExpense = async (expense_id: number) => {
-        if (window.confirm(`Are you sure you want to delete Live Expense ID: ${expense_id}? This action cannot be undone.`)) {
-            try {
-                await api.delete(`/wbs/expense/live-entry/${expense_id}`);
-                alert('Expense deleted successfully!');
-                fetchProjectData();
-            } catch (e: any) {
-                alert(`Failed to delete expense: ${e.response?.data?.message || e.message}`);
-            }
+    const handleUpdateExpenseSubmission = async () => {
+        if (!selectedExpense) return;
+        setIsSubmittingCorrection(true);
+        try {
+            await apiRef.current.patch(`/wbs/expense/live-entry/${selectedExpense.id}`, {
+                amount: parseFloat(editExpenseAmount),
+                description: editExpenseDescription,
+            });
+            toast.success("Expense corrected. WBS metrics recalibrated.");
+            setIsEditExpenseModalOpen(false);
+            fetchProjectData();
+        } catch (e: any) {
+            toast.error(`Correction failed: ${e.response?.data?.message || e.message}`);
+        } finally {
+            setIsSubmittingCorrection(false);
+        }
+    };
+
+    const handleDeleteExpenseFinal = async () => {
+        if (!selectedExpense) return;
+        setIsSubmittingCorrection(true);
+        try {
+            await apiRef.current.delete(`/wbs/expense/live-entry/${selectedExpense.id}`);
+            toast.success('Expense recalled. Budget actuals reverted!');
+            setIsDeleteExpenseModalOpen(false);
+            fetchProjectData();
+        } catch (e: any) {
+            toast.error(`Failed to delete expense: ${e.response?.data?.message || e.message}`);
+        } finally {
+            setIsSubmittingCorrection(false);
         }
     };
 
@@ -420,7 +457,7 @@ const ProjectOverviewPage: React.FC = () => {
                         <div
                             className="absolute top-1/2 left-0 h-0.5 bg-brand-primary -translate-y-1/2 z-0 transition-all duration-1000"
                             style={{
-                                width: project.status === 'ARCHIVED' ? '100%' :
+                                width: project.status === ProjectStatus.COMPLETED ? '100%' :
                                     expenses.length > 0 ? '75%' :
                                         budgets.length > 0 ? '50%' : '25%'
                             }}
@@ -430,11 +467,11 @@ const ProjectOverviewPage: React.FC = () => {
                             { label: 'Initiation', desc: 'SOW & Setup', icon: Briefcase, active: true },
                             { label: 'Budgeting', desc: 'WBS Allocation', icon: Layers, active: budgets.length > 0 },
                             { label: 'Execution', desc: 'Disbursements', icon: Zap, active: expenses.length > 0 },
-                            { label: 'Closure', desc: 'Audit & Archive', icon: ShieldCheck, active: project.status === 'ARCHIVED' }
+                            { label: 'Closure', desc: 'Audit & Archive', icon: ShieldCheck, active: project.status === ProjectStatus.COMPLETED }
                         ].map((step, i) => (
                             <div key={i} className="relative z-10 flex flex-col items-center">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 shadow-xl ${step.active ? 'bg-brand-primary border-brand-primary text-white scale-110 shadow-brand-primary/20' : 'bg-brand-dark border-gray-700 text-gray-500'}`}>
-                                    {step.active && project.status === 'ARCHIVED' && i < 3 ? <Check className="w-5 h-5" /> : <step.icon className="w-5 h-5" />}
+                                    {step.active && project.status === ProjectStatus.COMPLETED && i < 3 ? <Check className="w-5 h-5" /> : <step.icon className="w-5 h-5" />}
                                 </div>
                                 <div className="mt-3 text-center">
                                     <p className={`text-[10px] font-black uppercase tracking-widest ${step.active ? 'text-white' : 'text-gray-500'}`}>{step.label}</p>
@@ -521,13 +558,47 @@ const ProjectOverviewPage: React.FC = () => {
                                                     <Printer className="w-6 h-6 text-brand-primary mb-2" />
                                                     <span className="text-xs font-bold text-gray-300">Print Page</span>
                                                 </button>
+                                                <Link href="/wbs-manager" className="flex flex-col items-center justify-center p-4 bg-brand-primary/10 rounded-xl hover:bg-brand-primary/20 transition border border-brand-primary/30">
+                                                    <Layers className="w-6 h-6 text-brand-primary mb-2" />
+                                                    <span className="text-xs font-bold text-brand-primary">Master Builder</span>
+                                                </Link>
                                             </div>
                                         </Card>
-                                        <Card title="Audit Data" borderTopColor="primary" className="border border-gray-700">
-                                            <div className="space-y-2 text-sm">
-                                                <div className="flex justify-between"><span className="text-gray-500">Owner:</span> <span className="text-white">{project.createdBy?.email}</span></div>
-                                                <div className="flex justify-between"><span className="text-gray-500">Created:</span> <span className="text-white">{new Date(project.created_at).toLocaleDateString()}</span></div>
+                                        <Card title="Budget Health Index" borderTopColor="primary" className="border border-gray-700 flex flex-col items-center justify-center">
+                                            <div className="h-40 w-full relative">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={[
+                                                                { value: Math.min(project.total_budgeted_rollup, project.contract_value) },
+                                                                { value: Math.max(0, project.contract_value - project.total_budgeted_rollup) }
+                                                            ]}
+                                                            cx="50%"
+                                                            cy="80%"
+                                                            startAngle={180}
+                                                            endAngle={0}
+                                                            innerRadius={60}
+                                                            outerRadius={80}
+                                                            paddingAngle={0}
+                                                            dataKey="value"
+                                                        >
+                                                            <Cell fill={project.total_budgeted_rollup > project.contract_value ? '#EF4444' : '#10B981'} />
+                                                            <Cell fill="#1F2937" />
+                                                        </Pie>
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                                <div className="absolute inset-0 flex flex-col items-center justify-end pb-4">
+                                                    <p className="text-2xl font-black text-white">
+                                                        {((project.total_budgeted_rollup / (project.contract_value || 1)) * 100).toFixed(0)}%
+                                                    </p>
+                                                    <p className="text-[10px] text-gray-500 uppercase font-black">Capacity Used</p>
+                                                </div>
                                             </div>
+                                            <p className="text-xs text-gray-400 mt-2 text-center">
+                                                {project.total_budgeted_rollup > project.contract_value
+                                                    ? 'Over-allocated! Variance detected.'
+                                                    : 'Healthy budget allocation.'}
+                                            </p>
                                         </Card>
                                     </div>
                                 </div>
@@ -553,15 +624,15 @@ const ProjectOverviewPage: React.FC = () => {
                                             <div className="space-y-3">
                                                 <div className="flex justify-between text-xs">
                                                     <span className="text-gray-400">Contract Value</span>
-                                                    <span className="text-white font-mono">{formatCurrency(project.contract_value)}</span>
+                                                    <span className="text-white font-mono">{convertToDisplay(project.contract_value, project.currency || 'NGN')}</span>
                                                 </div>
                                                 <div className="flex justify-between text-xs">
                                                     <span className="text-gray-400">Total Budget (Costs)</span>
-                                                    <span className="text-red-400 font-mono">{formatCurrency(project.total_budgeted_rollup)}</span>
+                                                    <span className="text-red-400 font-mono">{convertToDisplay(project.total_budgeted_rollup, project.currency || 'NGN')}</span>
                                                 </div>
                                                 <div className="pt-2 border-t border-gray-800 flex justify-between text-sm font-bold">
                                                     <span className="text-gray-300">Target Profit</span>
-                                                    <span className="text-green-400 font-mono">{formatCurrency(project.contract_value - project.total_budgeted_rollup)}</span>
+                                                    <span className="text-green-400 font-mono">{convertToDisplay(project.contract_value - project.total_budgeted_rollup, project.currency || 'NGN')}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -572,7 +643,7 @@ const ProjectOverviewPage: React.FC = () => {
                                             <div className="flex justify-between items-center">
                                                 <div>
                                                     <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Invoiced/Received</label>
-                                                    <p className="text-2xl font-bold text-white">{formatCurrency(project.total_inflow_rollup)}</p>
+                                                    <p className="text-2xl font-bold text-white">{convertToDisplay(project.total_inflow_rollup, project.currency || 'NGN')}</p>
                                                 </div>
                                                 <Button variant="secondary" size="sm" onClick={() => setIsInflowModalOpen(true)}>
                                                     <Plus className="w-3 h-3 mr-1" /> Inflow
@@ -586,7 +657,7 @@ const ProjectOverviewPage: React.FC = () => {
                                                 />
                                             </div>
                                             <p className="text-[10px] text-gray-500 text-center uppercase tracking-tighter">
-                                                Liquidity: {formatCurrency(project.total_inflow_rollup - project.total_paid_rollup)} available
+                                                Liquidity: {convertToDisplay(project.total_inflow_rollup - project.total_paid_rollup, project.currency || 'NGN')} available
                                             </p>
                                         </div>
                                     </Card>
@@ -633,21 +704,70 @@ const ProjectOverviewPage: React.FC = () => {
                                     </Card>
                                 </div>
                             </div>
-                            <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
-                                <Card title="Monthly Cash Flow Heatmap (Inflow vs Outflow)" borderTopColor="secondary" className="border border-gray-700">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                                <Card title="Project Financial Trajectory (Burn-up)" borderTopColor="primary" className="border border-gray-700">
                                     <div className="h-[300px] w-full mt-4">
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={cashflow.map(cf => ({ ...cf, name: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][cf.month - 1] }))}>
+                                            <ComposedChart data={(() => {
+                                                //const { convertAmount } = useCurrency();
+                                                let cumulativeOutflow = 0;
+                                                return cashflow.map(cf => {
+                                                    cumulativeOutflow += cf.outflow;
+                                                    return {
+                                                        name: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][cf.month - 1],
+                                                        budget: convertAmount(project?.total_budgeted_rollup || 0, project?.currency || 'NGN', userCurrency.code),
+                                                        actual: convertAmount(cumulativeOutflow, project?.currency || 'NGN', userCurrency.code)
+                                                    };
+                                                });
+                                            })()}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
                                                 <XAxis dataKey="name" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
-                                                <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(value) => `${value / 1000}k`} />
+                                                <YAxis
+                                                    stroke="#9CA3AF"
+                                                    fontSize={11}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    tickFormatter={(value) => `${userCurrency.symbol}${value / 1000}k`}
+                                                />
                                                 <Tooltip
                                                     contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px' }}
                                                     itemStyle={{ fontSize: '12px' }}
+                                                    formatter={(value: number) => [convertToDisplay(value), '']}
                                                 />
                                                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }} />
-                                                <Bar dataKey="inflow" name="Cash In (Inflow)" fill="#10B981" radius={[4, 4, 0, 0]} />
-                                                <Bar dataKey="outflow" name="Cash Out (Expenses)" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                                                <Area type="monotone" dataKey="budget" name="Total Budgeted" fill="#1F2937" stroke="#374151" />
+                                                <Line type="monotone" dataKey="actual" name="Cumulative Spend" stroke="#EF4444" strokeWidth={3} dot={{ r: 4, fill: '#EF4444' }} />
+                                            </ComposedChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </Card>
+
+                                <Card title="Monthly Cash Flow Heatmap" borderTopColor="secondary" className="border border-gray-700">
+                                    <div className="h-[300px] w-full mt-4">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={cashflow.map(cf => ({
+                                                ...cf,
+                                                name: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][cf.month - 1],
+                                                inflow: convertAmount(cf.inflow, project?.currency || 'NGN', userCurrency.code),
+                                                outflow: convertAmount(cf.outflow, project?.currency || 'NGN', userCurrency.code)
+                                            }))}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                                                <XAxis dataKey="name" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
+                                                <YAxis
+                                                    stroke="#9CA3AF"
+                                                    fontSize={11}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    tickFormatter={(value) => `${userCurrency.symbol}${value / 1000}k`}
+                                                />
+                                                <Tooltip
+                                                    contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px' }}
+                                                    itemStyle={{ fontSize: '12px' }}
+                                                    formatter={(value: number) => [convertToDisplay(value), '']}
+                                                />
+                                                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }} />
+                                                <Bar dataKey="inflow" name="Cash In" fill="#10B981" radius={[4, 4, 0, 0]} />
+                                                <Bar dataKey="outflow" name="Cash Out" fill="#EF4444" radius={[4, 4, 0, 0]} />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -687,7 +807,7 @@ const ProjectOverviewPage: React.FC = () => {
                                                     <tr key={budget.wbs_id} className="hover:bg-gray-700/50 transition">
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-brand-primary">{budget.wbs_code}</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{budget.description}</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white font-mono">{formatCurrency(budget.total_cost_budgeted)}</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white font-mono">{convertToDisplay(budget.total_cost_budgeted, project.currency || 'NGN')}</td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className={`px-2 py-1 inline-flex text-[10px] leading-4 font-bold rounded-md border
                                         ${budget.status === 'approved' ? 'bg-green-900/20 text-green-400 border-green-800' : 'bg-yellow-900/20 text-yellow-400 border-yellow-800'}`}>
@@ -740,17 +860,20 @@ const ProjectOverviewPage: React.FC = () => {
                                             </thead>
                                             <tbody className="divide-y divide-gray-700">
                                                 {expenses.map(expense => (
-                                                    <tr key={expense.expense_id} className="hover:bg-gray-700/50 transition">
+                                                    <tr key={expense.id} className="hover:bg-gray-700/50 transition group">
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-white font-medium">{expense.description}</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{new Date(expense.expense_date).toLocaleDateString()}</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white font-mono font-bold">{formatCurrency(expense.actual_paid_amount)}</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white font-mono font-bold">{convertToDisplay(expense.amount, project.currency || 'NGN')}</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-center">
                                                             <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${expense.variance_flag ? 'bg-red-900/30 text-red-500 border border-red-800' : 'bg-gray-800 text-gray-500'}`}>
                                                                 {expense.variance_flag ? expense.variance_flag.replace(/_/g, ' ') : 'NORMAL'}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                            <button onClick={() => handleDeleteExpense(expense.expense_id)} className="text-gray-500 hover:text-red-400 transition"><Trash2 className="w-4 h-4" /></button>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button onClick={() => handleEditExpense(expense)} className="text-brand-primary hover:text-white transition"><Edit className="w-4 h-4" /></button>
+                                                                <button onClick={() => { setSelectedExpense(expense); setIsDeleteExpenseModalOpen(true); }} className="text-gray-500 hover:text-red-400 transition"><Trash2 className="w-4 h-4" /></button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -767,7 +890,7 @@ const ProjectOverviewPage: React.FC = () => {
                             <Card title="Committed Costs (LPOs)" borderTopColor="secondary" className="border border-gray-700 bg-brand-dark/10">
                                 <div className="flex justify-between items-center mb-6">
                                     <p className="text-sm text-gray-400 font-medium">Track legal commitments and pending payments to vendors.</p>
-                                    <Button variant="secondary" size="sm" onClick={() => alert('LPO creation not yet linked here.')}>
+                                    <Button variant="secondary" size="sm" onClick={() => toast('LPO creation coming in next release.', { icon: '🚧' })}>
                                         <Plus className="w-4 h-4 mr-1" /> New LPO
                                     </Button>
                                 </div>
@@ -792,8 +915,8 @@ const ProjectOverviewPage: React.FC = () => {
                                                     <tr key={lpo.id} className="hover:bg-gray-700/50 transition">
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-brand-primary font-mono">{lpo.lpo_number}</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{lpo.vendor_name}</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white font-mono">{formatCurrency(lpo.amount_committed)}</td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-400 font-mono">{formatCurrency(lpo.amount_paid)}</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white font-mono">{convertToDisplay(lpo.amount_committed, project.currency || 'NGN')}</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-400 font-mono">{convertToDisplay(lpo.amount_paid, project.currency || 'NGN')}</td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className={`px-2 py-1 text-[10px] font-bold rounded capitalize border ${lpo.status === 'OPEN' ? 'border-yellow-800 text-yellow-500 bg-yellow-900/10' : 'border-green-800 text-green-500 bg-green-900/10'}`}>
                                                                 {lpo.status}
@@ -841,7 +964,7 @@ const ProjectOverviewPage: React.FC = () => {
                                                             <div className="text-sm font-bold text-white">{inf.milestone_name}</div>
                                                             <div className="text-[10px] text-gray-500 lowercase">{inf.description}</div>
                                                         </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-400 font-mono font-bold">{formatCurrency(inf.amount_received)}</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-400 font-mono font-bold">{convertToDisplay(inf.amount_received, project.currency || 'NGN')}</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-[10px] text-gray-500">{inf.receivedBy?.email || 'System'}</td>
                                                     </tr>
                                                 ))}
@@ -879,13 +1002,13 @@ const ProjectOverviewPage: React.FC = () => {
                                                         {audit.old_value !== null && (
                                                             <div className="text-xs">
                                                                 <span className="text-gray-500 mr-2">Old:</span>
-                                                                <span className="text-gray-400 font-mono">{formatCurrency(audit.old_value)}</span>
+                                                                <span className="text-gray-400 font-mono">{convertToDisplay(audit.old_value)}</span>
                                                             </div>
                                                         )}
                                                         {audit.new_value !== null && (
                                                             <div className="text-xs">
                                                                 <span className="text-gray-500 mr-2">New:</span>
-                                                                <span className="text-brand-primary font-mono font-bold">{formatCurrency(audit.new_value)}</span>
+                                                                <span className="text-brand-primary font-mono font-bold">{convertToDisplay(audit.new_value)}</span>
                                                             </div>
                                                         )}
                                                     </div>
@@ -902,18 +1025,18 @@ const ProjectOverviewPage: React.FC = () => {
             </PageContainer >
 
             {/* Log Expense Modal */}
-            < Modal
+            <Modal
                 isOpen={isExpenseModalOpen}
                 onClose={() => setIsExpenseModalOpen(false)}
                 title="Log New Project Expense"
                 size="md"
                 footer={
-                    < div className="flex justify-end space-x-3 w-full" >
+                    <div className="flex justify-end space-x-3 w-full">
                         <Button variant="secondary" onClick={() => setIsExpenseModalOpen(false)}>Cancel</Button>
                         <Button variant="primary" onClick={handleLogExpense} disabled={isSubmittingExpense}>
                             {isSubmittingExpense ? 'Logging...' : 'Confirm Payment'}
                         </Button>
-                    </div >
+                    </div>
                 }
             >
                 <div className="space-y-4">
@@ -948,7 +1071,7 @@ const ProjectOverviewPage: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-4">
                         <Input
-                            label={`Amount (${displayCurrency})`}
+                            label={`Amount (${userCurrency.code})`}
                             type="number"
                             value={expenseForm.amount}
                             onChange={(e) => {
@@ -978,21 +1101,21 @@ const ProjectOverviewPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            </Modal >
+            </Modal>
 
             {/* Log Inflow Modal */}
-            < Modal
+            <Modal
                 isOpen={isInflowModalOpen}
                 onClose={() => setIsInflowModalOpen(false)}
                 title="Log Project Inflow (Milestone Payment)"
                 size="md"
                 footer={
-                    < div className="flex justify-end space-x-3 w-full" >
+                    <div className="flex justify-end space-x-3 w-full">
                         <Button variant="secondary" onClick={() => setIsInflowModalOpen(false)}>Cancel</Button>
                         <Button variant="primary" onClick={handleLogInflow} disabled={isSubmittingInflow}>
                             {isSubmittingInflow ? 'Logging...' : 'Confirm Receipt'}
                         </Button>
-                    </div >
+                    </div>
                 }
             >
                 <div className="space-y-4">
@@ -1025,7 +1148,7 @@ const ProjectOverviewPage: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-4">
                         <Input
-                            label={`Amount Received (${displayCurrency})`}
+                            label={`Amount Received (${userCurrency.code})`}
                             type="number"
                             value={inflowForm.amount_received}
                             onChange={(e) => {
@@ -1046,7 +1169,60 @@ const ProjectOverviewPage: React.FC = () => {
                         />
                     </div>
                 </div>
-            </Modal >
+            </Modal>
+
+            {/* Edit Expense Modal */}
+            <Modal
+                isOpen={isEditExpenseModalOpen}
+                onClose={() => setIsEditExpenseModalOpen(false)}
+                title="Correct Project Expense"
+                size="md"
+            >
+                <div className="space-y-4 pt-4">
+                    <div className="p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-xl flex gap-3">
+                        <AlertCircle className="w-5 h-5 text-brand-primary shrink-0" />
+                        <p className="text-xs text-brand-primary leading-tight font-medium">
+                            Adjusting this amount will automatically recalibrate the associated WBS node actuals and rollout metrics across the project.
+                        </p>
+                    </div>
+                    <Input
+                        label="Corrected Amount"
+                        type="number"
+                        value={editExpenseAmount}
+                        onChange={(e) => setEditExpenseAmount(e.target.value)}
+                    />
+                    <Input
+                        label="Updated Description"
+                        value={editExpenseDescription}
+                        onChange={(e) => setEditExpenseDescription(e.target.value)}
+                    />
+                    <div className="flex gap-2 justify-end pt-4">
+                        <Button variant="secondary" onClick={() => setIsEditExpenseModalOpen(false)}>Cancel</Button>
+                        <Button variant="primary" onClick={handleUpdateExpenseSubmission} isLoading={isSubmittingCorrection}>Save Correction</Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Delete Expense Modal */}
+            <Modal
+                isOpen={isDeleteExpenseModalOpen}
+                onClose={() => setIsDeleteExpenseModalOpen(false)}
+                title="Recall Project Expenditure"
+            >
+                <div className="space-y-4 pt-4 text-center">
+                    <div className="w-16 h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <Trash2 className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-lg font-bold text-white">Confirm Recall?</h3>
+                    <p className="text-sm text-gray-400 max-w-xs mx-auto">
+                        This will permanently remove the expense record and revert the actual spend metrics for <strong>{selectedExpense?.description}</strong>.
+                    </p>
+                    <div className="flex gap-2 justify-center pt-6">
+                        <Button variant="secondary" onClick={() => setIsDeleteExpenseModalOpen(false)}>Cancel</Button>
+                        <Button className="bg-red-600 hover:bg-red-700 text-white border-none" onClick={handleDeleteExpenseFinal} isLoading={isSubmittingCorrection}>Recall Expense</Button>
+                    </div>
+                </div>
+            </Modal>
         </>
     );
 };

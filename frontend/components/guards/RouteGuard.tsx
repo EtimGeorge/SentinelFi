@@ -200,7 +200,7 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
         return;
       }
 
-      if (currentPath.startsWith('/admin') && !user.roles.some(r => getRoleName(r) === Role.Admin)) {
+      if (currentPath.startsWith('/admin') && !user.roles.some(r => getRoleName(r) === Role.AdminDirector)) {
         await router.replace(getDefaultRoute());
         return;
       }

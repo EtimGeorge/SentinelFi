@@ -36,6 +36,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   
   // Singleton cache shared across all validations
   private static readonly authCache = new InMemoryAuthCache();
+  private static readonly inFlightValidations = new Map<string, Promise<UserPayload>>();
   private readonly CACHE_TTL = 300; // seconds (5 minutes)
 
   /**
@@ -77,16 +78,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayload): Promise<UserPayload> {
     const startTimeTotal = Date.now();
-    this.logger.debug(`[Validate] Received payload for sub: ${payload.sub}`);
+    const userId = payload.sub;
+    this.logger.debug(`[Validate] Received payload for sub: ${userId}`);
 
-    if (!payload.sub) {
+    if (!userId) {
       this.logger.error("[Validate] Missing sub (user ID) in JWT payload");
       throw new UnauthorizedException("Invalid token: missing user ID");
     }
 
     try {
       // 1. Check Cache FIRST
-      const cacheKey = `auth_meta:${payload.sub}`;
+      const cacheKey = `auth_meta:${userId}`;
       const cachedUser = await JwtStrategy.authCache.get(cacheKey);
       
       if (cachedUser) {
@@ -95,40 +97,67 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         return cachedUser;
       }
 
-      // 2. Cache MISS: Query Database
-      const queryStartTime = Date.now();
-      const user = await this.usersRepository.findOne({
-        where: { id: payload.sub, is_active: true },
-        relations: ['roles', 'tenant'], // Eager load roles and tenant
-      });
-
-      if (!user) {
-        this.logger.warn(`[Validate] User not found or inactive for sub: ${payload.sub}`);
-        throw new UnauthorizedException("User no longer active or token invalid.");
+      // 2. DEDUPLICATE IN-FLIGHT QUERIES
+      // If multiple requests for the same user arrive at once, only one hits the DB.
+      let validationPromise = JwtStrategy.inFlightValidations.get(userId);
+      
+      if (validationPromise) {
+        this.logger.debug(`[Validate] [PERF] Deduplicating validation for sub: ${userId}`);
+        const result = await validationPromise;
+        const dedupDuration = Date.now() - startTimeTotal;
+        this.logger.log(`[Validate] [PERF] Deduplicated validation returned in ${dedupDuration}ms`);
+        return result;
       }
 
-      const simpleRoles: SimpleRole[] = user.roles.map(r => ({id: r.id, name: r.name as Role, description: r.description}));
+      // 3. Cache MISS & No In-Flight: Create new validation promise
+      validationPromise = (async () => {
+          const queryStartTime = Date.now();
+          const user = await this.usersRepository.findOne({
+            where: { id: userId, is_active: true },
+            relations: ['roles', 'tenant'],
+          });
 
-      const userPayloadToReturn: UserPayload = {
-        id: user.id,
-        email: user.email,
-        roles: simpleRoles,
-        permissions: payload.permissions, // Trust permissions from the signed token
-        tenant_id: user.tenant_id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        is_active: user.is_active,
-        tenant_name: user.tenant?.name || null
-      };
+          if (!user) {
+            this.logger.warn(`[Validate] User not found or inactive for sub: ${userId}`);
+            throw new UnauthorizedException("User no longer active or token invalid.");
+          }
 
-      const queryDuration = Date.now() - queryStartTime;
-      const totalDuration = Date.now() - startTimeTotal;
-      this.logger.log(`[Validate] [PERF] Cache MISS. DB Query took ${queryDuration}ms. Total validation: ${totalDuration}ms.`);
+          const simpleRoles: SimpleRole[] = user.roles.map(r => ({
+            id: r.id, 
+            name: r.name as Role, 
+            description: r.description
+          }));
 
-      // 3. Save to Cache
-      await JwtStrategy.authCache.set(cacheKey, userPayloadToReturn, this.CACHE_TTL);
+          const userPayloadToReturn: UserPayload = {
+            id: user.id,
+            email: user.email,
+            roles: simpleRoles,
+            permissions: payload.permissions,
+            tenant_id: user.tenant_id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            is_active: user.is_active,
+            tenant_name: user.tenant?.name || null
+          };
 
-      return userPayloadToReturn;
+          const queryDuration = Date.now() - queryStartTime;
+          this.logger.log(`[Validate] [PERF] DB Query successful for ${user.email} in ${queryDuration}ms.`);
+
+          // Save to cache before returning
+          await JwtStrategy.authCache.set(cacheKey, userPayloadToReturn, this.CACHE_TTL);
+          return userPayloadToReturn;
+      })();
+
+      // Register the promise and clean up when done
+      JwtStrategy.inFlightValidations.set(userId, validationPromise);
+      try {
+        const result = await validationPromise;
+        const totalDuration = Date.now() - startTimeTotal;
+        this.logger.log(`[Validate] [PERF] Cache MISS completed for ${result.email} in ${totalDuration}ms.`);
+        return result;
+      } finally {
+        JwtStrategy.inFlightValidations.delete(userId);
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
       this.logger.error(`[Validate] Error during validation: ${errorMessage}`);

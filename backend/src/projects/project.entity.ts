@@ -6,6 +6,7 @@ import {
   JoinColumn,
   OneToMany,
   UpdateDateColumn,
+  DeleteDateColumn,
   Index,
 } from "typeorm";
 import { ProjectStatus } from "./enums/project.enum";
@@ -57,8 +58,11 @@ export class ProjectEntity {
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
 
-  @Column({ type: "timestamptz", nullable: true })
+  @UpdateDateColumn({ type: "timestamptz", nullable: true })
   updated_at!: Date | null;
+
+  @DeleteDateColumn({ type: "timestamptz", nullable: true })
+  deleted_at!: Date | null;
 
   @Column({ type: "uuid", nullable: false })
   tenant_id!: string;

@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
+  BadRequestException,
   Inject,
   Scope,
   HttpException,
@@ -25,6 +26,7 @@ import * as crypto from "crypto";
 import { RoleEntity } from "./role.entity";
 import { SafeTransaction, RetryableQuery } from "../common/config/database.config";
 import { AuditService } from "../audit/audit.service";
+import { AuditLogEntity } from "../audit/audit.entity";
 import { TENANT_DATA_SOURCE } from "../database/constants";
 import { CorrelatedLogger } from '../common/logger/correlated-logger';
 import { getCorrelationId } from "../common/interceptors/correlation.interceptor";
@@ -95,8 +97,6 @@ export class AuthService {
       this.logger.log('Starting global password cache cleanup timer (60s)');
     }
   }
-
-
 
   // Helper to prevent indefinite hangs
   private async runWithTimeout<T>(
@@ -192,6 +192,7 @@ export class AuthService {
    * Performs user login with idempotency protection, transaction-safe audit logging,
    * and robust error handling.
    */
+  
   async login(
     email: string,
     password: string,
@@ -233,7 +234,7 @@ export class AuthService {
             .leftJoinAndSelect("user.tenant", "tenant")
             .leftJoinAndSelect("user.roles", "role")
             .leftJoinAndSelect("role.permissions", "permission")
-            .where("user.email = :email", { email })
+            .where("user.email = :uid OR user.username = :uid", { uid: email })
             .getOne(),
           3, 100 
         ),
@@ -298,7 +299,7 @@ export class AuthService {
       const accessToken = this.jwtService.sign(payload);
       const tokenTime = Date.now() - t3;
       this.logger.debug(`[PERF] JWT generation completed in ${tokenTime}ms`);
-
+      
       const totalTime = Date.now() - startTime;
       this.logger.log(`[PERF] Total login duration: ${totalTime}ms (Query: ${queryTime}ms, Pwd: ${passwordCheckTime}ms, Token: ${tokenTime}ms)`);
 
@@ -329,6 +330,7 @@ export class AuthService {
           user: {
             id: user.id,
             email: user.email,
+            username: user.username,
             first_name: user.first_name, // Include first_name
             last_name: user.last_name,   // Include last_name
             roles: this.mapRolesToSimpleRoles(user.roles), // Assuming mapRolesToSimpleRoles exists and is correct
@@ -470,6 +472,7 @@ export class AuthService {
     const payload = {
       userId: user.id,
       email: user.email,
+      username: user.username,
       roles: user.roles.map(role => role.name as Role), // Map to Role[]
       tenant_id: user.tenant?.tenant_id || null, // Corrected to tenant_id
       iat: Math.floor(Date.now() / 1000),
@@ -519,6 +522,7 @@ export class AuthService {
         .select([
           'user.id',
           'user.email',
+          'user.username',
           'user.first_name', // Use first_name
           'user.last_name',  // Use last_name
           'user.is_active',
@@ -578,14 +582,22 @@ export class AuthService {
   }
 
   async findUserById(id: string): Promise<UserResponseDto> {
-    const user = await this.dataSource.getRepository(UserEntity).findOne({
-      where: { id },
-      relations: ['roles', 'tenant']
-    });
+    const user = await this.runWithTimeout(
+      RetryableQuery.execute(() =>
+        this.dataSource.getRepository(UserEntity).findOne({
+          where: { id },
+          relations: ['roles', 'tenant']
+        }),
+        3, 100
+      ),
+      35000,
+      `findUserById:${id}`
+    );
     if (!user) throw new NotFoundException('User not found');
     return {
       id: user.id,
       email: user.email,
+      username: user.username,
       first_name: user.first_name,
       last_name: user.last_name,
       roles: this.mapRolesToSimpleRoles(user.roles),
@@ -615,6 +627,7 @@ export class AuthService {
     
     const newUser = this.dataSource.getRepository(UserEntity).create({ 
         email: registerDto.email, 
+        username: registerDto.username || registerDto.email.split('@')[0],
         password_hash: hashedPassword,
         roles: [defaultRole], 
         tenant_id: registerDto.tenant_id 
@@ -634,13 +647,23 @@ export class AuthService {
     return this.findUserById(savedUser.id);
   }
 
-  async findAllUsers(): Promise<UserResponseDto[]> {
-    const users = await RetryableQuery.execute(() => 
-        this.dataSource.getRepository(UserEntity).find({ relations: ["tenant", "roles"] })
-    );
+  async findAllUsers(tenant_id?: string): Promise<UserResponseDto[]> {
+    const users = await RetryableQuery.execute(() => {
+        const query = this.dataSource.getRepository(UserEntity)
+            .createQueryBuilder("user")
+            .leftJoinAndSelect("user.tenant", "tenant")
+            .leftJoinAndSelect("user.roles", "role");
+            
+        if (tenant_id) {
+            query.where("user.tenant_id = :tenant_id", { tenant_id });
+        }
+        
+        return query.getMany();
+    });
     return users.map((user) => ({
       id: user.id,
       email: user.email,
+      username: user.username,
       first_name: user.first_name,
       last_name: user.last_name,
       roles: this.mapRolesToSimpleRoles(user.roles),
@@ -659,6 +682,14 @@ export class AuthService {
     }
 
     const isSuperAdmin = requestingUser.roles.some(role => role.name === Role.SuperAdmin); // Use string literal
+
+    // --- ROLE ASSIGNMENT SECURITY ---
+    if (createUserDto.role === Role.SuperAdmin && !isSuperAdmin) {
+      throw new ForbiddenException("Only Platform SuperAdmins can assign the SuperAdmin role.");
+    }
+    if (createUserDto.role === Role.SuperAdmin && (createUserDto.tenant_id || requestingUser.tenant_id)) {
+      throw new BadRequestException("The SuperAdmin role cannot be assigned to a tenant user.");
+    }
 
     if (!isSuperAdmin) {
       if (createUserDto.tenant_id && createUserDto.tenant_id !== requestingUser.tenant_id) {
@@ -680,6 +711,7 @@ export class AuthService {
     
     const newUser = this.dataSource.getRepository(UserEntity).create({ 
         email: createUserDto.email,
+        username: createUserDto.username || createUserDto.email.split('@')[0],
         first_name: createUserDto.first_name,
         last_name: createUserDto.last_name,
         password_hash: hashedPassword,
@@ -713,11 +745,12 @@ export class AuthService {
       throw new ConflictException("User with this email already exists.");
     }
 
+    const roleName = createAdminUserDto.role || 'Admin Director'; // Default to AdminDirector for new tenants
     const adminRole = await RetryableQuery.execute(() =>
-        this.dataSource.getRepository(RoleEntity).findOne({ where: { name: Role.Admin }}) // Use string literal
+        this.dataSource.getRepository(RoleEntity).findOne({ where: { name: roleName }})
     );
     if (!adminRole) {
-        throw new InternalServerErrorException("Admin role not found. Please seed the database.");
+        throw new InternalServerErrorException(`Role '${roleName}' not found. Please seed the database.`);
     }
 
     const randomPassword = this.generateRandomPassword();
@@ -762,6 +795,17 @@ export class AuthService {
 
     const isSuperAdmin = requestingUser.roles.some(role => role.name === Role.SuperAdmin); // Use string literal
 
+    // --- ROLE UPDATE SECURITY ---
+    if (updateUserDto.role) {
+      if (updateUserDto.role === Role.SuperAdmin && !isSuperAdmin) {
+        throw new ForbiddenException("Only Platform SuperAdmins can assign the SuperAdmin role.");
+      }
+      const targetTenantId = updateUserDto.tenant_id !== undefined ? updateUserDto.tenant_id : user.tenant_id;
+      if (updateUserDto.role === Role.SuperAdmin && targetTenantId) {
+        throw new BadRequestException("The SuperAdmin role cannot be assigned to a tenant user.");
+      }
+    }
+
     // Only SuperAdmin can change tenant assignment
     if (updateUserDto.tenant_id !== undefined && user.tenant_id !== updateUserDto.tenant_id && !isSuperAdmin) {
       throw new ForbiddenException("You are not allowed to change a user's tenant assignment.");
@@ -794,5 +838,86 @@ export class AuthService {
     this.logger.log(`User ${savedUser.email} updated successfully by ${requestingUser.email}`);
 
     return this.findUserById(savedUser.id);
+  }
+
+  // --- PHASE 12: USER DOSSIER ANALYTICS ---
+
+  async findUserProfileDossier(id: string, tenantId: string | null) {
+    const user = await this.findUserById(id);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found.`);
+    }
+
+    // Verify tenant access (SuperAdmin can see all, Admin only their tenant)
+    if (tenantId !== null && user.tenant_id !== tenantId) {
+      throw new ForbiddenException(`Access denied to user profile outside your tenant.`);
+    }
+
+    // Fetch Last 20 Audit Logs
+    const activities = await this.auditService.findAuditLogs({
+      userId: id,
+      tenantId: user.tenant_id ?? undefined,
+      page: 1,
+      limit: 20
+    });
+
+    // Calculate basic activity counts
+    const logRepo = this.dataSource.getRepository(AuditLogEntity);
+    const eventCounts = await logRepo.createQueryBuilder('log')
+      .select('log.action', 'action')
+      .addSelect('COUNT(*)', 'count')
+      .where('log.userId = :id', { id })
+      .groupBy('log.action')
+      .getRawMany();
+
+    return {
+      ...user,
+      activity_count: activities.total,
+      recent_activities: activities.logs.map(log => ({
+        id: log.id,
+        action: log.action,
+        timestamp: log.timestamp,
+        description: (log.details as any)?.description || log.action,
+        ip: log.ipAddress
+      })),
+      event_breakdown: eventCounts
+    };
+  }
+
+  async batchUpdateUsers(requestingUser: UserPayload, userIds: string[], updateDto: Partial<UpdateUserDto>): Promise<{ updated: number, errors: string[] }> {
+    const results = { updated: 0, errors: [] as string[] };
+    const isSuperAdmin = requestingUser.roles.some(role => role.name === Role.SuperAdmin);
+
+    for (const id of userIds) {
+      try {
+        await this.updateUser(requestingUser, id, updateDto as UpdateUserDto);
+        results.updated++;
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Batch update failed for user ${id}: ${errorMsg}`);
+        results.errors.push(`User ${id}: ${errorMsg}`);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * ELITE SUPPORT: Finds the first available SuperAdmin for automatic support ticket routing.
+   * This ensures Landlord-level assistance is always reachable.
+   */
+  async findFirstSuperAdmin(): Promise<UserEntity> {
+    const superAdmin = await this.dataSource.getRepository(UserEntity)
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.roles', 'role')
+      .where('role.name = :roleName', { roleName: Role.SuperAdmin })
+      .getOne();
+
+    if (!superAdmin) {
+      this.logger.warn('Support Routing Warning: No SuperAdmin found in system.');
+      throw new Error('No support staff available at this time.');
+    }
+
+    return superAdmin;
   }
 }

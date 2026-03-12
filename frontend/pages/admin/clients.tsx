@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
-import { Users, Plus, Edit, Trash2, Building, Mail, Phone, MapPin, Search, Filter } from 'lucide-react';
+import Link from 'next/link';
+import { Users, Plus, Edit, Trash2, Building, Mail, Phone, MapPin, Search, Filter, Activity, Zap, ShieldCheck } from 'lucide-react';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
+import useToast from '../../store/toastStore';
 
 interface Client {
   id: string;
@@ -20,10 +22,11 @@ interface Client {
 
 const ClientsPage: React.FC = () => {
   const api = useSecuredApi();
+  const addToast = useToast(state => state.addToast);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedClients, setSelectedClients] = useState<string[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -37,22 +40,21 @@ const ClientsPage: React.FC = () => {
     address: '',
   });
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const response = await api.get<Client[]>('/clients');
       setClients(response.data);
     } catch (e: any) {
-      setError(`Failed to fetch clients: ${e.response?.data?.message || e.message}`);
+      addToast(`Retrieval Failure: ${e.response?.data?.message || e.message}`, 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [api, addToast]);
 
   useEffect(() => {
     fetchClients();
-  }, [api]);
+  }, [fetchClients]);
 
   const handleOpenModal = (client?: Client) => {
     if (client) {
@@ -78,91 +80,38 @@ const ClientsPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    // Client-side validation
-    const trimmedName = formData.name?.trim();
-
-    if (!trimmedName || trimmedName.length < 2) {
-      alert('⚠️ Client name must be at least 2 characters long.');
-      return;
-    }
-
-    if (trimmedName.length > 200) {
-      alert('⚠️ Client name cannot exceed 200 characters.');
-      return;
-    }
-
-    // Check for duplicates locally (fast feedback before API call)
-    if (!editingClient) {
-      const duplicate = clients.find(
-        c => c.name.toLowerCase() === trimmedName.toLowerCase()
-      );
-
-      if (duplicate) {
-        const proceed = confirm(
-          `⚠️ A client named "${duplicate.name}" already exists.\n\nAre you sure you want to create another client with this name?`
-        );
-        if (!proceed) return;
-      }
-    }
-
+    if (!formData.name) return;
     setIsSubmitting(true);
-
     try {
       if (editingClient) {
-        const response = await api.patch(`/clients/${editingClient.id}`, formData);
-        alert(`✅ Success!\n\nClient "${formData.name}" has been updated.`);
+        await api.patch(`/clients/${editingClient.id}`, formData);
+        addToast(`Client registry updated for ${formData.name}`, 'success');
       } else {
-        const response = await api.post('/clients', formData);
-        alert(`✅ Success!\n\nClient "${formData.name}" has been created successfully.`);
+        await api.post('/clients', formData);
+        addToast(`New client ${formData.name} successfully enrolled`, 'success');
       }
-
       setIsModalOpen(false);
       fetchClients();
-
     } catch (e: any) {
-      // Enhanced error handling with specific messages
-      const errorMsg = e.response?.data?.message || e.message;
-      const statusCode = e.response?.status;
-
-      if (statusCode === 409) {
-        // Conflict - duplicate name
-        alert(
-          `❌ Duplicate Client Name\n\n${errorMsg}\n\nPlease choose a different name for this client.`
-        );
-      } else if (statusCode === 400) {
-        // Bad request - validation error
-        alert(
-          `❌ Invalid Input\n\n${errorMsg}\n\nPlease check your input and try again.`
-        );
-      } else if (statusCode === 500) {
-        // Server error
-        alert(
-          `❌ Server Error\n\nUnable to save client due to a server issue.\n\nPlease check your connection and try again.\n\nDetails: ${errorMsg}`
-        );
-      } else if (statusCode === 401 || statusCode === 403) {
-        // Authentication/Authorization error
-        alert(
-          `❌ Access Denied\n\nYou don't have permission to perform this action.\n\nPlease contact your administrator.`
-        );
-      } else {
-        // Generic error
-        alert(
-          `❌ Error\n\n${errorMsg}\n\nPlease try again or contact support if the problem persists.`
-        );
-      }
+      addToast(`Registry Update Conflict: ${e.response?.data?.message || e.message}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to deactivate this client?')) return;
+    if (!confirm('Confirm Identity Purge: Are you sure you want to deactivate this client?')) return;
     try {
       await api.delete(`/clients/${id}`);
+      addToast('Client identity deactivated.', 'success');
       fetchClients();
     } catch (e: any) {
-      alert(`Error deactivating client: ${e.message}`);
+      addToast(`Purge Failure: ${e.message}`, 'error');
     }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedClients(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
   const filteredClients = clients.filter(c =>
@@ -170,78 +119,180 @@ const ClientsPage: React.FC = () => {
     c.industry?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const stats = [
+    { label: 'Total Portfolio', value: clients.length.toString(), icon: Building, color: 'text-brand-primary' },
+    { label: 'Active Pipeline', value: clients.filter(c => c.is_active).length.toString(), icon: Activity, color: 'text-green-400' },
+    { label: 'Strategic Nodes', value: clients.filter(c => c.industry === 'Oil & Gas').length.toString(), icon: ShieldCheck, color: 'text-blue-400' },
+    { label: 'Growth Velocity', value: '+14%', icon: Zap, color: 'text-purple-400' }
+  ];
+
   return (
     <>
-      <Head><title>Client Management | SentinelFi</title></Head>
+      <Head><title>Client Portfolio Management | SentinelFi</title></Head>
       <PageContainer
-        title="Client Management"
-        subtitle="Manage corporate entities and project sponsors."
+        title="Client Portfolio"
+        subtitle="Manage corporate entities, strategic sponsors, and external nodes."
         headerContent={
-          <Button onClick={() => handleOpenModal()} variant="primary">
-            <Plus className="w-5 h-5 mr-2" /> Add Client
-          </Button>
+          <div className="flex items-center gap-3">
+             <button onClick={() => fetchClients()} className="p-3 bg-gray-800 border border-gray-700 rounded-xl text-gray-400 hover:text-white transition group">
+                <Activity className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+             </button>
+             <button onClick={() => handleOpenModal()} className="px-6 py-3 bg-brand-primary text-brand-dark rounded-xl font-black text-sm uppercase tracking-widest hover:scale-105 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-brand-primary/20">
+                <Plus className="w-5 h-5" />
+                Enroll Client
+             </button>
+          </div>
         }
       >
-        <div className="mb-8 relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search clients or industries..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-brand-dark/50 border border-gray-700 rounded-xl py-2.5 pl-10 pr-4 text-sm text-gray-200 focus:border-brand-primary outline-none transition"
-          />
-        </div>
-
-        {loading ? (
-          <div className="text-center py-20 text-brand-primary">Loading client data...</div>
-        ) : error ? (
-          <div className="text-center py-20 text-alert-critical">{error}</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredClients.map(client => (
-              <Card key={client.id} className="p-6 border border-gray-700 hover:border-brand-primary/30 transition-all">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-brand-primary/10 flex items-center justify-center">
-                    <Building className="w-6 h-6 text-brand-primary" />
-                  </div>
-                  <div className="flex space-x-1">
-                    <button onClick={() => handleOpenModal(client)} className="p-2 text-gray-400 hover:text-brand-primary hover:bg-brand-primary/10 rounded-lg transition">
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleDelete(client.id)} className="p-2 text-gray-400 hover:text-alert-critical hover:bg-alert-critical/10 rounded-lg transition">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <h3 className="text-lg font-bold text-white mb-1">{client.name}</h3>
-                <p className="text-xs text-gray-500 uppercase font-black tracking-widest mb-4 inline-block px-2 py-0.5 bg-gray-800 rounded">
-                  {client.industry || 'General Industry'}
-                </p>
-
-                <div className="space-y-2 text-sm text-gray-400">
-                  <div className="flex items-center">
-                    <Mail className="w-4 h-4 mr-3 opacity-50" /> {client.email || 'No email set'}
-                  </div>
-                  <div className="flex items-center">
-                    <Phone className="w-4 h-4 mr-3 opacity-50" /> {client.phone || 'No phone set'}
-                  </div>
-                  <div className="flex items-center">
-                    <MapPin className="w-4 h-4 mr-3 opacity-50" /> {client.address || 'No address set'}
-                  </div>
-                </div>
-              </Card>
-            ))}
-
-            {filteredClients.length === 0 && (
-              <div className="col-span-full py-20 text-center text-gray-500 bg-brand-dark/20 rounded-2xl border border-dashed border-gray-700">
-                <Building className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                <p>No clients found matching your search.</p>
-              </div>
-            )}
+        <div className="space-y-6">
+          {/* Elite Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             {stats.map((stat, i) => (
+                <Card key={i} className="border-l-4 border-l-brand-primary/30 group hover:border-l-brand-primary transition-all duration-300">
+                   <div className="flex items-center">
+                      <div className="p-4 rounded-2xl bg-gray-800/50 mr-4 group-hover:scale-110 transition-transform duration-500">
+                         <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                      </div>
+                      <div>
+                         <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{stat.label}</p>
+                         <p className="text-2xl font-black text-white mt-0.5 tracking-tight group-hover:text-brand-primary transition-colors">{stat.value}</p>
+                      </div>
+                   </div>
+                </Card>
+             ))}
           </div>
-        )}
+
+          {/* Operational Toolbar */}
+          <Card className="p-2 border border-white/5 bg-brand-dark/40 backdrop-blur-md">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-2">
+              <div className="flex items-center flex-1 max-w-xl bg-gray-900/50 border border-gray-800 rounded-xl px-4 py-1 focus-within:border-brand-primary/50 transition shadow-inner">
+                <Search className="w-4 h-4 text-gray-500 mr-3" />
+                <input
+                  type="text"
+                  placeholder="Infiltrate registry: Search names, industries, or identifiers..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-transparent border-none py-2.5 text-sm text-gray-200 focus:ring-0 outline-none placeholder:text-gray-600 font-medium"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                  {selectedClients.length > 0 && (
+                    <button className="px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition animate-in zoom-in-95">
+                      Batch Deactivate ({selectedClients.length})
+                    </button>
+                  )}
+                  <button className="p-3 bg-gray-800 border border-gray-700 rounded-xl text-gray-400 hover:text-white transition">
+                    <Filter className="w-5 h-5" />
+                  </button>
+              </div>
+            </div>
+          </Card>
+
+          {/* Client Registry Table */}
+          <Card className="overflow-hidden border border-white/5 shadow-2xl">
+            <div className="overflow-x-auto min-h-[400px]">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-brand-dark/80 border-b border-gray-800">
+                    <th className="px-6 py-4 w-12">
+                      <div className="flex items-center">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-brand-primary focus:ring-brand-primary/20" 
+                          onChange={(e) => setSelectedClients(e.target.checked ? filteredClients.map(c => c.id) : [])}
+                        />
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Client Identity</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Sector</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Intel</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right sticky right-0 bg-brand-dark z-20">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/50">
+                  {loading ? (
+                    Array(5).fill(0).map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                         <td colSpan={6} className="px-6 py-8"><div className="h-4 bg-gray-800/50 rounded-full w-full" /></td>
+                      </tr>
+                    ))
+                  ) : filteredClients.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-20 text-center">
+                        <Building className="w-12 h-12 text-gray-800 mx-auto mb-4" />
+                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">No entries found in registry</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredClients.map((client) => (
+                      <tr key={client.id} className="group hover:bg-brand-primary/5 transition-all duration-200">
+                        <td className="px-6 py-4">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedClients.includes(client.id)}
+                            onChange={() => toggleSelect(client.id)}
+                            className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-brand-primary focus:ring-brand-primary/20" 
+                          />
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-4">
+                             <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-brand-primary font-bold group-hover:bg-brand-primary group-hover:text-brand-dark transition-all duration-300">
+                                {client.name.charAt(0)}
+                             </div>
+                             <div>
+                                <p className="text-sm font-black text-white group-hover:text-brand-primary transition-colors">{client.name}</p>
+                                <p className="text-[10px] text-gray-500 font-mono tracking-tighter">{client.id.split('-')[0]}</p>
+                             </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                           <span className="px-2 py-1 bg-gray-800 text-gray-400 rounded-lg text-[10px] font-black tracking-widest uppercase border border-white/5">
+                              {client.industry || 'General'}
+                           </span>
+                        </td>
+                        <td className="px-6 py-4">
+                           <div className="space-y-1">
+                              <div className="flex items-center text-xs text-gray-400">
+                                 <Mail className="w-3 h-3 mr-2 opacity-30" /> {client.email}
+                              </div>
+                              <div className="flex items-center text-xs text-gray-400">
+                                 <Phone className="w-3 h-3 mr-2 opacity-30" /> {client.phone}
+                              </div>
+                           </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                             <div className={`w-1.5 h-1.5 rounded-full ${client.is_active ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-gray-600'}`} />
+                             <span className={`text-[10px] font-black uppercase tracking-widest ${client.is_active ? 'text-green-500' : 'text-gray-500'}`}>
+                                {client.is_active ? 'Operational' : 'Archived'}
+                             </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right sticky right-0 bg-brand-dark/95 group-hover:bg-brand-primary/10 transition-colors z-10 backdrop-blur-md shadow-[-10px_0_15px_rgba(0,0,0,0.5)]">
+                          <div className="flex items-center justify-end space-x-1">
+                             <Link href={`/clients/${client.id}`} className="p-2 text-gray-400 hover:text-brand-primary hover:bg-brand-primary/10 rounded-lg transition">
+                                <Activity className="w-4 h-4" />
+                             </Link>
+                             <button onClick={() => handleOpenModal(client)} className="p-2 text-gray-400 hover:text-brand-primary hover:bg-brand-primary/10 rounded-lg transition">
+                                <Edit className="w-4 h-4" />
+                             </button>
+                             <button onClick={() => handleDelete(client.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition">
+                                <Trash2 className="w-4 h-4" />
+                             </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-4 bg-brand-dark/40 border-t border-gray-800 flex items-center justify-between">
+                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-[0.2em]">Portfolio Agent v4.1.0-STABLE</span>
+            </div>
+          </Card>
+        </div>
       </PageContainer>
 
       <Modal

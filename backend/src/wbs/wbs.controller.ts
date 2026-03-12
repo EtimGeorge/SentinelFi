@@ -19,7 +19,13 @@ import {
   ParseUUIDPipe,
   Res,
   StreamableFile,
+  UseInterceptors,
+  UploadedFile,
+  NotFoundException,
+  InternalServerErrorException,
+  ConflictException,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { Response } from "express";
 import { WbsService } from "../wbs/wbs.service";
 import { CreateWbsBudgetDto } from "./dto/create-wbs-budget.dto";
@@ -35,6 +41,7 @@ import { UpdateWbsBudgetDto } from "./dto/update-wbs-budget.dto";
 import { UpdateLiveExpenseDto } from "./dto/update-live-expense.dto";
 import { GetWbsBudgetsDto } from "./dto/get-wbs-budgets.dto";
 import { GetLiveExpensesDto } from "./dto/get-live-expenses.dto";
+import { WbsValidationResultDto } from "./dto/wbs-validation-result.dto";
 
 @Controller("wbs") // Base path is /api/v1/wbs
 @UseGuards(RolesGuard)
@@ -43,10 +50,12 @@ export class WbsController {
 
   @Get("budgets")
   @Roles(
-    Role.Admin,
-    Role.ITHead,
-    Role.Finance,
-    Role.OperationalHead,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
     Role.CEO,
     Role.AssignedProjectUser,
     Role.SuperAdmin,
@@ -69,7 +78,7 @@ export class WbsController {
   }
 
   @Get("budget/rollup")
-  @Roles(Role.Admin, Role.Finance, Role.CEO, Role.OperationalHead, Role.ITHead)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO, Role.OperationalDirector, Role.TechnicalDirector)
   async getWbsBudgetRollup(
     @Req() req: AuthenticatedRequest,
     @Query("startDate") startDate?: string,
@@ -85,10 +94,12 @@ export class WbsController {
 
   @Get("budgets/export")
   @Roles(
-    Role.Admin,
-    Role.ITHead,
-    Role.Finance,
-    Role.OperationalHead,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
     Role.CEO,
     Role.AssignedProjectUser,
     Role.SuperAdmin,
@@ -150,12 +161,38 @@ export class WbsController {
     return new StreamableFile(data as Buffer);
   }
 
+  @Get("budgets/:id/dossier")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO, Role.OperationalDirector, Role.TechnicalDirector)
+  async getBudgetDossier(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.findBudgetDossier(id, req.user.tenant_id);
+  }
+
+  @Get("expenses/:id/dossier")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO, Role.OperationalDirector, Role.TechnicalDirector)
+  async getExpenseDossier(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.findExpenseDossier(id, req.user.tenant_id);
+  }
+
   @Get("expenses")
   @Roles(
-    Role.Admin,
-    Role.ITHead,
-    Role.Finance,
-    Role.OperationalHead,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
     Role.CEO,
     Role.AssignedProjectUser,
     Role.SuperAdmin,
@@ -178,7 +215,7 @@ export class WbsController {
   }
 
   @Get("exceptions")
-  @Roles(Role.Admin, Role.Finance, Role.CEO)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   async getMajorExceptions(@Req() req: AuthenticatedRequest) {
     if (!req.user || !req.user.tenant_id) {
       throw new UnauthorizedException("User not authenticated.");
@@ -189,10 +226,12 @@ export class WbsController {
 
   @Get("expenses/export")
   @Roles(
-    Role.Admin,
-    Role.ITHead,
-    Role.Finance,
-    Role.OperationalHead,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
     Role.CEO,
     Role.AssignedProjectUser,
     Role.SuperAdmin,
@@ -256,7 +295,7 @@ export class WbsController {
 
   @Delete("budget-draft/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(Role.Admin, Role.Finance)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
   async deleteWbsItem(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Query("recursive", new ParseBoolPipe({ optional: true }))
@@ -269,12 +308,19 @@ export class WbsController {
       );
     }
     const tenantIdFromToken = req.user.tenant_id;
-    await this.wbsService.deleteWbsItem(id, tenantIdFromToken, { recursive });
+    try {
+      await this.wbsService.deleteWbsItem(id, tenantIdFromToken, { recursive });
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to delete WBS item: ${error.message}`);
+    }
   }
 
   @Post("budget-draft")
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.Admin, Role.Finance, Role.AssignedProjectUser)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.AssignedProjectUser)
   @UsePipes(new ValidationPipe({ transform: true }))
   async createDraft(
     @Body() createWbsDto: CreateWbsBudgetDto,
@@ -290,16 +336,23 @@ export class WbsController {
       );
     }
     const tenantIdFromToken = req.user.tenant_id;
-    return this.wbsService.createWbsBudgetDraft(
-      createWbsDto,
-      userIdFromToken,
-      tenantIdFromToken,
-    );
+    try {
+      return await this.wbsService.createWbsBudgetDraft(
+        createWbsDto,
+        userIdFromToken,
+        tenantIdFromToken,
+      );
+    } catch (error: any) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof ConflictException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to create WBS draft: ${error.message}`);
+    }
   }
 
   @Post("budget-draft/batch")
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.Admin, Role.Finance)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
   @UsePipes(new ValidationPipe({ transform: true }))
   async createDraftBatch(
     @Body() createWbsDtos: CreateWbsBudgetDto[],
@@ -315,15 +368,38 @@ export class WbsController {
       );
     }
     const tenantIdFromToken = req.user.tenant_id;
-    return this.wbsService.createWbsBudgetDraftBatch(
-      createWbsDtos,
-      userIdFromToken,
-      tenantIdFromToken,
-    );
+    try {
+      return await this.wbsService.createWbsBudgetDraftBatch(
+        createWbsDtos,
+        userIdFromToken,
+        tenantIdFromToken,
+      );
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to create batch WBS drafts: ${error.message}`);
+    }
+  }
+
+  @Patch("budget-draft/reorder")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  async reorderBudgets(
+    @Body("items") items: { id: string; sort_order: number }[],
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    try {
+      return await this.wbsService.reorderWbsItems(items, req.user.tenant_id);
+    } catch (error: any) {
+      throw new InternalServerErrorException(`Failed to reorder WBS items: ${error.message}`);
+    }
   }
 
   @Patch("budget-draft/:id")
-  @Roles(Role.Admin, Role.Finance)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateWbsBudget(
     @Param("id") id: string,
@@ -336,16 +412,65 @@ export class WbsController {
       );
     }
     const tenantIdFromToken = req.user.tenant_id;
-    return this.wbsService.updateWbsBudget(
-      id,
-      updateWbsBudgetDto,
-      tenantIdFromToken,
-    );
+    try {
+      return await this.wbsService.updateWbsBudget(
+        id,
+        updateWbsBudgetDto,
+        tenantIdFromToken,
+      );
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to update WBS draft: ${error.message}`);
+    }
+  }
+
+  @Get("budget-draft/:id/impact")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  async getBudgetImpactAnalysis(
+    @Param("id") id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+       throw new UnauthorizedException("User not authenticated.");
+    }
+    try {
+      return await this.wbsService.getBudgetImpactAnalysis(id, req.user.tenant_id);
+    } catch (error: any) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+         throw error;
+      }
+      throw new InternalServerErrorException(`Failed to analyze budget impact: ${error.message}`);
+    }
+  }
+
+  @Post("budget-draft/validate")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async validateDraft(
+    @Body() dto: CreateWbsBudgetDto,
+    @Req() req: AuthenticatedRequest,
+    @Query("existingItemId") existingItemId?: string,
+  ): Promise<WbsValidationResultDto> {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    try {
+      return await this.wbsService.validateWbsItemDraft(
+        dto,
+        req.user.tenant_id,
+        existingItemId,
+      );
+    } catch (error: any) {
+      throw new InternalServerErrorException(`Structural validation failed: ${error.message}`);
+    }
   }
 
   @Post("expense/live-entry")
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.AssignedProjectUser)
+  @Roles(Role.AssignedProjectUser, Role.FinanceOfficer, Role.FinanceManager, Role.CFO, Role.CEO, Role.AdminDirector)
   @UsePipes(new ValidationPipe({ transform: true }))
   async logLiveExpense(
     @Body() expenseDto: CreateLiveExpenseDto,
@@ -354,22 +479,86 @@ export class WbsController {
     if (!req.user) {
       throw new UnauthorizedException("User not authenticated.");
     }
-    const userIdFromToken = req.user.id;
     if (!req.user.tenant_id) {
-      throw new BadRequestException(
-        "Tenant ID not found in authenticated user payload.",
-      );
+      throw new BadRequestException("Tenant ID not found in authenticated user payload.");
     }
-    const tenantIdFromToken = req.user.tenant_id;
-    return this.wbsService.logLiveExpenseEntry(
-      expenseDto,
-      userIdFromToken,
-      tenantIdFromToken, // Pass tenantId to the service
-    );
+    try {
+      return await this.wbsService.logLiveExpenseEntry(
+        expenseDto,
+        req.user.id,
+        req.user.tenant_id,
+        (req.user.roles?.[0] as any)?.name ?? req.user.roles?.[0], // Extract role name from SimpleRole or plain string
+      );
+    } catch (error: any) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to log live expense: ${error.message}`);
+    }
+  }
+
+  @Post("expense/live-entry/batch")
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(Role.AssignedProjectUser, Role.FinanceOfficer, Role.FinanceManager, Role.CFO, Role.CEO, Role.AdminDirector)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async logLiveExpenseBatch(
+    @Body() batchDto: { entries: CreateLiveExpenseDto[] },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    if (!batchDto.entries || !batchDto.entries.length) {
+      throw new BadRequestException("entries array must contain at least one expense.");
+    }
+    try {
+      return await this.wbsService.logLiveExpenseBatch(
+        batchDto.entries,
+        req.user.id,
+        req.user.tenant_id,
+        (req.user.roles?.[0] as any)?.name ?? req.user.roles?.[0],
+      );
+    } catch (error: any) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException(`Failed to log batch expenses: ${error.message}`);
+    }
+  }
+
+  // --- NEW: Asynchronous Override Endpoints ---
+
+  @Get("expense/overruns/pending")
+  @Roles(Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager)
+  async getPendingOverruns(@Req() req: AuthenticatedRequest) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.findPendingOverruns(req.user.tenant_id);
+  }
+
+  @Post("expense/overruns/:id/approve")
+  @Roles(Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager)
+  @HttpCode(HttpStatus.OK)
+  async approveOverrun(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    try {
+      return await this.wbsService.approveOverrun(
+        id,
+        req.user.tenant_id,
+        (req.user.roles?.[0] as any)?.name ?? (req.user.roles?.[0] || 'System')
+      );
+    } catch (error: any) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException(`Failed to approve overrun: ${error.message}`);
+    }
   }
 
   @Patch("expense/live-entry/:id")
-  @Roles(Role.Admin, Role.Finance)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateLiveExpenseEntry(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -387,19 +576,49 @@ export class WbsController {
     );
   }
 
+  @Delete("expense/live-entry/:id")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteLiveExpenseEntry(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    await this.wbsService.deleteLiveExpenseEntry(id, req.user.tenant_id);
+  }
+
+  @Post("expense/live-entry/batch-delete")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @HttpCode(HttpStatus.OK)
+  async deleteLiveExpenseBatch(
+    @Body("ids") ids: string[],
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.deleteLiveExpenseBatch(ids, req.user.tenant_id);
+  }
+
   // --- WBS CATEGORY ENDPOINTS ---
 
   @Get("categories")
-  @Roles(Role.Admin, Role.Finance, Role.ITHead, Role.OperationalHead, Role.CEO)
-  async getCategories(@Req() req: AuthenticatedRequest) {
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.TechnicalDirector, Role.OperationalDirector, Role.CEO)
+  async getCategories(
+    @Req() req: AuthenticatedRequest,
+    @Query("includeInactive") includeInactiveRaw?: string
+  ) {
     if (!req.user || !req.user.tenant_id) {
        throw new UnauthorizedException("User not authenticated.");
     }
-    return this.wbsService.findAllWbsCategories(req.user.tenant_id);
+    const includeInactive = includeInactiveRaw === 'true';
+    return this.wbsService.findAllWbsCategories(req.user.tenant_id, includeInactive);
   }
 
-  @Post("category")
-  @Roles(Role.Admin, Role.Finance)
+  @Post("categories")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
   @UsePipes(new ValidationPipe({ transform: true }))
   async createCategory(
     @Body() createWbsCategoryDto: CreateWbsCategoryDto,
@@ -408,14 +627,21 @@ export class WbsController {
     if (!req.user || !req.user.tenant_id) {
       throw new UnauthorizedException("User not authenticated.");
     }
-    return this.wbsService.createWbsCategory(
-      createWbsCategoryDto.name,
-      req.user.tenant_id,
-    );
+    try {
+      return await this.wbsService.createWbsCategory(
+        createWbsCategoryDto,
+        req.user.tenant_id,
+      );
+    } catch (error: any) {
+      if (error instanceof NotFoundException || error instanceof ConflictException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to create WBS Category: ${error.message}`);
+    }
   }
 
-  @Patch("category/:id")
-  @Roles(Role.Admin, Role.Finance)
+  @Patch("categories/:id")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateCategory(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -425,23 +651,232 @@ export class WbsController {
     if (!req.user || !req.user.tenant_id) {
        throw new UnauthorizedException("User not authenticated.");
     }
-    return this.wbsService.updateWbsCategory(
-      id,
-      updateWbsCategoryDto,
-      req.user.tenant_id,
-    );
+    try {
+      return await this.wbsService.updateWbsCategory(
+        id,
+        updateWbsCategoryDto,
+        req.user.tenant_id,
+      );
+    } catch (error: any) {
+      if (error instanceof NotFoundException || error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to update WBS Category: ${error.message}`);
+    }
   }
 
-  @Delete("category/:id")
+  @Delete("categories/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(Role.Admin, Role.Finance)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
   async deleteCategory(
     @Param("id", new ParseUUIDPipe()) id: string,
+    @Query("forceSoftDelete") forceSoftDeleteRaw: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
       throw new UnauthorizedException("User not authenticated.");
     }
-    await this.wbsService.deleteWbsCategory(id, req.user.tenant_id);
+    const forceSoftDelete = forceSoftDeleteRaw === 'true';
+    const result = await this.wbsService.deleteWbsCategory(id, req.user.tenant_id, forceSoftDelete);
+    if (!result.softDeleted && result.usageCount > 0) {
+      throw new ConflictException({
+        message: `Category is used in ${result.usageCount} project(s). Provide forceSoftDelete=true to deactivate.`,
+        usageCount: result.usageCount,
+        requiresSoftDeleteConfirmation: true
+      });
+    }
+  }
+
+  // --- NEW: Budget Status Workflow ---
+
+  @Patch("budget-draft/:id/status")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO, Role.SuperAdmin)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async changeStatus(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body("status") status: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    try {
+      return await this.wbsService.changeWbsBudgetStatus(
+        id,
+        status as any,
+        req.user.tenant_id,
+        req.user // Pass the full user object for DOA checks
+      );
+    } catch (error: any) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to change budget status: ${error.message}`);
+    }
+  }
+
+  @Patch("project/:projectId/submit")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.AssignedProjectUser)
+  async submitProjectBudget(
+    @Param("projectId", new ParseUUIDPipe()) projectId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+       throw new UnauthorizedException("User not authenticated.");
+    }
+    try {
+       return await this.wbsService.submitProjectBudgetDrafts(projectId, req.user.tenant_id);
+    } catch (error: any) {
+       throw new InternalServerErrorException(`Failed to submit project budget: ${error.message}`);
+    }
+  }
+
+  // --- NEW: Budget vs. Contract Value Validation ---
+
+  @Get("budget/validate-against-contract/:projectId")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
+  async validateBudgetAgainstContract(
+    @Param("projectId", new ParseUUIDPipe()) projectId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.validateBudgetAgainstContractValue(
+      projectId,
+      req.user.tenant_id,
+    );
+  }
+
+  // --- NEW: Seed Default Categories ---
+
+  @Post("categories/seed")
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CEO)
+  async seedCategories(@Req() req: AuthenticatedRequest) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.seedDefaultCategories(req.user.tenant_id);
+  }
+
+  // --- NEW: WBS Template Endpoints ---
+
+  @Get("templates")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.TechnicalDirector, Role.OperationalDirector, Role.CEO)
+  async getTemplates(@Req() req: AuthenticatedRequest) {
+    if (!req.user || !req.user.tenant_id) {
+       throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.findAllTemplates(req.user.tenant_id);
+  }
+
+  @Post("templates/apply/:projectId")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async applyTemplate(
+    @Param("projectId", new ParseUUIDPipe()) projectId: string,
+    @Body("templateId", new ParseUUIDPipe()) templateId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+       throw new UnauthorizedException("User not authenticated.");
+    }
+    await this.wbsService.applyTemplateToProject(
+      projectId,
+      templateId,
+      req.user.id,
+      req.user.tenant_id,
+    );
+    return { message: 'Template applied successfully' };
+  }
+
+  @Post("templates/seed")
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(Role.SuperAdmin, Role.AdminDirector, Role.CEO) // Allow AdminDirector for tenant seeding
+  async seedTemplates(@Req() req: AuthenticatedRequest) {
+    await this.wbsService.seedDefaultTemplates();
+    return { message: 'Templates seeded successfully' };
+  }
+
+  @Post("import-csv/:projectId")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  async importCsv(
+    @Param("projectId", new ParseUUIDPipe()) projectId: string,
+    @Body("csvContent") csvContent: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+       throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.importWbsFromCsv(
+      projectId,
+      csvContent,
+      req.user.id,
+      req.user.tenant_id,
+    );
+  }
+
+  @Post("import-excel/:projectId")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @UseInterceptors(FileInterceptor("file"))
+  async importExcel(
+    @Param("projectId", new ParseUUIDPipe()) projectId: string,
+    @UploadedFile() file: any,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    if (!file || !file.buffer) {
+      throw new BadRequestException("No file provided.");
+    }
+    return this.wbsService.importWbsFromExcel(
+      projectId,
+      file.buffer,
+      req.user.id,
+      req.user.tenant_id,
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RECALL AN APPROVED BUDGET
+  // Senior approvers (CFO, AdminDirector, CEO) can revoke their own approval.
+  // The item status becomes RECALLED, which flows back to the approval queue.
+  // ─────────────────────────────────────────────────────────────────────────────
+  @Patch("budget/:id/recall")
+  @Roles(Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager, Role.CEO, Role.SuperAdmin)
+  async recallApproval(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body("reason") reason: string | undefined,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    try {
+      return await this.wbsService.recallWbsBudgetApproval(
+        id,
+        req.user.tenant_id,
+        req.user,
+        reason,
+      );
+    } catch (error: any) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to recall approval: ${error.message}`);
+    }
+  }
+
+  @Get('capex-intelligence')
+  @Roles(Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager, Role.TechnicalDirector, Role.OperationalDirector)
+  async getCapexIntelligence(
+    @Req() req: AuthenticatedRequest,
+    @Query('projectId') projectId?: string,
+  ) {
+    if (!req.user?.tenant_id) throw new UnauthorizedException('User not authenticated.');
+    return this.wbsService.getCapexIntelligence(req.user.tenant_id, projectId);
   }
 }
+

@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, Logger, Inject, ConflictException } from "@nestjs/common";
+import { Injectable, NotFoundException, Inject, ConflictException, BadRequestException } from "@nestjs/common";
+import { CorrelatedLogger } from "../common/logger/correlated-logger";
 import { Repository, SelectQueryBuilder, DataSource } from "typeorm";
 import { ProjectEntity } from "./project.entity";
 import { LpoEntity } from "./lpo.entity";
 import { ProjectInflowEntity } from "./project-inflow.entity";
 import { ProjectAuditEntity } from "./project-audit.entity";
+import { ClientEntity } from "../clients/client.entity";
 import { CreateProjectDto } from "./dto/create-project.dto";
 import { CreateLpoDto } from "./dto/create-lpo.dto";
 import { UpdateProjectDto } from "./dto/update-project.dto";
@@ -15,10 +17,12 @@ import { ExcelUtility } from "../common/excel.utility";
 import { WordUtility } from "../common/word.utility";
 import { Buffer } from "buffer";
 import { TENANT_DATA_SOURCE } from "../database/constants";
+import { SafeTransaction, RetryableQuery } from "../common/config/database.config";
+import { ProjectStatus } from "./enums/project.enum";
 
 @Injectable()
 export class ProjectsService {
-  private readonly logger = new Logger(ProjectsService.name);
+  private readonly logger = new CorrelatedLogger(ProjectsService.name);
 
   constructor(
     @Inject(TENANT_DATA_SOURCE)
@@ -121,7 +125,7 @@ export class ProjectsService {
       }, "total_budgeted_rollup")
       .addSelect((subQuery) => {
         return subQuery
-          .select("COALESCE(SUM(expense.actual_paid_amount), 0)")
+          .select("COALESCE(SUM(expense.amount), 0)")
           .from(LiveExpenseEntity, "expense")
           .innerJoin(
             WbsBudgetEntity,
@@ -138,46 +142,98 @@ export class ProjectsService {
       }, "total_inflow_rollup");
   }
 
+
   async create(
     createProjectDto: CreateProjectDto,
     userId: string,
     tenantId: string,
   ): Promise<ProjectEntity> {
-    // Check for duplicate project name within the same tenant
-    const existing = await this.projectRepository.findOne({
-      where: { project_name: createProjectDto.project_name, tenant_id: tenantId }
+    this.logger.log(`[CreateProject] Initializing for user ${userId}, tenant ${tenantId}. Payload: ${JSON.stringify(createProjectDto)}`);
+    const { client_id, client_name, project_name } = createProjectDto;
+    
+    // 1. Transactional Execution for Integrity with Timeout
+    return SafeTransaction.execute(this.dataSource, async (manager) => {
+      this.logger.log(`[CreateProject] Transaction started.`);
+      // Check for duplicate project name
+      const existingProject = await manager.findOne(ProjectEntity, {
+        where: { project_name: project_name, tenant_id: tenantId }
+      });
+      this.logger.log(`[CreateProject] Duplicate check complete. Found: ${!!existingProject}`);
+      if (existingProject) {
+        throw new ConflictException(`A project with the name "${project_name}" already exists.`);
+      }
+
+      let finalClientId = client_id;
+
+      // 2. Handle Logic: Inline Client Creation
+      if (!finalClientId && client_name) {
+        // Check if client already exists by name (case-insensitive preferred, but exact match for now)
+        // using QueryBuilder for case-insensitivity if needed, or simple findOne
+        const existingClient = await manager.findOne(ClientEntity, {
+          where: { name: client_name, tenant_id: tenantId }
+        });
+
+        if (existingClient) {
+          // OPTION A: Use existing (Smart Association)
+          finalClientId = existingClient.id;
+          this.logger.log(`Associating with existing client "${client_name}" (ID: ${finalClientId})`);
+        } else {
+          // OPTION B: Create New
+          const newClient = manager.create(ClientEntity, {
+            name: client_name,
+            tenant_id: tenantId,
+            is_active: true
+          });
+          const savedClient = await manager.save(newClient);
+          finalClientId = savedClient.id;
+          this.logger.log(`Created new inline client "${client_name}" (ID: ${finalClientId})`);
+        }
+      } else if (finalClientId) {
+          // Verify provided client_id exists
+          const clientExists = await manager.findOne(ClientEntity, {
+              where: { id: finalClientId, tenant_id: tenantId }
+          });
+          if (!clientExists) {
+              throw new NotFoundException(`Client with ID ${finalClientId} not found.`);
+          }
+      }
+
+      this.logger.log(`[CreateProject] Client handling complete. ClientID: ${finalClientId}`);
+      // 3. Create Project
+      const project = manager.create(ProjectEntity, {
+        ...createProjectDto,
+        contract_value: createProjectDto.contract_value ?? 0,
+        contingency_percent: createProjectDto.contingency_percent ?? 0,
+        vat_rate: createProjectDto.vat_rate ?? 7.5,
+        wht_rate: createProjectDto.wht_rate ?? 5.0,
+        created_by_user_id: userId,
+        tenant_id: tenantId,
+        client_id: finalClientId || null, 
+      });
+
+      const savedProject = await manager.save(project);
+      this.logger.log(`[CreateProject] Project saved. ProjectID: ${savedProject.project_id}`);
+      
+      // 4. Initial Audit Log
+      // Note: We use the injected repositories for audit log usually, but inside transaction 
+      // strictly we should use manager. However, for audit, we can fire-and-forget or await separate save.
+      // Ideally use manager.save(AuditEntity) but your logAudit uses this.auditRepository. 
+      // To keep transaction safe, we should essentially inline the audit creation using 'manager'.
+      
+      const auditLog = manager.create(ProjectAuditEntity, {
+          project_id: savedProject.project_id,
+          tenant_id: tenantId,
+          performed_by_user_id: userId,
+          change_type: 'PROJECT_INITIALIZED',
+          old_value: null,
+          new_value: savedProject.contract_value,
+          description: `Project "${savedProject.project_name}" initialized with contract value ${savedProject.contract_value}`
+      });
+      await manager.save(auditLog);
+      this.logger.log(`[CreateProject] Audit log saved. Transaction completing.`);
+
+      return savedProject;
     });
-
-    if (existing) {
-      throw new ConflictException(`A project with the name "${createProjectDto.project_name}" already exists.`);
-    }
-
-    const project = this.projectRepository.create({
-      ...createProjectDto,
-      // Fallback defaults to prevent "Not Null" constraints if payload has nulls
-      contract_value: createProjectDto.contract_value ?? 0,
-      contingency_percent: createProjectDto.contingency_percent ?? 0,
-      vat_rate: createProjectDto.vat_rate ?? 7.5,
-      wht_rate: createProjectDto.wht_rate ?? 5.0,
-      created_by_user_id: userId,
-      tenant_id: tenantId, // Ensure tenant_id is set on creation
-      client_id: createProjectDto.client_id || null, // Handle client_id
-    });
-
-    const savedProject = await this.projectRepository.save(project);
-
-    // Initial Audit Log
-    await this.logAudit(
-      savedProject.project_id,
-      tenantId,
-      userId,
-      'PROJECT_INITIALIZED',
-      null,
-      savedProject.contract_value,
-      `Project "${savedProject.project_name}" initialized with contract value ${savedProject.contract_value}`
-    );
-
-    return savedProject;
   }
 
   async findAll(
@@ -188,10 +244,19 @@ export class ProjectsService {
       total_budgeted_rollup: number;
       total_paid_rollup: number;
       total_inflow_rollup: number;
+      variance_pct: string;
     })[];
     total: number;
   }> {
-    const { page = 1, limit = 10, project_name, status } = options;
+    const { 
+      page = 1, 
+      limit = 10, 
+      project_name, 
+      status, 
+      client_id, 
+      sortBy = 'project_name', 
+      sortOrder = 'ASC' 
+    } = options;
     const skip = (page - 1) * limit;
 
     let queryBuilder = this.projectRepository
@@ -210,24 +275,37 @@ export class ProjectsService {
     if (status) {
       queryBuilder.andWhere("project.status = :status", { status });
     }
+    if (client_id) {
+      queryBuilder.andWhere("project.client_id = :client_id", { client_id });
+    }
 
-    // Group by all selected non-aggregate columns from ProjectEntity and joined entities
-    queryBuilder.groupBy("project.project_id, user.id, client.id");
+    // Support sorting by aggregate fields or direct fields
+    const sortField = sortBy.includes('_rollup') ? sortBy : `project.${sortBy}`;
+    queryBuilder.orderBy(sortField, sortOrder);
 
     const { entities, raw } = await queryBuilder
       .skip(skip)
       .take(limit)
-      .orderBy("project.project_name", "ASC")
       .getRawAndEntities();
 
     const mappedProjects = entities.map((project, index) => {
       // Find the corresponding raw result by project_id
       const rawData = raw.find(r => r.project_project_id === project.project_id);
+      const totalBudgeted = parseFloat(rawData?.total_budgeted_rollup || '0');
+      const totalPaid = parseFloat(rawData?.total_paid_rollup || '0');
+      const totalInflow = parseFloat(rawData?.total_inflow_rollup || '0');
+
+      // Compute variance percentage: ((paid - budgeted) / budgeted) * 100
+      const variancePct = totalBudgeted > 0
+        ? (((totalPaid - totalBudgeted) / totalBudgeted) * 100).toFixed(2)
+        : '0.00';
+
       return {
         ...project,
-        total_budgeted_rollup: parseFloat(rawData?.total_budgeted_rollup || '0'),
-        total_paid_rollup: parseFloat(rawData?.total_paid_rollup || '0'),
-        total_inflow_rollup: parseFloat(rawData?.total_inflow_rollup || '0'),
+        total_budgeted_rollup: totalBudgeted,
+        total_paid_rollup: totalPaid,
+        total_inflow_rollup: totalInflow,
+        variance_pct: variancePct,
       };
     });
 
@@ -265,7 +343,8 @@ export class ProjectsService {
 
     queryBuilder = this._addRollupSubqueries(queryBuilder);
     queryBuilder.leftJoinAndSelect("project.client", "client"); // Join Client relation
-    queryBuilder.groupBy("project.project_id, user.id, client.id");
+    // GroupBy removed
+
 
     const { entities, raw } = await queryBuilder.getRawAndEntities();
 
@@ -313,7 +392,7 @@ export class ProjectsService {
       // 2. Get Outflows (Live Expenses) grouped by month
       const outflows = await this.dataSource.getRepository(LiveExpenseEntity).createQueryBuilder("expense")
           .select("EXTRACT(MONTH FROM expense.expense_date)", "month")
-          .addSelect("SUM(expense.actual_paid_amount)", "total")
+          .addSelect("SUM(expense.amount)", "total")
           .innerJoin(WbsBudgetEntity, "wbs", "wbs.wbs_id = expense.wbs_id")
           .where("wbs.project_id = :project_id", { project_id })
           .andWhere("expense.tenant_id = :tenantId", { tenantId })
@@ -358,10 +437,61 @@ export class ProjectsService {
     return this.projectRepository.save(project);
   }
 
+  async archive(project_id: string, tenantId: string, userId: string): Promise<ProjectEntity> {
+    const project = await this.findOne(project_id, tenantId);
+    project.status = ProjectStatus.ARCHIVED;
+    const archived = await this.projectRepository.save(project);
+
+    await this.logAudit(
+      project_id,
+      tenantId,
+      userId,
+      "STATUS_CHANGE",
+      null,
+      null,
+      `Project archived by user ${userId}`
+    );
+
+    return archived;
+  }
+
+  async restore(project_id: string, tenantId: string, userId: string): Promise<void> {
+    const result = await this.projectRepository.restore({
+      project_id,
+      tenant_id: tenantId,
+    });
+
+    if (result.affected === 0) {
+      throw new NotFoundException(`Project with ID "${project_id}" not found or not deleted.`);
+    }
+
+    await this.logAudit(
+      project_id,
+      tenantId,
+      userId,
+      "RESTORE",
+      null,
+      null,
+      `Project restored from trash by user ${userId}`
+    );
+  }
+
   async remove(project_id: string, tenantId: string, userId?: string): Promise<void> {
     const project = await this.findOne(project_id, tenantId);
-    
-    const result = await this.projectRepository.delete({
+
+    // FINANCIAL INTEGRITY GATE: Block hard-deletion if project has budgets or expenses
+    const budgetCount = await this.wbsBudgetRepository.count({ where: { project_id, tenant_id: tenantId } });
+    const expenseCount = await this.liveExpenseRepository.count({
+      where: { project_id, tenant_id: tenantId },
+    });
+
+    if (budgetCount > 0 || expenseCount > 0) {
+      throw new BadRequestException(
+        "CRITICAL_INTEGRITY_BLOCK: This project has existing budgets or expenses. It cannot be deleted. Please use 'Archive' instead to preserve the financial audit trail.",
+      );
+    }
+
+    const result = await this.projectRepository.softDelete({
       project_id,
       tenant_id: tenantId,
     });
@@ -371,11 +501,16 @@ export class ProjectsService {
     }
 
     if (userId) {
-       // Log deletion (this will stay in the audit log even if project is gone, depending on FK constraints)
-       // Actually, project_audit has a FK to project. If we delete project, audit might be deleted too
-       // unless CASCADE is NOT set or it's handled differently.
-       // For now, simple log.
-       this.logger.log(`Project ${project_id} deleted by user ${userId}`);
+      await this.logAudit(
+        project_id,
+        tenantId,
+        userId,
+        "SOFT_DELETE",
+        null,
+        null,
+        `Project soft-deleted by user ${userId}`,
+      );
+      this.logger.log(`Project ${project_id} soft-deleted by user ${userId}`);
     }
   }
 

@@ -45,6 +45,10 @@ export class NotificationsGateway
   }
 
   emitUnreadCountUpdate(count: number) {
+    if (!this.server || !this.server.clients) {
+      this.logger.warn("WebSocket server not ready; unread count update skipped.");
+      return;
+    }
     this.server.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(JSON.stringify({ type: "UNREAD_COUNT_UPDATE", count }));
@@ -52,11 +56,15 @@ export class NotificationsGateway
     });
   }
 
-  emitVarianceAlert(alert: { title: string; message: string; type: string }) {
+  emitVarianceAlert(alert: { title: string; message: string; type: string; metadata?: any }) {
+    if (!this.server || !this.server.clients) {
+      this.logger.warn("WebSocket server not ready; variance alert skipped.");
+      return;
+    }
     this.server.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(alert));
-        }
-      });
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(alert));
+      }
+    });
   }
 }

@@ -8,28 +8,16 @@ import {
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Request, Response } from 'express';
-import { AsyncLocalStorage } from 'async_hooks';
+import { ClsService, ClsServiceManager } from 'nestjs-cls';
 
-// ============================================================================
-// ASYNC LOCAL STORAGE - Thread-local correlation context
-// ============================================================================
-export interface CorrelationContext {
-  correlationId: string;
-  requestId: string;
-  userId?: string;
-  startTime: number;
-}
-
-export const correlationStorage = new AsyncLocalStorage<CorrelationContext>();
-
-// Helper to get current correlation context
-export const getCorrelationContext = (): CorrelationContext | undefined => {
-  return correlationStorage.getStore();
-};
-
-// Helper to get correlation ID
+// Helper to get correlation ID outside of injection (e.g. in loggers)
 export const getCorrelationId = (): string | undefined => {
-  return getCorrelationContext()?.correlationId;
+  try {
+    const cls = ClsServiceManager.getClsService();
+    return cls.get('correlationId');
+  } catch {
+    return undefined;
+  }
 };
 
 // ============================================================================
@@ -37,8 +25,9 @@ export const getCorrelationId = (): string | undefined => {
 // ============================================================================
 @Injectable()
 export class CorrelationInterceptor implements NestInterceptor {
-  // Make logger static to avoid creating new instance per request
   private static readonly logger = new Logger(CorrelationInterceptor.name);
+
+  constructor(private readonly cls: ClsService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -47,17 +36,15 @@ export class CorrelationInterceptor implements NestInterceptor {
     // Extract or generate correlation ID
     const correlationId =
       (request.headers['x-correlation-id'] as string) ||
-      `backend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      `backend-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
     // Generate unique request ID
-    const requestId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const requestId = `req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-    // Create correlation context
-    const correlationContext: CorrelationContext = {
-      correlationId,
-      requestId,
-      startTime: Date.now(),
-    };
+    // Store in CLS context (mounted by ClsModule middleware)
+    this.cls.set('correlationId', correlationId);
+    this.cls.set('requestId', requestId);
+    this.cls.set('startTime', Date.now());
 
     // Add correlation ID to response headers
     response.setHeader('X-Correlation-ID', correlationId);
@@ -70,27 +57,26 @@ export class CorrelationInterceptor implements NestInterceptor {
       );
     }
 
-    // Run the request handler within the correlation context
-    return correlationStorage.run(correlationContext, () => {
-      return next.handle().pipe(
-        tap({
-          next: () => {
-            const duration = Date.now() - correlationContext.startTime;
-            // Only log slow requests or errors
-            if (duration > 1000) {
-              CorrelationInterceptor.logger.warn(
-                `[CID:${correlationId}] ← SLOW ${response.statusCode} ${request.method} ${request.url} (${duration}ms)`,
-              );
-            }
-          },
-          error: (error) => {
-            const duration = Date.now() - correlationContext.startTime;
-            CorrelationInterceptor.logger.error(
-              `[CID:${correlationId}] ← ERROR ${request.method} ${request.url} (${duration}ms): ${error.message}`,
+    return next.handle().pipe(
+      tap({
+        next: () => {
+          const startTime = this.cls.get('startTime');
+          const duration = Date.now() - startTime;
+          // Only log slow requests (> 1s)
+          if (duration > 1000) {
+            CorrelationInterceptor.logger.warn(
+              `[CID:${correlationId}] ← SLOW ${response.statusCode} ${request.method} ${request.url} (${duration}ms)`,
             );
-          },
-        }),
-      );
-    });
+          }
+        },
+        error: (error) => {
+          const startTime = this.cls.get('startTime');
+          const duration = Date.now() - startTime;
+          CorrelationInterceptor.logger.error(
+            `[CID:${correlationId}] ← ERROR ${request.method} ${request.url} (${duration}ms): ${error.message}`,
+          );
+        },
+      }),
+    );
   }
 }
