@@ -44,7 +44,7 @@ export class TimeoutInterceptor implements NestInterceptor {
       return 60000; // 60 seconds for login (handling cold DB + bcrypt)
     }
     if (request.method === 'GET') {
-      return 8000; // 8 seconds for read operations
+      return 20000; // Increased from 8s to 20s for Neon cold starts
     }
     return this.defaultTimeout;
   }

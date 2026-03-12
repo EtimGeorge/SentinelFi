@@ -12,7 +12,7 @@ const SessionTimeoutWarning: React.FC<SessionTimeoutWarningProps> = ({
   timeout = 30 * 60 * 1000, // 30 minutes
   warningTime = 5 * 60 * 1000, // 5 minute warning
 }) => {
-  const { refreshAuth, isAuthenticated } = useAuth();
+  const { refreshUser, isAuthenticated } = useAuth();
   const [isVisible, setIsVisible] = useState(false);
 
   const { timeRemaining, isWarningShown, resetTimer, formatTime } = useSessionTimeout({
@@ -32,7 +32,7 @@ const SessionTimeoutWarning: React.FC<SessionTimeoutWarningProps> = ({
   const handleExtendSession = async () => {
     try {
       // Attempt to refresh auth (which will validate token and potentially extend session on backend)
-      await refreshAuth();
+      await refreshUser();
       resetTimer(); // Reset local timer if refresh is successful
       setIsVisible(false); // Hide warning
     } catch (error) {
@@ -93,8 +93,8 @@ const SessionTimeoutWarning: React.FC<SessionTimeoutWarningProps> = ({
             </div>
 
             <p className="text-center text-gray-300">
-              For your security, you'll be automatically logged out due to inactivity.
-              Click "Stay Logged In" to extend your session.
+              For your security, you&apos;ll be automatically logged out due to inactivity.
+              Click &quot;Stay Logged In&quot; to extend your session.
             </p>
 
             {/* Action Buttons */}

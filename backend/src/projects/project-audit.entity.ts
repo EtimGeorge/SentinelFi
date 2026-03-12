@@ -10,7 +10,7 @@ import {
 import { ProjectEntity } from "./project.entity";
 import { UserEntity } from "../auth/user.entity";
 
-@Entity({ name: "project_audit", schema: "client_template" })
+@Entity({ name: "project_audit" })
 export class ProjectAuditEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

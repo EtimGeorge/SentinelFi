@@ -17,7 +17,17 @@
     ],
     "paths": {
       "@shared/*": ["../../shared/*"],
-      "projects/*": ["./projects/*"] // Added path mapping for projects module
+      "@src/*": ["./*"],
+      "@app/*": ["./app/*"],
+      "@auth/*": ["./auth/*"],
+      "@common/*": ["./common/*"],
+      "@audit/*": ["./audit/*"],
+      "@tenants/*": ["./tenants/*"],
+      "@wbs/*": ["./wbs/*"],
+      "@projects/*": ["./projects/*"],
+      "@operational-budgets/*": ["./operational-budgets/*"],
+      "@superadmin/*": ["./superadmin/*"],
+      "@database/*": ["./database/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

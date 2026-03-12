@@ -11,7 +11,7 @@ import {
 import { ProjectEntity } from "./project.entity";
 import { UserEntity } from "../auth/user.entity";
 
-@Entity({ name: "project_inflow", schema: "client_template" })
+@Entity({ name: "project_inflow" })
 export class ProjectInflowEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

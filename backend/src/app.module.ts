@@ -7,10 +7,13 @@ import {
 } from "@nestjs/common";
 import { TenancyGuard } from "./common/guards/tenancy.guard";
 import { TenantAccessGuard } from "./common/guards/tenant-access.guard"; // Import TenantAccessGuard
-import { ClsModule } from "nestjs-cls";
+import { ClsModule, ClsService } from "nestjs-cls";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { APP_GUARD } from "@nestjs/core";
+import { DataSource, DataSourceOptions } from "typeorm";
+import { TenancyAwareDataSource } from "./database/tenancy-aware-data-source";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
+import { CorrelationInterceptor } from "./common/interceptors/correlation.interceptor";
 import { WbsBudgetEntity } from "./wbs/wbs-budget.entity";
 import { LiveExpenseEntity } from "./wbs/live-expense.entity";
 import { WbsModule } from "./wbs/wbs.module";
@@ -47,6 +50,15 @@ import { CommonModule } from "./common/common.module";
 import { DatabaseConfig } from "./common/config/database.config";
 import { PayrollEntryEntity } from "./operational-budgets/payroll-entry.entity";
 import { TenantRepositoriesModule } from "./tenant-repositories.module"; // Import TenantRepositoriesModule
+import { BudgetCategoryEntity } from "./operational-budgets/budget-category.entity";
+import { OperationalBudgetPeriodAllocationEntity } from "./operational-budgets/operational-budget-period-allocation.entity";
+import { CurrencyModule } from "./currency/currency.module";
+import { CurrencyExchangeRateEntity } from "./currency/currency.entity";
+import { ClientModule } from "./clients/client.module";
+import { ClientEntity } from "./clients/client.entity";
+import { FinanceCoreModule } from "./finance-core/finance-core.module";
+import { ReportingModule } from "./reporting/reporting.module";
+import { MessagingModule } from "./messaging/messaging.module";
 
 @Module({
   imports: [
@@ -55,34 +67,26 @@ import { TenantRepositoriesModule } from "./tenant-repositories.module"; // Impo
       isGlobal: true,
       envFilePath: [".env.local", ".env", "backend/.env.local", "backend/.env"],
     }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
+    }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
+      imports: [ConfigModule, ClsModule],
+      inject: [ConfigService, ClsService],
       useFactory: (configService: ConfigService) => {
-        // Define all entities that TypeORM should be aware of for the main public connection.
-        const entities = [
-          WbsBudgetEntity,
-          LiveExpenseEntity,
-          UserEntity,
-          RoleEntity,
-          PermissionEntity,
-          WbsCategoryEntity,
-          TenantEntity,
-          AuditLogEntity,
-          ProjectEntity,
-          LpoEntity,
-          ProjectInflowEntity,
-          ProjectAuditEntity,
-          OperationalBudgetEntity,
-          OperationalBudgetCategoryEntity,
-          OperationalExpenseEntity,
-          SettingsEntity,
-          PayrollEntryEntity,
-        ];
-
-        // Delegate the entire configuration generation to the new, centralized DatabaseConfig class.
-        return DatabaseConfig.getTypeOrmConfig(configService, entities);
+        const entities = DatabaseConfig.getEntities();
+        // Use a unified pool for the entire application (5 connections).
+        // Combined with the tenant pool (5), this stays within Neon safe limits (10).
+        return DatabaseConfig.getTypeOrmConfig(configService, entities, 5);
       },
+      dataSourceFactory: async (options) => {
+        if (!options) {
+          throw new Error('DataSource options are undefined');
+        }
+        const dataSource = new TenancyAwareDataSource(options as DataSourceOptions);
+        return dataSource;
+      }
     }),
     TenantDatabaseModule, // Add the TenantDatabaseModule here
     TenantMigrationModule, // NEW: Add TenantMigrationModule
@@ -100,13 +104,18 @@ import { TenantRepositoriesModule } from "./tenant-repositories.module"; // Impo
     SettingsModule,
     EmailModule,
     DashboardModule,
-    ClsModule.forRoot({
-      global: true,
-      middleware: { mount: true },
-    }),
+    CurrencyModule,
+    ClientModule,
+    FinanceCoreModule,
+    ReportingModule,
+    MessagingModule,
   ],
   controllers: [],
   providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CorrelationInterceptor,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard, // Runs first: authenticates the user

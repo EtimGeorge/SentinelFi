@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe, Logger } from "@nestjs/common";
@@ -6,7 +7,7 @@ import { ConfigService } from "@nestjs/config";
 import { Request, Response, NextFunction } from "express";
 import { DataSource } from "typeorm";
 import { DatabaseConfig } from "./common/config/database.config";
-
+import { RedisIoAdapter } from './messaging/adapters/redis-io.adapter';
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
 
@@ -32,6 +33,13 @@ async function bootstrap() {
 
     app.use(cookieParser());
     app.setGlobalPrefix("api/v1");
+    // Register the Socket.io adapter (with optional Redis for scaling)
+    const redisIoAdapter = new RedisIoAdapter(app);
+    const redisUrl = configService.get<string>('REDIS_URL');
+    await redisIoAdapter.connectToRedis(redisUrl);
+    app.useWebSocketAdapter(redisIoAdapter);
+
+    // Correlation interceptor is registered globally in AppModule via APP_INTERCEPTOR provider
 
     app.useGlobalPipes(
       new ValidationPipe({
@@ -40,6 +48,9 @@ async function bootstrap() {
         transform: true,
       }),
     );
+
+    const { AllExceptionsFilter } = await import('./common/filters/all-exceptions.filter');
+    app.useGlobalFilters(new AllExceptionsFilter());
 
     if (nodeEnv === "development") {
       app.use((req: Request, res: Response, next: NextFunction) => {
@@ -93,7 +104,7 @@ async function bootstrap() {
     
     // --- END SENIOR DEV ENHANCEMENTS ---
 
-    await app.listen(port, "localhost");
+    await app.listen(port, "0.0.0.0");
 
     logger.log(`🚀 SentinelFi API is running on: http://localhost:${port}/api/v1`);
     logger.log(`📡 CORS enabled for: ${frontendUrl}`);

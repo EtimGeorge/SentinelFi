@@ -15,7 +15,7 @@ import {
 import { OperationalBudgetCategoryEntity } from "./operational-budget-category.entity"; // Import new entity
 import { PayrollEntryEntity } from "./payroll-entry.entity";
 
-@Entity({ name: "operational_budget", schema: "client_template" }) // Multi-tenancy
+@Entity({ name: "operational_budget" }) // Multi-tenancy
 export class OperationalBudgetEntity {
   @PrimaryGeneratedColumn("uuid")
   operational_budget_id!: string;
@@ -66,8 +66,8 @@ export class OperationalBudgetEntity {
   @Column({ type: "uuid" })
   created_by_user_id!: string;
 
-  @ManyToOne(() => UserEntity)
-  @JoinColumn({ name: "created_by_user_id" })
+  @ManyToOne('UserEntity') // Reference UserEntity by string name
+  @JoinColumn({ name: "created_by_user_id", referencedColumnName: "id" }) // Explicitly define referencedColumnName
   createdBy!: UserEntity;
 
   @OneToMany(

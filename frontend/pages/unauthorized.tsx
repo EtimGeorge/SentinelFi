@@ -9,7 +9,7 @@ const UnauthorizedPage: React.FC = () => {
     if (!user) return '/login';
     switch (getPrimaryRole()) {
       case Role.CEO:
-      case Role.Finance:
+      case Role.FinanceManager:
         return '/dashboard/ceo';
       case Role.AssignedProjectUser:
         return '/expense/tracker';
@@ -25,8 +25,8 @@ const UnauthorizedPage: React.FC = () => {
         <p className="text-gray-300 mb-6">
           You do not have the necessary permissions to view this page.
         </p>
-        <Link 
-          href={getDashboardLink()} 
+        <Link
+          href={getDashboardLink()}
           className="px-6 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-primary/90"
         >
           Return to Your Dashboard

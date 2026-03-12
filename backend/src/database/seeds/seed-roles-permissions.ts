@@ -1,18 +1,28 @@
 // backend/src/database/seeds/seed-roles-permissions.ts
-import { DataSource } from 'typeorm';
+// Instruction: Refactor the script to initialize TypeORM DataSource directly instead of creating a full NestJS app context.
+// Remove NestFactory and AppModule imports.
+// Update the bootstrap function to directly initialize and use the TypeORM DataSource.
+// Ensure correct `AppDataSource` import.
+
+import { DataSource } from 'typeorm'; // Import DataSource directly
 import { RoleEntity } from '../../auth/role.entity';
 import { PermissionEntity } from '../../auth/permission.entity';
-import { Logger } from '@nestjs/common';
-import { Role } from 'shared/types/role.enum'; // Import the shared Role enum
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../../app.module';
+import { Logger } from '@nestjs/common'; // Keep Logger, it's a simple class, though a plain console.log might be faster
+import { Role } from '@shared/types/role.enum'; // Import the shared Role enum
+// Removed: import { NestFactory } from '@nestjs/core';
+// Removed: import { AppModule } from '../../app.module';
+
+import AppDataSource from '../../../ormconfig'; // Import the default public AppDataSource from monorepo root config
 
 async function bootstrap() {
     const logger = new Logger('SeedRolesPermissions');
-    logger.log('Initializing application context for seeding roles and permissions...');
+    logger.log('Initializing TypeORM DataSource directly for seeding roles and permissions...');
     
-    const app = await NestFactory.createApplicationContext(AppModule);
-    const dataSource = app.get(DataSource);
+    // Initialize DataSource directly
+    if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+    }
+    const dataSource = AppDataSource; // Use the initialized DataSource
   
     const roleRepository = dataSource.getRepository(RoleEntity);
     const permissionRepository = dataSource.getRepository(PermissionEntity);
@@ -96,15 +106,15 @@ async function bootstrap() {
         permissions: allPermissions, // SuperAdmin gets all permissions
       },
       {
-        name: Role.Admin, // From shared enum
-        description: 'Tenant administrator with full control over their tenant',
+        name: 'Admin', // Legacy - retained in seeder for backward compatibility with migration
+        description: 'Legacy tenant admin role (migrated to Admin Director)',
         permissions: allPermissions.filter(p =>
           !p.name.startsWith('superadmin:') && !p.name.startsWith('roles:')
-        ), // All tenant-level permissions
+        ),
       },
       {
-          name: Role.Finance, // From shared enum
-          description: 'Tenant user focused on financial oversight and approvals',
+          name: 'Finance', // Legacy - retained in seeder for backward compatibility with migration
+          description: 'Legacy finance oversight role (migrated to Finance Manager)',
           permissions: allPermissions.filter(p =>
               p.name === 'expenses:read' ||
               p.name === 'expenses:approve' ||
@@ -114,6 +124,26 @@ async function bootstrap() {
               p.name === 'wbs:read' ||
               p.name === 'projects:read'
           ),
+      },
+      {
+        name: Role.CFO,
+        description: 'Chief Financial Officer - Ultimate financial authority (Tenant Tier)',
+        permissions: allPermissions.filter(p => !p.name.startsWith('superadmin:') && !p.name.startsWith('users:delete')),
+      },
+      {
+        name: Role.AdminDirector,
+        description: 'Director of Administration - Strategic resource management (Tenant Tier)',
+        permissions: allPermissions.filter(p => !p.name.startsWith('superadmin:') && !p.name.startsWith('expenses:approve')),
+      },
+      {
+        name: Role.OperationalDirector,
+        description: 'Director of Operations - Operational strategy and budget oversight (Tenant Tier)',
+        permissions: allPermissions.filter(p => !p.name.startsWith('superadmin:') && !p.name.startsWith('users:')),
+      },
+      {
+        name: Role.TechnicalDirector,
+        description: 'Director of Technology - Formerly IT Head, technical governance (Tenant Tier)',
+        permissions: allPermissions.filter(p => !p.name.startsWith('superadmin:') && (p.name.startsWith('users:') || p.name === 'reports:read')),
       },
       {
           name: Role.CEO, // From shared enum
@@ -128,8 +158,8 @@ async function bootstrap() {
           ),
       },
       {
-          name: Role.ITHead, // From shared enum
-          description: 'Tenant user responsible for IT-related aspects, user management',
+          name: 'IT Head', // Legacy - retained in seeder for backward compatibility with migration
+          description: 'Legacy IT management role (migrated to Technical Director)',
           permissions: allPermissions.filter(p =>
               p.name.startsWith('users:') ||
               p.name === 'tenant_settings:read' ||
@@ -137,17 +167,43 @@ async function bootstrap() {
           ),
       },
       {
-          name: Role.OperationalHead, // From shared enum
-          description: 'Tenant user overseeing operational budgets and project execution',
-          permissions: allPermissions.filter(p =>
-              p.name === 'operational_budgets:create' ||
-              p.name === 'operational_budgets:read' ||
-              p.name === 'operational_budgets:update' ||
-              p.name === 'projects:read' ||
-              p.name === 'wbs:read' ||
-              p.name === 'expenses:read' ||
-              p.name === 'reports:read'
+          name: Role.FinanceManager,
+          description: 'Finance Manager - Operational financial control and primary approvals (Tenant Tier)',
+          permissions: allPermissions.filter(p => 
+            p.name.startsWith('expenses:') || 
+            p.name.startsWith('operational_budgets:') || 
+            p.name.startsWith('reports:') ||
+            p.name.startsWith('wbs:')
           ),
+      },
+      {
+          name: Role.AdminManager,
+          description: 'Admin Manager - Human resources and administrative operations (Tenant Tier)',
+          permissions: allPermissions.filter(p => p.name.startsWith('users:') || p.name === 'reports:read'),
+      },
+      {
+          name: Role.ProjectManager,
+          description: 'Project Manager - Project-level WBS and budget management (Tenant Tier)',
+          permissions: allPermissions.filter(p => 
+            p.name.startsWith('projects:') || 
+            p.name.startsWith('wbs:') || 
+            p.name === 'expenses:read' || 
+            p.name === 'reports:read'
+          ),
+      },
+      {
+          name: Role.FinanceOfficer,
+          description: 'Finance Officer - Data entry and initial verification (Tenant Tier)',
+          permissions: allPermissions.filter(p => 
+            p.name === 'expenses:create' || 
+            p.name === 'expenses:read' || 
+            p.name === 'wbs:read'
+          ),
+      },
+      {
+          name: Role.AdminOfficer,
+          description: 'Admin Officer - Basic user support and administrative tasks (Tenant Tier)',
+          permissions: allPermissions.filter(p => p.name === 'users:read'),
       },
       {
           name: Role.AssignedProjectUser, // From shared enum
@@ -203,12 +259,19 @@ async function bootstrap() {
     }
 
     logger.log('🎉 Roles and permissions seeding completed successfully.');
-    await app.close();
-    process.exit(0);
+    // await app.close(); // Removed app.close
+    // process.exit(0); // This is in the finally block below now
 }
 
+// Add a finally block to ensure dataSource is destroyed and process exits
 bootstrap().catch(error => {
     const logger = new Logger('SeedRolesPermissions');
     logger.error('❌ Failed to seed roles and permissions', error);
     process.exit(1);
+}).finally(async () => { // New finally block
+    if (AppDataSource.isInitialized) {
+        await AppDataSource.destroy();
+        new Logger('SeedRolesPermissions').log('AppDataSource destroyed.');
+    }
+    process.exit(0);
 });

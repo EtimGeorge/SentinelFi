@@ -44,7 +44,7 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
         throw new InternalServerErrorException("SuperAdmin credentials not configured for production.");
       } else {
         superAdminEmail = superAdminEmail || "superadmin@sentinelfi.com";
-        superAdminPassword = superAdminPassword || "password";
+        superAdminPassword = superAdminPassword || "Ndiong1988";
         this.logger.warn(`Using development default SuperAdmin credentials: ${superAdminEmail}`);
       }
     }
@@ -60,8 +60,13 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
         );
 
         if (!superAdminRole) {
-            this.logger.error(`FATAL: The '${superAdminRoleName}' role does not exist.`);
-            throw new InternalServerErrorException(`SuperAdmin role '${superAdminRoleName}' not found.`);
+            if (isProduction) {
+                this.logger.error(`FATAL: The '${superAdminRoleName}' role does not exist.`);
+                throw new InternalServerErrorException(`SuperAdmin role '${superAdminRoleName}' not found.`);
+            } else {
+                this.logger.warn(`The '${superAdminRoleName}' role does not exist yet. Skipping SuperAdmin user creation for now. It will be created by seeding scripts.`);
+                return; // Exit gracefully in development if role not found yet
+            }
         }
 
         // --- Find or Create SuperAdmin User ---

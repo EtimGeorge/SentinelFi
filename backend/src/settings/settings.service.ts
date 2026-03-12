@@ -8,13 +8,15 @@ import { EmailService } from '../email/email.service'; // Import EmailService
 @Injectable()
 export class SettingsService {
   private readonly logger = new Logger(SettingsService.name);
-  private readonly settingsId = 1; // Fixed ID for the single settings row
+  private readonly settingsId = 1;
+  private cachedMaintenanceMode: boolean | null = null;
 
   constructor(
     @InjectRepository(SettingsEntity)
     private settingsRepository: Repository<SettingsEntity>,
-    private readonly emailService: EmailService, // Inject EmailService
+    private readonly emailService: EmailService,
   ) {}
+
 
   async getSettings(): Promise<SettingsEntity> {
     let settings = await this.settingsRepository.findOne({ where: { id: this.settingsId } });
@@ -29,9 +31,22 @@ export class SettingsService {
   async updateSettings(updateSettingsDto: UpdateSettingsDto): Promise<SettingsEntity> {
     let settings = await this.getSettings();
     settings = this.settingsRepository.merge(settings, updateSettingsDto);
-    await this.settingsRepository.save(settings);
-    this.logger.log('Global settings updated.');
-    return settings;
+    const saved = await this.settingsRepository.save(settings);
+    
+    // Invalidate/Update Cache
+    if (updateSettingsDto.maintenanceMode !== undefined) {
+        this.cachedMaintenanceMode = updateSettingsDto.maintenanceMode;
+    }
+    
+    this.logger.log(`Global settings updated. Maintenance: ${settings.maintenanceMode}`);
+    return saved;
+  }
+
+  async isMaintenanceMode(): Promise<boolean> {
+    if (this.cachedMaintenanceMode !== null) return this.cachedMaintenanceMode;
+    const settings = await this.getSettings();
+    this.cachedMaintenanceMode = settings.maintenanceMode;
+    return this.cachedMaintenanceMode;
   }
 
   async sendTestEmail(to: string): Promise<void> {

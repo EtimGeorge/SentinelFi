@@ -3,3 +3,145 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ============================================================
+   GLOBAL PRINT STYLES — Budget Preview / Financial Reports
+   ============================================================ */
+@media print {
+  /* --- Reset page layout ----------------------------------- */
+  @page {
+    size: A4 landscape;
+    margin: 15mm 10mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* --- Hide ALL interactive & navigational chrome ---------- */
+  /* Sidebar */
+  aside,
+  [data-sidebar],
+  nav[aria-label="sidebar"],
+  .sidebar,
+  #sidebar {
+    display: none !important;
+  }
+
+  /* Top navigation bar */
+  header:not(.print-header),
+  [data-topnav],
+  .topnav,
+  #topnav {
+    display: none !important;
+  }
+
+  /* Breadcrumbs, action bars, sticky toolbars */
+  .print\:hidden,
+  [class*="sticky"],
+  [class*="breadcrumb"] {
+    display: none !important;
+  }
+
+  /* Force full-width content */
+  body,
+  #__next,
+  main,
+  [data-main-content],
+  .main-content {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Page container wrapper — remove all padding/margin  */
+  .page-container,
+  [class*="PageContainer"] {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* --- Print-only document header ------------------------- */
+  .print-doc-header {
+    display: block !important;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #000;
+  }
+
+  /* --- Table styles for document-quality output ----------- */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 9pt !important;
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+    background-color: #f3f4f6 !important;
+    color: #111 !important;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  th, td {
+    border: 1px solid #d1d5db !important;
+    padding: 4px 8px !important;
+    color: #000 !important;
+  }
+
+  th {
+    font-weight: 800 !important;
+    text-transform: uppercase;
+    font-size: 7pt !important;
+    letter-spacing: 0.05em;
+    background-color: #e5e7eb !important;
+  }
+
+  tfoot tr {
+    background-color: #f9fafb !important;
+    font-weight: 900 !important;
+  }
+
+  /* WBS code badges */
+  .wbs-code-badge {
+    background-color: #f3f4f6 !important;
+    color: #111 !important;
+    border: 1px solid #d1d5db !important;
+  }
+
+  /* --- Remove card shadows and decorative borders --------- */
+  [class*="Card"],
+  .card {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* Indentation for hierarchical levels */
+  .tree-indent {
+    border-left: 2px solid #9ca3af !important;
+  }
+
+  /* Variance colors must survive print */
+  .text-alert-positive { color: #16a34a !important; }
+  .text-alert-critical { color: #dc2626 !important; }
+}

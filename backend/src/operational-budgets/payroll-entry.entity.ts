@@ -10,7 +10,7 @@ import {
 import { OperationalBudgetEntity } from "./operational-budget.entity";
 import { UserEntity } from "../auth/user.entity";
 
-@Entity({ name: "payroll_entry", schema: "client_template" })
+@Entity({ name: "payroll_entry" })
 export class PayrollEntryEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

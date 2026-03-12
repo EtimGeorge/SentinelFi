@@ -96,8 +96,9 @@ class StrictModeDebugger {
     };
   }
 
-  trackEffect(componentName: string, effectName: string, deps?: unknown[]): () => void {
+  trackEffect(componentName: string, effectName: string, deps?: React.DependencyList): () => void {
     if (!this.enabled) return () => {};
+
 
     console.log(
       `%c[${componentName}] 🔵 Effect "${effectName}" running`,

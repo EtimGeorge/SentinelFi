@@ -7,11 +7,13 @@ import {
   JoinColumn,
   ManyToMany,
   JoinTable,
+  Index,
 } from "typeorm";
 import { Role } from "@shared/types/role.enum";
 import type { TenantEntity } from "../../src/tenants/tenant.entity";
 
 @Entity({ name: "user", schema: "public" }) // NOTE: This entity lives in the MASTER DB/Schema, not a tenant schema
+@Index("IDX_user_identity", ['email', 'username', 'is_active'])
 export class UserEntity {
   // Primary Key (Used as the user_id in LiveExpense table)
   @PrimaryGeneratedColumn("uuid")
@@ -20,8 +22,11 @@ export class UserEntity {
   @Column({ unique: true })
   email!: string;
 
-  @Column({ select: false, type: "varchar", length: 255 }) // CRITICAL: Never retrieve the password hash by default
-  password_hash: string | null = null;
+  @Column({ unique: true, nullable: true })
+  username?: string;
+
+  @Column({ select: false, type: "varchar", length: 255, nullable: false }) 
+  password_hash!: string; // Type changed to non-nullable string
 
   @Column({ type: "varchar", length: 255, nullable: true }) // NEW: First name
   first_name?: string;
@@ -60,6 +65,9 @@ export class UserEntity {
   })
   @JoinColumn({ name: "tenant_id" })
   tenant!: TenantEntity;
+
+  @Column({ type: "varchar", length: 3, default: "USD" }) // User's preferred display currency
+  display_currency_code!: string;
 
   // Password Reset Fields
   @Column({ nullable: true, name: "reset_password_token" })

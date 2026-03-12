@@ -8,8 +8,8 @@ const BASE_URL = "/api/v1";
  */
 class RetryHandler {
   static readonly MAX_RETRIES = 3;
-  private static readonly RETRY_DELAY_MS = 300;
-  private static readonly RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
+  private static readonly RETRY_DELAY_MS = 150;
+  private static readonly RETRYABLE_STATUS_CODES = [408, 429, 502, 503, 504];
   
   static shouldRetry(error: AxiosError, retryCount: number): boolean {
     if (retryCount >= this.MAX_RETRIES) return false;
@@ -20,6 +20,9 @@ class RetryHandler {
     
     if (error.response) {
       const { status } = error.response;
+      if (status === 500) {
+        return false;
+      }
       if (status >= 400 && status < 500 && !this.RETRYABLE_STATUS_CODES.includes(status)) {
         return false;
       }
@@ -49,7 +52,7 @@ class RetryHandler {
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000, // Increased to 30s to handle backend cold starts (Neon)
+  timeout: 120000, // 2 minutes - allows time for complex operations (project creation, reports)
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -66,10 +69,21 @@ declare module 'axios' {
   }
 }
 
+// Generate correlation ID for request tracing
+const generateCorrelationId = (): string => {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 api.interceptors.request.use(
   (config) => {
     config.metadata = { startTime: Date.now() };
-    console.log(`[API] → ${config.method?.toUpperCase()} ${config.url}`);
+    
+    // Add correlation ID for request tracing
+    const correlationId = generateCorrelationId();
+    config.headers['X-Correlation-ID'] = correlationId;
+    
+    const fullSource = config.baseURL ? `${config.baseURL}${config.url}` : config.url;
+    console.log(`[API] [CID:${correlationId}] → ${config.method?.toUpperCase()} ${fullSource}`);
     return config;
   },
   (error) => {
@@ -81,7 +95,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response: AxiosResponse) => {
     const duration = Date.now() - (response.config.metadata?.startTime || 0);
-    console.log(`[API] ✓ ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
+    const correlationId = response.config.headers['X-Correlation-ID'];
+    console.log(`[API] [CID:${correlationId}] ✓ ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
     return response;
   },
   async (error: AxiosError) => {
@@ -95,8 +110,9 @@ api.interceptors.response.use(
        return Promise.reject(error);
     }
     
+    const correlationId = config.headers?.['X-Correlation-ID'];
     console.error(
-      `[API] ✗ ${error.response?.status || error.code} ${config.method?.toUpperCase()} ${config.url} (${duration}ms): ${error.message}`
+      `[API] [CID:${correlationId}] ✗ ${error.response?.status || error.code} ${config.method?.toUpperCase()} ${config.url} (${duration}ms): ${error.message}`
     );
 
     if (config._skipRetry) {
@@ -133,7 +149,41 @@ async function apiRequest<T = any>(
   }
   
   const cacheKey = getCacheKey(config);
-  return globalDeduplicator.execute(cacheKey, () => api.request<T>(config));
+  
+  // To prevent RequestDeduplicator race conditions where one component's 
+  // unmount aborts the shared network request for all others, we remove 
+  // the signal from the actual Axios call, but simulate abortion for the caller.
+  const executeConfig = { ...config };
+  const callerSignal = config.signal as AbortSignal | undefined;
+  delete executeConfig.signal;
+
+  const sharedPromise = globalDeduplicator.execute(cacheKey, () => api.request<T>(executeConfig));
+
+  if (!callerSignal) {
+    return sharedPromise;
+  }
+
+  // Wrap the shared promise to respect the caller's individual AbortSignal
+  return new Promise((resolve, reject) => {
+    if (callerSignal.aborted) {
+      return reject(new axios.Cancel("canceled"));
+    }
+
+    const abortHandler = () => {
+      reject(new axios.Cancel("canceled"));
+    };
+    callerSignal.addEventListener('abort', abortHandler);
+
+    sharedPromise
+      .then((res) => {
+        callerSignal.removeEventListener('abort', abortHandler);
+        if (!callerSignal.aborted) resolve(res);
+      })
+      .catch((err) => {
+        callerSignal.removeEventListener('abort', abortHandler);
+        if (!callerSignal.aborted) reject(err);
+      });
+  });
 }
 
 export const apiClient = {
@@ -154,9 +204,10 @@ export const apiClient = {
     return response.data;
   },
   delete: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await apiRequest<T>({ method: 'DELETE', url, ...config }, { deduplicate: false });
+    const response = await apiRequest<T>({ method: 'DELETE', url, ...config });
     return response.data;
   },
+  getAxiosInstance: () => api,
 };
 
 export default api;

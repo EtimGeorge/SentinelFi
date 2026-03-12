@@ -104,9 +104,14 @@ const createMockUserEntity = (overrides: Partial<UserEntity> = {}): UserEntity =
       schema_name: 'test_schema',
       is_active: true,
       plan: 'basic',
+      max_users: 10,
+      max_storage_gb: 50,
+      expires_at: null,
+      price: 0,
       created_at: new Date(),
       updated_at: new Date(),
-      users: [],
+      deleted_at: null,
+      users: [] as any,
     } as TenantEntity,
     
     // REAL: roles with permissions (line 132: relations: ["roles", "roles.permissions"])
@@ -286,7 +291,7 @@ describe('AuthService - REAL Implementation Tests', () => {
         roles: [
           {
             id: 'role-123',
-            name: Role.Admin, // NOT SuperAdmin
+            name: Role.AdminDirector, // NOT SuperAdmin
             description: 'Admin role',
             permissions: [{ id: 'perm-1', name: 'read_users' }],
           } as RoleEntity
@@ -311,7 +316,7 @@ describe('AuthService - REAL Implementation Tests', () => {
       );
 
       // REAL assertions based on ACTUAL code
-      expect(result.access_token).toBe('real-jwt-token');
+      expect(result.accessToken).toBe('real-jwt-token');
       expect(result.user.email).toBe('tenant@example.com');
       expect(result.user.tenant_id).toBe('tenant-123');
       
@@ -450,7 +455,7 @@ describe('AuthService - REAL Implementation Tests', () => {
       const [result1, result2] = await Promise.all([loginPromise1, loginPromise2]);
       
       // ASSERT: Should get same results
-      expect(result1.access_token).toBe(result2.access_token);
+      expect(result1.accessToken).toBe(result2.accessToken);
       
       // REAL: executeLogin should be called ONLY ONCE due to cache
       expect(executeLoginSpy).toHaveBeenCalledTimes(1);
@@ -693,7 +698,7 @@ function createTestTenantAdmin(tenantId: string = 'tenant-123'): UserEntity {
     roles: [
       {
         id: 'admin-role',
-        name: Role.Admin,
+        name: Role.AdminDirector,
         description: 'Tenant Admin',
         permissions: [],
         created_at: new Date(),

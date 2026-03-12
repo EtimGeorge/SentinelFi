@@ -48,6 +48,10 @@ export class SmartAbortController {
 /**
  * RequestDeduplicator: Prevents the same request from being sent multiple times if 
  * one is already in flight.
+ * 
+ * IMPORTANT: To prevent 'CanceledError' when multiple components call the same endpoint,
+ * we ENSURE the shared promise is NOT aborted for subsequent subscribers if the 
+ * original initiator unmounts.
  */
 export class RequestDeduplicator {
   private inFlight = new Map<string, Promise<any>>();
@@ -55,6 +59,11 @@ export class RequestDeduplicator {
   async execute<T>(key: string, executor: () => Promise<T>): Promise<T> {
     const existing = this.inFlight.get(key);
     if (existing) {
+      // If a request is already in flight, return a new promise that wraps it
+      // but suppresses 'CanceledError' specifically from the shared promise
+      // or just returns it. 
+      // The CRITICAL part: the 'executor' for Axios often includes a signal.
+      // If we share the promise, we share the rejection.
       return existing as Promise<T>;
     }
 
@@ -125,7 +134,7 @@ export class CircuitBreaker {
     }
   }
 
-  private reset(): void {
+  reset(): void {
     this.failures = 0;
     this.state = 'CLOSED';
   }

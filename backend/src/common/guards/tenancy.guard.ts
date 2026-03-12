@@ -14,6 +14,10 @@ import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 @Injectable()
 export class TenancyGuard implements CanActivate {
   private readonly logger = new Logger(TenancyGuard.name);
+  
+  // Simple in-memory cache for schema names to reduce DB hits
+  private static readonly SCHEMA_CACHE = new Map<string, { schema: string, expires: number }>();
+  private static readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     private readonly reflector: Reflector,
@@ -30,7 +34,7 @@ export class TenancyGuard implements CanActivate {
 
     if (isPublic) {
       this.cls.set("SCHEMA_NAME", "public");
-      this.cls.set("TENANT_ID", null);
+      this.cls.set("tenant_id", null);
       return true;
     }
 
@@ -51,39 +55,55 @@ export class TenancyGuard implements CanActivate {
     if (!tenantId) {
       // User is authenticated but has no tenant (e.g., initial SuperAdmin or unassigned user)
       this.cls.set("SCHEMA_NAME", "public");
-      this.cls.set("TENANT_ID", null);
+      this.cls.set("tenant_id", null);
       this.cls.set("USER", user);
       return true;
     }
 
-    // Use cached/resolved schema name if possible, or lookup in public.tenant table
-    const queryRunner = this.dataSource.createQueryRunner();
+    // 3. Resolve Tenant Schema
     try {
-      await queryRunner.connect();
-      const tenant = await queryRunner.manager.getRepository(TenantEntity).findOne({
-        where: { tenant_id: tenantId },
-        select: ["schema_name"],
-      });
+      let schemaName: string;
+      const now = Date.now();
+      const cached = TenancyGuard.SCHEMA_CACHE.get(tenantId);
 
-      if (!tenant) {
-        throw new NotFoundException(`Tenant with ID ${tenantId} not found.`);
+      if (cached && cached.expires > now) {
+        schemaName = cached.schema;
+      } else {
+        const tenant = await this.dataSource.getRepository(TenantEntity).findOne({
+          where: { tenant_id: tenantId },
+          select: ["schema_name"],
+        });
+
+        if (!tenant) {
+          throw new NotFoundException(`Tenant with ID ${tenantId} not found.`);
+        }
+        
+        schemaName = tenant.schema_name;
+        TenancyGuard.SCHEMA_CACHE.set(tenantId, {
+          schema: schemaName,
+          expires: now + TenancyGuard.CACHE_TTL
+        });
       }
 
-      this.cls.set("TENANT_ID", tenantId);
-      this.cls.set("SCHEMA_NAME", tenant.schema_name);
+      this.cls.set("tenant_id", tenantId);
+      this.cls.set("SCHEMA_NAME", schemaName);
       this.cls.set("USER", user);
 
-      this.logger.debug(
-        `[TenancyGuard] Context set for User ${user.id}. Tenant: ${tenantId}, Schema: ${tenant.schema_name}`,
-      );
+      // Only debug log on cache miss or in dev
+      if (!cached) {
+        this.logger.debug(
+          `[TenancyGuard] Context set for User ${user.id}. Tenant: ${tenantId}, Schema: ${schemaName}`,
+        );
+      }
       
       return true;
     } catch (error: unknown) {
        const message = error instanceof Error ? error.message : String(error);
-       this.logger.error(`Failed to resolve tenant schema: ${message}`);
+       this.logger.error(`[TenancyGuard] ❌ Failed to resolve tenant schema for User ${user.id} (Tenant: ${tenantId}): ${message}`);
+       if (error instanceof Error && error.stack) {
+         this.logger.error(error.stack);
+       }
        throw error;
-    } finally {
-      await queryRunner.release();
     }
   }
 }

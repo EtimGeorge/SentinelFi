@@ -12,7 +12,7 @@ export class PaginationDto implements IPaginationDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(1000)
   @Type(() => Number) // Ensure it's transformed to a number
   limit?: number = 10;
 }

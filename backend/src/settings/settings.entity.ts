@@ -32,4 +32,25 @@ export class SettingsEntity implements ISettingsEntity {
 
   @Column({ type: 'varchar', nullable: true })
   supportEmail!: string | null;
+
+  @Column({ type: "integer", default: 90 })
+  auditRetentionDays!: number;
+
+  @Column({ type: "integer", default: 60 })
+  sessionTimeoutMinutes!: number;
+
+  @Column({ type: "boolean", default: false })
+  enableGlobalMfa!: boolean;
+
+  @Column({ type: "varchar", nullable: true, select: false })
+  sendgridApiKey!: string | null;
+
+  @Column({ type: "varchar", nullable: true })
+  erpProvider!: string | null;
+
+  @Column({ type: "varchar", nullable: true, select: false })
+  erpApiKey!: string | null;
+
+  @Column({ type: "varchar", nullable: true })
+  erpBaseUrl!: string | null;
 }

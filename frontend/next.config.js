@@ -38,7 +38,23 @@ const proxyCircuitBreaker = new CircuitBreaker(5, 30000);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['shared'],
+  transpilePackages: ['shared', 'lucide-react'],
+  
+  // Exclude test files from being treated as pages
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'].map(ext => {
+    return ext;
+  }).filter(ext => !ext.includes('spec') && !ext.includes('test')),
+
+  // API Proxy Rewrites
+  async rewrites() {
+    return [
+      {
+        source: '/api/v1/:path*',
+        // destination: 'http://localhost:3001/api/v1/:path*',
+        destination: 'http://127.0.0.1:3001/api/v1/:path*',
+      },
+    ];
+  },
 
   // Enhanced Webpack configuration for optimization
   webpack: (config, { isServer }) => {
@@ -52,46 +68,7 @@ const nextConfig = {
       };
     }
     
-    // Optimize bundle splitting
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        ...config.optimization.splitChunks,
-        chunks: 'all',
-        cacheGroups: {
-          ...config.optimization.splitChunks.cacheGroups,
-          // Split vendor code into a separate chunk
-          vendor: {
-            name: 'vendor',
-            chunks: 'all',
-            test: /[\\/]node_modules[\\/]/,
-            priority: 20,
-          },
-          // Split common code used across pages
-          common: {
-            name: 'common',
-            minChunks: 2,
-            chunks: 'all',
-            priority: 10,
-            reuseExistingChunk: true,
-          },
-        },
-      },
-    };
-    
     return config;
-  },
-
-  // More flexible rewrites using an environment variable
-  async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-    console.log(`[Next.js Config] Proxying /api/v1 to ${backendUrl}`);
-    return [
-      {
-        source: '/api/v1/:path*',
-        destination: `${backendUrl}/:path*`,
-      },
-    ];
   },
 
   // Add crucial security headers
@@ -112,7 +89,6 @@ const nextConfig = {
   // Production build optimizations
   swcMinify: true,
   compress: true,
-  output: 'standalone',
   poweredByHeader: false,
   
   // Development-specific optimizations to reduce memory usage

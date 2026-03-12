@@ -6,7 +6,8 @@ import Card from '../../components/common/Card';
 import WBSHierarchyTree, { RollupData } from '../../components/dashboard/WBSHierarchyTree'; // Keep WBSHierarchyTree and RollupData
 import { buildWBSHierarchy, flattenWBSForDisplay } from '../../lib/wbsUtils';
 import { Minus, Plus, DollarSign, CloudUpload, CheckSquare } from 'lucide-react';
-import { formatCurrency } from '../../lib/utils';
+import { getWBSColor } from '../../lib/utils';
+import { useCurrency } from '../../components/context/CurrencyContext';
 import useToast from '../../store/toastStore'; // NEW: Import useToast
 
 // Defines the shape of data for the form (matching CreateWbsBudgetDto)
@@ -30,6 +31,7 @@ const initialFormState: WBSDraftForm = {
 
 const BudgetDraftingPage: React.FC = () => {
   const api = useSecuredApi();
+  const { convertToDisplay, userCurrency } = useCurrency();
   const addToast = useToast(state => state.addToast); // NEW: Get addToast
   const [formData, setFormData] = useState<WBSDraftForm>(initialFormState);
   const [existingWbsData, setExistingWbsData] = useState<RollupData[]>([]); // Correctly typed
@@ -211,7 +213,7 @@ const BudgetDraftingPage: React.FC = () => {
                     <div>
                       <label className="block text-sm font-medium text-white mb-1" htmlFor="unit_cost_budgeted">Unit Cost</label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₦</span>
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">{userCurrency.symbol}</span>
                         <input type="number" name="unit_cost_budgeted" id="unit_cost_budgeted" value={formData.unit_cost_budgeted || ''} onChange={handleChange} required step="0.01" min="0"
                           className="block w-full pl-8 p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
                       </div>
@@ -234,7 +236,7 @@ const BudgetDraftingPage: React.FC = () => {
                     <div className="p-4 bg-brand-dark/70 rounded-lg border border-brand-secondary/50 text-center">
                         <p className="text-sm text-gray-400">TOTAL ESTIMATED COST</p>
                         <p className="text-3xl font-bold text-white mt-1">
-                            {formatCurrency(estimatedCost)}
+                            {convertToDisplay(estimatedCost, 'NGN')}
                         </p>
                         <p className={`text-xs mt-1 flex items-center justify-center ${budgetStatus.color}`}>
                             <CheckSquare className="w-3 h-3 inline mr-1" /> {budgetStatus.text}

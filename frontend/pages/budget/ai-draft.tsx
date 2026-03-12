@@ -5,7 +5,7 @@ import { UploadCloud, FileText, CheckCircle, BrainCircuit, Loader2, CloudUpload 
 import { WBSItemBase } from '../../lib/wbsUtils';
 import withAuth from '../../components/auth/withAuth';
 import { Role } from '../../components/context/AuthContext';
-import { formatCurrency } from '../../lib/utils';
+import { useCurrency } from '../../components/context/CurrencyContext';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import useToast from '../../store/toastStore'; // NEW: Import useToast
@@ -19,6 +19,7 @@ interface AiDraftResponse {
 
 const AIBudgetDraftingPage: React.FC = () => {
   const api = useSecuredApi();
+  const { convertToDisplay } = useCurrency();
   const addToast = useToast(state => state.addToast); // NEW: Get addToast
   const [file, setFile] = useState<File | null>(null);
   const [projectName, setProjectName] = useState('');
@@ -39,7 +40,7 @@ const AIBudgetDraftingPage: React.FC = () => {
       setError("Please provide a Project Name and select a file.");
       return;
     }
-    
+
     setLoading(true);
     setError(null);
     setDraftResult(null);
@@ -57,7 +58,7 @@ const AIBudgetDraftingPage: React.FC = () => {
           setAiProcessingStatus(`Uploading: ${percentCompleted}%`);
         }
       });
-      
+
       setAiProcessingStatus("Analyzing document with AI...");
       // Simulate AI processing - in a real app, backend would send updates
       setTimeout(() => {
@@ -65,7 +66,7 @@ const AIBudgetDraftingPage: React.FC = () => {
         setDraftResult(response.data);
         setFile(null);
       }, 2000); // Simulate AI processing time
-      
+
     } catch (e: any) {
       const msg = e.response?.data?.detail || e.response?.data?.message || e.message;
       setError(`AI Draft Failed: ${msg}`);
@@ -97,13 +98,13 @@ const AIBudgetDraftingPage: React.FC = () => {
         headerContent={<BrainCircuit className="w-8 h-8 text-brand-secondary" />}
       >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
+
           <div className="lg:col-span-1">
             <Card title="Upload Source Document" borderTopColor="secondary">
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-white mb-1" htmlFor="projectName">Project Name <span className="text-red-500">*</span></label>
-                  <input type="text" id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} required 
+                  <input type="text" id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} required
                     placeholder="e.g., Alpha Project NGN Budget"
                     className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
                 </div>
@@ -111,8 +112,8 @@ const AIBudgetDraftingPage: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-white mb-1">Source File (PDF, DOCX, CSV)</label>
                   <div className="border-2 border-dashed border-gray-700 p-8 rounded-lg text-center cursor-pointer hover:border-brand-primary transition">
-                    <input type="file" onChange={handleFileChange} className="hidden" id="file-upload" 
-                           accept=".pdf,.docx,.csv,.xlsx,.xls" />
+                    <input type="file" onChange={handleFileChange} className="hidden" id="file-upload"
+                      accept=".pdf,.docx,.csv,.xlsx,.xls" />
                     <label htmlFor="file-upload" className="cursor-pointer">
                       <CloudUpload className="w-10 h-10 mx-auto text-gray-500 mb-2" />
                       <p className="text-sm text-gray-400">Click to upload or drag and drop</p>
@@ -120,7 +121,7 @@ const AIBudgetDraftingPage: React.FC = () => {
                     </label>
                   </div>
                 </div>
-                
+
                 {error && <div className="p-3 text-sm text-red-400 bg-red-900 rounded-lg border border-red-700">{error}</div>}
 
                 <button
@@ -136,8 +137,8 @@ const AIBudgetDraftingPage: React.FC = () => {
 
           <div className="lg:col-span-2">
             <Card title="Extracted Draft Preview" borderTopColor="primary"
-                  headerContent={draftResult && <CheckCircle className="w-6 h-6 text-alert-positive" />}>
-              
+              headerContent={draftResult && <CheckCircle className="w-6 h-6 text-alert-positive" />}>
+
               {aiProcessingStatus && loading && !error && ( // Display status while loading and no error
                 <div className="p-3 mb-4 text-sm text-brand-primary bg-brand-dark/50 rounded-lg border border-brand-primary/50 flex items-center">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> {aiProcessingStatus}
@@ -165,7 +166,7 @@ const AIBudgetDraftingPage: React.FC = () => {
                           <tr key={index} className="hover:bg-gray-700/50 transition">
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-brand-primary">{item.wbs_code}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-300">{item.description}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-white">{formatCurrency(item.unit_cost_budgeted)}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-white">{convertToDisplay(item.unit_cost_budgeted, 'NGN')}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-white">{item.quantity_budgeted}</td>
                           </tr>
                         ))}
@@ -189,4 +190,4 @@ const AIBudgetDraftingPage: React.FC = () => {
   );
 };
 
-export default withAuth(AIBudgetDraftingPage, [Role.Admin, Role.Finance]);
+export default withAuth(AIBudgetDraftingPage, [Role.AdminDirector, Role.FinanceManager]);

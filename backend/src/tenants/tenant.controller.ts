@@ -8,7 +8,14 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+  UsePipes,
+  ValidationPipe,
+  Query,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"; // Use new JwtAuthGuard
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -16,27 +23,74 @@ import { Roles } from "../auth/decorators/roles.decorator";
 
 import { TenantService } from "./tenant.service";
 
-import { UpdateTenantDto } from "../superadmin/dto/create-tenant.dto"; // Corrected import path
+import { CreateTenantDto, UpdateTenantDto, GetTenantsDto } from "../superadmin/dto/create-tenant.dto"; // Corrected import path
 import { TenantEntity } from "./tenant.entity";
 import { Role } from "shared/types/role.enum";
 
+import { AuthenticatedRequest } from "../common/interfaces/authenticated-request.interface";
+import { ForbiddenException, Req } from "@nestjs/common";
+
 @Controller("admin/tenants") // Base path: /api/v1/admin/tenants
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.SuperAdmin) // Only SuperAdmin can manage tenant records
 export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
-  @Get()
-  async findAllTenants(): Promise<TenantEntity[]> {
-    return this.tenantService.findAllTenants();
+  /**
+   * Returns metadata for the caller's own tenant.
+   * Access: Tenant Admins, CFOs, etc.
+   */
+  @Get("my")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CEO, Role.CFO, Role.SuperAdmin)
+  async getMyTenant(@Req() req: AuthenticatedRequest): Promise<TenantEntity> {
+    if (!req.user.tenant_id) {
+       throw new ForbiddenException("No tenant associated with this account. If you are a SuperAdmin, use the global search.");
+    }
+    return this.tenantService.findOneTenant(req.user.tenant_id);
   }
 
+  /**
+   * Returns all tenants in the platform.
+   * Access: SuperAdmin only.
+   */
+  @Get()
+  @Roles(Role.SuperAdmin)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async findAllTenants(@Query() query: GetTenantsDto): Promise<any> {
+    return await this.tenantService.findAllTenants();
+  }
+
+  /**
+   * Provisions a new tenant.
+   * Access: SuperAdmin only.
+   */
+  @Post()
+  @Roles(Role.SuperAdmin)
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(FileInterceptor('initialBudgetFile'))
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async createTenant(
+    @Body() createTenantDto: CreateTenantDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ): Promise<TenantEntity> {
+    return this.tenantService.createTenant(createTenantDto, file);
+  }
+
+  /**
+   * Find a specific tenant by ID.
+   * Access: SuperAdmin only (for cross-tenant lookup).
+   */
   @Get(":id")
+  @Roles(Role.SuperAdmin)
   async findOneTenant(@Param("id") id: string): Promise<TenantEntity> {
     return this.tenantService.findOneTenant(id);
   }
 
+  /**
+   * Update tenant metadata.
+   * Access: SuperAdmin only.
+   */
   @Patch(":id")
+  @Roles(Role.SuperAdmin)
   async updateTenant(
     @Param("id") id: string,
     @Body() updateTenantDto: UpdateTenantDto,
@@ -47,7 +101,12 @@ export class TenantController {
     );
   }
 
+  /**
+   * Delete a tenant (destructive).
+   * Access: SuperAdmin only.
+   */
   @Delete(":id")
+  @Roles(Role.SuperAdmin)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteTenant(@Param("id") id: string): Promise<void> {
     await this.tenantService.deleteTenant(id);

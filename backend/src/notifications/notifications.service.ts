@@ -10,19 +10,10 @@ export class NotificationsService {
     private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
-  /**
-   * Simulates sending an unread notification count update to a specific user
-   * or all connected clients.
-   * In a real app, this would be tied to user activity, new events, etc.
-   * @param userId Optional. If provided, send to a specific user. Otherwise, broadcast.
-   * @param count The new unread count.
-   */
   sendUnreadCountUpdate(count: number, userId?: string) {
     this.logger.log(
       `Sending unread count update: ${count} for user: ${userId || "all"}`,
     );
-    // For simplicity, currently broadcasts to all.
-    // TODO: Implement logic to send to specific clients based on userId after authentication is implemented in gateway.
     this.notificationsGateway.emitUnreadCountUpdate(count);
   }
 
@@ -31,5 +22,30 @@ export class NotificationsService {
     this.notificationsGateway.emitVarianceAlert({ title, message, type });
   }
 
-  // Other notification-related methods can be added here
+  /**
+   * Broadcast in real-time when a senior authorizer APPROVES a budget overrun.
+   * All connected finance/management clients will receive this alert immediately.
+   */
+  sendOverrideApprovedAlert(params: {
+    authorizer: string;       // Role name of who approved it
+    wbsCode: string;
+    projectName: string;
+    amount: number;
+    varianceFlag: string;     // CRITICAL_VARIANCE | MAJOR_VARIANCE
+    overrideReason: string;
+    expenseId?: string;
+  }) {
+    const { authorizer, wbsCode, projectName, amount, varianceFlag, overrideReason } = params;
+    const title = `Budget Override Approved — ${varianceFlag.replace(/_/g, ' ')}`;
+    const message = `${authorizer} authorized a ${varianceFlag === 'CRITICAL_VARIANCE' ? 'CRITICAL' : 'MAJOR'} overrun on WBS ${wbsCode} (${projectName}). Amount: ${amount.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })}. Reason: "${overrideReason}".`;
+    const type = varianceFlag === 'CRITICAL_VARIANCE' ? 'critical_override' : 'major_override';
+
+    this.logger.warn(`[Override Approved] ${title}: ${message}`);
+    this.notificationsGateway.emitVarianceAlert({
+      title,
+      message,
+      type,
+      metadata: params,
+    });
+  }
 }

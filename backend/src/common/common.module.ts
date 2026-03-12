@@ -1,11 +1,20 @@
 import { Module, Global } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { BudgetControlService } from './budget-control.service';
+import { DOAService } from './doa.service';
+import { ApprovalLogEntity } from './entities/approval-log.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CurrencyModule } from '../currency/currency.module';
+import { TENANT_DATA_SOURCE } from '../database/constants';
 
 @Global()
 @Module({
-  imports: [NotificationsModule],
-  providers: [BudgetControlService],
-  exports: [BudgetControlService],
+  imports: [
+    TypeOrmModule.forFeature([ApprovalLogEntity], TENANT_DATA_SOURCE),
+    NotificationsModule,
+    CurrencyModule
+  ],
+  providers: [BudgetControlService, DOAService],
+  exports: [BudgetControlService, DOAService, TypeOrmModule],
 })
 export class CommonModule {}

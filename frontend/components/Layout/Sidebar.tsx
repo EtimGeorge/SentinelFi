@@ -3,20 +3,20 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import useUIStore from '../../store/uiStore';
-import { useAuth } from '../../components/context/AuthContext';
-import { getNavItemsForRole, NavItem } from '../../lib/navigationMap';
-import { X, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp } from 'lucide-react'; // Added ChevronDown, ChevronUp
+import { getStaticNavItemsForRole, NavItem } from '../../lib/navigationMap';
+import { getPrimaryRoleFromUser, loadUserFromStorage } from '../../lib/navigationUtils';
+import { X, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Helper component for rendering nav items, handles nesting
 const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, isCollapsed }) => {
   const router = useRouter();
-  
+
   // Clean paths for comparison
   const currentPath = router.asPath.split('?')[0].split('#')[0];
   const itemPath = item.path.split('?')[0].split('#')[0];
 
   const isActive = item.exactMatch ? currentPath === itemPath : currentPath.startsWith(itemPath);
-  
+
   const [isExpanded, setIsExpanded] = useState(false); // State to manage expansion of children
 
   useEffect(() => {
@@ -30,9 +30,8 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
     return (
       <li key={item.name}>
         <div
-          className={`flex items-center p-2 rounded-md transition duration-200 cursor-pointer ${
-            isActive ? 'bg-brand-primary text-white' : 'hover:bg-brand-primary/20'
-          }`}
+          className={`flex items-center p-2 rounded-md transition duration-200 cursor-pointer ${isActive ? 'bg-brand-primary text-white' : 'hover:bg-brand-primary/20'
+            }`}
           onClick={() => setIsExpanded(!isExpanded)} // Toggle expansion
           title={isCollapsed ? item.name : ''}
         >
@@ -48,11 +47,10 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
               <li key={child.name}>
                 <Link
                   href={child.path}
-                  className={`flex items-center p-2 rounded-md transition duration-200 ${
-                    currentPath === child.path
-                      ? 'bg-brand-primary text-white'
-                      : 'hover:bg-brand-primary/20'
-                  }`}
+                  className={`flex items-center p-2 rounded-md transition duration-200 ${currentPath === child.path
+                    ? 'bg-brand-primary text-white'
+                    : 'hover:bg-brand-primary/20'
+                    }`}
                 >
                   <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
                   <span className="font-medium whitespace-nowrap overflow-hidden">{child.name}</span>
@@ -69,11 +67,10 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
     <li>
       <Link
         href={item.path}
-        className={`flex items-center p-2 rounded-md transition duration-200 ${
-          isActive
-            ? 'bg-brand-primary text-white'
-            : 'hover:bg-brand-primary/20'
-        }`}
+        className={`flex items-center p-2 rounded-md transition duration-200 ${isActive
+          ? 'bg-brand-primary text-white'
+          : 'hover:bg-brand-primary/20'
+          }`}
         title={isCollapsed ? item.name : ''}
       >
         <item.icon className={`${isCollapsed ? 'mx-auto' : 'mr-3'} h-5 w-5 flex-shrink-0`} />
@@ -86,23 +83,100 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
 };
 
 
+import useGlobalStore from '../../store/globalStore';
+import { useCurrency } from '../../components/context/CurrencyContext';
+import api from '../../lib/api';
+
 const Sidebar: React.FC = () => {
-  const { user, getPrimaryRole } = useAuth();
+  const [navItems, setNavItems] = useState<NavItem[]>([]);
+  const [isNavReady, setIsNavReady] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
+
   const {
     isMobileSidebarOpen, closeMobileSidebar,
     isDesktopSidebarCollapsed, toggleDesktopSidebar
   } = useUIStore();
-  
-  // CORRECT: Generate nav items from the centralized map
-  const navItems = user ? getNavItemsForRole(getPrimaryRole()) : [];
+
+  const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
+  const { userCurrency, availableCurrencies, setUserCurrencyCode } = useCurrency();
+
+  // Initialize navigation items and fetch projects
+  useEffect(() => {
+    const initializeSidebar = async () => {
+      try {
+        const cachedUser = loadUserFromStorage();
+        if (cachedUser) {
+          const role = getPrimaryRoleFromUser(cachedUser);
+          if (role) {
+            const items = getStaticNavItemsForRole(role);
+            setNavItems(items);
+            setIsNavReady(true);
+          }
+        }
+
+        // Fetch projects for global selector
+        const res = await api.get('/projects?limit=100');
+        setProjects(res.data.projects || []);
+      } catch (error) {
+        console.error('[Sidebar] Failed to initialize:', error);
+      }
+    };
+
+    initializeSidebar();
+  }, []);
+
+  // ============================================================================
+  // ADVANCED: Multi-tab synchronization for navigation
+  // Update navigation when user logs in/out in another tab
+  // ============================================================================
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+
+    try {
+      channel = new BroadcastChannel('sentinelfi_auth_sync');
+
+      channel.onmessage = (event) => {
+        const type = event.data?.type;
+
+        if (type === 'LOGIN') {
+          // User logged in another tab - update navigation
+          const newUser = event.data.user;
+          if (newUser) {
+            const role = getPrimaryRoleFromUser(newUser);
+            if (role) {
+              const items = getStaticNavItemsForRole(role);
+              setNavItems(items);
+              console.log('[Sidebar] Navigation updated from multi-tab login');
+            }
+          }
+        } else if (type === 'LOGOUT') {
+          // User logged out in another tab - clear navigation
+          setNavItems([]);
+          console.log('[Sidebar] Navigation cleared from multi-tab logout');
+        }
+      };
+    } catch (e) {
+      // BroadcastChannel not supported, graceful degradation
+      console.warn('[Sidebar] BroadcastChannel not supported for multi-tab sync');
+    }
+
+    return () => {
+      if (channel) channel.close();
+    };
+  }, []); // ZERO DEPENDENCIES - permanent listener
 
   // Close mobile sidebar on navigation
   const router = useRouter();
   React.useEffect(() => {
-    if (isMobileSidebarOpen) {
+    const handleRouteChange = () => {
       closeMobileSidebar();
-    }
-  }, [router.asPath, isMobileSidebarOpen, closeMobileSidebar]);
+    };
+
+    router.events.on('routeChangeComplete', handleRouteChange);
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChange);
+    };
+  }, [router.events, closeMobileSidebar]);
 
 
   return (
@@ -141,20 +215,20 @@ const Sidebar: React.FC = () => {
         aria-label="Desktop Sidebar"
       >
         <div className="flex flex-col h-full w-full p-4">
-            <div className={`flex-shrink-0 mb-8 mt-2 flex flex-col items-center ${isDesktopSidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className={`flex-shrink-0 mb-8 mt-2 flex flex-col items-center ${isDesktopSidebarCollapsed ? 'justify-center' : ''}`}>
             <Image
-                height={isDesktopSidebarCollapsed ? 0 : 40}
-                width={isDesktopSidebarCollapsed ? 0 : 160}
-                className={`transition-opacity duration-300 ease-in-out ${isDesktopSidebarCollapsed ? 'opacity-0' : 'opacity-100'}`}
-                src="/SentinelFi Logo Concept-bg-remv-logo-only.png"
-                alt="SentinelFi Logo"
-                priority={true}
-              />
-              <h1 className={`text-xl text-white font-semibold transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden text-center
+              height={isDesktopSidebarCollapsed ? 0 : 40}
+              width={isDesktopSidebarCollapsed ? 0 : 160}
+              className={`transition-opacity duration-300 ease-in-out ${isDesktopSidebarCollapsed ? 'opacity-0' : 'opacity-100'}`}
+              src="/SentinelFi Logo Concept-bg-remv-logo-only.png"
+              alt="SentinelFi Logo"
+              priority={true}
+            />
+            <h1 className={`text-xl text-white font-semibold transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden text-center
                       ${isDesktopSidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-                SentinelFi
-              </h1>
-            </div>
+              SentinelFi
+            </h1>
+          </div>
 
           <nav className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <ul className="space-y-2">

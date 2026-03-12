@@ -40,7 +40,7 @@ export class ProjectsController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.Admin, Role.ITHead, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.CEO, Role.SuperAdmin)
   @UsePipes(new ValidationPipe({ transform: true }))
   async createProject(
     @Body() createProjectDto: CreateProjectDto,
@@ -64,7 +64,7 @@ export class ProjectsController {
    */
   @Post("lpo")
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   @UsePipes(new ValidationPipe({ transform: true }))
   async createLpo(
     @Body() createLpoDto: CreateLpoDto,
@@ -88,10 +88,12 @@ export class ProjectsController {
    */
   @Get()
   @Roles(
-    Role.Admin,
-    Role.ITHead,
-    Role.Finance,
-    Role.OperationalHead,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
     Role.CEO,
     Role.AssignedProjectUser,
     Role.SuperAdmin,
@@ -115,10 +117,12 @@ export class ProjectsController {
    */
   @Get(":id")
   @Roles(
-    Role.Admin,
-    Role.ITHead,
-    Role.Finance,
-    Role.OperationalHead,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
     Role.CEO,
     Role.AssignedProjectUser,
     Role.SuperAdmin,
@@ -142,10 +146,12 @@ export class ProjectsController {
    */
   @Get(":id/rollup")
   @Roles(
-    Role.Admin,
-    Role.ITHead,
-    Role.Finance,
-    Role.OperationalHead,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
     Role.CEO,
     Role.AssignedProjectUser,
     Role.SuperAdmin,
@@ -167,7 +173,7 @@ export class ProjectsController {
    * Permissions: Admin, ITHead, SuperAdmin
    */
   @Patch(":id")
-  @Roles(Role.Admin, Role.ITHead, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.CEO, Role.SuperAdmin)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateProject(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -193,7 +199,7 @@ export class ProjectsController {
    */
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(Role.Admin, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.CEO, Role.SuperAdmin)
   async removeProject(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
@@ -203,7 +209,39 @@ export class ProjectsController {
         "User not authenticated or tenant ID is missing.",
       );
     }
-    await this.projectsService.remove(id, req.user.tenant_id);
+    await this.projectsService.remove(id, req.user.tenant_id, req.user.id);
+  }
+
+  /**
+   * API Endpoint: PATCH /api/v1/projects/:id/archive
+   * Permissions: Admin, SuperAdmin
+   */
+  @Patch(":id/archive")
+  @Roles(Role.AdminDirector, Role.CEO, Role.SuperAdmin)
+  async archiveProject(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated or tenant ID is missing.");
+    }
+    return this.projectsService.archive(id, req.user.tenant_id, req.user.id);
+  }
+
+  /**
+   * API Endpoint: PATCH /api/v1/projects/:id/restore
+   * Permissions: Admin, SuperAdmin
+   */
+  @Patch(":id/restore")
+  @Roles(Role.AdminDirector, Role.CEO, Role.SuperAdmin)
+  async restoreProject(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated or tenant ID is missing.");
+    }
+    return this.projectsService.restore(id, req.user.tenant_id, req.user.id);
   }
 
   /**
@@ -211,7 +249,7 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Get(":id/cashflow")
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   async getCashFlow(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Query("year") year: number,
@@ -230,7 +268,7 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Post(":id/inflow")
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   async createInflow(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() inflowData: any,
@@ -249,7 +287,7 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Get(":id/audits")
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   async getAudits(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
@@ -267,7 +305,7 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Get(":id/lpos")
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   async getLpos(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
@@ -285,7 +323,7 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Get(":id/inflows")
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   async getInflows(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
@@ -305,10 +343,12 @@ export class ProjectsController {
    */
   @Get("export")
   @Roles(
-    Role.Admin,
-    Role.ITHead,
-    Role.Finance,
-    Role.OperationalHead,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
     Role.CEO,
     Role.AssignedProjectUser,
     Role.SuperAdmin,

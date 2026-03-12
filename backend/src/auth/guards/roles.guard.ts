@@ -1,14 +1,15 @@
 // backend/src/auth/guards/roles.guard.ts
 import { Injectable, CanActivate, ExecutionContext, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Role } from 'shared/types/role.enum';
+import { Role } from '@shared/types/role.enum';
 import { ROLES_KEY } from '../decorators/roles.decorator';
-import { UserPayload, SimpleRole } from '@shared/types/user'; // UserPayload potentially defines roles as SimpleRole[] or string[]
+import { UserPayload, SimpleRole } from '@shared/types/user'; 
 import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request.interface';
+import { CorrelatedLogger } from '../../common/logger/correlated-logger'; 
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  private readonly logger = new Logger(RolesGuard.name);
+  private readonly logger = new CorrelatedLogger(RolesGuard.name); // CHANGED LINE
 
   constructor(private reflector: Reflector) {}
 
@@ -37,7 +38,8 @@ export class RolesGuard implements CanActivate {
     // This handles both `string[]` from token payload and `SimpleRole[]` from DB user entity
     const userRoleNames: string[] = user.roles.map((role: string | SimpleRole) => {
         const roleName = typeof role === 'string' ? role : role.name;
-        this.logger.debug(`Processing user role: ${JSON.stringify(role)} -> Name: ${roleName}`);
+        // Safe logging - avoid JSON.stringify on potential entities
+        this.logger.debug(`Processing user role: ${roleName}`);
         return roleName;
     });
 
@@ -48,6 +50,18 @@ export class RolesGuard implements CanActivate {
         this.logger.debug(`Checking if user has required role "${requiredRole}". Found: ${found}`);
         return found;
     });
+
+    // --- SUPERADMIN NON-INTERFERENCE POLICY ---
+    // If the route requires Tenant roles (any role other than SuperAdmin), 
+    // we block SuperAdmin from accessing it directly to prevent accidental interference.
+    // They must use 'Impersonation Mode' if they need to access tenant-scoped data.
+    const isTenantScopedRoute = requiredRoles.some(role => role !== Role.SuperAdmin);
+    const isActingAsSuperAdmin = userRoleNames.includes(Role.SuperAdmin) && !user.impersonator_id;
+
+    if (hasPermission && isTenantScopedRoute && isActingAsSuperAdmin) {
+        this.logger.warn(`Access denied for SuperAdmin ${user.email} on tenant-scoped route. Non-interference policy enforced. Use impersonation for access.`);
+        return false; 
+    }
 
     if (hasPermission) {
         this.logger.log(`Access granted for user ${user.email}. Has required role.`);

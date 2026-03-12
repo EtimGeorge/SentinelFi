@@ -3,7 +3,10 @@ import { Client } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
-import { execSync } from 'child_process';
+import { exec, execSync } from 'child_process'; // Import exec
+import { promisify } from 'util'; // Import promisify
+
+const execPromise = promisify(exec); // Create a promisified version of exec
 
 async function dbReset() {
   // Load environment variables dynamically, prioritizing .env.local over .env for the backend context
@@ -24,22 +27,19 @@ async function dbReset() {
   const port = url.port;
   const dbName = url.pathname.substring(1); // Remove leading slash
 
-  // Connection to the 'postgres' administrative database to drop/create neondb
-  const adminClient = new Client({
-    user,
-    password,
-    host,
-    port: parseInt(port),
-    database: 'postgres', // Connect to default admin database
-    ssl: databaseUrl.includes('neon.tech') ? { rejectUnauthorized: false } : false,
-  });
-
-  const appClient = new Client({
-    connectionString: databaseUrl,
-    ssl: databaseUrl.includes('neon.tech') ? { rejectUnauthorized: false } : false,
-  });
+  let adminClient: Client | undefined; // Declare as undefined to handle potential failed initialization
+  let appClient: Client | undefined; // Declare as undefined
 
   try {
+    adminClient = new Client({ // Initialize inside try
+      user,
+      password,
+      host,
+      port: parseInt(port),
+      database: 'postgres', // Connect to default admin database
+      ssl: databaseUrl.includes('neon.tech') ? { rejectUnauthorized: false } : false,
+    });
+
     await adminClient.connect();
     console.log('Successfully connected to the "postgres" admin database.');
 
@@ -56,6 +56,11 @@ async function dbReset() {
     await adminClient.end();
     console.log('Disconnected from "postgres" admin database.');
 
+    appClient = new Client({ // Initialize inside try
+      connectionString: databaseUrl,
+      ssl: databaseUrl.includes('neon.tech') ? { rejectUnauthorized: false } : false,
+    });
+
     // Now connect to the newly created database to run init.sql and migrations
     await appClient.connect();
     console.log(`Successfully connected to database "${dbName}".`);
@@ -70,19 +75,54 @@ async function dbReset() {
     await appClient.end();
     console.log('Disconnected from app database.');
 
-    // Run TypeORM migrations using npm script
-    console.log('Running TypeORM migrations...');
-    execSync('npm run typeorm:run', { stdio: 'inherit', cwd: path.resolve(__dirname, '../../') });
-    console.log('TypeORM migrations executed successfully.');
+    // Run TypeORM public migrations using npm script
+    console.log('Running TypeORM public migrations...');
+    try {
+        execSync('npm run typeorm:run', {
+            cwd: path.resolve(__dirname, '../../'),
+            stdio: 'inherit', // Stream output directly to console
+        });
+        console.log('TypeORM public migrations executed successfully.');
+    } catch (error) {
+        console.error('Error during TypeORM public migrations:', error);
+        throw error;
+    }
+
+    // Seed roles and permissions
+    console.log('Seeding roles and permissions...');
+    try {
+        execSync('npx ts-node -r tsconfig-paths/register --project backend/tsconfig.json backend/src/database/seeds/seed-roles-permissions.ts', { 
+            cwd: path.resolve(__dirname, '../../'),
+            stdio: 'inherit', // Stream output directly to console
+        });
+        console.log('Roles and permissions seeded successfully.');
+    } catch (error) {
+        console.error('Error during roles and permissions seeding:', error);
+        throw error;
+    }
+
+
+    // Run setup-test-tenants script to provision test tenants and their schemas
+    console.log('Running setup-test-tenants script...');
+    try {
+        execSync('npx ts-node -r tsconfig-paths/register --project backend/tsconfig.json backend/scripts/setup-test-tenants.ts', {
+            cwd: path.resolve(__dirname, '../../'),
+            stdio: 'inherit', // Stream output directly to console
+        });
+        console.log('Test tenants and their schemas provisioned successfully.');
+    } catch (error) {
+        console.error('Error during test tenant provisioning:', error);
+        throw error;
+    }
 
   } catch (error) {
     console.error('Error during database reset:', error);
     process.exit(1);
   } finally {
-    if (adminClient) { // Ensure client object is initialized
+    if (adminClient) {
       await adminClient.end();
     }
-    if (appClient) { // Ensure client object is initialized
+    if (appClient) {
       await appClient.end();
     }
   }

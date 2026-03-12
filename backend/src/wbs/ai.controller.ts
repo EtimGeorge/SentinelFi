@@ -35,7 +35,7 @@ export class AiController {
    */
   @Post("draft-budget")
   @HttpCode(HttpStatus.OK)
-  @Roles(Role.Admin, Role.Finance) // Enforce RBAC
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager) // Enforce RBAC
   @UseInterceptors(FileInterceptor("file")) // Handles the 'file' field from the multipart/form-data
   async draftBudget(
     @UploadedFile() file: Express.Multer.File,

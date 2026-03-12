@@ -5,19 +5,23 @@ import { useRouter } from 'next/router';
 import { useEffect, ReactElement, ReactNode } from 'react'; // Import ReactElement and ReactNode
 import Head from 'next/head'; // Import Head
 import { AuthProvider, useAuth, PUBLIC_ROUTES, AuthLogger } from '../components/context/AuthContext'; // Using relative path for AuthContext
+import { BreadcrumbProvider } from '../components/context/BreadcrumbContext'; // Breadcrumb state management
+import { CurrencyProvider } from '../components/context/CurrencyContext'; // Currency state management
 import RouteGuard from '../components/guards/RouteGuard'; // Using relative path for RouteGuard
-import SuperAdminLayout from '../components/Layout/SuperAdminLayout'; // Using relative path for SuperAdminLayout
+// import RouteGuard from '../components/guards/RouteGuard'; // Using relative path for RouteGuard
 import SecuredLayout from '../components/Layout/SecuredLayout'; // Using relative path for SecuredLayout
 import PublicLayout from '../components/Layout/PublicLayout'; // New PublicLayout
 import AppLoadingFallback from '../components/common/AppLoadingFallback'; // New AppLoadingFallback
 import '../styles/globals.css';
 import { Toaster } from 'react-hot-toast'; // For toast notifications
 import { Role } from '../components/context/AuthContext'; // Import Role for layout determination
+import { apiClient } from '../lib/api';
+import useUIStore from '../store/uiStore';
 
 // ============================================================================
 // LAYOUT TYPING (NEW)
 // ============================================================================
-type NextPageWithLayout = NextPage & {
+export type NextPageWithLayout = NextPage & {
   getLayout?: (page: ReactElement) => ReactNode;
 };
 
@@ -40,38 +44,57 @@ function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPr
     return <AppLoadingFallback message="Initializing Authentication..." />;
   }
 
-  // This check should ideally be handled by RouteGuard, but as a safeguard:
-  // If not authenticated and trying to access a non-public route, show fallback.
-  // RouteGuard will eventually redirect.
-  if (!isAuthenticated && !PUBLIC_ROUTES.includes(router.pathname)) {
-    AuthLogger.warn('[_app] Not authenticated on protected route. RouteGuard will redirect.');
-    return <AppLoadingFallback message="Redirecting to Login..." />;
-  }
-
   // Pages can define a custom layout, otherwise use the default
   const getLayout = Component.getLayout || ((page) => {
-    // Default layout logic based on authentication and user roles
-    if (!isAuthenticated) {
-      AuthLogger.info('[_app] Applying PublicLayout as unauthenticated.');
-      return <PublicLayout>{page}</PublicLayout>;
+    // Unified layout for all authenticated users (Sidebar handles role-based nav)
+    if (isAuthenticated) {
+      AuthLogger.info('[_app] Applying SecuredLayout.');
+      return <SecuredLayout>{page}</SecuredLayout>;
     }
 
-    // Determine layout based on primary role for authenticated users
-    const hasSuperAdmin = user?.roles.some(r => {
-        const name = typeof r === 'string' ? r : r.name;
-        return name === 'SuperAdmin';
-    });
-
-    if (hasSuperAdmin) {
-      AuthLogger.info('[_app] Applying SuperAdminLayout for SuperAdmin user.');
-      return <SuperAdminLayout>{page}</SuperAdminLayout>;
-    }
-
-    AuthLogger.info('[_app] Applying SecuredLayout for tenant user.');
-    return <SecuredLayout>{page}</SecuredLayout>;
+    return <PublicLayout>{page}</PublicLayout>;
   });
 
   return getLayout(<Component {...pageProps} />);
+}
+
+// ============================================================================
+// NOTIFICATION SYNC (NEW)
+// Syncs the total pending actions to the global UI store for the header bell
+// ============================================================================
+function NotificationWatcher() {
+  const { isAuthenticated, user } = useAuth();
+  const setUnreadCount = useUIStore((state) => state.setUnreadNotificationsCount);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    const fetchCounts = async () => {
+      try {
+        // Fetch counts for both WBS and Requisitions
+        const [wbs, reqs] = await Promise.all([
+          apiClient.get('/wbs/budgets?status=pending&limit=1'),
+          apiClient.get('/finance-core/requisitions').catch(() => [])
+        ]);
+
+        const wbsCount = wbs?.total || (Array.isArray(wbs) ? wbs.length : 0);
+
+        const reqData: any[] = Array.isArray(reqs) ? reqs : (reqs?.data || []);
+        const reqCount = reqData.filter((r: any) => r.status === 'PENDING_APPROVAL').length;
+
+        setUnreadCount(wbsCount + reqCount);
+      } catch (error) {
+        console.error('[NotificationWatcher] Failed to sync counts:', error);
+      }
+    };
+
+    fetchCounts();
+    // Poll every 3 minutes for enterprise-level responsiveness
+    const interval = setInterval(fetchCounts, 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, user?.id, setUnreadCount]);
+
+  return null;
 }
 
 // ============================================================================
@@ -95,7 +118,7 @@ export default function App(props: AppProps) {
      */
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       const error = event.reason;
-      
+
       // Check if this is a CanceledError from axios
       if (
         error?.name === 'CanceledError' ||
@@ -104,7 +127,7 @@ export default function App(props: AppProps) {
       ) {
         // Prevent the error overlay from showing
         event.preventDefault();
-        
+
         // Log for debugging (only in development)
         if (process.env.NODE_ENV === 'development') {
           console.debug('[App] Suppressed CanceledError:', error.message);
@@ -114,7 +137,7 @@ export default function App(props: AppProps) {
     };
 
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
-    
+
     return () => {
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
@@ -128,13 +151,38 @@ export default function App(props: AppProps) {
         <meta name="description" content="SentinelFi: Real-Time Control. Proactive Precision." />
         <link rel="icon" href="/SentinelFi Logo Concept-bg-remv-logo-only.png" />
       </Head>
-      
+
       <AuthProvider>
-        <RouteGuard>
-          <AppContent {...props} />
-        </RouteGuard>
+        <BreadcrumbProvider>
+          <CurrencyProvider>
+            <RouteGuard>
+              <NotificationWatcher />
+              <AppContent {...props} />
+            </RouteGuard>
+          </CurrencyProvider>
+        </BreadcrumbProvider>
       </AuthProvider>
-      <Toaster position="bottom-right" /> {/* Global toast notifications */}
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#1a1a2e',
+            color: '#e2e8f0',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            fontSize: '14px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+          },
+          success: {
+            iconTheme: { primary: '#22c55e', secondary: '#1a1a2e' },
+          },
+          error: {
+            iconTheme: { primary: '#ef4444', secondary: '#1a1a2e' },
+          },
+        }}
+      />
     </>
   );
 }

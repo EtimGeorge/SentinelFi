@@ -9,6 +9,14 @@ export interface SettingsEntity {
   smtpUser: string | null;
   smtpPass: string | null;
   supportEmail: string | null;
+  auditRetentionDays: number;
+  sessionTimeoutMinutes: number;
+  enableGlobalMfa: boolean;
+  // Phase 6 Integrations
+  sendgridApiKey?: string | null;
+  erpProvider?: string | null;
+  erpApiKey?: string | null;
+  erpBaseUrl?: string | null;
 }
 
 export interface UpdateSettingsDto {
@@ -21,6 +29,14 @@ export interface UpdateSettingsDto {
   smtpUser?: string;
   smtpPass?: string;
   supportEmail?: string;
+  auditRetentionDays?: number;
+  sessionTimeoutMinutes?: number;
+  enableGlobalMfa?: boolean;
+  // Phase 6 Integrations
+  sendgridApiKey?: string;
+  erpProvider?: string;
+  erpApiKey?: string;
+  erpBaseUrl?: string;
 }
 
 export interface SendTestEmailDto {

@@ -3,15 +3,29 @@ import { DataSource, DataSourceOptions } from "typeorm";
 import { TENANT_DATA_SOURCE } from "./constants";
 import { getDataSourceToken } from "@nestjs/typeorm";
 import { ClsService } from "nestjs-cls";
+import { ConfigService } from "@nestjs/config";
 import { TenancyAwareDataSource } from "./tenancy-aware-data-source";
+import { DatabaseConfig } from "../common/config/database.config";
 
 export const TenantConnectionProvider: Provider = {
   provide: TENANT_DATA_SOURCE,
-  scope: Scope.REQUEST, // Standard request scope
-  useFactory: async (defaultDataSource: DataSource, cls: ClsService) => {
-    // We instantiate our custom wrapper, passing the global options and the CLS service
-    // Note: We reuse the connection options from the default source (host, port, user, etc.)
-    return new TenancyAwareDataSource(defaultDataSource.options, cls);
+  scope: Scope.DEFAULT,
+  inject: [ConfigService, ClsService],
+  useFactory: async (configService: ConfigService, cls: ClsService) => {
+    const entities = DatabaseConfig.getEntities();
+    const options = DatabaseConfig.getTypeOrmConfig(configService, entities, 5) as DataSourceOptions;
+    const dataSource = new TenancyAwareDataSource(options, cls);
+    await dataSource.initialize();
+    return dataSource;
   },
-  inject: [getDataSourceToken(), ClsService],
 };
+
+/**
+ * Provider that maps the standard TypeORM connection token to our custom TENANT_DATA_SOURCE.
+ * This ensures @InjectRepository(Entity, TENANT_DATA_SOURCE) can resolve its DataSource.
+ */
+export const TenantDataSourceProvider: Provider = {
+  provide: getDataSourceToken(TENANT_DATA_SOURCE),
+  useExisting: TENANT_DATA_SOURCE,
+};
+

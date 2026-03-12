@@ -5,13 +5,15 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  Unique,
 } from "typeorm";
 import { UserEntity } from "../auth/user.entity";
-import { ProjectEntity } from "../projects/project.entity"; // NEW: Import ProjectEntity
-import { WbsCategoryEntity } from "./wbs-category.entity"; // NEW: Import WbsCategoryEntity
-import { WbsBudgetStatus } from "../../../shared/types/wbs-budget-status.enum"; // NEW: Import WbsBudgetStatus
+import { ProjectEntity } from "../projects/project.entity";
+import { WbsCategoryEntity } from "./wbs-category.entity";
+import { WbsBudgetStatus } from "../../../shared/types/wbs-budget-status.enum";
 
-@Entity({ name: "wbs_budget", schema: "client_template" })
+@Entity({ name: "wbs_budget" })
+@Unique(['wbs_code', 'project_id']) // Composite unique: same code allowed in different projects
 export class WbsBudgetEntity {
   @PrimaryGeneratedColumn("uuid")
   wbs_id!: string;
@@ -36,41 +38,59 @@ export class WbsBudgetEntity {
   children!: WbsBudgetEntity[];
 
   @Column({ type: "uuid", nullable: true })
-  category_id!: string | null; // NEW: Category ID
+  category_id!: string | null;
 
   @ManyToOne(() => WbsCategoryEntity, (category) => category.wbsBudgets)
   @JoinColumn({ name: "category_id" })
   category!: WbsCategoryEntity;
 
-  @Column({ unique: true, length: 50 })
+  @Column({ length: 50 })
   wbs_code!: string;
 
   @Column({ type: "text" })
   description!: string;
 
   // Financial Fields
-  @Column({ type: "numeric", precision: 19, scale: 4 })
+  @Column({ type: "numeric", precision: 19, scale: 4, default: 0 })
   unit_cost_budgeted!: number;
 
-  @Column({ type: "numeric", precision: 19, scale: 4 })
+  @Column({ type: "numeric", precision: 19, scale: 4, default: 0 })
   quantity_budgeted!: number;
 
   @Column({ type: "int", nullable: true })
   days_budgeted!: number | null;
 
+  @Column({ type: "varchar", length: 50, nullable: true })
+  uom!: string | null;
+
+  @Column({ type: "jsonb", nullable: true })
+  custom_metadata!: Record<string, any> | null;
+
   @Column({ type: "numeric", precision: 19, scale: 4 })
   total_cost_budgeted!: number;
 
   @Column({ type: "numeric", precision: 19, scale: 4, default: 0 })
-  total_cost_actual!: number; // NEW: To track actual spend
+  total_cost_actual!: number;
+
+  @Column({ type: "numeric", precision: 19, scale: 4, default: 0 })
+  total_committed_lpo!: number;
+
+  @Column({ type: "numeric", precision: 19, scale: 4, default: 0 })
+  quantity_actual!: number;
+
+  @Column({ type: "numeric", precision: 19, scale: 4, default: 0 })
+  days_actual!: number;
 
   // Status/Audit Fields
   @Column({
     type: "enum",
     enum: WbsBudgetStatus,
-    default: WbsBudgetStatus.PENDING,
+    default: WbsBudgetStatus.DRAFT,
   })
   status!: WbsBudgetStatus;
+  
+  @Column({ type: "int", default: 0 })
+  sort_order!: number;
 
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
@@ -81,7 +101,7 @@ export class WbsBudgetEntity {
   @Column({ type: "uuid", nullable: false })
   tenant_id!: string;
 
-  @ManyToOne(() => UserEntity)
-  @JoinColumn({ name: "user_id" })
+  @ManyToOne('UserEntity')
+  @JoinColumn({ name: "user_id", referencedColumnName: "id" })
   user!: UserEntity;
 }

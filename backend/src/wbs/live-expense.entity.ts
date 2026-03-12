@@ -6,9 +6,10 @@ import {
   JoinColumn,
 } from "typeorm";
 import { WbsBudgetEntity } from "./wbs-budget.entity";
-import { WbsCategoryEntity } from "./wbs-category.entity"; // NEW: Import WbsCategoryEntity
+import type { WbsCategoryEntity } from "./wbs-category.entity"; // Fix circular dependency
+import { ApprovalStatus } from "../../../shared/types/approval-status.enum";
 
-@Entity({ name: "live_expense", schema: "client_template" })
+@Entity({ name: "live_expense" })
 export class LiveExpenseEntity {
   // ADDED ! NON-NULL ASSERTION OPERATOR
   @PrimaryGeneratedColumn("uuid")
@@ -30,7 +31,7 @@ export class LiveExpenseEntity {
   @Column({ type: "uuid", nullable: true })
   category_id!: string | null; // NEW: Category ID
 
-  @ManyToOne(() => WbsCategoryEntity, (category) => category.liveExpenses)
+  @ManyToOne("WbsCategoryEntity", (category: any) => category.liveExpenses)
   @JoinColumn({ name: "category_id" })
   category!: WbsCategoryEntity;
 
@@ -54,6 +55,9 @@ export class LiveExpenseEntity {
   @Column({ type: "numeric", precision: 19, scale: 4 })
   quantity!: number;
 
+  @Column({ type: "numeric", precision: 19, scale: 4, nullable: true })
+  days!: number | null;
+
   @Column({ type: "numeric", precision: 19, scale: 4, default: 0.0 })
   commitment_lpo_amount!: number;
 
@@ -75,6 +79,17 @@ export class LiveExpenseEntity {
   // Real-time Variance Flag
   @Column({ type: "varchar", length: 50, default: "NO_VARIANCE" })
   variance_flag!: string;
+
+  // NEW: Support for Asynchronous Override Flow
+  @Column({
+    type: "varchar",
+    length: 50,
+    default: ApprovalStatus.APPROVED,
+  })
+  approval_status!: string;
+
+  @Column({ type: "text", nullable: true })
+  override_reason!: string | null;
 
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;

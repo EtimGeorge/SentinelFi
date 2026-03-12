@@ -41,7 +41,7 @@ export class OperationalBudgetsController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   @UsePipes(new ValidationPipe({ transform: true }))
   async createOperationalBudget(
     @Body() createOperationalBudgetDto: CreateOperationalBudgetDto,
@@ -65,7 +65,7 @@ export class OperationalBudgetsController {
    */
   @Post("expense")
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   async logExpense(
     @Body() expenseData: any, 
     @Req() req: AuthenticatedRequest,
@@ -83,12 +83,65 @@ export class OperationalBudgetsController {
   }
 
   /**
+   * API Endpoint: PATCH /api/v1/operational-budgets/expense/:id
+   */
+  @Patch("expense/:id")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  async updateExpense(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() updateData: any,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.updateExpense(id, updateData, req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: DELETE /api/v1/operational-budgets/expense/:id
+   */
+  @Delete("expense/:id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  async deleteExpense(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    await this.operationalBudgetsService.deleteExpense(id, req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/operational-budgets/expense/all
+   */
+  @Get("expense/all")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin, Role.CEO, Role.OperationalDirector)
+  async findAllOperationalExpenses(
+    @Query() query: {
+      budget_id?: string;
+      category_id?: string;
+      status?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.findAllExpenses(req.user.tenant_id, query);
+  }
+
+  /**
    * API Endpoint: POST /api/v1/operational-budgets/payroll
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Post("payroll")
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   async logPayroll(
     @Body() payrollData: any, 
     @Req() req: AuthenticatedRequest,
@@ -106,16 +159,41 @@ export class OperationalBudgetsController {
   }
 
   /**
+   * API Endpoint: GET /api/v1/operational-budgets/rollup
+   * OPEX Intelligence rollup — aggregates budget → category → actual spend
+   * with temporal filtering, burn rates, and efficiency score.
+   * Permissions: All read roles
+   */
+  @Get('rollup')
+  @Roles(
+    Role.AdminDirector, Role.AdminManager, Role.CEO, Role.CFO,
+    Role.FinanceManager, Role.OperationalDirector, Role.TechnicalDirector, Role.SuperAdmin,
+  )
+  async getOpexRollup(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('budget_id') budget_id?: string,
+    @Query('type') type?: string,
+    @Req() req?: AuthenticatedRequest,
+  ) {
+    if (!req?.user?.tenant_id) throw new UnauthorizedException('User not authenticated.');
+    return this.operationalBudgetsService.getOpexRollup(req.user.tenant_id, { startDate, endDate, budget_id, type });
+  }
+
+  /**
    * API Endpoint: GET /api/v1/operational-budgets
    * Permissions: All read roles (Admin, CEO, Finance, OperationalHead, ITHead, SuperAdmin)
    */
   @Get()
+
   @Roles(
-    Role.Admin,
+    Role.AdminDirector,
+    Role.AdminManager,
     Role.CEO,
-    Role.Finance,
-    Role.OperationalHead,
-    Role.ITHead,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.SuperAdmin,
   )
   @UsePipes(new ValidationPipe({ transform: true }))
@@ -140,11 +218,13 @@ export class OperationalBudgetsController {
    */
   @Get(":id")
   @Roles(
-    Role.Admin,
+    Role.AdminDirector,
+    Role.AdminManager,
     Role.CEO,
-    Role.Finance,
-    Role.OperationalHead,
-    Role.ITHead,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.SuperAdmin,
   )
   async findOneOperationalBudget(
@@ -164,7 +244,7 @@ export class OperationalBudgetsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Patch(":id")
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateOperationalBudget(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -189,7 +269,7 @@ export class OperationalBudgetsController {
    */
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(Role.Admin, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CEO, Role.SuperAdmin)
   async removeOperationalBudget(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
@@ -209,11 +289,13 @@ export class OperationalBudgetsController {
    */
   @Get("export")
   @Roles(
-    Role.Admin,
+    Role.AdminDirector,
+    Role.AdminManager,
     Role.CEO,
-    Role.Finance,
-    Role.OperationalHead,
-    Role.ITHead,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.SuperAdmin,
   )
   async exportOperationalBudgets(
@@ -281,7 +363,7 @@ export class OperationalBudgetsController {
    */
   @Post("run-bot")
   @HttpCode(HttpStatus.OK)
-  @Roles(Role.Admin, Role.Finance, Role.SuperAdmin)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
   async triggerPayrollBot(
     @Body() payload: { template: any[] },
     @Req() req: AuthenticatedRequest,
@@ -295,6 +377,71 @@ export class OperationalBudgetsController {
       payload.template,
       req.user.id,
       req.user.tenant_id,
+    );
+  }
+
+  // --- Category Endpoints ---
+
+  @Get("categories/list")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin, Role.CEO, Role.OperationalDirector)
+  async getCategories(@Req() req: AuthenticatedRequest) {
+     if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.getAvailableCategories(req.user.tenant_id);
+  }
+
+  @Post("categories")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  async createCategory(
+    @Body() body: { name: string; type: string; description?: string },
+    @Req() req: AuthenticatedRequest
+  ) {
+     if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.createCustomCategory(
+      body.name,
+      body.type,
+      req.user.tenant_id,
+      body.description
+    );
+  }
+
+  // --- Grid Endpoints ---
+
+  @Get(":id/grid")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin, Role.CEO, Role.OperationalDirector)
+  async getBudgetGrid(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+     if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.getBudgetGrid(id, req.user.tenant_id);
+  }
+
+  @Post("allocation")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  async upsertAllocation(
+    @Body() body: { 
+      operational_budget_category_id: string; 
+      period_date: string; 
+      amount: number; 
+      period_type: any 
+    },
+    @Req() req: AuthenticatedRequest
+  ) {
+     if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.upsertAllocation(
+      body.operational_budget_category_id,
+      body.period_date,
+      body.amount,
+      body.period_type,
+      req.user.tenant_id
     );
   }
 }

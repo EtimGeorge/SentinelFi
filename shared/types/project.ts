@@ -5,7 +5,9 @@ export enum ProjectStatus {
     ACTIVE = "active",
     INACTIVE = "inactive",
     COMPLETED = "completed",
-  }
+    ARCHIVED = "archived",
+    ON_HOLD = "on_hold",
+}
   
 export interface Project {
   project_id: string;
@@ -21,6 +23,12 @@ export interface Project {
   wht_rate: number;
   created_at: Date;
   updated_at: Date | null;
+  client_id: string | null;
+  client?: {
+    id: string;
+    name: string;
+    industry?: string;
+  };
   created_by_user_id: string;
   createdBy?: User;
   wbsBudgets?: WbsBudget[];

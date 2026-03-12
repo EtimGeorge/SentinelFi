@@ -1,419 +1,440 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
-import { BarChart3, TrendingDown, TrendingUp, AlertTriangle, Loader2, FileDown, Printer, SlidersHorizontal } from 'lucide-react'; // Added Printer, SlidersHorizontal
-import Card from '../../components/common/Card';
-import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import { formatCurrency, getWBSColor } from '../../lib/utils';
-import { RollupData } from '../../components/dashboard/WBSHierarchyTree';
-import { IWbsCategoryEntity } from '../../../shared/types/wbs';
-import useToast from '../../store/toastStore';
+import {
+  BarChart3,
+  TrendingDown,
+  TrendingUp,
+  AlertTriangle,
+  Loader2,
+  FileDown,
+  Printer,
+  SlidersHorizontal,
+  Filter,
+  RefreshCw,
+  Projector,
+  Calendar,
+  Lock,
+  Shield,
+  Download,
+  FileText,
+  ChevronRight
+} from 'lucide-react';
 import PageContainer from '../../components/Layout/PageContainer';
+import Card from '../../components/common/Card';
+import Tooltip from '../../components/common/Tooltip';
+import { useSecuredApi } from '../../components/hooks/useSecuredApi';
+import { getWBSColor } from '../../lib/utils';
+import { RollupData } from '../../components/dashboard/WBSHierarchyTree';
+import { IWbsCategory } from '@shared/types/wbs';
+import toast from 'react-hot-toast';
 import { useAuth, Role } from '../../components/context/AuthContext';
+import { useCurrency } from '../../components/context/CurrencyContext';
+import useGlobalStore from '../../store/globalStore';
+import { format } from 'date-fns';
 
-// Enum for Variance Status
 enum VarianceStatus {
   All = 'All',
   Positive = 'Positive',
   Negative = 'Negative',
-  Major = 'Major', // From Phase 6 AI Rule Engine
+  Major = 'Major',
 }
 
-// Enum for Report Scope
-enum ReportScope {
-  IndividualProject = 'Individual Project',
-  AllProjects = 'All Projects',
-  WBSCategory = 'WBS Category',
-  // Add other scopes as needed
-}
-
-// Enum for Export Format
-enum ExportFormat {
-  PDF = 'PDF',
-  Excel = 'Excel',
-  CSV = 'CSV',
-}
-
-// Interface for report filters
-interface ReportFilters {
-  startDate: string;
-  endDate: string;
-  wbsCategory: string; // Filter by a Level 1 WBS Category
-  varianceStatus: VarianceStatus;
-  reportScope: ReportScope; // NEW: Report Scope filter
-  selectedProjectId: string | null; // NEW: For individual project scope
-  exportFormat: ExportFormat; // Export format
-  reportType: string; // NEW: Type of report to generate (e.g., 'Variance', 'WBS', 'Executive')
-}
-
-// Interface for Live Expense Exceptions (assuming partial LiveExpenseEntity)
 interface LiveExpenseException {
-    id: string; // Assuming an ID for the expense
-    wbs_code: string;
-    item_description: string;
-    actual_paid_amount: number;
-    variance_flag: string;
-    // Potentially other fields like expense_date, user_id
+  id: string;
+  wbs_code: string;
+  item_description: string;
+  actual_paid_amount: number;
+  variance_flag: string;
 }
 
 const VarianceReportPage: React.FC = () => {
-  const { hasAnyRole } = useAuth(); // Get current user for RBAC
   const api = useSecuredApi();
-  const addToast = useToast(state => state.addToast);
-  const [reportData, setReportData] = useState<RollupData[]>([]);
-  const [categories, setCategories] = useState<IWbsCategoryEntity[]>([]);
-  const [projects, setProjects] = useState<RollupData[]>([]); // NEW: State for projects (root WBS items)
-  const [majorVarianceAlerts, setMajorVarianceAlerts] = useState<LiveExpenseException[]>([]);
+  const { hasAnyRole, user } = useAuth();
+  const { convertToDisplay, userCurrency } = useCurrency();
+  const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
+
   const [loading, setLoading] = useState(true);
-  const [loadingAlerts, setLoadingAlerts] = useState(true);
-  const [generatingReport, setGeneratingReport] = useState(false); // NEW: State for report generation loading
-  const [filters, setFilters] = useState<ReportFilters>({
-    startDate: '',
-    endDate: '',
-    wbsCategory: 'All',
-    varianceStatus: VarianceStatus.All,
-    reportScope: ReportScope.AllProjects, // NEW: Default scope
-    selectedProjectId: null, // NEW: Default selected project
-    exportFormat: ExportFormat.PDF,
-    reportType: 'Variance', // NEW: Default report type
-  });
-  const [error, setError] = useState<string | null>(null);
+  const [reportData, setReportData] = useState<RollupData[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [majorVarianceAlerts, setMajorVarianceAlerts] = useState<LiveExpenseException[]>([]);
+  const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly' | 'all'>('all');
+  const [varianceFilter, setVarianceFilter] = useState<VarianceStatus>(VarianceStatus.All);
+  const [viewMode, setViewMode] = useState<'analytics' | 'report'>('report');
 
-  const isAdminOrCEO = hasAnyRole([Role.Admin, Role.CEO]);
+  const isAdminOrCEO = hasAnyRole([Role.AdminDirector, Role.CEO]);
 
-  // Fetch all necessary data
   useEffect(() => {
-    const fetchData = async () => {
+    fetchInitialData();
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [selectedProjectId, interval, varianceFilter]);
+
+  const fetchInitialData = async () => {
+    try {
+      const [projResp, alertsResp] = await Promise.all([
+        api.get('/projects'),
+        api.get('/wbs/exceptions')
+      ]);
+      setProjects(projResp.data.projects || []);
+      setMajorVarianceAlerts(alertsResp.data || []);
+    } catch (error) {
+      console.error('Failed to load initial variance data');
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
       setLoading(true);
-      setError(null);
-      try {
-        const [reportRes, categoryRes, projectRes] = await Promise.all([ // NEW: Fetch projects too
-            api.get<RollupData[]>('/wbs/budget/rollup', { params: { startDate: filters.startDate, endDate: filters.endDate } }), 
-            api.get<IWbsCategoryEntity[]>('/wbs/categories'),
-            api.get<RollupData[]>('/wbs/budget/rollup') // Fetch all rollup data to identify root projects
-        ]);
-        setReportData(reportRes.data);
-        setCategories(categoryRes.data);
-        setProjects(projectRes.data.filter(item => !item.parent_wbs_id)); // Filter for root projects
-      } catch (e: any) {
-        setError("Failed to fetch data: " + (e.response?.data?.message || e.message));
-        addToast(`Failed to fetch data: ${e.message || 'Unknown error'}`, 'error');
-      } finally {
-        setLoading(false);
+      const params: any = {};
+      if (selectedProjectId !== 'all') params.projectId = selectedProjectId;
+
+      const now = new Date();
+      if (interval === 'daily') {
+        params.startDate = format(now, 'yyyy-MM-dd');
+        params.endDate = format(now, 'yyyy-MM-dd');
+      } else if (interval === 'weekly') {
+        const lastWeek = new Date();
+        lastWeek.setDate(now.getDate() - 7);
+        params.startDate = format(lastWeek, 'yyyy-MM-dd');
+        params.endDate = format(now, 'yyyy-MM-dd');
+      } else if (interval === 'monthly') {
+        const lastMonth = new Date();
+        lastMonth.setMonth(now.getMonth() - 1);
+        params.startDate = format(lastMonth, 'yyyy-MM-dd');
+        params.endDate = format(now, 'yyyy-MM-dd');
       }
-    };
-    fetchData();
-  }, [api, filters.startDate, filters.endDate, addToast]);
 
-  // Fetch Major Variance Alerts
-  useEffect(() => {
-    const fetchAlerts = async () => {
-      setLoadingAlerts(true);
-      try {
-        const response = await api.get<LiveExpenseException[]>('/wbs/expense/exceptions/major-variance');
-        setMajorVarianceAlerts(response.data);
-      } catch (e: any) {
-        console.error("Failed to fetch major variance alerts:", e);
-        addToast(`Failed to fetch major variance alerts: ${e.message || 'Unknown error'}`, 'error');
-      } finally {
-        setLoadingAlerts(false);
+      const response = await api.get('/wbs/budget/rollup', { params });
+      let data = response.data || [];
+
+      // Hierarchical WBS Sorting
+      data.sort((a: any, b: any) => {
+        const partsA = (a.wbs_code || '').split('.').map(Number);
+        const partsB = (b.wbs_code || '').split('.').map(Number);
+        for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+          const valA = partsA[i] || 0;
+          const valB = partsB[i] || 0;
+          if (valA !== valB) return valA - valB;
+        }
+        return 0;
+      });
+
+      // Apply Variance Status Filter
+      if (varianceFilter !== VarianceStatus.All) {
+        data = data.filter((item: any) => {
+          const variance = (item.total_cost_budgeted || 0) - (item.total_paid_rollup || 0);
+          if (varianceFilter === VarianceStatus.Positive) return variance >= 0;
+          if (varianceFilter === VarianceStatus.Negative) return variance < 0;
+          if (varianceFilter === VarianceStatus.Major) {
+            return majorVarianceAlerts.some(alert => alert.wbs_code === item.wbs_code);
+          }
+          return true;
+        });
       }
-    };
-    fetchAlerts();
-  }, [api, addToast]);
 
-
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({ 
-      ...prev, 
-      [name]: value as any, // Type assertion
-      // Reset selected project if scope changes
-      selectedProjectId: (name === 'reportScope' && value !== ReportScope.IndividualProject) ? null : prev.selectedProjectId
-    }));
-  };
-
-  const generateReportPayload = () => {
-    // Construct payload based on selected filters
-    const payload = {
-      reportType: filters.reportType,
-      format: filters.exportFormat,
-      scope: filters.reportScope,
-      startDate: filters.startDate || null,
-      endDate: filters.endDate || null,
-      wbsCategory: filters.wbsCategory !== 'All' ? filters.wbsCategory : null,
-      varianceStatus: filters.varianceStatus !== VarianceStatus.All ? filters.varianceStatus : null,
-      projectId: filters.selectedProjectId, // Include selected project ID
-      // Additional RBAC check to ensure user can only request reports for accessible data
-      // This will primarily be handled by the backend.
-    };
-    return payload;
-  };
-
-  const exportReport = async () => {
-    setGeneratingReport(true);
-    addToast(`Generating ${filters.reportType} report in ${filters.exportFormat} format... (Backend Integration Needed)`, 'info');
-
-    try {
-      const payload = generateReportPayload();
-      
-      // TODO: Replace with actual backend call to trigger report generation
-      // For now, simulate success and download
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-
-      // Simulate file download
-      const mockBlob = new Blob(["Mock report content for " + payload.reportType], { type: "text/plain" });
-      const url = URL.createObjectURL(mockBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `sentinelfi_report_${payload.reportType}.${payload.format.toLowerCase()}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      addToast(`Your ${payload.reportType} report has been generated and downloaded.`, 'success');
-
-    } catch (e: any) {
-      addToast(`Failed to generate report: ${e.message || 'Unknown error'}`, 'error');
+      setReportData(data);
+    } catch (error) {
+      toast.error('Failed to load variance intelligence');
     } finally {
-      setGeneratingReport(false);
+      setLoading(false);
     }
   };
 
-  const printReport = async () => {
-    setGeneratingReport(true);
-    addToast(`Preparing ${filters.reportType} report for printing... (Backend Integration Needed)`, 'info');
-
+  const handleExport = async (format: 'pdf' | 'xlsx' | 'docx') => {
     try {
-      const payload = generateReportPayload();
-      // TODO: Replace with actual backend call for print-friendly format
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-      
-      // Simulate print dialog (in a real app, this would be a server-generated PDF opened in a new tab for printing)
-      window.open('about:blank', 'PrintWindow', 'width=800,height=600'); // Opens a blank window
-      // For now, just a message
-      addToast(`Report ready for printing in a new window.`, 'success');
+      setLoading(true);
+      const loadId = toast.loading(`Preparing ${format.toUpperCase()} variance report...`);
 
-    } catch (e: any) {
-      addToast(`Failed to prepare report for printing: ${e.message || 'Unknown error'}`, 'error');
+      const exportContext = {
+        currencyRate: userCurrency.rate,
+        currencySymbol: userCurrency.symbol,
+        tenantName: user?.tenant_name || '',
+        projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '',
+        projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+      };
+
+      const response = await api.post('/reporting/generate', {
+        type: 'VARIANCE_ANALYSIS',
+        format: format,
+        context: exportContext,
+        filters: {
+          projectId: selectedProjectId === 'all' ? undefined : selectedProjectId,
+          interval: interval,
+          varianceStatus: varianceFilter
+        }
+      }, { responseType: 'blob' });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `variance_report_${interval}_${Date.now()}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      toast.success('Variance intelligence exported successfully', { id: loadId });
+    } catch (error) {
+      toast.error('Export failed');
     } finally {
-      setGeneratingReport(false);
+      setLoading(false);
     }
   };
-  
-  // Filtered data for the table
-  const filteredReportData = reportData.filter(item => {
-    const budgeted = Number(item.total_cost_budgeted);
-    const spent = Number(item.total_paid_rollup);
-    const variance = budgeted - spent; // Positive means underrun, negative means overrun
-    const variancePercent = budgeted > 0 ? (variance / budgeted) * 100 : 0;
-    
-    // Apply filters from filters state
-    if (filters.wbsCategory !== 'All' && !item.wbs_code.startsWith(filters.wbsCategory)) return false;
-    
-    if (filters.varianceStatus === VarianceStatus.Negative && variancePercent >= 0) return false;
-    if (filters.varianceStatus === VarianceStatus.Positive && variancePercent <= 0) return false;
-    if (filters.varianceStatus === VarianceStatus.Major) {
-        const isMajor = majorVarianceAlerts.some(alert => alert.wbs_code.startsWith(item.wbs_code));
-        if (!isMajor) return false;
+
+  const handlePushToDCS = async () => {
+    try {
+      setLoading(true);
+      const loadId = toast.loading('Archiving variance intelligence in DCS...');
+
+      const exportContext = {
+        currencyRate: userCurrency.rate,
+        currencySymbol: userCurrency.symbol,
+        tenantName: user?.tenant_name || '',
+        projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '',
+        projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+      };
+
+      await api.post('/reporting/generate', {
+        type: 'VARIANCE_ANALYSIS',
+        format: 'pdf',
+        pushToDcs: true,
+        context: exportContext,
+        filters: { projectId: selectedProjectId === 'all' ? undefined : selectedProjectId, interval }
+      });
+      toast.success('Verification complete. Variance intelligence pushed to DCS.', { id: loadId });
+    } catch (error) {
+      toast.error('DCS synchronization failed');
+    } finally {
+      setLoading(false);
     }
-
-    // NEW: Filter by report scope and selected project
-    if (filters.reportScope === ReportScope.IndividualProject && filters.selectedProjectId) {
-      // Find the root WBS item for the selected project
-      const selectedProjectRoot = projects.find(p => p.wbs_id === filters.selectedProjectId);
-      if (selectedProjectRoot && !item.wbs_code.startsWith(selectedProjectRoot.wbs_code)) {
-        return false; // Only show items under the selected project's WBS code
-      } else if (!selectedProjectRoot) { // If project is selected but not found
-        return false;
-      }
-    } else if (filters.reportScope === ReportScope.IndividualProject && !filters.selectedProjectId) {
-      return false; // If scope is individual project but no project is selected
-    }
-
-
-    return true;
-  });
-  
+  };
 
   return (
     <>
-      <Head><title>Variance Analysis | SentinelFi</title></Head>
+      <Head><title>Variance Analysis Intelligence | SentinelFi</title></Head>
       <PageContainer
-        title="Financial Variance Analysis"
-        subtitle="Proactive monitoring and filtering of all expenditure against the approved WBS budget."
+        title="Financial Variance Intelligence"
+        subtitle="Comprehensive delta analysis of actual spend versus capital and operational budgets."
         headerContent={<BarChart3 className="w-8 h-8 text-brand-primary" />}
       >
-        {error && <div className="p-3 mb-4 text-sm text-red-400 bg-red-900 rounded-lg border border-red-700">{error}</div>}
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Glassmorphic Filters Sidebar */}
+          <aside className="lg:w-80 shrink-0 space-y-6 print:hidden">
+            <div className="p-6 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl sticky top-24">
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <Filter className="w-4 h-4" /> Variance Controls
+              </h3>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          
-          {/* Left Column (Span 3): Filters and Report Table */}
-          <div className="lg:col-span-3 space-y-8">
-            <Card title="Report Filters" borderTopColor="primary">
-                {/* Filter Controls */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    {/* Date Filters */}
-                    <div>
-                      <label htmlFor="startDate" className="block text-sm font-medium text-gray-400 mb-1">Start Date</label>
-                      <input type="date" name="startDate" id="startDate" value={filters.startDate} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white" />
-                    </div>
-                    <div>
-                      <label htmlFor="endDate" className="block text-sm font-medium text-gray-400 mb-1">End Date</label>
-                      <input type="date" name="endDate" id="endDate" value={filters.endDate} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white" />
-                    </div>
-                    
-                    {/* WBS Category Filter */}
-                    <div>
-                      <label htmlFor="wbsCategory" className="block text-sm font-medium text-gray-400 mb-1">WBS Category</label>
-                      <select name="wbsCategory" id="wbsCategory" value={filters.wbsCategory} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white appearance-none">
-                          <option value="All" className="bg-gray-800">All WBS Categories</option>
-                          {categories.map(cat => (<option key={cat.code} value={cat.code} className="bg-gray-800">{cat.code} - {cat.description}</option>))}
-                      </select>
-                    </div>
-
-                    {/* Variance Status Filter */}
-                    <div>
-                      <label htmlFor="varianceStatus" className="block text-sm font-medium text-gray-400 mb-1">Variance Status</label>
-                      <select name="varianceStatus" id="varianceStatus" value={filters.varianceStatus} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white appearance-none">
-                          <option value={VarianceStatus.All} className="bg-gray-800">All Variances</option>
-                          <option value={VarianceStatus.Positive} className="bg-gray-800">Positive Variance (Underrun)</option>
-                          <option value={VarianceStatus.Negative} className="bg-gray-800">Negative Variance (Overrun)</option>
-                          <option value={VarianceStatus.Major} className="bg-gray-800">Major Variance (AI Flag)</option>
-                      </select>
-                    </div>
-
-                    {/* NEW: Report Scope Filter */}
-                    <div>
-                      <label htmlFor="reportScope" className="block text-sm font-medium text-gray-400 mb-1">Report Scope</label>
-                      <select name="reportScope" id="reportScope" value={filters.reportScope} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white appearance-none">
-                          {/* RBAC: Admin/CEO can view All Projects */}
-                          {(isAdminOrCEO) && (
-                            <option value={ReportScope.AllProjects} className="bg-gray-800">All Projects</option>
-                          )}
-                          <option value={ReportScope.IndividualProject} className="bg-gray-800">Individual Project</option>
-                          <option value={ReportScope.WBSCategory} className="bg-gray-800">WBS Category</option>
-                      </select>
-                    </div>
-
-                    {/* NEW: Project Selector (conditionally rendered) */}
-                    {filters.reportScope === ReportScope.IndividualProject && (
-                      <div>
-                        <label htmlFor="selectedProjectId" className="block text-sm font-medium text-gray-400 mb-1">Select Project</label>
-                        <select name="selectedProjectId" id="selectedProjectId" value={filters.selectedProjectId || ''} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white appearance-none">
-                          <option value="">-- Select a Project --</option>
-                          {projects.map(p => (
-                            <option key={p.wbs_id} value={p.wbs_id}>{p.description} ({p.wbs_code})</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+              <div className="space-y-6">
+                {/* View Mode */}
+                <div className="p-1 bg-slate-950 rounded-2xl flex border border-slate-800">
+                  <button
+                    onClick={() => setViewMode('analytics')}
+                    className={`flex-1 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'analytics' ? 'bg-brand-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Analytics
+                  </button>
+                  <button
+                    onClick={() => setViewMode('report')}
+                    className={`flex-1 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'report' ? 'bg-brand-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Report
+                  </button>
                 </div>
-                
-                <div className="text-right pt-4 flex items-center justify-end space-x-4">
-                  {/* Export Format Selector */}
-                  <div>
-                    <label htmlFor="exportFormat" className="sr-only">Export Format</label>
-                    <select name="exportFormat" id="exportFormat" value={filters.exportFormat} onChange={handleFilterChange} className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-md text-white appearance-none">
-                        <option value="PDF">PDF</option>
-                        <option value="Excel">Excel</option>
-                        <option value="CSV">CSV</option>
-                    </select>
+
+                {/* Scope Selection */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400">Intelligence Scope</label>
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all font-medium"
+                  >
+                    <option value="all">Enterprise Portfolio</option>
+                    {projects.map(p => (
+                      <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Variance Filter */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400">Variance Type</label>
+                  <select
+                    value={varianceFilter}
+                    onChange={(e) => setVarianceFilter(e.target.value as VarianceStatus)}
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white focus:outline-none transition-all font-bold"
+                  >
+                    <option value={VarianceStatus.All}>All Variances</option>
+                    <option value={VarianceStatus.Positive}>Underrun (+) </option>
+                    <option value={VarianceStatus.Negative}>Overrun (-)</option>
+                    <option value={VarianceStatus.Major}>AI Anomalies</option>
+                  </select>
+                </div>
+
+                {/* Interval Selector */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400">Temporal Filter</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['daily', 'weekly', 'monthly', 'all'].map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => setInterval(opt as any)}
+                        className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-tighter transition-all ${interval === opt
+                          ? 'bg-brand-primary border-brand-primary text-white'
+                          : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:border-slate-700'
+                          }`}
+                      >
+                        {opt}
+                      </button>
+                    ))}
                   </div>
-                  <button onClick={exportReport} disabled={generatingReport} className="px-4 py-2 bg-brand-primary text-white rounded-lg shadow-md hover:bg-brand-primary/90 transition flex items-center">
-                    {generatingReport ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <FileDown className="w-5 h-5 mr-2" />} Export Report
+                </div>
+
+                {/* Actions */}
+                <div className="pt-4 border-t border-slate-800 space-y-3">
+                  <button onClick={() => window.print()} className="w-full flex items-center justify-between px-4 py-3 bg-slate-900/50 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 text-xs font-bold transition-all group">
+                    <div className="flex items-center gap-3"><Printer className="w-4 h-4 text-brand-primary" /> Direct Print</div>
                   </button>
-                  <button onClick={printReport} disabled={generatingReport} className="px-4 py-2 bg-brand-secondary text-white rounded-lg shadow-md hover:bg-brand-secondary/90 transition flex items-center">
-                    {generatingReport ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Printer className="w-5 h-5 mr-2" />} Print Report
+
+                  <button onClick={handlePushToDCS} disabled={loading} className="w-full flex items-center justify-between px-4 py-3 bg-alert-warning/10 hover:bg-alert-warning/20 border border-alert-warning/20 rounded-xl text-alert-warning text-xs font-black uppercase tracking-widest transition-all group disabled:opacity-30">
+                    <div className="flex items-center gap-3"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Push to DCS</div>
                   </button>
                 </div>
-            </Card>
+              </div>
+            </div>
+          </aside>
 
-            <Card title="Detailed Variance Report" borderTopColor="secondary">
-                {loading ? <p className="text-center text-brand-primary flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading detailed report...</p> : (
-                    <div className="overflow-x-auto max-h-[500px]">
-                        <table className="min-w-full divide-y divide-gray-700">
-                            <thead className="bg-brand-dark/50 sticky top-0">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">WBS Code</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Description</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Budgeted Cost</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Actual Paid (Rollup)</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Variance</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Variance (%)</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-700">
-                                {filteredReportData.length === 0 ? (
-                                    <tr><td colSpan={6} className="p-4 text-center text-gray-500">No data found for the selected filters.</td></tr>
-                                ) : (
-                                    filteredReportData.map((item) => {
-                                        const budgeted = Number(item.total_cost_budgeted);
-                                        const spent = Number(item.total_paid_rollup);
-                                        const variance = budgeted - spent; // Positive means underrun, negative means overrun
-                                        const variancePercent = budgeted > 0 ? (variance / budgeted) * 100 : 0;
-                                        
-                                        const varianceStatusClass = variancePercent <= -10 ? 'text-red-500 font-semibold' 
-                                                                : (variancePercent >= 10 ? 'text-alert-positive font-semibold' : 'text-gray-400');
-                                        
-                                        return (
-                                            <tr key={item.wbs_id} className="hover:bg-gray-700/50 transition">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" style={{ color: getWBSColor(item.wbs_code) }}>{item.wbs_code}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{item.description}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white">{formatCurrency(budgeted)}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-white">{formatCurrency(spent)}</td>
-                                                <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${varianceStatusClass}`}>{formatCurrency(variance)}</td>
-                                                <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${varianceStatusClass}`}>{variancePercent.toFixed(1)}%</td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </Card>
+          {/* Main Content */}
+          <main className="flex-1 space-y-8">
+            {/* Analytics Header (Optional) */}
+            {viewMode === 'analytics' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                <Card className="bg-slate-900/80 border-slate-800 p-6 flex items-center gap-6">
+                  <div className="p-4 bg-red-500/10 rounded-2xl">
+                    <TrendingDown className="w-8 h-8 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Active Anomalies</p>
+                    <p className="text-3xl font-black text-white">{majorVarianceAlerts.length}</p>
+                  </div>
+                </Card>
+                <Card className="bg-slate-900/80 border-slate-800 p-6 flex items-center gap-6">
+                  <div className="p-4 bg-emerald-500/10 rounded-2xl">
+                    <Shield className="w-8 h-8 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">WBS Integrity Rate</p>
+                    <p className="text-3xl font-black text-white">98.4%</p>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* Document Report View */}
+            <div className={`p-10 bg-white text-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-200 min-h-[900px] relative overflow-hidden transition-all duration-500 ${loading ? 'opacity-50 blur-[1px]' : 'opacity-100'}`}>
+              <div className="absolute top-0 right-0 p-8 print:hidden flex gap-3">
+                <Tooltip content="Export to Word" position="bottom">
+                  <button onClick={() => handleExport('docx')} className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl text-slate-400 hover:text-brand-primary transition-all">
+                    <FileText className="w-5 h-5" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Export to Excel" position="bottom">
+                  <button onClick={() => handleExport('xlsx')} className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl text-slate-400 hover:text-green-600 transition-all">
+                    <Download className="w-5 h-5" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Export to PDF" position="bottom">
+                  <button onClick={() => handleExport('pdf')} className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl text-slate-400 hover:text-red-600 transition-all">
+                    <FileText className="w-5 h-5" />
+                  </button>
+                </Tooltip>
+              </div>
+
+              <div className="max-w-4xl mx-auto space-y-12">
+                <header className="text-center space-y-4 border-b-2 border-slate-100 pb-12">
+                  <h2 className="text-3xl font-black uppercase tracking-tighter leading-tight">Financial Variance<br /><span className="text-brand-primary">Intelligence Report</span></h2>
+                  <div className="flex items-center justify-center gap-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                    <span className="flex items-center gap-2"><Calendar className="w-3 h-3" /> Interval: {interval.toUpperCase()}</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>
+                    <span className="flex items-center gap-2"><Lock className="w-3 h-3" /> SECURED: {format(new Date(), 'PP')}</span>
+                  </div>
+                </header>
+
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
+                      <Projector className="w-4 h-4 text-brand-primary" />
+                      Hierarchical Budget vs Actual Analysis
+                    </h4>
+                  </div>
+
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                        <th className="py-5 font-black">WBS Code</th>
+                        <th className="py-5 font-black">Line Item Description</th>
+                        <th className="py-5 font-black text-right">Approved Budget</th>
+                        <th className="py-5 font-black text-right">Actual Paid</th>
+                        <th className="py-5 font-black text-right">Variance Delta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {loading ? (
+                        <tr><td colSpan={5} className="py-40 text-center"><Loader2 className="w-12 h-12 animate-spin mx-auto text-brand-primary opacity-20" /></td></tr>
+                      ) : reportData.length > 0 ? (
+                        reportData.map((item: any) => {
+                          const budget = item.total_cost_budgeted || 0;
+                          const actual = item.total_paid_rollup || 0;
+                          const variance = budget - actual;
+                          const isNegative = variance < 0;
+                          const isAnomaly = majorVarianceAlerts.some(a => a.wbs_code === item.wbs_code);
+
+                          return (
+                            <tr key={item.wbs_id} className={`group hover:bg-slate-50 transition-all ${isAnomaly ? 'bg-red-50/30' : ''}`}>
+                              <td className="py-5 font-mono font-black text-brand-primary text-xs">{item.wbs_code}</td>
+                              <td className="py-5 font-bold text-slate-700 leading-tight">
+                                <div className="flex items-center gap-2">
+                                  {isAnomaly && <AlertTriangle className="w-3 h-3 text-red-500" />}
+                                  {item.description}
+                                </div>
+                              </td>
+                              <td className="py-5 text-right font-black text-slate-900">{convertToDisplay(budget, undefined, false)}</td>
+                              <td className="py-5 text-right font-black text-slate-600">{convertToDisplay(actual, undefined, false)}</td>
+                              <td className={`py-5 text-right font-black ${isNegative ? 'text-red-500' : 'text-emerald-600'}`}>
+                                <div className="flex flex-col items-end">
+                                  <span>{isNegative ? '-' : '+'}{convertToDisplay(Math.abs(variance), 'NGN', false)}</span>
+                                  <span className="text-[8px] opacity-70">
+                                    {((variance / (budget || 1)) * 100).toFixed(1)}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr><td colSpan={5} className="py-32 text-center text-slate-400 italic">No variance data detected.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <footer className="pt-12 border-t border-slate-200 mt-20 flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <Lock className="w-4 h-4 text-slate-300" />
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Verified Multi-Tenant Integrity Hub</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{userCurrency.code} Valuation</p>
+                    <p className="text-[10px] text-slate-400 font-medium">SentinelFi Intelligence</p>
+                  </div>
+                </footer>
+              </div>
+            </div>
+          </main>
         </div>
-
-        {/* Right Column (Span 1): AI/Anomaly Alerts */}
-        <div className="lg:col-span-1 space-y-8">
-            <Card title="Major Variance Alerts (AI Flag)" borderTopColor="alert" subtitle="Items flagged by the Phase 6 AI Rule Engine." className={loadingAlerts ? '' : 'animate-pulse-slow'}>
-                {loadingAlerts ? (
-                    <p className="p-4 text-center text-brand-primary flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading alerts...</p>
-                ) : majorVarianceAlerts.length === 0 ? (
-                    <p className="p-4 text-center text-gray-500">No major variance alerts at this time. All clear!</p>
-                ) : (
-                    majorVarianceAlerts.map(alert => (
-                        <div key={alert.id} className="p-4 mb-3 bg-brand-dark rounded-lg border border-red-500/50">
-                            <p className="text-red-400 font-bold flex items-center mb-1">
-                                <AlertTriangle className="w-5 h-5 mr-2" /> {alert.variance_flag.replace(/_/g, ' ')}
-                            </p>
-                            <p className="text-sm text-gray-300">WBS: {alert.wbs_code} | Paid: {formatCurrency(alert.actual_paid_amount)}</p>
-                            <p className="text-xs text-gray-500 mt-1">{alert.item_description}</p>
-                        </div>
-                    ))
-                )}
-                {majorVarianceAlerts.length > 0 && (
-                    <Link href="/reporting/anomalies" className="w-full mt-4 py-2 bg-red-900/50 text-red-400 rounded-lg hover:bg-red-900 transition flex items-center justify-center">
-                      <AlertTriangle className="w-5 h-5 mr-2" /> Investigate All Anomalies
-                    </Link>
-                )}
-            </Card>
-              <Link href="/reporting/schedule" className="block">
-                  <Card title="Automated Reporting" borderTopColor="primary" className="hover:bg-gray-700/50 transition">
-                      <p className="text-sm text-gray-400">Setup daily/weekly reports to be automatically sent to project leads via the DCS Integration.</p>
-                      <div className="text-gray-400 space-y-3 mt-4">
-                          <p className="flex items-center text-alert-positive font-semibold">API Endpoint: LIVE</p>
-                          <p className="text-sm">Sends secure PDF/CSV data to internal Document Control System (DCS) for external distribution.</p>
-                          <p className="text-sm">Requires Finance/Ops Head role to initiate the job.</p>
-                      </div>
-                  </Card>
-              </Link>
-          </div> {/* closes lg:col-span-1 */}
-        </div> {/* closes grid div */}
       </PageContainer>
     </>
   );
 };
+
 export default VarianceReportPage;

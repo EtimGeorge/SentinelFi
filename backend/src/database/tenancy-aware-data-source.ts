@@ -1,11 +1,5 @@
 import { DataSource, DataSourceOptions, QueryRunner } from "typeorm";
-import { ClsService } from "nestjs-cls";
-
-import { UserEntity } from "../auth/user.entity";
-import { RoleEntity } from "../auth/role.entity";
-import { PermissionEntity } from "../auth/permission.entity";
-import { AuditLogEntity } from "../audit/audit.entity";
-import { TenantEntity } from "../tenants/tenant.entity";
+import { ClsService, ClsServiceManager } from "nestjs-cls";
 
 /**
  * Custom DataSource that wraps the standard TypeORM DataSource to implement multi-tenancy.
@@ -16,19 +10,9 @@ import { TenantEntity } from "../tenants/tenant.entity";
 export class TenancyAwareDataSource extends DataSource {
   constructor(
     options: DataSourceOptions,
-    private readonly cls: ClsService,
+    private readonly cls?: ClsService,
   ) {
-    super({
-      ...options,
-      entities: [
-        UserEntity,
-        RoleEntity,
-        PermissionEntity,
-        AuditLogEntity,
-        TenantEntity,
-        // Add other tenant-specific entities here as they are created
-      ],
-    });
+    super(options);
   }
 
   /**
@@ -38,26 +22,70 @@ export class TenancyAwareDataSource extends DataSource {
   createQueryRunner(mode?: "master" | "slave"): QueryRunner {
     const queryRunner = super.createQueryRunner(mode);
     const originalConnect = queryRunner.connect.bind(queryRunner);
+    let isSwitching = false;
 
     // Override the connect method of the QueryRunner
     queryRunner.connect = async () => {
-      // 1. Establish the physical connection using the original method
-      await originalConnect();
+      let correlationId = 'N/A';
+      let schemaName = 'public';
 
-      // 2. Retrieve the schema name from the CLS context
-      // The context is populated by the TenancyMiddleware
-      const schemaName = this.cls.get("SCHEMA_NAME") || "public";
-
-      // 3. Set the search_path for this connection session
-      // This ensures all subsequent queries on this runner use the correct schema
-      if (schemaName) {
-        // Sanitize schemaName to prevent SQL injection (basic check)
-        const sanitizedSchema = schemaName.replace(/[^a-z0-9_]/gi, "");
-        console.log(`[TenancyAwareDataSource] Setting search_path for queryRunner to: ${sanitizedSchema}`); // Add logging
-        await queryRunner.query(
-          `SET search_path TO ${sanitizedSchema}, public`,
-        );
+      try {
+        const cls = ClsServiceManager.getClsService();
+        correlationId = cls.get("correlationId") || "N/A";
+        schemaName = cls.get("SCHEMA_NAME") || "public";
+      } catch (e) {
+        // CLS not available in this context (e.g. background task)
       }
+
+      // 1. Establish the physical connection
+      // We MUST return the connection object that TypeORM expects
+      const connection = await originalConnect();
+
+      // 2. Set search_path if not public and not currently switching (recursion guard)
+      if (schemaName && schemaName !== "public" && !isSwitching) {
+        isSwitching = true;
+        try {
+          const sanitizedSchema = schemaName.replace(/[^a-z0-9_]/gi, "");
+          const setSearchPath = async () => {
+            if (this.driver && typeof (this.driver as any).query === 'function') {
+              await (this.driver as any).query(
+                `SET search_path TO ${sanitizedSchema}, public`,
+                undefined,
+                queryRunner
+              );
+            } else {
+              await queryRunner.query(
+                `SET search_path TO ${sanitizedSchema}, public`,
+              );
+            }
+          };
+
+          try {
+            await setSearchPath();
+          } catch (firstErr: any) {
+            // If a previous query left the connection in a broken transaction state,
+            // issue ROLLBACK to clean it up and retry the search_path switch.
+            if (firstErr?.message?.includes('current transaction is aborted')) {
+              console.warn(`[TenancyAwareDataSource][CID: ${correlationId}] Recovering from aborted transaction, issuing ROLLBACK and retrying...`);
+              try {
+                await queryRunner.query('ROLLBACK');
+              } catch (_rollbackErr) {
+                // ROLLBACK itself might fail if no transaction is active, that's OK
+              }
+              await setSearchPath();
+            } else {
+              throw firstErr;
+            }
+          }
+        } catch (err) {
+          console.error(`[TenancyAwareDataSource][CID: ${correlationId}] Connection/Schema switch failed:`, err);
+          throw err;
+        } finally {
+          isSwitching = false;
+        }
+      }
+
+      return connection;
     };
 
     return queryRunner;
