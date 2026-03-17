@@ -5,6 +5,8 @@ import { PayrollRunEntity, PayrollRunStatus } from './entities/payroll-run.entit
 import { PayrollLineItemEntity, PayrollLineItemType } from './entities/payroll-line-item.entity';
 import { ClsService } from 'nestjs-cls';
 
+import { TENANT_DATA_SOURCE } from '../database/constants';
+
 @Injectable()
 export class PayrollService {
   private readonly logger = new Logger(PayrollService.name);
@@ -12,8 +14,8 @@ export class PayrollService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly cls: ClsService,
-    @InjectRepository(PayrollRunEntity) private payrollRunRepo: Repository<PayrollRunEntity>,
-    @InjectRepository(PayrollLineItemEntity) private payrollLineItemRepo: Repository<PayrollLineItemEntity>,
+    @InjectRepository(PayrollRunEntity, TENANT_DATA_SOURCE) private payrollRunRepo: Repository<PayrollRunEntity>,
+    @InjectRepository(PayrollLineItemEntity, TENANT_DATA_SOURCE) private payrollLineItemRepo: Repository<PayrollLineItemEntity>,
   ) {}
 
   private getTenantId(): string {

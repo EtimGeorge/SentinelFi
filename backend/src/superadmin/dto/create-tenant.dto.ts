@@ -30,6 +30,18 @@ export class CreateTenantDto {
   @IsNotEmpty()
   @IsString()
   admin_email!: string;
+
+  @IsOptional()
+  @IsString()
+  admin_first_name?: string;
+
+  @IsOptional()
+  @IsString()
+  admin_last_name?: string;
+
+  @IsOptional()
+  @IsString()
+  default_currency_code?: string;
 }
 
 export class UpdateTenantDto extends PartialType(CreateTenantDto) {

@@ -69,7 +69,8 @@ interface AuthContextType {
   error: Error | null;
   login: (uid: string, password: string, role: Role) => Promise<void>;
   logout: () => Promise<void>;
-  refreshUser: (silent?: boolean) => Promise<void>; // Updated signature
+  refreshUser: (silent?: boolean) => Promise<void>; 
+  updateProfile: (data: Partial<User>) => Promise<void>; // NEW: Profile update
   getPrimaryRole: () => Role | null;
   getDefaultRoute: () => string;
   stopImpersonation: () => Promise<void>;
@@ -355,6 +356,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshUser, router]);
 
+  const updateProfile = useCallback(async (data: Partial<User>) => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.patch<User>('/auth/profile', data);
+      setUser(response);
+      SessionStorage.save(response);
+      AuthLogger.success('Profile updated successfully');
+    } catch (err: any) {
+      const message = err.response?.data?.message || err.message || 'Profile update failed';
+      throw new Error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const isImpersonating = !!user?.impersonator_id;
 
   // 2. Effects Hooks - Defined AFTER callbacks they depend on
@@ -386,7 +402,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (isMountedRef.current) {
               setUser(null);
               SessionStorage.clear();
-              router.push('/login?reason=session_expired');
+              // REDIRECT REMOVED: Managed by RouteGuard
             }
           }
           if (isMountedRef.current) setIsSyncing(false);
@@ -441,7 +457,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           AuthLogger.warn('[SYNC] Session terminated in another tab. Logging out locally.');
           setUser(null);
           SessionStorage.clear();
-          router.push('/login?reason=multi_tab_logout');
+          // REDIRECT REMOVED: Managed by RouteGuard
         }
       } else if (type === 'LOGIN') {
         const newUser = event.data.user;
@@ -470,7 +486,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (e.key === 'sentinelfi_auth_user') {
         if (e.newValue === null && user) {
           setUser(null);
-          router.push('/login');
+          // REDIRECT REMOVED: Managed by RouteGuard
         }
         // Note: Logic to picking up login from storage is complex due to JSON parsing, 
         // BroadcastChannel is preferred for Login sync.
@@ -567,7 +583,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fetchCurrentUser().then(currentUser => {
         if (isMountedRef.current && currentUser === null) {
           setUser(null);
-          router.push('/login?reason=session_expired');
+          // REDIRECT REMOVED: Managed by RouteGuard
         }
       });
     }, intervalMs);
@@ -599,6 +615,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       refreshUser,
+      updateProfile, // Exposed here
       getPrimaryRole,
       getDefaultRoute,
       stopImpersonation,
@@ -660,7 +677,27 @@ export function useAuth() {
   return context;
 }
 
-export const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password', '/_error', '/404', '/500'];
+export const PUBLIC_ROUTES = [
+  '/', 
+  '/login', 
+  '/register', 
+  '/forgot-password', 
+  '/reset-password', 
+  '/about', 
+  '/training', 
+  '/contact', 
+  '/_error', 
+  '/404', 
+  '/500', 
+  '/landing/(.*)',
+  '/auth/accept-invitation',
+  '/auth/setup',
+  '/auth/check-email',
+  '/billing/success',
+  '/legal/terms',
+  '/legal/privacy',
+  '/landing/testimonials'
+];
 
 export const ROLE_ROUTES: Record<Role, string[]> = {
   [Role.SuperAdmin]: ['/super'],

@@ -22,6 +22,7 @@ interface ProjectSummary {
   total_spent: number;
   budget_count: number;
   expense_count: number;
+  currency: string;
 }
 
 interface BudgetKPIs {
@@ -88,7 +89,7 @@ const QUICK_LINKS = [
 
 const BudgetHubPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
-  const { convertToDisplay } = useCurrency();
+  const { userCurrency, convertToDisplay, convertAmount } = useCurrency();
   const router = useRouter();
   const [kpis, setKpis] = useState<BudgetKPIs | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,9 +111,25 @@ const BudgetHubPage: React.FC = () => {
       const expenseTotal = expenseRes.status === 'fulfilled' ? expenseRes.value.data.total || 0 : 0;
       const projects = projectsRes.status === 'fulfilled' ? projectsRes.value.data.projects || [] : [];
 
-      // Compute KPIs
-      const totalBudgeted = budgets.reduce((sum: number, b: any) => sum + Number(b.total_cost_budgeted || 0), 0);
-      const totalSpent = expenses.reduce((sum: number, e: any) => sum + Number(e.actual_paid_amount || 0), 0);
+      // Create a currency lookup map for projects
+      const projectCurrencyMap = new Map<string, string>();
+      for (const p of projects) {
+        projectCurrencyMap.set(p.project_id, p.currency || 'NGN');
+      }
+
+      // Compute Global aggregated KPIs in user's currency
+      const totalBudgeted = budgets.reduce((sum: number, b: any) => {
+        const pid = b.project_id || b.project?.project_id;
+        const projectCurrency = projectCurrencyMap.get(pid) || 'NGN';
+        return sum + convertAmount(Number(b.total_cost_budgeted || 0), projectCurrency, userCurrency.code);
+      }, 0);
+
+      const totalSpent = expenses.reduce((sum: number, e: any) => {
+        const pid = e.wbsBudget?.project_id || e.wbsBudget?.project?.project_id;
+        const projectCurrency = projectCurrencyMap.get(pid) || 'NGN';
+        return sum + convertAmount(Number(e.actual_paid_amount || 0), projectCurrency, userCurrency.code);
+      }, 0);
+
       const totalRemaining = totalBudgeted - totalSpent;
       const healthPercent = totalBudgeted > 0 ? Math.round(((totalBudgeted - totalSpent) / totalBudgeted) * 100) : 100;
 
@@ -123,30 +140,31 @@ const BudgetHubPage: React.FC = () => {
         e.variance_flag === 'MAJOR_VARIANCE_OVERRUN' || e.variance_flag === 'OVER_BUDGET'
       ).length;
 
-      // Per-project summaries
-      const projectMap = new Map<string, ProjectSummary>();
+      // Per-project summaries (storing raw totals but also capturing project currency)
+      const projectSummariesMap = new Map<string, ProjectSummary & { currency: string }>();
       for (const p of projects) {
-        projectMap.set(p.project_id, {
+        projectSummariesMap.set(p.project_id, {
           project_id: p.project_id,
           project_name: p.project_name,
           total_budgeted: 0,
           total_spent: 0,
           budget_count: 0,
           expense_count: 0,
+          currency: p.currency || 'NGN'
         });
       }
       for (const b of budgets) {
         const pid = b.project_id || b.project?.project_id;
-        if (pid && projectMap.has(pid)) {
-          const ps = projectMap.get(pid)!;
+        if (pid && projectSummariesMap.has(pid)) {
+          const ps = projectSummariesMap.get(pid)!;
           ps.total_budgeted += Number(b.total_cost_budgeted || 0);
           ps.budget_count++;
         }
       }
       for (const e of expenses) {
         const pid = e.wbsBudget?.project_id || e.wbsBudget?.project?.project_id;
-        if (pid && projectMap.has(pid)) {
-          const ps = projectMap.get(pid)!;
+        if (pid && projectSummariesMap.has(pid)) {
+          const ps = projectSummariesMap.get(pid)!;
           ps.total_spent += Number(e.actual_paid_amount || 0);
           ps.expense_count++;
         }
@@ -163,7 +181,7 @@ const BudgetHubPage: React.FC = () => {
         totalBudgets: budgetTotal,
         totalExpenses: expenseTotal,
         overBudgetCount,
-        projectSummaries: Array.from(projectMap.values())
+        projectSummaries: Array.from(projectSummariesMap.values())
           .filter(ps => ps.budget_count > 0 || ps.expense_count > 0)
           .sort((a, b) => b.total_budgeted - a.total_budgeted),
       });
@@ -174,7 +192,7 @@ const BudgetHubPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, userCurrency.code, convertAmount]);
 
   useEffect(() => {
     fetchKPIs();
@@ -213,7 +231,7 @@ const BudgetHubPage: React.FC = () => {
             </div>
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Budgeted</p>
             <p className="text-2xl font-black text-white mt-1">
-              {loading ? '—' : convertToDisplay(kpis?.totalBudgeted || 0, 'NGN')}
+              {loading ? '—' : convertToDisplay(kpis?.totalBudgeted || 0)}
             </p>
             <div className="flex items-center gap-1 mt-2">
               <span className="text-xs text-gray-400">{loading ? '—' : kpis?.totalBudgets} budget items</span>
@@ -227,7 +245,7 @@ const BudgetHubPage: React.FC = () => {
             </div>
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Spent</p>
             <p className="text-2xl font-black text-white mt-1">
-              {loading ? '—' : convertToDisplay(kpis?.totalSpent || 0, 'NGN')}
+              {loading ? '—' : convertToDisplay(kpis?.totalSpent || 0)}
             </p>
             <div className="flex items-center gap-1 mt-2">
               <span className="text-xs text-gray-400">{loading ? '—' : kpis?.totalExpenses} expense entries</span>
@@ -244,7 +262,7 @@ const BudgetHubPage: React.FC = () => {
             </div>
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Remaining Budget</p>
             <p className={`text-2xl font-black mt-1 ${(kpis?.totalRemaining ?? 0) >= 0 ? 'text-alert-positive' : 'text-alert-critical'}`}>
-              {loading ? '—' : convertToDisplay(Math.abs(kpis?.totalRemaining || 0), 'NGN')}
+              {loading ? '—' : convertToDisplay(Math.abs(kpis?.totalRemaining || 0))}
             </p>
             {(kpis?.totalRemaining ?? 0) < 0 && (
               <p className="text-[10px] text-alert-critical font-bold mt-1 animate-pulse">⚠ OVER BUDGET</p>
@@ -339,10 +357,10 @@ const BudgetHubPage: React.FC = () => {
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-sm font-black text-white">{convertToDisplay(ps.total_budgeted, 'NGN')}</span>
+                          <span className="text-sm font-black text-white">{convertToDisplay(ps.total_budgeted, ps.currency)}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-sm font-bold text-gray-300">{convertToDisplay(ps.total_spent, 'NGN')}</span>
+                          <span className="text-sm font-bold text-gray-300">{convertToDisplay(ps.total_spent, ps.currency)}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <span className={`text-sm font-bold flex items-center justify-end gap-1 ${variance >= 0 ? 'text-alert-positive' : 'text-alert-critical'}`}>
@@ -350,7 +368,7 @@ const BudgetHubPage: React.FC = () => {
                               ? <ArrowUpRight className="w-3.5 h-3.5" />
                               : <ArrowDownRight className="w-3.5 h-3.5" />
                             }
-                            {convertToDisplay(Math.abs(variance), 'NGN')}
+                            {convertToDisplay(Math.abs(variance), ps.currency)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">

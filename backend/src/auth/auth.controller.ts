@@ -171,6 +171,21 @@ export class AuthController {
   async healthCheck() {
     return { status: "ok", timestamp: new Date().toISOString() };
   }
+
+  @Public()
+  @Get("invitation/verify")
+  async verifyInvitation(@Req() req: Request) {
+    const token = req.query.token as string;
+    if (!token) throw new BadRequestException("Invitation token is required.");
+    return this.authService.verifyInvitation(token);
+  }
+
+  @Public()
+  @Post("invitation/accept")
+  @HttpCode(HttpStatus.OK)
+  async acceptInvitation(@Body() acceptDto: any) { // Any for now, validation pipe will handle it
+    return this.authService.acceptInvitation(acceptDto);
+  }
   
   // --- PROTECTED ROUTES ---
 

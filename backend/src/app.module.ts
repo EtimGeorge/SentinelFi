@@ -59,6 +59,9 @@ import { ClientEntity } from "./clients/client.entity";
 import { FinanceCoreModule } from "./finance-core/finance-core.module";
 import { ReportingModule } from "./reporting/reporting.module";
 import { MessagingModule } from "./messaging/messaging.module";
+import { AiAssistantModule } from "./ai-assistant/ai-assistant.module";
+import { ReportScheduleEntity } from "./ai-assistant/report-schedule.entity";
+import { MarketingModule } from "./marketing/marketing.module";
 
 @Module({
   imports: [
@@ -109,6 +112,8 @@ import { MessagingModule } from "./messaging/messaging.module";
     FinanceCoreModule,
     ReportingModule,
     MessagingModule,
+    AiAssistantModule,
+    MarketingModule,
   ],
   controllers: [],
   providers: [

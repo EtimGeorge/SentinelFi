@@ -74,7 +74,7 @@ const WBSManagerPage: React.FC = () => {
   const [categories, setCategories] = useState<WBSCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const [projects, setProjects] = useState<{ project_id: string; project_name: string }[]>([]);
+  const [projects, setProjects] = useState<{ project_id: string; project_name: string; currency?: string }[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [contractValidation, setContractValidation] = useState<ContractValidation | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -217,6 +217,28 @@ const WBSManagerPage: React.FC = () => {
       .catch(() => { });
     return () => controller.abort();
   }, [isAuthenticated]);
+
+  // Project Currency Map for fast lookups
+  const projectCurrencyMap = useMemo(() => {
+    return projects.reduce((acc, p) => {
+      acc[p.project_id] = p.currency || 'NGN';
+      return acc;
+    }, {} as Record<string, string>);
+  }, [projects]);
+
+  const totalProjectBudgetFiltered = useMemo(() => {
+    return items.filter(i => !i.parent_wbs_id).reduce((sum, item) => {
+      const projectCurrency = projectCurrencyMap[item.project_id || ''] || 'NGN';
+      return sum + convertAmount(Number(item.total_cost_budgeted_rollup || item.total_cost_budgeted || 0), projectCurrency, userCurrency.code);
+    }, 0);
+  }, [items, projectCurrencyMap, userCurrency.code]);
+
+  const totalSpentFiltered = useMemo(() => {
+    return items.filter(i => !i.parent_wbs_id).reduce((sum, item) => {
+      const projectCurrency = projectCurrencyMap[item.project_id || ''] || 'NGN';
+      return sum + convertAmount(Number(item.total_paid_rollup || 0), projectCurrency, userCurrency.code);
+    }, 0);
+  }, [items, projectCurrencyMap, userCurrency.code]);
 
   // Fetch WBS data
   useEffect(() => {
@@ -383,7 +405,7 @@ const WBSManagerPage: React.FC = () => {
       ]);
   };
 
-  const renderTree = (parentId: string | null = null, level: number = 0) => {
+  const renderTree = (parentId: string | null = null, level: number = 0, projects: { project_id: string; project_name: string; currency?: string }[]) => {
     const children = items.filter(i => i.parent_wbs_id === parentId)
       .sort((a, b) => a.wbs_code.localeCompare(b.wbs_code, undefined, { numeric: true }));
 
@@ -436,7 +458,7 @@ const WBSManagerPage: React.FC = () => {
                   <span className="text-gray-200 text-sm truncate pr-4">{item.description}</span>
                   {!isParent && Number(item.total_cost_budgeted_rollup || 0) === 0 && (
                     <span className="text-[10px] text-gray-500 font-mono mt-0.5">
-                      {item.uom ? `${item.uom}: ` : 'QTY: '}{item.quantity_budgeted || 1} @ {convertToDisplay(item.unit_cost_budgeted || 0)}
+                      {item.uom ? `${item.uom}: ` : 'QTY: '}{item.quantity_budgeted || 1} @ {convertToDisplay(item.unit_cost_budgeted || 0, projectCurrencyMap[item.project_id || ''] || 'NGN')}
                     </span>
                   )}
                 </div>
@@ -446,12 +468,12 @@ const WBSManagerPage: React.FC = () => {
             {/* Financial Columns */}
             <div className="flex items-center gap-4 text-right mr-4">
               <div className="min-w-[90px]">
-                <p className="font-black text-sm text-gray-100">{convertToDisplay(budgeted)}</p>
+                <p className="font-black text-sm text-gray-100">{convertToDisplay(budgeted, projectCurrencyMap[item.project_id || ''] || 'NGN')}</p>
                 <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Budget</p>
               </div>
               {spent > 0 && (
                 <div className="min-w-[90px]">
-                  <p className="font-bold text-sm text-gray-300">{convertToDisplay(spent)}</p>
+                  <p className="font-bold text-sm text-gray-300">{convertToDisplay(spent, projectCurrencyMap[item.project_id || ''] || 'NGN')}</p>
                   <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Actual</p>
                 </div>
               )}
@@ -549,9 +571,7 @@ const WBSManagerPage: React.FC = () => {
                 <div>
                   <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Total Project Budget</p>
                   <p className="text-xl font-black text-white">
-                    {convertToDisplay(
-                      items.filter(i => !i.parent_wbs_id).reduce((sum, i) => sum + Number(i.total_cost_budgeted_rollup || i.total_cost_budgeted || 0), 0)
-                    )}
+                    {convertToDisplay(totalProjectBudgetFiltered, userCurrency.code)}
                   </p>
                 </div>
               </div>
@@ -559,9 +579,7 @@ const WBSManagerPage: React.FC = () => {
                 <div className="text-right">
                   <p className="text-[10px] text-gray-500 uppercase font-bold">Total Spent</p>
                   <p className="text-sm font-bold text-gray-300">
-                    {convertToDisplay(
-                      items.filter(i => !i.parent_wbs_id).reduce((sum, i) => sum + Number(i.total_paid_rollup || 0), 0)
-                    )}
+                    {convertToDisplay(totalSpentFiltered, userCurrency.code)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -580,8 +598,8 @@ const WBSManagerPage: React.FC = () => {
             <div>
               <p className="text-sm font-bold text-red-300">Budget Exceeds Contract Value</p>
               <p className="text-xs text-red-400 mt-0.5">
-                Total WBS budgets ({convertToDisplay(contractValidation.totalBudgeted)}) exceed the contract value ({convertToDisplay(contractValidation.contractValue)}) by{' '}
-                <span className="font-bold">{convertToDisplay(contractValidation.totalBudgeted - contractValidation.contractValue)}</span>.
+                Total WBS budgets ({convertToDisplay(contractValidation.totalBudgeted, projectCurrencyMap[selectedProjectId] || 'NGN')}) exceed the contract value ({convertToDisplay(contractValidation.contractValue, projectCurrencyMap[selectedProjectId] || 'NGN')}) by{' '}
+                <span className="font-bold">{convertToDisplay(contractValidation.totalBudgeted - contractValidation.contractValue, projectCurrencyMap[selectedProjectId] || 'NGN')}</span>.
               </p>
             </div>
           </div>
@@ -840,7 +858,7 @@ const WBSManagerPage: React.FC = () => {
                   </div>
                   <div className="p-2 bg-brand-primary/10 border border-brand-primary/30 rounded text-center">
                     <p className="text-[10px] text-gray-400 uppercase font-bold">Auto-Computed Total ({userCurrency.code})</p>
-                    <p className="text-xl font-black text-brand-primary">{convertToDisplay(formData.total)}</p>
+                    <p className="text-xl font-black text-brand-primary">{convertToDisplay(formData.total, projectCurrencyMap[formData.projectId || selectedProjectId] || 'NGN')}</p>
                     <p className="text-[9px] text-gray-500 mt-0.5">unit cost × quantity × days</p>
                   </div>
 

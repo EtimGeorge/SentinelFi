@@ -1002,13 +1002,13 @@ const ProjectOverviewPage: React.FC = () => {
                                                         {audit.old_value !== null && (
                                                             <div className="text-xs">
                                                                 <span className="text-gray-500 mr-2">Old:</span>
-                                                                <span className="text-gray-400 font-mono">{convertToDisplay(audit.old_value)}</span>
+                                                                <span className="text-gray-400 font-mono">{convertToDisplay(audit.old_value, project.currency || 'NGN')}</span>
                                                             </div>
                                                         )}
                                                         {audit.new_value !== null && (
                                                             <div className="text-xs">
                                                                 <span className="text-gray-500 mr-2">New:</span>
-                                                                <span className="text-brand-primary font-mono font-bold">{convertToDisplay(audit.new_value)}</span>
+                                                                <span className="text-brand-primary font-mono font-bold">{convertToDisplay(audit.new_value, project.currency || 'NGN')}</span>
                                                             </div>
                                                         )}
                                                     </div>

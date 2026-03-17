@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import useUIStore from '../../store/uiStore';
 import { getStaticNavItemsForRole, NavItem } from '../../lib/navigationMap';
 import { getPrimaryRoleFromUser, loadUserFromStorage } from '../../lib/navigationUtils';
-import { X, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp, Shield } from 'lucide-react';
 
 // Helper component for rendering nav items, handles nesting
 const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, isCollapsed }) => {
@@ -30,7 +30,7 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
     return (
       <li key={item.name}>
         <div
-          className={`flex items-center p-2 rounded-md transition duration-200 cursor-pointer ${isActive ? 'bg-brand-primary text-white' : 'hover:bg-brand-primary/20'
+          className={`flex items-center p-3 rounded-xl transition duration-300 cursor-pointer ${isActive ? 'bg-brand-primary/90 text-white shadow-[0_0_15px_rgba(13,148,136,0.3)]' : 'hover:bg-white/5 hover:text-white'
             }`}
           onClick={() => setIsExpanded(!isExpanded)} // Toggle expansion
           title={isCollapsed ? item.name : ''}
@@ -67,9 +67,9 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
     <li>
       <Link
         href={item.path}
-        className={`flex items-center p-2 rounded-md transition duration-200 ${isActive
-          ? 'bg-brand-primary text-white'
-          : 'hover:bg-brand-primary/20'
+        className={`flex items-center p-3 rounded-xl transition duration-300 ${isActive
+          ? 'bg-brand-primary/90 text-white shadow-[0_0_15px_rgba(13,148,136,0.3)]'
+          : 'hover:bg-white/5 hover:text-white'
           }`}
         title={isCollapsed ? item.name : ''}
       >
@@ -183,14 +183,28 @@ const Sidebar: React.FC = () => {
     <>
       {/* Mobile Overlay Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 bg-brand-dark text-white shadow-lg z-50 transition-transform duration-300 ease-in-out
+        className={`fixed inset-y-0 left-0 bg-brand-dark/95 backdrop-blur-3xl border-r border-white/5 text-white shadow-2xl z-[60] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
                     ${isMobileSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'}
                     md:hidden`}
         aria-label="Mobile Sidebar"
+        aria-modal="true"
+        role="dialog"
       >
         <div className="flex flex-col h-full w-full p-4">
           <div className="flex-shrink-0 mb-8 mt-2 flex items-center justify-between">
-            <Image height={40} width={160} src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="SentinelFi Logo" priority={true} />
+            <div className="flex items-center gap-3">
+              <div className="relative w-10 h-10 p-1.5 bg-brand-darker border border-white/10 rounded-xl">
+                <Image 
+                  src="/SentinelFi Logo Concept-bg-remv-logo-only.png" 
+                  alt="SentinelFi Logo" 
+                  fill
+                  className="object-contain p-1 shadow-2xl"
+                />
+              </div>
+              <span className="text-xl font-black tracking-tighter text-white uppercase font-sora">
+                SENTINEL<span className="text-alert-critical">FI</span>
+              </span>
+            </div>
             <button
               onClick={closeMobileSidebar}
               className="text-white hover:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-primary p-2 rounded-md"
@@ -210,24 +224,34 @@ const Sidebar: React.FC = () => {
 
       {/* Desktop Collapsible Sidebar */}
       <aside
-        className={`hidden md:flex flex-col h-screen bg-brand-dark text-gray-300 shadow-lg z-30 transition-all duration-300 ease-in-out
+        className={`hidden md:flex flex-col h-screen bg-brand-dark/90 backdrop-blur-2xl border-r border-white/5 text-gray-300 shadow-[20px_0_40px_rgba(0,0,0,0.2)] z-30 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
                     ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'}`}
         aria-label="Desktop Sidebar"
       >
         <div className="flex flex-col h-full w-full p-4">
           <div className={`flex-shrink-0 mb-8 mt-2 flex flex-col items-center ${isDesktopSidebarCollapsed ? 'justify-center' : ''}`}>
-            <Image
-              height={isDesktopSidebarCollapsed ? 0 : 40}
-              width={isDesktopSidebarCollapsed ? 0 : 160}
-              className={`transition-opacity duration-300 ease-in-out ${isDesktopSidebarCollapsed ? 'opacity-0' : 'opacity-100'}`}
-              src="/SentinelFi Logo Concept-bg-remv-logo-only.png"
-              alt="SentinelFi Logo"
-              priority={true}
-            />
-            <h1 className={`text-xl text-white font-semibold transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden text-center
-                      ${isDesktopSidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-              SentinelFi
-            </h1>
+            {!isDesktopSidebarCollapsed && (
+              <div className="flex items-center gap-3 animate-in fade-in duration-500">
+                <div className="relative w-10 h-10 p-1.5 bg-brand-darker border border-white/10 rounded-xl transition-all duration-500 hover:border-brand-primary/50 shadow-2xl">
+                  <Image 
+                    src="/SentinelFi Logo Concept-bg-remv-logo-only.png" 
+                    alt="SentinelFi Logo" 
+                    fill
+                    className="object-contain p-1"
+                  />
+                </div>
+                {!isDesktopSidebarCollapsed && (
+                  <span className="text-xl font-black tracking-tighter text-white uppercase font-sora">
+                    SENTINEL<span className="text-alert-critical">FI</span>
+                  </span>
+                )}
+              </div>
+            )}
+            {isDesktopSidebarCollapsed && (
+              <div className="p-2 bg-brand-primary rounded-lg animate-in zoom-in duration-300">
+                <Shield class="w-6 h-6 text-white" />
+              </div>
+            )}
           </div>
 
           <nav className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">

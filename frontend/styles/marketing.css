@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --m-primary: #00d2ff;
+  --m-secondary: #0081ff;
+  --m-accent: #00ffc3;
+  --m-dark: #0a0e14;
+  --m-card: rgba(17, 24, 39, 0.7);
+  --m-border: rgba(255, 255, 255, 0.1);
+  --m-text-muted: #94a3b8;
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+.marketing-root {
+  background-color: var(--m-dark);
+  color: white;
+  font-family: var(--font-body);
+  overflow-x: hidden;
+}
+
+.m-heading {
+  font-family: var(--font-heading);
+}
+
+.glass-card {
+  background: var(--m-card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--m-border);
+  border-radius: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: var(--m-primary);
+  box-shadow: 0 0 30px rgba(0, 210, 255, 0.15);
+  transform: translateY(-4px);
+}
+
+.m-button-primary {
+  background: linear-gradient(135deg, var(--m-primary), var(--m-secondary));
+  color: white;
+  padding: 0.75rem 2rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.m-button-primary:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
+}
+
+.gradient-text {
+  background: linear-gradient(to right, #ffffff, var(--m-primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(0, 210, 255, 0.1) 0%, transparent 70%);
+  filter: blur(60px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Animations */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}

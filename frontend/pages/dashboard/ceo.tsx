@@ -44,7 +44,7 @@ const CEODashboard: React.FC = () => {
   const api = useSecuredApi();
   const { convertToDisplay } = useCurrency(); // Hook
   const [data, setData] = useState<RollupData[]>([]);
-  const [projects, setProjects] = useState<{ project_id: string; project_name: string }[]>([]);
+  const [projects, setProjects] = useState<{ project_id: string; project_name: string; currency?: string }[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [viewContext, setViewContext] = useState<'project' | 'operational'>('project');
   const [loading, setLoading] = useState(true);
@@ -74,8 +74,8 @@ const CEODashboard: React.FC = () => {
   const fetchProjects = useCallback(async () => {
     setLoadingProjects(true);
     try {
-      const resp = await api.get('/projects');
-      setProjects(resp.data.data || []);
+      const resp = await api.get('/projects?limit=100');
+      setProjects(resp.data.projects || resp.data.data || []);
     } catch (err: any) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
       console.error('Failed to fetch projects:', err);
@@ -84,9 +84,14 @@ const CEODashboard: React.FC = () => {
     }
   }, [api]);
 
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+  const projectCurrencyMap = useMemo(() => {
+    return projects.reduce((acc, p) => {
+      acc[p.project_id] = p.currency || 'NGN';
+      return acc;
+    }, {} as Record<string, string>);
+  }, [projects]);
+
+  const sourceCurrency = selectedProjectId === 'all' ? 'NGN' : (projectCurrencyMap[selectedProjectId] || 'NGN');
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -268,7 +273,7 @@ const CEODashboard: React.FC = () => {
                 {loading ? (
                   <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
                 ) : (
-                  <p className="text-3xl font-semibold text-gray-100">{convertToDisplay(kpis.totalBudget)}</p>
+                  <p className="text-3xl font-semibold text-gray-100">{convertToDisplay(kpis.totalBudget, sourceCurrency)}</p>
                 )}
               </Card>
               <Card title="Actual Expenditures" borderTopColor="primary">
@@ -276,7 +281,7 @@ const CEODashboard: React.FC = () => {
                   <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
                 ) : (
                   <div className="space-y-1">
-                    <p className="text-3xl font-semibold text-gray-100">{convertToDisplay(kpis.totalActualPaid)}</p>
+                    <p className="text-3xl font-semibold text-gray-100">{convertToDisplay(kpis.totalActualPaid, sourceCurrency)}</p>
                     <p className="text-xs text-gray-400">Total cash outflow for selected context</p>
                   </div>
                 )}
@@ -325,7 +330,7 @@ const CEODashboard: React.FC = () => {
                 ) : filteredWBSData.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400">No WBS data available. Adjust search or date range.</div>
                 ) : (
-                  <WBSHierarchyTree data={filteredWBSData} onWBSClick={handleWBSClick} />
+                  <WBSHierarchyTree data={filteredWBSData} onWBSClick={handleWBSClick} sourceCurrency={sourceCurrency} />
                 )}
               </Card>
               <Card title="WBS Level 1 Spending vs. Budget" className="lg:col-span-2">
@@ -334,7 +339,7 @@ const CEODashboard: React.FC = () => {
                 ) : filteredWBSData.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400">No chart data available. Adjust search or date range.</div>
                 ) : (
-                  <SpendingChart data={filteredWBSData} />
+                  <SpendingChart data={filteredWBSData} sourceCurrency={sourceCurrency} />
                 )}
               </Card>
             </div>

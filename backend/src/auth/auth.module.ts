@@ -11,12 +11,16 @@ import { JwtStrategy } from "./jwt.strategy";
 import * as ms from "ms";
 import { InitialSuperAdminSeederService } from "./initial-superadmin-seeder.service";
 import { AuditModule } from "../audit/audit.module";
-import { TenantRepositoriesModule } from "../tenant-repositories.module"; // Import the new module
+import { TenantRepositoriesModule } from "../tenant-repositories.module";
+import { InvitationEntity } from "./entities/invitation.entity";
+import { InvitationService } from "./invitation.service";
+import { EmailModule } from "../email/email.module";
 
 @Module({
   imports: [
-    TenantRepositoriesModule, // Import the tenant repositories module
-    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity]), // Add RoleEntity and PermissionEntity
+    TenantRepositoriesModule,
+    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity, InvitationEntity]),
+    EmailModule,
     JwtModule.registerAsync({
       useFactory: async (configService: ConfigService) => {
         const expiresInDuration =
@@ -38,6 +42,7 @@ import { TenantRepositoriesModule } from "../tenant-repositories.module"; // Imp
   controllers: [AuthController],
   providers: [
     AuthService,
+    InvitationService,
     JwtStrategy,
     InitialSuperAdminSeederService,
     {
@@ -46,6 +51,6 @@ import { TenantRepositoriesModule } from "../tenant-repositories.module"; // Imp
     },
     Logger,
   ],
-  exports: [TypeOrmModule, JwtModule, AuthService],
+  exports: [TypeOrmModule, JwtModule, AuthService, InvitationService],
 })
 export class AuthModule {}

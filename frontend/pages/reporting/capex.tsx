@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
   BarChart2,
@@ -49,12 +49,19 @@ const CapexPerformancePage: React.FC = () => {
 
   const fetchInitialData = async () => {
     try {
-      const resp = await api.get('/projects');
-      setProjects(resp.data.projects || []);
+      const resp = await api.get('/projects?limit=100');
+      setProjects(resp.data.projects || resp.data.data || []);
     } catch (error) {
       console.error('Failed to load projects');
     }
   };
+
+  const projectCurrencyMap = useMemo(() => {
+    return projects.reduce((acc, p) => {
+      acc[p.project_id] = p.currency || 'NGN';
+      return acc;
+    }, {} as Record<string, string>);
+  }, [projects]);
 
   const fetchStats = async () => {
     try {
@@ -94,8 +101,10 @@ const CapexPerformancePage: React.FC = () => {
         return 0;
       });
 
-      const totalBudget = data.reduce((acc: number, item: any) => acc + (item.total_cost_budgeted || 0), 0);
-      const totalActual = data.reduce((acc: number, item: any) => acc + (item.total_paid_rollup || 0), 0);
+      const totalBudget = data.reduce((acc: number, item: any) => 
+        acc + convertToDisplay(Number(item.total_cost_budgeted || 0), projectCurrencyMap[item.project_id] || 'NGN'), 0);
+      const totalActual = data.reduce((acc: number, item: any) => 
+        acc + convertToDisplay(Number(item.total_paid_rollup || 0), projectCurrencyMap[item.project_id] || 'NGN'), 0);
 
       // Count unique projects in the data or use selected project
       const projectCount = selectedProjectId === 'all'
@@ -295,7 +304,7 @@ const CapexPerformancePage: React.FC = () => {
                     <div className="flex flex-col">
                       <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1 leading-none">Capital Budget</span>
                       <div className="text-3xl font-black text-white tracking-tighter">
-                        {convertToDisplay(stats?.totalBudget || 0)}
+                        {convertToDisplay(stats?.totalBudget || 0, userCurrency.code)}
                       </div>
                     </div>
                   </Card>
@@ -306,7 +315,7 @@ const CapexPerformancePage: React.FC = () => {
                     <div className="flex flex-col">
                       <span className="text-[10px] font-black text-alert-warning uppercase tracking-widest mb-1 leading-none">Realized Spend</span>
                       <div className="text-3xl font-black text-white tracking-tighter">
-                        {convertToDisplay(stats?.totalActual || 0)}
+                        {convertToDisplay(stats?.totalActual || 0, userCurrency.code)}
                       </div>
                     </div>
                   </Card>
@@ -400,11 +409,11 @@ const CapexPerformancePage: React.FC = () => {
                                   <span className="block text-[9px] text-slate-400 uppercase mt-1">Project: {item.project_name}</span>
                                 )}
                               </td>
-                              <td className="py-5 text-right font-black text-slate-900">{convertToDisplay(budget, undefined, false)}</td>
-                              <td className="py-5 text-right font-black text-slate-600">{convertToDisplay(actual, undefined, false)}</td>
+                              <td className="py-5 text-right font-black text-slate-900">{convertToDisplay(budget, projectCurrencyMap[item.project_id] || 'NGN', false)}</td>
+                              <td className="py-5 text-right font-black text-slate-600">{convertToDisplay(actual, projectCurrencyMap[item.project_id] || 'NGN', false)}</td>
                               <td className={`py-5 text-right font-black ${isNegative ? 'text-red-500' : 'text-emerald-600'}`}>
                                 <div className="flex flex-col items-end">
-                                  <span>{isNegative ? '-' : '+'}{convertToDisplay(Math.abs(variance), undefined, false)}</span>
+                                  <span>{isNegative ? '-' : '+'}{convertToDisplay(Math.abs(variance), projectCurrencyMap[item.project_id] || 'NGN', false)}</span>
                                   <span className="text-[8px] opacity-70">
                                     {((variance / (budget || 1)) * 100).toFixed(1)}%
                                   </span>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
   BarChart3,
@@ -74,10 +74,10 @@ const VarianceReportPage: React.FC = () => {
   const fetchInitialData = async () => {
     try {
       const [projResp, alertsResp] = await Promise.all([
-        api.get('/projects'),
+        api.get('/projects?limit=100'),
         api.get('/wbs/exceptions')
       ]);
-      setProjects(projResp.data.projects || []);
+      setProjects(projResp.data.projects || projResp.data.data || []);
       setMajorVarianceAlerts(alertsResp.data || []);
     } catch (error) {
       console.error('Failed to load initial variance data');
@@ -141,6 +141,13 @@ const VarianceReportPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const projectCurrencyMap = useMemo(() => {
+    return projects.reduce((acc, p) => {
+      acc[p.project_id] = (p as any).currency || 'NGN';
+      return acc;
+    }, {} as Record<string, string>);
+  }, [projects]);
 
   const handleExport = async (format: 'pdf' | 'xlsx' | 'docx') => {
     try {
@@ -398,11 +405,11 @@ const VarianceReportPage: React.FC = () => {
                                   {item.description}
                                 </div>
                               </td>
-                              <td className="py-5 text-right font-black text-slate-900">{convertToDisplay(budget, undefined, false)}</td>
-                              <td className="py-5 text-right font-black text-slate-600">{convertToDisplay(actual, undefined, false)}</td>
+                              <td className="py-5 text-right font-black text-slate-900">{convertToDisplay(budget, projectCurrencyMap[item.project_id] || 'NGN', false)}</td>
+                              <td className="py-5 text-right font-black text-slate-600">{convertToDisplay(actual, projectCurrencyMap[item.project_id] || 'NGN', false)}</td>
                               <td className={`py-5 text-right font-black ${isNegative ? 'text-red-500' : 'text-emerald-600'}`}>
                                 <div className="flex flex-col items-end">
-                                  <span>{isNegative ? '-' : '+'}{convertToDisplay(Math.abs(variance), 'NGN', false)}</span>
+                                  <span>{isNegative ? '-' : '+'}{convertToDisplay(Math.abs(variance), projectCurrencyMap[item.project_id] || 'NGN', false)}</span>
                                   <span className="text-[8px] opacity-70">
                                     {((variance / (budget || 1)) * 100).toFixed(1)}%
                                   </span>

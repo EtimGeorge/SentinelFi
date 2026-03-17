@@ -115,6 +115,18 @@ api.interceptors.response.use(
       `[API] [CID:${correlationId}] ✗ ${error.response?.status || error.code} ${config.method?.toUpperCase()} ${config.url} (${duration}ms): ${error.message}`
     );
 
+    // ── 402 Subscription Expired — redirect globally ─────────────────────────
+    if (error.response?.status === 402) {
+      const responseData = error.response.data as any;
+      if (responseData?.code === 'SUBSCRIPTION_EXPIRED' && typeof window !== 'undefined') {
+        // Don't redirect if already on the subscription settings page
+        if (!window.location.pathname.includes('/settings/subscription')) {
+          window.location.href = '/settings/subscription?expired=true';
+        }
+      }
+      return Promise.reject(error);
+    }
+
     if (config._skipRetry) {
       return Promise.reject(error);
     }

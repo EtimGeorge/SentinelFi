@@ -2,15 +2,17 @@ import { Controller, Get, Post, Body, HttpCode, HttpStatus, UseGuards } from '@n
 import { CurrencyService } from './currency.service';
 import { ConvertCurrencyDto, ConvertCurrencyResponseDto, GetExchangeRatesDto, GetSupportedCurrenciesDto } from './dto/currency.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('currency')
-@UseGuards(JwtAuthGuard)
 export class CurrencyController {
   constructor(private readonly currencyService: CurrencyService) {}
 
   /**
-   * Get list of all supported currencies with metadata
+   * Get list of all supported currencies with metadata.
+   * PUBLIC — no auth required (used by public pricing page)
    */
+  @Public()
   @Get('supported')
   async getSupportedCurrencies(): Promise<GetSupportedCurrenciesDto> {
     const currencies = await this.currencyService.getSupportedCurrencies();
@@ -18,8 +20,10 @@ export class CurrencyController {
   }
 
   /**
-   * Get current exchange rates for all currencies (relative to USD)
+   * Get current exchange rates for all currencies (relative to USD).
+   * PUBLIC — no auth required (used by public pricing page)
    */
+  @Public()
   @Get('rates')
   async getExchangeRates(): Promise<GetExchangeRatesDto> {
     return this.currencyService.getExchangeRates();
@@ -52,8 +56,9 @@ export class CurrencyController {
   }
 
   /**
-   * Manually trigger exchange rate update (admin use only)
+   * Manually trigger exchange rate update (SuperAdmin only)
    */
+  @UseGuards(JwtAuthGuard)
   @Post('update-rates')
   @HttpCode(HttpStatus.OK)
   async updateRates(): Promise<{ message: string }> {

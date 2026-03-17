@@ -1,7 +1,7 @@
 // frontend/components/guards/RouteGuard.tsx
 import { useRouter } from 'next/router';
 import { useAuth, Role, PUBLIC_ROUTES, ROLE_ROUTES, AuthLogger } from '../context/AuthContext';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 
 // ============================================================================
 // SYSTEM ERROR COMPONENT (NEW)
@@ -122,14 +122,26 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
   const [authorized, setAuthorized] = useState(isAuthenticated); // Initialize based on current auth status
 
   // OPTIMIZATION: Determine if we really need to show the full screen loading
-  const isPublicRoute = PUBLIC_ROUTES.includes(router.pathname);
+  const isPublicRoute = useMemo(() => {
+    const cleanPath = router.pathname.split('?')[0];
+    return PUBLIC_ROUTES.some(route => {
+      if (route.includes('(') || route.includes('*')) {
+        const regex = new RegExp(`^${route}$`);
+        return regex.test(cleanPath);
+      }
+      return route === cleanPath;
+    });
+  }, [router.pathname]);
   const needsAuth = !isPublicRoute;
 
   useEffect(() => {
     // Determine if we should show the loading screen during transition
     // We only reset 'authorized' if we're not authenticated yet (initial load)
     // or if we're navigating between radically different route types.
-    if (!isAuthenticated) {
+    // STABILIZATION: Only reset authorized if we are strictly transitioning to a private route
+    // This prevents "Login flicker" on public page transitions
+    if (!isAuthenticated && needsAuth) {
+      AuthLogger.info(`[RouteGuard] Resetting authorized for private route: ${router.pathname}`);
       setAuthorized(false);
     }
 
@@ -142,19 +154,18 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
     const checkAuthorization = async () => {
       const currentPath = router.pathname;
 
-      // DEBUG: Log authorization check details
-      AuthLogger.info(`[RouteGuard] Checking authorization for ${currentPath}`, {
-        isAuthenticated,
-        userEmail: user?.email,
-        isLoading,
-        authorized,
-        roles: user?.roles?.map(r => typeof r === 'string' ? r : r.name)
+      // 1. Public Routes (Enhanced with Regex Support)
+      const isPublic = PUBLIC_ROUTES.some(route => {
+        if (route.includes('(') || route.includes('*')) {
+          const regex = new RegExp(`^${route}$`);
+          return regex.test(currentPath);
+        }
+        return route === currentPath;
       });
 
-      // 1. Public Routes
-      if (PUBLIC_ROUTES.includes(currentPath)) {
+      if (isPublic) {
         if (isAuthenticated && user) {
-          // If logged in and on public page, redirect to dashboard
+          // If logged in and on auth pages, redirect to dashboard
           if (['/login', '/register', '/forgot-password', '/reset-password'].includes(currentPath)) {
             await router.replace(getDefaultRoute());
             return;
@@ -168,6 +179,21 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
       if (!isAuthenticated || !user) {
         // Not authenticated, redirect to login
         AuthLogger.warn(`[RouteGuard] Access denied to ${currentPath}, redirecting to login`);
+        
+        // Final sanity check: Is it TRULY private?
+        const doubleCheckPublic = PUBLIC_ROUTES.some(route => {
+          if (route.includes('(') || route.includes('*')) {
+            return new RegExp(`^${route}$`).test(currentPath);
+          }
+          return route === currentPath;
+        });
+
+        if (doubleCheckPublic) {
+          AuthLogger.info(`[RouteGuard] Sanity check passed: ${currentPath} is public. Aborting redirect.`);
+          setAuthorized(true);
+          return;
+        }
+
         await router.replace({
           pathname: '/login',
           query: { returnUrl: router.asPath },
@@ -182,16 +208,9 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
 
       const hasSuperAdminRole = user.roles.some(r => getRoleName(r) === 'SuperAdmin');
 
-      // SuperAdmin Logic
-      if (hasSuperAdminRole) {
-        if (currentPath === '/') {
-          await router.replace(getDefaultRoute());
-          return;
-        }
-        // Allow access to all routes for SuperAdmin (or restrict if needed)
-        setAuthorized(true);
-        return;
-      }
+      // Allow access to all routes for SuperAdmin (or restrict if needed)
+      setAuthorized(true);
+      return;
 
       // Non-SuperAdmin Logic
       if (currentPath.startsWith('/super')) {
@@ -201,11 +220,6 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
       }
 
       if (currentPath.startsWith('/admin') && !user.roles.some(r => getRoleName(r) === Role.AdminDirector)) {
-        await router.replace(getDefaultRoute());
-        return;
-      }
-
-      if (currentPath === '/') {
         await router.replace(getDefaultRoute());
         return;
       }

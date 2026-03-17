@@ -216,7 +216,7 @@ const OpexPlanningPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-6">
             <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 shadow-inner group">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 group-hover:text-slate-400 transition">Master OPEX Target</p>
-              <p className="text-3xl font-black text-white tracking-tighter italic">₦ 0.00</p>
+              <p className="text-3xl font-black text-white tracking-tighter italic">{convertToDisplay(0, 'NGN')}</p>
             </div>
             <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 shadow-inner group">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 group-hover:text-slate-400 transition">Active Depts Rolling Up</p>

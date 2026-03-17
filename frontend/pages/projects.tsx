@@ -41,7 +41,7 @@ import useGlobalStore from '../store/globalStore';
 const ProjectsPage: React.FC = () => {
   const router = useRouter();
   const apiRef = useRef(api);
-  const { convertToDisplay, userCurrency, currencies } = useCurrency();
+  const { convertToDisplay, convertAmount, userCurrency, currencies } = useCurrency();
   const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
   const [projectRawData, setProjectRawData] = useState<ProjectData[]>([]);
   const [clients, setClients] = useState<Client[]>([]);

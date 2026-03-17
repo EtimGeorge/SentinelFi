@@ -17,6 +17,7 @@ import { Toaster } from 'react-hot-toast'; // For toast notifications
 import { Role } from '../components/context/AuthContext'; // Import Role for layout determination
 import { apiClient } from '../lib/api';
 import useUIStore from '../store/uiStore';
+import { AiAssistantWidget } from '../components/ai/AiAssistantWidget';
 
 // ============================================================================
 // LAYOUT TYPING (NEW)
@@ -34,9 +35,26 @@ type AppPropsWithLayout = AppProps & {
 // This component MUST be inside AuthProvider and RouteGuard to access auth context
 // ============================================================================
 
+// ─── AI page context map ────────────────────────────────────────────────────
+const PAGE_CONTEXT_MAP: Record<string, string> = {
+  '/financials/projects/wbs': 'wbs',
+  '/financials/intelligence': 'capex-dashboard',
+  '/financials/operations/planning': 'opex-dashboard',
+  '/budget/draft': 'budget-draft',
+  '/reporting/opex': 'opex-dashboard',
+};
+
 function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPropsWithLayout
   const { isInitialized, isAuthenticated, user } = useAuth();
   const router = useRouter();
+
+  // Derive page context for AI widget
+  const currentPageCtx = Object.entries(PAGE_CONTEXT_MAP).find(
+    ([path]) => router.pathname.includes(path)
+  )?.[1];
+
+  // Derive project ID from route if available
+  const projectId = router.query.id as string | undefined;
 
   // If AuthProvider is not yet initialized or user status is pending, show fallback
   if (!isInitialized) {
@@ -55,7 +73,18 @@ function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPr
     return <PublicLayout>{page}</PublicLayout>;
   });
 
-  return getLayout(<Component {...pageProps} />);
+  return (
+    <>
+      {getLayout(<Component {...pageProps} />)}
+      {/* Global AI Assistant Widget — available on all authenticated pages */}
+      {isAuthenticated && (
+        <AiAssistantWidget
+          currentPage={currentPageCtx}
+          projectId={projectId}
+        />
+      )}
+    </>
+  );
 }
 
 // ============================================================================

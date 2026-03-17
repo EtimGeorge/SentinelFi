@@ -407,7 +407,7 @@ const ExpenseManagementPage: React.FC = () => {
             />
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Amount (NGN)"
+                label={`Amount (${selectedExpense?.wbsBudget?.project?.currency || 'NGN'})`}
                 type="number"
                 value={editAmount}
                 onChange={(e) => setEditAmount(e.target.value)}

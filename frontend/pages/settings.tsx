@@ -190,6 +190,11 @@ const SettingsPage: React.FC = () => {
   const [testingErp, setTestingErp] = useState(false);
 
   // User preference state (independent of tenant settings)
+  const { updateProfile } = useAuth();
+  const [personalInfo, setPersonalInfo] = useState({
+    first_name: user?.first_name || '',
+    last_name: user?.last_name || '',
+  });
   const [selectedCurrency, setSelectedCurrency] = useState(userCurrency.code);
 
   // SMTP form
@@ -251,6 +256,18 @@ const SettingsPage: React.FC = () => {
     } catch {
       setSettings(prev);
       toast.error('Failed to update setting.');
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      await updateProfile(personalInfo);
+      toast.success('Profile updated successfully.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update profile.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -321,6 +338,41 @@ const SettingsPage: React.FC = () => {
 
   const renderPreferences = () => (
     <div className="space-y-6">
+      <Card title="Personal Information" subtitle="Update your display name for platform auditing and reporting." borderTopColor="primary">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">First Name</label>
+            <input 
+              value={personalInfo.first_name} 
+              onChange={(e) => setPersonalInfo(s => ({ ...s, first_name: e.target.value }))}
+              placeholder="e.g. John"
+              className="w-full bg-gray-700/60 border border-gray-600 rounded-lg p-2 text-white focus:ring-1 focus:ring-brand-primary outline-none text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Last Name</label>
+            <input 
+              value={personalInfo.last_name} 
+              onChange={(e) => setPersonalInfo(s => ({ ...s, last_name: e.target.value }))}
+              placeholder="e.g. Doe"
+              className="w-full bg-gray-700/60 border border-gray-600 rounded-lg p-2 text-white focus:ring-1 focus:ring-brand-primary outline-none text-sm"
+            />
+          </div>
+          <div className="sm:col-span-2 pt-1">
+            <Button 
+               onClick={handleSaveProfile} 
+               isLoading={isSaving} 
+               variant="primary" 
+               size="sm" 
+               icon={<Save size={14} />}
+               disabled={!personalInfo.first_name || !personalInfo.last_name || (personalInfo.first_name === user?.first_name && personalInfo.last_name === user?.last_name)}
+            >
+              Update Profile
+            </Button>
+          </div>
+        </div>
+      </Card>
+
       <Card title="Display Currency" subtitle="All financial figures will be converted to your preferred currency." borderTopColor="primary">
         <div className="space-y-4 mt-2">
           <select

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import { useAuth, Role } from '../../components/context/AuthContext';
@@ -46,6 +46,21 @@ const DashboardHome: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [viewContext, setViewContext] = useState<'project' | 'operational'>('project');
   const [pendingCount, setPendingCount] = useState(0);
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get('/projects?limit=100')
+      .then(res => setProjects(res.data.projects || []))
+      .catch(err => console.error('Failed to fetch projects for dashboard', err));
+  }, [user]);
+
+  const projectCurrencyMap = useMemo(() => {
+    return projects.reduce((acc, p) => {
+      acc[p.project_id] = (p as any).currency || 'NGN';
+      return acc;
+    }, {} as Record<string, string>);
+  }, [projects]);
 
   useEffect(() => {
     // Guard: Don't fetch if user isn't loaded yet
@@ -114,11 +129,15 @@ const DashboardHome: React.FC = () => {
 
   const relevantActions = actionLinks.filter(link => hasAnyRole(link.roles));
 
+  const displayName = (user?.first_name || user?.last_name) 
+    ? `${user?.first_name || ''} ${user?.last_name || ''}`.trim() 
+    : user?.email.split('@')[0];
+
   return (
     <>
       <Head><title>Welcome | SentinelFi</title></Head>
       <PageContainer
-        title={`Welcome, ${user?.email.split('@')[0]}!`}
+        title={`Welcome, ${displayName}!`}
         subtitle={`You are logged in as a ${(getPrimaryRole() || '').replace(/_/g, ' ').replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.substring(1).toLowerCase())}.`}
       >
         {/* Executive Controls Row */}
@@ -164,14 +183,14 @@ const DashboardHome: React.FC = () => {
               totalActualPaid={stats.totalActualPaid}
               avgDailySpend={stats.avgDailySpend || 0}
               estimatedExhaustionDate={stats.estimatedExhaustionDate || null}
-              currency={userCurrency.code}
+              currency={selectedProjectId === 'all' ? 'NGN' : (projectCurrencyMap[selectedProjectId] || 'NGN')}
             />
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          <div className="md:col-span-4 flex flex-col gap-6">
-            <Card title="Activity Stream" borderTopColor="secondary" className="h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-8">
+          <div className="lg:col-span-4 flex flex-col gap-6">
+            <Card title="Activity Stream" borderTopColor="secondary" className="h-full min-h-[400px]">
               <div className="space-y-4">
                 {activities.length > 0 ? (
                   activities.map(log => (
@@ -193,23 +212,23 @@ const DashboardHome: React.FC = () => {
             </Card>
           </div>
 
-          <div className="md:col-span-8">
+          <div className="lg:col-span-8">
             {loading ? (
-              <div className="flex items-center justify-center h-full min-h-[300px] bg-brand-dark rounded-2xl border border-dashed border-gray-700">
+              <div className="flex items-center justify-center h-full min-h-[400px] bg-brand-dark rounded-2xl border border-dashed border-gray-700">
                 <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                 {/* Financial Snapshot - Dynamic based on selection */}
                 <Card title="Financial Snapshot" borderTopColor="primary">
-                  <div className="flex justify-between items-end mb-4">
-                    <div>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-4">
+                    <div className="min-w-0">
                       <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total Allocated</p>
-                      <p className="text-2xl font-bold text-white">{convertToDisplay(stats?.totalBudgeted || 0)}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-white break-words">{convertToDisplay(stats?.totalBudgeted || 0, selectedProjectId === 'all' ? 'NGN' : (projectCurrencyMap[selectedProjectId] || 'NGN'))}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="sm:text-right min-w-0">
                       <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Spent to Date</p>
-                      <p className="text-2xl font-bold text-white">{convertToDisplay(stats?.totalActualPaid || 0)}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-white break-words">{convertToDisplay(stats?.totalActualPaid || 0, selectedProjectId === 'all' ? 'NGN' : (projectCurrencyMap[selectedProjectId] || 'NGN'))}</p>
                     </div>
                   </div>
 
@@ -229,17 +248,17 @@ const DashboardHome: React.FC = () => {
                   </div>
                 </Card>
 
-                {/* Burn Rate - Performance indicator */}
-                <Card title="Operational Burn Rate" borderTopColor="alert">
+                {/* Budget Utilization - Performance indicator */}
+                <Card title="Budget Utilization" borderTopColor="alert">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-3xl font-black text-white">
+                    <p className="text-2xl sm:text-3xl font-black text-white">
                       {stats?.burnRatePercentage.toFixed(1)}%
                     </p>
                     <div className={`p-2 rounded-full ${stats && stats.burnRatePercentage > 90 ? 'bg-red-900/40' : 'bg-brand-primary/20'}`}>
                       <TrendingUp className={`w-5 h-5 ${stats && stats.burnRatePercentage > 90 ? 'text-red-500' : 'text-brand-primary'}`} />
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 mb-4">Budget utilization relative to project lifecycle targets.</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500 mb-4">Percentage of total approved budget consumed to date.</p>
                   <div className="flex gap-1 h-3">
                     {[...Array(10)].map((_, i) => (
                       <div

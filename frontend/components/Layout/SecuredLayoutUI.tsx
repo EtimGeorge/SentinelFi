@@ -23,7 +23,7 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children })
 
       {isMobileSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden print:hidden"
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 md:hidden print:hidden backdrop-blur-sm"
           onClick={closeMobileSidebar}
           aria-hidden="true"
         ></div>

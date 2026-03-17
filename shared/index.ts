@@ -8,3 +8,4 @@ export * from './types/expense';
 export * from './types/wbs';
 export * from './types/pagination.dto';
 export * from './types/get-live-expenses.dto';
+export * from './utils/validation';

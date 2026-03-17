@@ -32,7 +32,7 @@ const config: DataSourceOptions = {
     path.resolve(process.cwd(), process.cwd().endsWith('backend') ? 'src' : 'backend/src', '**/*.entity.ts'),
   ],
   migrations: [
-    path.resolve(__dirname, 'src/migrations/public/*.ts'),
+    path.resolve(process.cwd(), process.cwd().endsWith('backend') ? 'src' : 'backend/src', 'migrations/public/*.ts'),
   ],
   migrationsTableName: 'public_migrations', // Aligned with ormconfig.public.ts
   synchronize: false, // Should always be false for production

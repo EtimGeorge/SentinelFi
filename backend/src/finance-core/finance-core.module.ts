@@ -16,6 +16,7 @@ import { GLAccountEntity } from './entities/gl-account.entity';
 
 // Ledgers & P2P & Payroll
 import { BudgetLedgerEntity } from './entities/budget-ledger.entity';
+import { TENANT_DATA_SOURCE } from '../database/constants';
 import { P2PRequisitionEntity } from './entities/p2p-requisition.entity';
 import { P2PPurchaseOrderEntity } from './entities/p2p-purchase-order.entity';
 import { P2PInvoiceEntity } from './entities/p2p-invoice.entity';
@@ -49,7 +50,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       PayrollRunEntity,
       PayrollLineItemEntity,
       ApprovalLogEntity,
-    ]),
+    ], TENANT_DATA_SOURCE),
     CommonModule,          // Provides DOAService
     NotificationsModule,   // Provides NotificationsService
   ],

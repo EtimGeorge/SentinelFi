@@ -1278,49 +1278,41 @@ export class WbsService {
     } = getWbsBudgetsDto;
 
     const queryBuilder = this.wbsBudgetRepository
-      .createQueryBuilder("wbsBudget")
-      .leftJoinAndSelect("wbsBudget.project", "project")
-      .leftJoinAndSelect("wbsBudget.category", "category")
-      .where("wbsBudget.tenant_id = :tenant_id", { tenant_id });
+      .createQueryBuilder("wbs")
+      .leftJoinAndSelect("wbs.project", "project")
+      .leftJoinAndSelect("wbs.category", "category")
+      .where("wbs.tenant_id = :tenant_id", { tenant_id });
 
     if (wbsCode) {
-      queryBuilder.andWhere("wbsBudget.wbs_code ILIKE :wbsCode", {
+      queryBuilder.andWhere("wbs.wbs_code ILIKE :wbsCode", {
         wbsCode: `%${wbsCode}%`,
       });
     }
     if (description) {
-      queryBuilder.andWhere("wbsBudget.description ILIKE :description", {
+      queryBuilder.andWhere("wbs.description ILIKE :description", {
         description: `%${description}%`,
       });
     }
     if (status) {
-      queryBuilder.andWhere("wbsBudget.status = :status", { status });
+      queryBuilder.andWhere("wbs.status = :status", { status });
     }
     if (categoryId) {
-      queryBuilder.andWhere("wbsBudget.category_id = :categoryId", {
+      queryBuilder.andWhere("wbs.category_id = :categoryId", {
         categoryId,
       });
     }
     if (projectId) {
-      queryBuilder.andWhere("wbsBudget.project_id = :projectId", { projectId });
+      queryBuilder.andWhere("wbs.project_id = :projectId", { projectId });
     }
     if (userId) {
-      queryBuilder.andWhere("wbsBudget.user_id = :userId", { userId });
+      queryBuilder.andWhere("wbs.user_id = :userId", { userId });
     }
-    // Removed parentWbsId logic
-    // if (parentWbsId === null) {
-    //   // Explicitly search for root-level WBS items (where parent_wbs_id is NULL)
-    //   queryBuilder.andWhere("wbsBudget.parent_wbs_id IS NULL");
-    // } else if (parentWbsId) {
-    //   // Search for children of a specific parent
-    //   queryBuilder.andWhere("wbsBudget.parent_wbs_id = :parentWbsId", { parentWbsId });
-    // }
 
     if (sortBy === 'wbs_code') {
       // Advanced Logic: Numerical sorting for WBS strings (1.9 before 1.10)
-      queryBuilder.orderBy(`string_to_array(wbsBudget.wbs_code, '.')::int[]`, sortOrder);
+      queryBuilder.orderBy(`string_to_array(wbs.wbs_code, '.')::int[]`, sortOrder);
     } else {
-      queryBuilder.orderBy(`wbsBudget.${sortBy}`, sortOrder);
+      queryBuilder.orderBy(`wbs.${sortBy}`, sortOrder);
     }
     queryBuilder.skip((page - 1) * limit).take(limit);
 
@@ -1332,16 +1324,20 @@ export class WbsService {
       
       // Safety Fallback: Use basic Alphanumeric sorting on wbs_code
       this.logger.warn(`[WBS] Falling back to standard string-based WBS sorting.`);
-      const fallbackQuery = this.wbsBudgetRepository.createQueryBuilder("wbsBudget")
-        .leftJoinAndSelect("wbsBudget.project", "project")
-        .leftJoinAndSelect("wbsBudget.category", "category")
-        .where("wbsBudget.tenant_id = :tenant_id", { tenant_id });
+      const fallbackQuery = this.wbsBudgetRepository.createQueryBuilder("wbs")
+        .leftJoinAndSelect("wbs.project", "project")
+        .leftJoinAndSelect("wbs.category", "category")
+        .where("wbs.tenant_id = :tenant_id", { tenant_id });
 
-      if (projectId) fallbackQuery.andWhere("wbsBudget.project_id = :projectId", { projectId });
-      if (status) fallbackQuery.andWhere("wbsBudget.status = :status", { status });
+      if (projectId) fallbackQuery.andWhere("wbs.project_id = :projectId", { projectId });
+      if (status) fallbackQuery.andWhere("wbs.status = :status", { status });
+      if (wbsCode) fallbackQuery.andWhere("wbs.wbs_code ILIKE :wbsCode", { wbsCode: `%${wbsCode}%` });
+      if (description) fallbackQuery.andWhere("wbs.description ILIKE :description", { description: `%${description}%` });
+      if (categoryId) fallbackQuery.andWhere("wbs.category_id = :categoryId", { categoryId });
+      if (userId) fallbackQuery.andWhere("wbs.user_id = :userId", { userId });
       
       const [data, total] = await fallbackQuery
-        .orderBy("wbsBudget.wbs_code", "ASC")
+        .orderBy("wbs.wbs_code", "ASC")
         .skip((page - 1) * limit)
         .take(limit)
         .getManyAndCount();
@@ -1668,6 +1664,7 @@ export class WbsService {
       total_cost_budgeted: budget.total_cost_budgeted,
       project_id: budget.project_id,
       project_name: budget.project?.project_name || 'N/A',
+      project_currency: budget.project?.currency || 'NGN',
       created_at: budget.created_at,
       status: budget.status,
       total_paid_rollup: totalPaidRollup,
@@ -1706,6 +1703,7 @@ export class WbsService {
       budget_description: expense.wbsBudget?.description || 'N/A',
       project_id: expense.project_id,
       project_name: expense.wbsBudget?.project?.project_name || 'N/A',
+      project_currency: expense.wbsBudget?.project?.currency || 'NGN',
       description: expense.description,
       actual_paid_amount: expense.amount,
       expense_date: expense.expense_date,

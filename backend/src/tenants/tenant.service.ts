@@ -16,6 +16,7 @@ import { WbsService } from "../wbs/wbs.service"; // For seeding data
 import { AuditService } from "../audit/audit.service"; // NEW: Import AuditService
 import { TenantMigrationService } from "../database/tenant-migration.service"; // NEW: Import TenantMigrationService
 import { AuthService } from "../auth/auth.service"; // NEW: Import AuthService
+import { InvitationService } from "../auth/invitation.service"; // NEW: Import InvitationService
 
 import { Role } from "@shared/types/role.enum"; // NEW: Import Role enum
 
@@ -31,6 +32,7 @@ export class TenantService {
     private readonly auditService: AuditService, // NEW: Inject AuditService
     private readonly tenantMigrationService: TenantMigrationService, // NEW: Inject TenantMigrationService
     private readonly authService: AuthService, // NEW: Inject AuthService for user creation
+    private readonly invitationService: InvitationService, // NEW: Inject InvitationService
   ) {}
 
   /**
@@ -147,6 +149,7 @@ export class TenantService {
             schema_name: schema_name,
             is_active: createTenantDto.is_active ?? true,
             plan: createTenantDto.plan ?? "basic", // Use provided plan or default
+            default_currency_code: createTenantDto.default_currency_code ?? 'USD',
           });
           const savedTenant = await tenantQueryRunner.manager.save(newTenant);
 
@@ -162,24 +165,21 @@ export class TenantService {
 
           await tenantQueryRunner.commitTransaction();
 
-          // PHASE 3: Create Initial Admin User (Now that tenant exists)
-          this.logger.log(`[Phase 3] Creating initial admin user for tenant '${savedTenant.name}'...`);
-          let adminUser;
+          // PHASE 3: Invite Initial Admin User (Now that tenant exists)
+          this.logger.log(`[Phase 3] Inviting initial admin user for tenant '${savedTenant.name}'...`);
           try {
-             adminUser = await this.authService.createTenantUser({
-                email: createTenantDto.admin_email,
-                tenant_id: savedTenant.tenant_id,
-                is_active: true,
-                first_name: 'Admin', // Default
-                last_name: 'User',   // Default
-                role: Role.AdminDirector     // Assign AdminDirector as the initial tenant admin
-             });
-             this.logger.log(`[Phase 3] ✅ Admin user '${adminUser.email}' created successfully.`);
+             await this.invitationService.createInvitation(
+                createTenantDto.admin_email,
+                Role.AdminDirector,
+                savedTenant,
+                createTenantDto.admin_first_name,
+                createTenantDto.admin_last_name
+             );
+             this.logger.log(`[Phase 3] ✅ Admin invitation for '${createTenantDto.admin_email}' sent successfully.`);
           } catch (userError: any) {
-             this.logger.error(`[Phase 3] ❌ Failed to create admin user: ${userError.message}`);
+             this.logger.error(`[Phase 3] ❌ Failed to send admin invitation: ${userError.message}`);
              // Note: We do NOT rollback schema/tenant here as they are committed. 
-             // The SuperAdmin can manually add a user later, but better to warn.
-             // Ideally, we might want to compensate (delete tenant), but for now, we Log & Return partial success.
+             // The SuperAdmin can manually trigger another invitation later.
           }
 
           this.logger.log(
@@ -195,16 +195,13 @@ export class TenantService {
               name: savedTenant.name,
               schema_name: savedTenant.schema_name,
               plan: savedTenant.plan,
-              admin_email: adminUser?.email
+              admin_email: createTenantDto.admin_email
             },
             "SYSTEM"
           ).catch(err => this.logger.error(`Failed to log tenant creation success: ${err.message}`));
 
-          // RETURN both tenant and password
-          return {
-              ...savedTenant,
-              admin_password: adminUser?.generatedPassword
-          };
+          // RETURN the tenant
+          return savedTenant;
         } catch (tenantRecordError) {
           await tenantQueryRunner.rollbackTransaction();
           this.logger.error(

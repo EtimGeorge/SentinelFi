@@ -25,6 +25,8 @@ import { RegisterUserDto } from "./dto/register-user.dto";
 import * as crypto from "crypto";
 import { RoleEntity } from "./role.entity";
 import { SafeTransaction, RetryableQuery } from "../common/config/database.config";
+import { InvitationService } from "./invitation.service";
+import { AcceptInvitationDto } from "./dto/accept-invitation.dto"; 
 import { AuditService } from "../audit/audit.service";
 import { AuditLogEntity } from "../audit/audit.entity";
 import { TENANT_DATA_SOURCE } from "../database/constants";
@@ -90,6 +92,7 @@ export class AuthService {
     @Inject(TENANT_DATA_SOURCE)
     private tenantDataSource: DataSource, // TenancyAwareDataSource for tenant-aware logic
     private readonly auditService: AuditService,
+    private readonly invitationService: InvitationService,
   ) {
     // Start global cache cleanup ONLY if it's not already running
     if (!AuthService.cleanupInterval) {
@@ -643,6 +646,62 @@ export class AuthService {
       {},
       savedUser.email
     ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log user registration for ${savedUser.email}: ${err.message}`));
+
+    return this.findUserById(savedUser.id);
+  }
+
+  async verifyInvitation(token: string) {
+    const invitation = await this.invitationService.validateToken(token);
+    return {
+      email: invitation.email,
+      tenantName: invitation.tenant.name,
+      role: invitation.role,
+    };
+  }
+
+  async acceptInvitation(acceptDto: AcceptInvitationDto): Promise<UserResponseDto> {
+    const invitation = await this.invitationService.validateToken(acceptDto.token);
+    
+    // Safety check: Ensure user doesn't already exist with this email
+    const existing = await this.findUserByEmail(invitation.email);
+    if (existing) {
+       await this.invitationService.markAsConsumed(acceptDto.token);
+       throw new ConflictException("An account already exists with this invitation email.");
+    }
+
+    const role = await RetryableQuery.execute(() =>
+        this.dataSource.getRepository(RoleEntity).findOne({ where: { name: invitation.role }})
+    );
+    if (!role) {
+        throw new InternalServerErrorException(`Role '${invitation.role}' not found.`);
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(acceptDto.password, salt);
+    
+    const newUser = this.dataSource.getRepository(UserEntity).create({ 
+        email: invitation.email,
+        username: acceptDto.username || invitation.email.split('@')[0],
+        first_name: invitation.first_name || acceptDto.first_name || 'SentinelFi',
+        last_name: invitation.last_name || acceptDto.last_name || 'User',
+        password_hash: hashedPassword,
+        roles: [role], 
+        tenant_id: invitation.tenant.tenant_id,
+        is_active: true
+    });
+
+    const savedUser = await this.dataSource.getRepository(UserEntity).save(newUser);
+    
+    await this.invitationService.markAsConsumed(acceptDto.token);
+
+    this.auditService.log(
+      savedUser.id,
+      'INVITATION_ACCEPTED',
+      savedUser.tenant_id ?? null,
+      `User ${savedUser.email} joined ${invitation.tenant.name} via invitation.`,
+      { invitationId: invitation.id },
+      savedUser.email
+    ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log invitation acceptance for ${savedUser.email}: ${err.message}`));
 
     return this.findUserById(savedUser.id);
   }

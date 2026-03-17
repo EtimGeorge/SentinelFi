@@ -14,12 +14,13 @@
     "db:run-tenant-migrations": "ts-node -r tsconfig-paths/register scripts/run-tenant-migrations.ts",
     "db:migrate-roles": "ts-node -r tsconfig-paths/register src/database/seeds/migrate-legacy-roles.ts",
     "db:migrate-roles:execute": "ts-node -r tsconfig-paths/register src/database/seeds/migrate-legacy-roles.ts --execute",
-    "typeorm": "ts-node -r reflect-metadata -r tsconfig-paths/register ../node_modules/typeorm/cli.js -d ormconfig.ts",
+    "typeorm": "ts-node -r reflect-metadata -r tsconfig-paths/register --project tsconfig.typeorm.json ../node_modules/typeorm/cli.js -d ormconfig.ts",
     "typeorm:generate": "npm run typeorm -- migration:generate",
     "typeorm:run": "npm run typeorm -- migration:run",
     "typeorm:revert": "npm run typeorm -- migration:revert"
   },
   "dependencies": {
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/microservices": "^11.1.16",
     "@nestjs/platform-socket.io": "^11.1.12",
     "@nestjs/platform-ws": "^11.1.11",
@@ -29,6 +30,7 @@
     "@nestjs/websockets": "^11.1.12",
     "@socket.io/redis-adapter": "^8.3.0",
     "@types/pg": "^8.16.0",
+    "axios": "^1.13.6",
     "cookie-parser": "^1.4.7",
     "date-fns": "^4.1.0",
     "docx": "^9.5.1",

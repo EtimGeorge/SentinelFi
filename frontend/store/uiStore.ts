@@ -16,6 +16,11 @@ interface UIState {
   connectWebSocket: () => void;
   disconnectWebSocket: () => void;
 
+  // AI Widget State
+  isAiAssistantOpen: boolean;
+  toggleAiAssistant: () => void;
+  setAiAssistantOpen: (isOpen: boolean) => void;
+
   // NEW: Reconnection state
   reconnectAttempts: number;
   reconnectTimeoutId: NodeJS.Timeout | null;
@@ -34,6 +39,10 @@ const useUIStore = create<UIState>((set, get) => ({
   closeMobileSidebar: () => set({ isMobileSidebarOpen: false }),
   toggleDesktopSidebar: () => set((state) => ({ isDesktopSidebarCollapsed: !state.isDesktopSidebarCollapsed })),
   setUnreadNotificationsCount: (count) => set({ unreadNotificationsCount: count }),
+
+  isAiAssistantOpen: false,
+  toggleAiAssistant: () => set((state) => ({ isAiAssistantOpen: !state.isAiAssistantOpen })),
+  setAiAssistantOpen: (isOpen) => set({ isAiAssistantOpen: isOpen }),
 
   // REMOVED POLLING MECHANISM
   // fetchUnreadNotificationsCount: async () => {
