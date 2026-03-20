@@ -6,8 +6,9 @@ import { DataSource, Repository } from "typeorm";
 import { UserEntity } from './user.entity';
 import { UserPayload, JwtPayload, SimpleRole } from "@shared/types/user";
 import { Request } from "express";
-import { Role } from "@shared/types/role.enum"; // Import Role
-import { CorrelatedLogger } from '../common/logger/correlated-logger'; 
+import { Role } from "@shared/types/role.enum";
+import { CorrelatedLogger } from '../common/logger/correlated-logger';
+import { TokenBlacklistService } from './token-blacklist.service';
 
 const cookieExtractor = (req: Request): string | null => {
   const logger = new CorrelatedLogger("CookieExtractor"); // CHANGED LINE
@@ -51,15 +52,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
+    private readonly tokenBlacklist: TokenBlacklistService,
   ) {
-    // ... rest of constructor ...
-    // Logger can be instantiated here as it doesn't depend on 'this' context yet that needs 'super()'
-    const constructorLogger = new CorrelatedLogger(JwtStrategy.name + ':Constructor'); // CHANGED LINE
+    const constructorLogger = new CorrelatedLogger(JwtStrategy.name + ':Constructor');
 
     const secret = configService.get<string>("JWT_SECRET_KEY");
     if (!secret) {
       const errorMessage = "CRITICAL: JWT_SECRET_KEY is not configured!";
-      constructorLogger.error(errorMessage); // Use local logger before 'super'
+      constructorLogger.error(errorMessage);
       throw new Error(errorMessage);
     }
 
@@ -72,7 +72,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       secretOrKey: secret,
     });
 
-    // Now 'this' is available after 'super()'
     this.usersRepository = this.dataSource.getRepository(UserEntity);
   }
 
@@ -84,6 +83,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!userId) {
       this.logger.error("[Validate] Missing sub (user ID) in JWT payload");
       throw new UnauthorizedException("Invalid token: missing user ID");
+    }
+
+    // C2 FIX: Reject any token that has been blacklisted (i.e., logged out).
+    // The JTI (JWT ID) is included in the payload. If missing, we cannot blacklist-check.
+    const jti = (payload as any).jti as string | undefined;
+    if (jti && this.tokenBlacklist.isBlacklisted(jti)) {
+      this.logger.warn(`[Validate] Blacklisted token JTI ${jti} rejected for user ${userId}`);
+      throw new UnauthorizedException('Token has been revoked. Please log in again.');
     }
 
     try {

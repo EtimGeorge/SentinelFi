@@ -1,8 +1,8 @@
 import { Module, ValidationPipe, Logger } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { UserEntity } from "./user.entity";
-import { RoleEntity } from "./role.entity"; // Import RoleEntity
-import { PermissionEntity } from "./permission.entity"; // Import PermissionEntity
+import { RoleEntity } from "./role.entity";
+import { PermissionEntity } from "./permission.entity";
 import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
 import { JwtModule } from "@nestjs/jwt";
@@ -15,11 +15,13 @@ import { TenantRepositoriesModule } from "../tenant-repositories.module";
 import { InvitationEntity } from "./entities/invitation.entity";
 import { InvitationService } from "./invitation.service";
 import { EmailModule } from "../email/email.module";
+import { TokenBlacklistService } from "./token-blacklist.service";
+import { PasswordResetEntity } from "./entities/password-reset.entity";
 
 @Module({
   imports: [
     TenantRepositoriesModule,
-    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity, InvitationEntity]),
+    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity, InvitationEntity, PasswordResetEntity]),
     EmailModule,
     JwtModule.registerAsync({
       useFactory: async (configService: ConfigService) => {
@@ -45,12 +47,13 @@ import { EmailModule } from "../email/email.module";
     InvitationService,
     JwtStrategy,
     InitialSuperAdminSeederService,
+    TokenBlacklistService,
     {
       provide: "APP_PIPE",
       useValue: new ValidationPipe({ whitelist: true }),
     },
     Logger,
   ],
-  exports: [TypeOrmModule, JwtModule, AuthService, InvitationService],
+  exports: [TypeOrmModule, JwtModule, AuthService, InvitationService, TokenBlacklistService],
 })
 export class AuthModule {}

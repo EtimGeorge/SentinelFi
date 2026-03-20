@@ -62,6 +62,12 @@ import { MessagingModule } from "./messaging/messaging.module";
 import { AiAssistantModule } from "./ai-assistant/ai-assistant.module";
 import { ReportScheduleEntity } from "./ai-assistant/report-schedule.entity";
 import { MarketingModule } from "./marketing/marketing.module";
+import { CacheModule } from '@nestjs/cache-manager';
+import { redisStore } from 'cache-manager-redis-yet';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { LogSanitizationInterceptor } from './common/interceptors/log-sanitization.interceptor';
+import { HealthModule } from './health/health.module';
+import { envValidationSchema } from './common/config/env-validation.schema';
 
 @Module({
   imports: [
@@ -69,6 +75,26 @@ import { MarketingModule } from "./marketing/marketing.module";
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [".env.local", ".env", "backend/.env.local", "backend/.env"],
+      validationSchema: envValidationSchema,
+      validationOptions: {
+        allowUnknown: true,
+        abortEarly: true,
+      },
+    }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 10,
+    }]),
+    CacheModule.registerAsync({
+      isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        store: await redisStore({
+          url: `redis://${configService.get('REDIS_HOST') || 'localhost'}:${configService.get('REDIS_PORT') || 6379}`,
+          ttl: 600, // 10 minutes default
+        }),
+      }),
     }),
     ClsModule.forRoot({
       global: true,
@@ -114,6 +140,7 @@ import { MarketingModule } from "./marketing/marketing.module";
     MessagingModule,
     AiAssistantModule,
     MarketingModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [
@@ -122,8 +149,16 @@ import { MarketingModule } from "./marketing/marketing.module";
       useClass: CorrelationInterceptor,
     },
     {
+      provide: APP_INTERCEPTOR,
+      useClass: LogSanitizationInterceptor, // Automated security scrubbing
+    },
+    {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard, // Runs first: authenticates the user
+      useClass: ThrottlerGuard, // Runs very first to prevent DDoS/Brute-force
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard, // Runs second: authenticates the user
     },
     {
       provide: APP_GUARD,

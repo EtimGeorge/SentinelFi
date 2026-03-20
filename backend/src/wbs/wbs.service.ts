@@ -319,7 +319,10 @@ export class WbsService {
 
     if (wbsItem) {
       const committedResults = await this.dataSource.query(
-        `SELECT COALESCE(SUM(amount_committed - amount_paid), 0) as total FROM lpo WHERE wbs_id = $1 AND tenant_id = $2`,
+        `SELECT 
+           (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) FROM lpo WHERE wbs_id = $1 AND tenant_id = $2) +
+           (SELECT COALESCE(SUM(amount), 0) FROM live_expense WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
+         AS total`,
         [wbsItem.wbs_id, tenant_id],
       );
       const committedAmount = parseFloat(committedResults[0]?.total || 0);
@@ -507,7 +510,10 @@ export class WbsService {
             if (wbsItem) {
                 // 1. Financial Variance Check
                 const committedResults = await queryRunner.manager.query(
-                    `SELECT COALESCE(SUM(amount_committed - amount_paid), 0) as total FROM lpo WHERE wbs_id = $1 AND tenant_id = $2`,
+                    `SELECT 
+                       (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) FROM lpo WHERE wbs_id = $1 AND tenant_id = $2) +
+                       (SELECT COALESCE(SUM(amount), 0) FROM live_expense WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
+                     AS total`,
                     [wbsItem.wbs_id, tenant_id],
                 );
                 const committedAmount = parseFloat(committedResults[0]?.total || 0);

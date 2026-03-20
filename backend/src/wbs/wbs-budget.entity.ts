@@ -6,6 +6,8 @@ import {
   JoinColumn,
   OneToMany,
   Unique,
+  Index,
+  DeleteDateColumn,
 } from "typeorm";
 import { UserEntity } from "../auth/user.entity";
 import { ProjectEntity } from "../projects/project.entity";
@@ -14,6 +16,7 @@ import { WbsBudgetStatus } from "../../../shared/types/wbs-budget-status.enum";
 
 @Entity({ name: "wbs_budget" })
 @Unique(['wbs_code', 'project_id']) // Composite unique: same code allowed in different projects
+@Index(["tenant_id", "project_id"])
 export class WbsBudgetEntity {
   @PrimaryGeneratedColumn("uuid")
   wbs_id!: string;
@@ -100,6 +103,9 @@ export class WbsBudgetEntity {
 
   @Column({ type: "uuid", nullable: false })
   tenant_id!: string;
+
+  @DeleteDateColumn({ type: "timestamptz", nullable: true })
+  deleted_at?: Date;
 
   @ManyToOne('UserEntity')
   @JoinColumn({ name: "user_id", referencedColumnName: "id" })

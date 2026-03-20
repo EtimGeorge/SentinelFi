@@ -8,6 +8,7 @@ import {
   ManyToMany,
   JoinTable,
   Index,
+  DeleteDateColumn,
 } from "typeorm";
 import { Role } from "@shared/types/role.enum";
 import type { TenantEntity } from "../../src/tenants/tenant.entity";
@@ -54,6 +55,9 @@ export class UserEntity {
     onUpdate: "CURRENT_TIMESTAMP",
   })
   updated_at!: Date;
+
+  @DeleteDateColumn({ type: "timestamptz", nullable: true })
+  deleted_at?: Date;
 
   // Multi-tenancy: Link user to a tenant
   @Column({ type: "uuid", nullable: true }) // nullable for system-level users or during initial setup

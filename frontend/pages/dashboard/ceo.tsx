@@ -102,21 +102,62 @@ const CEODashboard: React.FC = () => {
       if (endDate) params.append('endDate', toYYYYMMDD(endDate)); // Format date
       if (selectedProjectId !== 'all') params.append('projectId', selectedProjectId);
 
-      // Fetch the main WBS rollup data
-      const response = await api.get<RollupData[]>(`/wbs/budget/rollup?${params.toString()}`);
-      setData(response.data);
+      if (viewContext === 'operational') {
+        const opexResp = await api.get(`/operational-budgets/rollup?${params.toString()}`);
+        const opexData = opexResp.data;
 
-      // Also fetch executive-specific analytics (new backend endpoint)
-      const execResp = await api.get(`/dashboard/executive?${params.toString()}`);
-      const execData = execResp.data;
+        // Map OPEX to RollupData format for the WBS tree visualization
+        const mappedData: RollupData[] = [];
+        opexData.budgets?.forEach((b: any) => {
+          mappedData.push({
+            wbs_id: b.id,
+            parent_wbs_id: null,
+            wbs_code: String(b.type || 'OPEX').toUpperCase(),
+            description: b.name,
+            total_cost_budgeted: b.totalBudget.toString(),
+            total_paid_rollup: b.totalSpend.toString(),
+            total_paid_self: '0',
+            total_committed_lpo: '0'
+          });
+          b.categories?.forEach((c: any) => {
+            mappedData.push({
+              wbs_id: c.id,
+              parent_wbs_id: b.id,
+              wbs_code: 'CAT',
+              description: c.name,
+              total_cost_budgeted: c.budgeted.toString(),
+              total_paid_rollup: c.actual.toString(),
+              total_paid_self: c.actual.toString(),
+              total_committed_lpo: '0'
+            });
+          });
+        });
 
-      setKpis({
-        totalBudget: execData.overview.totalBudgeted,
-        totalActualPaid: execData.overview.totalActualPaid,
-        totalCommittedLPO: 0, // Placeholder
-        variancePercentage: execData.overview.variancePercentage,
-        burnRate: execData.overview.burnRatePercentage,
-      });
+        setData(mappedData);
+        setKpis({
+          totalBudget: opexData.summary.totalBudget,
+          totalActualPaid: opexData.summary.totalSpend,
+          totalCommittedLPO: 0, // OPEX usually doesn't use LPOs in SentinelFi
+          variancePercentage: (opexData.summary.totalBudget > 0 ? ((opexData.summary.totalSpend - opexData.summary.totalBudget) / opexData.summary.totalBudget) * 100 : 0),
+          burnRate: opexData.summary.overallBurnRate,
+        });
+      } else {
+        // Fetch the main WBS rollup data for Project Context
+        const response = await api.get<RollupData[]>(`/wbs/budget/rollup?${params.toString()}`);
+        setData(response.data);
+
+        // Fetch executive-specific analytics (Project Context)
+        const execResp = await api.get(`/dashboard/executive?${params.toString()}`);
+        const execData = execResp.data;
+
+        setKpis({
+          totalBudget: execData.overview.totalBudgeted,
+          totalActualPaid: execData.overview.totalActualPaid,
+          totalCommittedLPO: execData.overview.totalCommittedLPO || 0,
+          variancePercentage: execData.overview.variancePercentage,
+          burnRate: execData.overview.burnRatePercentage,
+        });
+      }
 
     } catch (err: any) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
@@ -125,7 +166,7 @@ const CEODashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [api, startDate, endDate, selectedProjectId]);
+  }, [api, startDate, endDate, selectedProjectId, viewContext]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -268,7 +309,7 @@ const CEODashboard: React.FC = () => {
 
           {/* Section 1: MANDATORY KPIs - Upgraded with Burn Rate and Conditional Styling */}
           <Card title="Executive Financial Highlights" className="bg-gray-800/50">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-5">
               <Card title="Total Budgeted Cost" borderTopColor="primary">
                 {loading ? (
                   <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
@@ -283,6 +324,16 @@ const CEODashboard: React.FC = () => {
                   <div className="space-y-1">
                     <p className="text-3xl font-semibold text-gray-100">{convertToDisplay(kpis.totalActualPaid, sourceCurrency)}</p>
                     <p className="text-xs text-gray-400">Total cash outflow for selected context</p>
+                  </div>
+                )}
+              </Card>
+              <Card title="Committed LPOs" borderTopColor="alert">
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-3xl font-semibold text-gray-100">{convertToDisplay(kpis.totalCommittedLPO, sourceCurrency)}</p>
+                    <p className="text-xs text-brand-secondary">Open and unpaid pipeline</p>
                   </div>
                 )}
               </Card>

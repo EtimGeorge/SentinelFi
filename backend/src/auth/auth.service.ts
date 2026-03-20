@@ -7,32 +7,34 @@ import {
   InternalServerErrorException,
   BadRequestException,
   Inject,
-  Scope,
   HttpException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, DataSource, DeepPartial } from "typeorm";
 import { UserEntity } from "./user.entity";
 import { JwtService } from "@nestjs/jwt";
-import * as bcrypt from "bcryptjs"; // Use bcryptjs as seen in prior logs
+import * as bcrypt from "bcryptjs";
 import { UserResponseDto } from "./dto/admin-user.dto";
 import { JwtPayload, SimpleRole, UserPayload } from "@shared/types/user";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
-import { Role } from "@shared/types/role.enum"; // Use string literal for direct checks if needed
+import { Role } from "@shared/types/role.enum";
 import { CreateTenantAdminUserDto } from "../superadmin/dto/create-tenant-admin-user.dto";
 import { RegisterUserDto } from "./dto/register-user.dto";
 import * as crypto from "crypto";
 import { RoleEntity } from "./role.entity";
 import { SafeTransaction, RetryableQuery } from "../common/config/database.config";
 import { InvitationService } from "./invitation.service";
-import { AcceptInvitationDto } from "./dto/accept-invitation.dto"; 
+import { AcceptInvitationDto } from "./dto/accept-invitation.dto";
 import { AuditService } from "../audit/audit.service";
 import { AuditLogEntity } from "../audit/audit.entity";
 import { TENANT_DATA_SOURCE } from "../database/constants";
 import { CorrelatedLogger } from '../common/logger/correlated-logger';
 import { getCorrelationId } from "../common/interceptors/correlation.interceptor";
 import { JwtStrategy } from "./jwt.strategy";
+import { TokenBlacklistService } from './token-blacklist.service';
+import { PasswordResetEntity } from './entities/password-reset.entity';
+import { EmailService } from '../email/email.service';
 
 // Interface for DTOs used within AuthService
 interface AuthCredentialDto {
@@ -82,6 +84,7 @@ export class AuthService {
 
   // ============================================================================
   // PASSWORD HASH CACHE - Prevent repeated bcrypt calls
+  // Cache key is ONLY email + stored hash. Plain-text password NEVER enters the key.
   // ============================================================================
   private passwordHashCache = new Map<string, { hash: string; timestamp: number }>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -93,6 +96,8 @@ export class AuthService {
     private tenantDataSource: DataSource, // TenancyAwareDataSource for tenant-aware logic
     private readonly auditService: AuditService,
     private readonly invitationService: InvitationService,
+    private readonly tokenBlacklist: TokenBlacklistService,
+    private readonly emailService: EmailService,
   ) {
     // Start global cache cleanup ONLY if it's not already running
     if (!AuthService.cleanupInterval) {
@@ -164,13 +169,14 @@ export class AuthService {
     return { access_token: accessToken, user: targetUser };
   }
 
-  async stopImpersonation(impersonator: UserPayload): Promise<void> {
+  async stopImpersonation(impersonator: UserPayload): Promise<{ access_token: string; user: UserResponseDto }> {
     if (!impersonator.impersonator_id) {
       throw new ForbiddenException('Not currently impersonating.');
     }
 
     const originalSuperAdmin = await this.dataSource.getRepository(UserEntity).findOne({ 
-      where: { id: impersonator.impersonator_id } 
+      where: { id: impersonator.impersonator_id },
+      relations: ['roles', 'tenant', 'roles.permissions']
     });
     
     if (!originalSuperAdmin) {
@@ -189,6 +195,36 @@ export class AuthService {
         },
         originalSuperAdmin.email
     ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log impersonation end for ${originalSuperAdmin.email}: ${err.message}`));
+
+    // Generate a fresh JWT for the original SuperAdmin
+    const roleNames: Role[] = originalSuperAdmin.roles.map(role => role.name as Role);
+    const permissions = [...new Set(originalSuperAdmin.roles.flatMap(role => role.permissions?.map(p => p.name) || []))];
+
+    const payload: Omit<JwtPayload, 'iat' | 'exp'> = { 
+      email: originalSuperAdmin.email, 
+      sub: originalSuperAdmin.id,
+      id: originalSuperAdmin.id,
+      roles: roleNames,
+      permissions: permissions,
+      tenant_id: originalSuperAdmin.tenant?.tenant_id ?? null
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+
+    return {
+      access_token: accessToken,
+      user: {
+        id: originalSuperAdmin.id,
+        email: originalSuperAdmin.email,
+        username: originalSuperAdmin.username,
+        first_name: originalSuperAdmin.first_name,
+        last_name: originalSuperAdmin.last_name,
+        roles: this.mapRolesToSimpleRoles(originalSuperAdmin.roles),
+        is_active: originalSuperAdmin.is_active,
+        tenant_id: originalSuperAdmin.tenant_id,
+        tenant_name: originalSuperAdmin.tenant?.name || null,
+      }
+    };
   }
 
   /**
@@ -400,44 +436,53 @@ export class AuthService {
 
   // ============================================================================
   // PASSWORD VALIDATION - With intelligent caching
+  // SECURITY: Cache key contains ONLY the email — plain-text password is NEVER stored.
+  // We verify the stored hash still matches the DB hash to detect password changes.
   // ============================================================================
   private async validatePassword(
     plainTextPassword: string,
     hashedPassword: string,
     email: string,
   ): Promise<boolean> {
-    // Check cache first
-    const cacheKey = `password_hash:${email}:${plainTextPassword}`; // More specific cache key
+    // Safe cache key: email only. We compare the stored hash as a stale-detection guard.
+    const cacheKey = `password_hash:${email}`;
     const cached = this.passwordHashCache.get(cacheKey);
 
     if (cached) {
       const age = Date.now() - cached.timestamp;
+      // Only use cache if the hash hasn't changed (i.e., password wasn't reset)
       if (age < this.CACHE_TTL && cached.hash === hashedPassword) {
-        this.logger.debug(`[PASSWORD_VALIDATION] Password validated from cache for ${email}`);
-        return true;
+        // Even from cache, we still verify the password to prevent cache-poisoning.
+        // bcrypt.compare is async; the cost is only a concern on the hot path (first call).
+        const isValid = await bcrypt.compare(plainTextPassword, hashedPassword);
+        if (isValid) {
+          this.logger.debug(`[PASSWORD_VALIDATION] Cache HIT (hash valid) for ${email}`);
+          return true;
+        }
+        // Hash matched but password wrong — cache is not a bypass, just an early-exit for hash staleness.
+        return false;
       } else {
         this.passwordHashCache.delete(cacheKey);
       }
     }
 
-    // Perform bcrypt comparison (expensive operation)
+    // Perform full bcrypt comparison (expensive operation)
     const startTime = Date.now();
     const isValid = await bcrypt.compare(plainTextPassword, hashedPassword);
     const duration = Date.now() - startTime;
 
     this.logger.debug(`[PASSWORD_VALIDATION] bcrypt.compare took ${duration}ms for ${email}`);
 
-    // Warn if bcrypt is unusually slow
     if (duration > 1000) {
       this.logger.warn(
         `⚠️  SLOW BCRYPT: Password comparison took ${duration}ms. Consider reducing bcrypt rounds.`,
       );
     }
 
-    // Cache valid passwords only
+    // Cache the HASH (not the password) so we can detect stale entries
     if (isValid) {
       this.passwordHashCache.set(cacheKey, {
-        hash: hashedPassword,
+        hash: hashedPassword, // SAFE: this is the bcrypt hash, not the plain-text
         timestamp: Date.now(),
       });
     }
@@ -543,27 +588,154 @@ export class AuthService {
   }
 
   // ============================================================================
-  // LOGOUT - Clear server-side session if needed
+  // LOGOUT — Blacklists the current token and clears local caches
   // ============================================================================
-  async logout(userId: string): Promise<void> {
-    this.logger.log(`[LOGOUT] User ${userId} logged out.`);
-    
-    // Clear any server-side session data (e.g., Redis session)
-    // For JWT, server-side logout usually means blacklisting the token if not stateless.
-    // For now, we clear the password cache related to this user.
+  /**
+   * Logs the user out by:
+   * 1. Adding the current token JTI to the blacklist so it can't be reused.
+   * 2. Invalidating the JwtStrategy auth cache for this user.
+   * 3. Clearing the in-memory password hash cache entry.
+   *
+   * @param userId - The authenticated user's ID
+   * @param tokenPayload - The decoded JWT payload (contains jti and exp)
+   */
+  async logout(userId: string, tokenPayload?: { jti?: string; exp?: number }): Promise<void> {
+    this.logger.log(`[LOGOUT] User ${userId} logging out.`);
+
+    // Blacklist the specific token so it is rejected by JwtStrategy even before expiry
+    if (tokenPayload?.jti && tokenPayload?.exp) {
+      this.tokenBlacklist.blacklist(tokenPayload.jti, tokenPayload.exp);
+      this.logger.debug(`[LOGOUT] Token JTI ${tokenPayload.jti} added to blacklist.`);
+    } else {
+      this.logger.warn(`[LOGOUT] No JTI in token payload for user ${userId} — blacklisting skipped.`);
+    }
+
+    // Invalidate the JWT validation cache so role/status changes take effect immediately
+    await JwtStrategy.invalidateUserCache(userId).catch(err =>
+      this.logger.error(`[LOGOUT] Cache invalidation failed for user ${userId}: ${err.message}`)
+    );
+
+    // Clear the password hash cache for this user
     this.cleanPasswordCacheForUser(userId);
-    
-    this.logger.debug(`[LOGOUT] Password cache cleared for user ${userId}.`);
+
+    this.logger.debug(`[LOGOUT] User ${userId} logged out successfully.`);
   }
 
   private cleanPasswordCacheForUser(userId: string) {
-    const keysToDelete: string[] = [];
-    for (const key of this.passwordHashCache.keys()) {
-      if (key.startsWith(`password_hash:${userId}:`)) { // Cache key now includes email
-        keysToDelete.push(key);
-      }
+    // Cache key format is `password_hash:${email}` — we can't look up email by userId here,
+    // so we invalidate the whole cache on logout. It's a small trade-off for security.
+    // In a Redis-backed cache, we'd use a per-user key prefix.
+    this.passwordHashCache.clear();
+    this.logger.debug(`[LOGOUT] Password hash cache cleared on logout.`);
+  }
+
+  // ============================================================================
+  // PASSWORD RESET — Secure token-based flow
+  // ============================================================================
+
+  /**
+   * Step 1: Generates a cryptographically random reset token, hashes it,
+   * stores the hash in DB, and emails the plaintext token to the user.
+   * The plaintext token NEVER touches the database.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    this.logger.log(`[PASSWORD_RESET] Request received for: ${email}`);
+
+    const user = await this.dataSource.getRepository(UserEntity).findOne({ where: { email } });
+
+    // Always respond with the same message to avoid user enumeration
+    if (!user) {
+      this.logger.warn(`[PASSWORD_RESET] No user found for email: ${email} — silent return.`);
+      return;
     }
-    keysToDelete.forEach(key => this.passwordHashCache.delete(key));
+
+    // Generate a 32-byte random token (256 bits of entropy)
+    const plainToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(plainToken).digest('hex');
+
+    // Expire any existing tokens for this user
+    await this.dataSource.getRepository(PasswordResetEntity).update(
+      { user_id: user.id, is_consumed: false },
+      { is_consumed: true }
+    );
+
+    // Store only the hash
+    const resetToken = this.dataSource.getRepository(PasswordResetEntity).create({
+      token_hash: tokenHash,
+      user_id: user.id,
+      expires_at: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      is_consumed: false,
+    });
+    await this.dataSource.getRepository(PasswordResetEntity).save(resetToken);
+
+    // Email the plaintext token (never stored in DB)
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${plainToken}`;
+    await this.emailService.sendEmail(
+      user.email,
+      'Reset Your SentinelFi Password',
+      `<p>You requested a password reset.</p>
+       <p><a href="${resetUrl}">Click here to reset your password</a></p>
+       <p>This link expires in 1 hour. If you did not request this, ignore this email.</p>`
+    ).catch(err => this.logger.error(`[PASSWORD_RESET] Email failed for ${email}: ${err.message}`));
+
+    this.logger.log(`[PASSWORD_RESET] Reset email dispatched for: ${email}`);
+  }
+
+  /**
+   * Step 2: Validates the plaintext token, verifies it against the stored hash,
+   * hashes the new password, and marks the token as consumed.
+   */
+  async resetPassword(plainToken: string, newPassword: string): Promise<void> {
+    const tokenHash = crypto.createHash('sha256').update(plainToken).digest('hex');
+
+    const resetRecord = await this.dataSource.getRepository(PasswordResetEntity).findOne({
+      where: { token_hash: tokenHash, is_consumed: false },
+    });
+
+    if (!resetRecord) {
+      throw new BadRequestException('Invalid or expired password reset token.');
+    }
+
+    if (new Date() > resetRecord.expires_at) {
+      await this.dataSource.getRepository(PasswordResetEntity).update(
+        { id: resetRecord.id }, { is_consumed: true }
+      );
+      throw new BadRequestException('Password reset token has expired. Please request a new one.');
+    }
+
+    const user = await this.dataSource.getRepository(UserEntity).findOne({
+      where: { id: resetRecord.user_id },
+    });
+    if (!user) throw new NotFoundException('User not found.');
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Atomic: update password + consume token in one transaction
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      await queryRunner.manager.update(UserEntity, { id: user.id }, { password_hash: hashedPassword });
+      await queryRunner.manager.update(PasswordResetEntity, { id: resetRecord.id }, { is_consumed: true });
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+
+    // Invalidate auth cache so the user must re-authenticate with the new password
+    await JwtStrategy.invalidateUserCache(user.id).catch(() => {});
+    this.passwordHashCache.delete(`password_hash:${user.email}`);
+
+    this.auditService.log(
+      user.id, 'PASSWORD_RESET', user.tenant_id ?? null,
+      `Password reset completed for ${user.email}.`, {}, user.email
+    ).catch(() => {});
+
+    this.logger.log(`[PASSWORD_RESET] Password successfully reset for: ${user.email}`);
   }
 
   // --- Other existing methods (adapted) ---
@@ -826,14 +998,15 @@ export class AuthService {
 
     const savedUser = await this.dataSource.getRepository(UserEntity).save(newUser);
     
-    this.logger.warn(`[USER_PROVISIONING] Generated password for new tenant admin ${savedUser.email}: ${randomPassword}`);
+    // SECURITY: Log only that a password was generated, NOT the actual password value.
+    this.logger.warn(`[USER_PROVISIONING] Generated password for new tenant admin ${savedUser.email}. This password is returned to the caller only — it must NOT be logged further.`);
     
     this.auditService.log(
       savedUser.id,
       'TENANT_ADMIN_CREATED',
       savedUser.tenant_id ?? null,
-      `Tenant admin ${savedUser.email} provisioned.`,
-      { generatedPassword: randomPassword }, // Log generated password in audit for debugging
+      `Tenant admin ${savedUser.email} provisioned. A generated password was returned to the requesting SuperAdmin.`,
+      {}, // SECURITY: NEVER log generated passwords — audit records are queryable
       savedUser.email
     ).catch(err => this.logger.error(`[CID:${getCorrelationId()}] Failed to log tenant admin creation for ${savedUser.email}: ${err.message}`));
 

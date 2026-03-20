@@ -75,10 +75,12 @@ export class OperationalBudgetsController {
         "User not authenticated or tenant ID is missing.",
       );
     }
+    const actorRole = req.user.role;
     return this.operationalBudgetsService.logExpense(
       expenseData,
       req.user.id,
       req.user.tenant_id,
+      actorRole,
     );
   }
 

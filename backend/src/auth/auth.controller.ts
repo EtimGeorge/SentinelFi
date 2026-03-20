@@ -14,7 +14,6 @@ import {
   Patch,
   Param,
   Delete,
-  // Logger, // Remove if no other Logger is used
   UseInterceptors,
   HttpException,
   BadRequestException,
@@ -38,7 +37,10 @@ import { Public } from "../common/decorators/public.decorator";
 import { TimeoutInterceptor } from "../common/interceptors/timeout.interceptor";
 import { Roles } from "./decorators/roles.decorator";
 import { RequirePermissions } from "./decorators/permissions.decorator";
-import { CorrelatedLogger } from '../common/logger/correlated-logger'; 
+import { CorrelatedLogger } from '../common/logger/correlated-logger';
+import { AcceptInvitationDto } from "./dto/accept-invitation.dto";
+import { ForgotPasswordRequestDto } from "./dto/forgot-password-request.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
 
 
 /**
@@ -153,7 +155,17 @@ export class AuthController {
   @Public()
   @Post("logout")
   @HttpCode(HttpStatus.OK)
-  async logout(@Res({ passthrough: true }) response: Response) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) response: Response) {
+    // Extract the authenticated user ID from the cookie token, if present
+    // The JwtService is not injected here — we let AuthService handle the token payload
+    // via the cookie value passed in the request. We clear the cookie regardless.
+    const userId = (req as any).user?.id;
+    const tokenPayload = (req as any).user as { id: string; jti?: string; exp?: number } | undefined;
+    if (userId) {
+      await this.authService.logout(userId, tokenPayload).catch(() => {
+        // Non-fatal: always clear the cookie even if blacklisting fails
+      });
+    }
     response.clearCookie("access_token", { path: "/" });
     return { success: true, message: "Logged out successfully" };
   }
@@ -183,11 +195,28 @@ export class AuthController {
   @Public()
   @Post("invitation/accept")
   @HttpCode(HttpStatus.OK)
-  async acceptInvitation(@Body() acceptDto: any) { // Any for now, validation pipe will handle it
+  async acceptInvitation(@Body() acceptDto: AcceptInvitationDto) {
     return this.authService.acceptInvitation(acceptDto);
   }
-  
-  // --- PROTECTED ROUTES ---
+
+  @Public()
+  @Post("forgot-password")
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  async forgotPassword(@Body() dto: ForgotPasswordRequestDto) {
+    // requestPasswordReset always returns success for anti-enumeration
+    await this.authService.requestPasswordReset(dto.email);
+    return { success: true, message: 'If an account exists for that email, a reset link has been sent.' };
+  }
+
+  @Public()
+  @Post("reset-password")
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async handlePublicPasswordReset(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
+    return { success: true, message: 'Password reset successfully. Please log in with your new password.' };
+  }
 
   @Patch("profile")
   @HttpCode(HttpStatus.OK)
@@ -309,11 +338,9 @@ export class AuthController {
       throw new BadRequestException('Not currently impersonating.');
     }
     try {
-      await this.authService.stopImpersonation(impersonator);
-      res.clearCookie("access_token", { path: "/" }); // Clear the impersonation token
-      // In a more advanced scenario, the original SuperAdmin token would be stored in a separate secure cookie
-      // and re-issued here. For now, we clear the token and force re-authentication.
-      ResponseHelper.sendJson(res, HttpStatus.OK, { success: true, message: "Impersonation stopped. Please log in as SuperAdmin." });
+      const { access_token, user } = await this.authService.stopImpersonation(impersonator);
+      this.setAuthCookie(res, access_token, false); // Restore the SuperAdmin session token
+      ResponseHelper.sendJson(res, HttpStatus.OK, { success: true, user, message: "Impersonation stopped. Restored SuperAdmin session." });
     } catch (error) {
       this.logger.error(`Stop impersonation failed: ${error instanceof Error ? error.message : String(error)}`, error instanceof Error ? error.stack : undefined);
       if (error instanceof HttpException) {

@@ -8,3 +8,4 @@ export * from './expense';
 export * from './wbs';
 export * from './pagination.dto';
 export * from './get-live-expenses.dto';
+export * from './billing';

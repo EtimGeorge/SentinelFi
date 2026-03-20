@@ -1,39 +1,62 @@
 version: '3.8'
 
 services:
-  # 1. PostgreSQL Database Service - REMOVED internal 'db' container
-  # The database connection is now external to a secure Neon instance.
-  
-  # Environment variable for the Neon DB URL (Add this to your actual execution environment)
-  # DB_URL=postgres://user:password@endpoint.neon.tech/dbname?sslmode=require
+  db:
+    image: postgres:15-alpine
+    container_name: sentinelfi-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
+      POSTGRES_DB: sentinelfi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-  # 2. NestJS Backend Service (High-Performance Real-Time API Layer)
+  redis:
+    image: redis:7-alpine
+    container_name: sentinelfi-redis
+    ports:
+      - "6379:6379"
+
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: sentinel_fi_api
-    restart: always
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: sentinelfi-backend
     environment:
-      # CRITICAL: This now uses an EXTERNAL database URL (your Neon connection string)
-      DATABASE_URL: ${DB_URL} 
-      # CRITICAL: Load JWT Secret from environment (passed via .env file injection, see below)
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-      JWT_EXPIRATION_TIME: ${JWT_EXPIRATION_TIME}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-root}@db:5432/sentinelfi?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PORT: 3000
     ports:
       - "3000:3000"
-    # IMPORTANT: The backend no longer depends on an internal DB container, only the URL.
-    # The external DB must be running/available.
-    # Add a healthcheck-like command:
-    command: ["/bin/sh", "-c", "node dist/main"] # Use the default run command now
-  
-  # 3. Next.js Frontend Service (Type-Safe, SSR Financial UI)
+    depends_on:
+      - db
+      - redis
+
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: sentinel_fi_ui
-    restart: always
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: sentinelfi-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:3000
+      PORT: 3001
     ports:
-      - "3001:3000"
+      - "3001:3001"
+    depends_on:
+      - backend
 
+  ai-agent:
+    build:
+      context: ./ai-agent
+      dockerfile: Dockerfile
+    container_name: sentinelfi-ai-agent
+    environment:
+      PORT: 8000
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:

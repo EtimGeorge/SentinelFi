@@ -1,34 +1,38 @@
-# Stage 1: Build the Next.js application
+# Build Stage
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package.json and package-lock.json first to leverage Docker cache
-COPY package.json ./
-COPY package-lock.json ./
+# Copy root package.json and workspace configs
+COPY package*.json ./
+COPY frontend/package*.json ./frontend/
+COPY shared/package*.json ./shared/
 
-# Install dependencies
+# Install dependencies for the whole monorepo
 RUN npm install
 
-# Copy the rest of the application code
-COPY . .
+# Copy source code
+COPY shared ./shared
+COPY frontend ./frontend
 
-# Build the Next.js application
-RUN npm run build
+# Build shared first, then frontend
+RUN npm run build -w shared
+RUN npm run build -w frontend
 
-# Stage 2: Serve the Next.js application in a lightweight production environment
-FROM node:20-alpine AS runner
+# Production Stage
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy necessary files from the builder stage
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
+# Copy built assets
+COPY --from=builder /app/frontend/.next ./frontend/.next
+COPY --from=builder /app/frontend/public ./frontend/public
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/frontend/package*.json ./frontend/
 
-# Expose the port Next.js runs on
+ENV NODE_ENV=production
+ENV PORT=3001
+
 EXPOSE 3001
 
-# Start the Next.js production server
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "start", "-w", "frontend"]

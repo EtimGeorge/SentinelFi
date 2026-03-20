@@ -7,8 +7,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  DeleteDateColumn,
 } from "typeorm";
 import { OperationalBudgetCategoryEntity } from "./operational-budget-category.entity";
+import { VarianceFlag } from "@shared/types";
 
 export enum OperationalExpenseStatus {
   PENDING = "PENDING",
@@ -17,6 +19,8 @@ export enum OperationalExpenseStatus {
 }
 
 @Entity("operational_expense")
+@Index(["tenant_id", "expense_date"])
+@Index(["tenant_id", "operational_budget_category_id"])
 export class OperationalExpenseEntity {
   @PrimaryGeneratedColumn("uuid")
   operational_expense_id!: string;
@@ -60,9 +64,22 @@ export class OperationalExpenseEntity {
   @JoinColumn({ name: "operational_budget_category_id" })
   category!: OperationalBudgetCategoryEntity;
 
+  @Column({
+    type: "enum",
+    enum: VarianceFlag,
+    default: VarianceFlag.NO_VARIANCE,
+  })
+  variance_flag!: VarianceFlag;
+
+  @Column({ type: "text", nullable: true })
+  override_reason?: string;
+
   @CreateDateColumn({ type: "timestamp" })
   created_at!: Date;
 
   @UpdateDateColumn({ type: "timestamp" })
   updated_at!: Date;
+
+  @DeleteDateColumn({ type: "timestamp", nullable: true })
+  deleted_at?: Date;
 }

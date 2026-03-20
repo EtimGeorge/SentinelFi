@@ -1,4 +1,6 @@
-import { Controller, Get, UseGuards, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, UseGuards, Req, BadRequestException, UseInterceptors } from '@nestjs/common';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
+import { TenantCacheInterceptor } from '../common/interceptors/tenant-cache.interceptor';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { TenantAccessGuard } from '../common/guards/tenant-access.guard';
@@ -16,6 +18,8 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('summary')
+  @UseInterceptors(TenantCacheInterceptor)
+  @CacheTTL(600) // 10 minutes
   @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO, Role.OperationalDirector, Role.TechnicalDirector, Role.AssignedProjectUser)
   async getSummary(@Req() req: AuthenticatedRequest) {
     const tenantId = req.user.tenant_id;
@@ -28,6 +32,8 @@ export class DashboardController {
   }
 
   @Get('executive')
+  @UseInterceptors(TenantCacheInterceptor)
+  @CacheTTL(600) // 10 minutes
   @Roles(Role.CEO, Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager)
   async getExecutive(@Req() req: AuthenticatedRequest, @Query('projectId') projectId?: string) {
     const tenantId = req.user.tenant_id;

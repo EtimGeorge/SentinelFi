@@ -12,7 +12,7 @@ import { CreateOperationalBudgetDto } from "./dto/create-operational-budget.dto"
 import { UpdateOperationalBudgetDto } from "./dto/update-operational-budget.dto";
 import { GetOperationalBudgetsDto } from "./dto/get-operational-budgets.dto";
 import { OperationalBudgetCategoryEntity } from "./operational-budget-category.entity";
-import { OperationalExpenseEntity } from "./operational-expense.entity";
+import { OperationalExpenseEntity, OperationalExpenseStatus } from "./operational-expense.entity";
 import { PayrollEntryEntity } from "./payroll-entry.entity";
 import { BudgetCategoryEntity } from "./budget-category.entity";
 import { OperationalBudgetPeriodAllocationEntity, PeriodType } from "./operational-budget-period-allocation.entity";
@@ -21,6 +21,8 @@ import { PdfUtility } from "../common/pdf.utility";
 import { ExcelUtility } from "../common/excel.utility";
 import { WordUtility } from "../common/word.utility";
 import { Buffer } from "buffer";
+import { VarianceFlag } from "@shared/types";
+import { NotificationsService } from "../notifications/notifications.service";
 
 
 // ---- OPEX Rollup Types ----
@@ -79,18 +81,21 @@ export class OperationalBudgetsService {
     @Inject("OPERATIONALBUDGETPERIODALLOCATION_REPOSITORY")
     private allocationRepository: Repository<OperationalBudgetPeriodAllocationEntity>,
     private readonly budgetControlService: BudgetControlService,
+    private readonly notificationsService: NotificationsService,
   ) {}
+
+  // Centralized Governance Constants
+  private readonly CRITICAL_OVERRIDE_ROLES = ['CFO', 'CEO', 'Admin Director', 'SuperAdmin'];
+  private readonly MAJOR_OVERRIDE_ROLES = ['Finance Manager', 'CFO', 'CEO', 'Admin Director', 'SuperAdmin', 'Finance Officer'];
 
   async logExpense(
     expenseData: Partial<OperationalExpenseEntity>,
     userId: string,
     tenantId: string,
+    actorRole?: string,
   ): Promise<OperationalExpenseEntity> {
-    const expense = this.operationalExpenseRepository.create({
-      ...expenseData,
-      logged_by_user_id: userId,
-      tenant_id: tenantId,
-    });
+    let finalStatus = expenseData.status || OperationalExpenseStatus.PENDING; // Could be explicitly set
+    let finalFlag = VarianceFlag.NO_VARIANCE;
 
     // Automatically deduct from associated operational budget category if specified
     if (expenseData.operational_budget_category_id) {
@@ -101,22 +106,82 @@ export class OperationalBudgetsService {
         });
 
         if (category && category.operationalBudget) {
-            // Validate budget constraint
-            await this.budgetControlService.validateAndAlertOperationalExpense(
-                category.operationalBudget,
-                Number(expenseData.amount || 0)
-            );
-
-            // Update category actual spent
-            category.actual_spent = Number(category.actual_spent) + Number(expenseData.amount || 0);
-            await this.dataSource.getRepository(OperationalBudgetCategoryEntity).save(category);
-
-            // Update parent budget actual spent
             const budget = category.operationalBudget;
-            budget.actual_spent = Number(budget.actual_spent) + Number(expenseData.amount || 0);
-            await this.operationalBudgetRepository.save(budget);
+            
+            // Re-use logic from WbsService but adapt for OPEX limit vs Actual Spread
+            const totalActual = Number(budget.actual_spent || 0);
+            const budgetLimit = Number(budget.budgeted_amount || 0);
+            
+            // Calculate Pending Opex Expenses
+            const pendingResults = await this.dataSource.query(
+               `SELECT COALESCE(SUM(amount), 0) as total FROM operational_expense WHERE category_operational_budget_category_id = $1 AND tenant_id = $2 AND status = 'PENDING'`,
+               [category.operational_budget_category_id, tenantId]
+            );
+            // We'll estimate overrun based just on budget limits to mimic wbs
+            const projectedTotal = totalActual + parseFloat(pendingResults[0]?.total || 0) + Number(expenseData.amount || 0);
+
+            // Tiered Variance Checking
+            if (budgetLimit <= 0) {
+               finalFlag = VarianceFlag.CRITICAL_VARIANCE;
+               const msg = `CRITICAL OVERRUN on OPEX Budget ${budget.name}: Budget has $0 defined, but expense is being logged.`;
+               this.notificationsService.sendVarianceAlert('Critical OPEX Overrun', msg, 'error');
+            } else if (projectedTotal > budgetLimit) {
+               const variancePercentage = ((projectedTotal - budgetLimit) / budgetLimit) * 100;
+               if (variancePercentage >= 10) {
+                  finalFlag = VarianceFlag.CRITICAL_VARIANCE;
+               } else if (variancePercentage >= 5) {
+                  finalFlag = VarianceFlag.MAJOR_VARIANCE;
+               } else {
+                  finalFlag = VarianceFlag.MINOR_VARIANCE;
+               }
+            }
+
+            // Governance Decisions
+            if (finalFlag === VarianceFlag.CRITICAL_VARIANCE || finalFlag === VarianceFlag.MAJOR_VARIANCE) {
+                const isCritical = finalFlag === VarianceFlag.CRITICAL_VARIANCE;
+                const isAuthorizedAtAll = isCritical
+                  ? actorRole && this.CRITICAL_OVERRIDE_ROLES.includes(actorRole)
+                  : actorRole && this.MAJOR_OVERRIDE_ROLES.includes(actorRole);
+
+                if (!expenseData.override_reason) {
+                     throw new BadRequestException({
+                        statusCode: 403,
+                        errorCode: finalFlag,
+                        message: `OPEX overrun limit reached. Requires justification override.`,
+                        requiredRoles: isCritical ? this.CRITICAL_OVERRIDE_ROLES : this.MAJOR_OVERRIDE_ROLES,
+                     });
+                }
+
+                if (isAuthorizedAtAll) {
+                  finalFlag = VarianceFlag.OVERRIDE_APPLIED;
+                  finalStatus = OperationalExpenseStatus.APPROVED;
+                  this.logger.warn(`[OPEX] AUTHORIZED OVERRIDE by ${actorRole} | Budget: ${budget.name} | Reason: ${expenseData.override_reason}`);
+                } else {
+                  finalStatus = OperationalExpenseStatus.PENDING;
+                  this.logger.log(`[OPEX] PENDING APPROVAL routed for ${actorRole} | Budget: ${budget.name}`);
+                }
+            } else {
+                finalStatus = OperationalExpenseStatus.APPROVED; // Auto-approve if no critical/major variance
+            }
+
+            // Update category actual spent ONLY if approved
+            if (finalStatus === OperationalExpenseStatus.APPROVED) {
+               category.actual_spent = Number(category.actual_spent) + Number(expenseData.amount || 0);
+               await this.dataSource.getRepository(OperationalBudgetCategoryEntity).save(category);
+
+               budget.actual_spent = Number(budget.actual_spent) + Number(expenseData.amount || 0);
+               await this.operationalBudgetRepository.save(budget);
+            }
         }
     }
+
+    const expense = this.operationalExpenseRepository.create({
+      ...expenseData,
+      status: finalStatus,
+      variance_flag: finalFlag,
+      logged_by_user_id: userId,
+      tenant_id: tenantId,
+    });
 
     return this.operationalExpenseRepository.save(expense);
   }

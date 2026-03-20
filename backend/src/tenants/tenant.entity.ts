@@ -5,6 +5,7 @@ import {
   Column,
   Unique,
   OneToMany,
+  DeleteDateColumn,
 } from "typeorm";
 import type { UserEntity } from "../../src/auth/user.entity";
 
@@ -53,7 +54,7 @@ export class TenantEntity {
   })
   updated_at!: Date;
 
-  @Column({ type: "timestamptz", nullable: true })
+  @DeleteDateColumn({ type: "timestamptz", nullable: true })
   deleted_at!: Date | null;
 
   @OneToMany("UserEntity", "tenant")

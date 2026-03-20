@@ -5,6 +5,7 @@ import { BillingService } from './billing.service';
 import { SubscriptionController } from './subscription.controller';
 import { WebhookController } from './webhook.controller';
 import { SubscriptionEntity } from './entities/subscription.entity';
+import { BillingInvoiceEntity } from './entities/billing-invoice.entity';
 import { PaymentModule } from '../payment/payment.module';
 import { AuthModule } from '../auth/auth.module';
 import { TenantModule } from '../tenants/tenant.module';
@@ -13,7 +14,7 @@ import { CurrencyModule } from '../currency/currency.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SubscriptionEntity]),
+    TypeOrmModule.forFeature([SubscriptionEntity, BillingInvoiceEntity]),
     PaymentModule,
     AuthModule,
     TenantModule,

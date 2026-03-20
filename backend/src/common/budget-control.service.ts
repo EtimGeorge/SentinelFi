@@ -65,13 +65,18 @@ export class BudgetControlService {
     const projectedTotal = totalActual + committedAmount + amount;
 
     if (budgetLimit <= 0) {
-      // No budget defined — allow with minor flag to avoid false blocks
+      // Enterprise rule: If a WBS has precisely zero budget, any spend is a CRITICAL BLOCK requiring CFO override.
+      const msg = `CRITICAL OVERRUN on WBS ${wbsItem.wbs_code}: WBS has $0 budget, but an expense of ${amount} is being logged.`;
+      this.notificationsService.sendVarianceAlert('Critical Budget Overrun', msg, 'error');
+      this.logger.error(`[BudgetControl] ZERO-BUDGET BLOCK | Tenant: ${tenant_id} | WBS: ${wbsItem.wbs_code}`);
+      
       return {
-        flag: VarianceFlag.MINOR_VARIANCE,
-        action: 'WARN',
-        variancePercentage: 0,
-        overrunAmount: 0,
-        message: `WBS "${wbsItem.wbs_code}" has no defined budget limit. Proceeding with log.`,
+        flag: VarianceFlag.CRITICAL_VARIANCE,
+        action: 'BLOCK',
+        variancePercentage: 100, // Represented as 100% since any spend is an overrun
+        overrunAmount: projectedTotal,
+        message: `Hard block: WBS "${wbsItem.wbs_code}" has $0 budget defined. A CFO or CEO override is required to log expenses against unfunded nodes.`,
+        requiredRoles: ['CFO', 'CEO', 'Admin Director'],
       };
     }
 

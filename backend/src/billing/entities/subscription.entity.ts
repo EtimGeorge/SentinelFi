@@ -104,6 +104,19 @@ export class SubscriptionEntity {
   @Column({ type: 'timestamptz', nullable: true })
   cancelled_at!: Date | null;
 
+  // --- Offline Audit Trail Proofs ---
+  /** URL or path to the uploaded PDF/Image receipt for offline payments */
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  payment_proof_url!: string | null;
+
+  /** Structured text of the credit alert (SMS/Email) for offline payments */
+  @Column({ type: 'text', nullable: true })
+  payment_proof_text!: string | null;
+
+  /** Extracted or manual bank reference ID for reconciliation */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  offline_bank_reference!: string | null;
+
   @CreateDateColumn()
   created_at!: Date;
 

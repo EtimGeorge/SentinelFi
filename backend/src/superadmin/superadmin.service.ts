@@ -250,9 +250,27 @@ export class SuperAdminService {
         select: ['timestamp'],
         order: { timestamp: 'DESC' },
       });
-      // These queries will need to be tenant-aware if they aren't already
-      const wbsBudgetsCount = 0; // Placeholder until tenant-specific query is confirmed
-      const liveExpensesCount = 0; // Placeholder
+
+      let wbsBudgetsCount = 0;
+      let liveExpensesCount = 0;
+
+      try {
+        const [{ b_count }] = await queryRunner.query(
+          `SELECT COUNT(*) as b_count FROM "${tenant.schema_name}"."wbs_budget"`
+        );
+        wbsBudgetsCount = parseInt(b_count, 10) || 0;
+      } catch (e) {
+        this.logger.warn(`Could not fetch wbs_budget count for tenant ${tenant.schema_name}`);
+      }
+
+      try {
+        const [{ e_count }] = await queryRunner.query(
+          `SELECT COUNT(*) as e_count FROM "${tenant.schema_name}"."live_expense"`
+        );
+        liveExpensesCount = parseInt(e_count, 10) || 0;
+      } catch (e) {
+         this.logger.warn(`Could not fetch live_expense count for tenant ${tenant.schema_name}`);
+      }
 
       const recentAuditLogs = await this.dataSource.getRepository(AuditLogEntity).find({
         where: { tenantId: tenantId },
@@ -593,7 +611,7 @@ export class SuperAdminService {
     ).catch(() => {});
   }
 
-  async resetTenantAdminPassword(tenantId: string, resetDto: any): Promise<void> {
+  async resetTenantAdminPassword(tenantId: string, resetDto: { newPassword: string; reason?: string }): Promise<void> {
     const tenant = await this.tenantRepository.findOne({ 
         where: { tenant_id: tenantId },
         relations: ['users', 'users.roles'] 

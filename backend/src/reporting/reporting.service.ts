@@ -11,6 +11,9 @@ import { Buffer } from "buffer";
 import { InjectRepository } from "@nestjs/typeorm";
 import { WbsUtils } from "../common/utils/wbs.utils";
 import { WordUtility } from "../common/word.utility";
+import * as fs from "fs";
+import * as path from "path";
+import { AiAssistantService } from "../ai-assistant/ai-assistant.service";
 
 export interface ReportOptions {
     tenantId: string;
@@ -45,6 +48,7 @@ export class ReportingService {
         private readonly wbsService: WbsService,
         private readonly opexService: OperationalBudgetsService,
         private readonly projectsService: ProjectsService,
+        private readonly aiService: AiAssistantService,
     ) {}
 
     async getReportBuffer(type: ReportType, options: ReportOptions): Promise<{ buffer: Buffer, fileName: string, mimeType: string }> {
@@ -85,10 +89,20 @@ export class ReportingService {
 
         const { buffer, fileName, mimeType } = await this.getReportBuffer(type, options);
 
-        // Save to archival (local STORAGE for now, can be S3 later)
+        const uploadDir = path.join(process.cwd(), `uploads/reports/${options.tenantId}`);
         const filePath = `uploads/reports/${options.tenantId}/${fileName}`;
-        // Note: Actual filesystem write logic should be here. 
-        // For simplicity in this step, we focus on the Entity creation.
+        const absoluteFilePath = path.join(uploadDir, fileName);
+
+        try {
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+            await fs.promises.writeFile(absoluteFilePath, buffer);
+            this.logger.log(`Successfully persisted report to ${absoluteFilePath}`);
+        } catch (err: any) {
+            this.logger.error(`Failed to persist report to disk: ${err.message}`);
+            throw err;
+        }
 
         const doc = this.docRepo.create({
             tenant_id: options.tenantId,
@@ -227,25 +241,8 @@ export class ReportingService {
      * insights from raw variance data.
      */
     async explainVariance(data: any, context?: string): Promise<string> {
-        this.logger.log("Generating AI natural language summary for variance data.");
-        
-        const totalVariance = data.reduce((acc: number, item: any) => acc + (item.total_cost_budgeted - item.total_paid_rollup), 0);
-        const threshold = 50000;
-
-        let summary = `Financial Analysis Summary:\n`;
-        summary += `Total Variance detected: ${totalVariance.toLocaleString()}.\n`;
-        
-        if (Math.abs(totalVariance) > threshold) {
-            summary += `⚠️ CRITICAL: Significant budget deviation detected. Recommendations: Review procurement logs for overruns.\n`;
-        } else {
-            summary += `✅ STABLE: Variances are within acceptable thresholds.\n`;
-        }
-
-        if (context) {
-            summary += `\nAI Agent Insight: ${context}`;
-        }
-
-        return summary;
+        this.logger.log("Delegating AI natural language variance explanation to the Python Agent...");
+        return await this.aiService.explainVariance(data, context);
     }
 
 

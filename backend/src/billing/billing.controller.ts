@@ -9,7 +9,13 @@ import {
   Res,
   Param,
   Query,
+  UseInterceptors,
+  UploadedFile,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ProvisionOfflineTenantDto } from './dto/provision-tenant.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@shared/types/role.enum';
@@ -50,21 +56,19 @@ export class BillingController {
   // ─── SuperAdmin Provisioning ─────────────────────────────────────────────
 
   /**
-   * Provision a new tenant directly, bypassing the payment gateway.
+   * Provision a new tenant OR renew/extend an existing one directly.
    * SuperAdmin can set custom pricing, plan, and access duration.
-   * Magic-link invitation is dispatched automatically.
+   * If the tenant already exists (by email or name), their subscription is extended.
    */
   @Post('provision-tenant')
   @HttpCode(HttpStatus.CREATED)
-  async provisionTenant(@Body() body: {
-    companyName: string;
-    adminEmail: string;
-    plan: string;
-    billingCycle: BillingCycle;
-    amountUsd: number;
-    months: number;
-  }) {
-    return this.billingService.provisionTenantBySuperAdmin(body);
+  @UseInterceptors(FileInterceptor('receipt_file', { dest: './uploads/billing-receipts' }))
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async provisionTenant(
+    @Body() body: ProvisionOfflineTenantDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.billingService.provisionTenantBySuperAdmin(body, file);
   }
 
   // ─── Invoice Management ───────────────────────────────────────────────────
@@ -85,4 +89,13 @@ export class BillingController {
     });
     res.end(pdfBuffer);
   }
+
+  // ─── Offline Audit Proofs ────────────────────────────────────────────────
+
+  @Get('subscriptions/:id/proof')
+  async downloadPaymentProof(@Param('id') id: string, @Res() res: Response) {
+    const filePath = await this.billingService.getPaymentProofPath(id);
+    res.sendFile(filePath);
+  }
 }
+

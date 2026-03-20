@@ -4,11 +4,15 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, LessThan } from 'typeorm';
 import { SubscriptionEntity, SubscriptionStatus, BillingCycle } from './entities/subscription.entity';
+import { TenantEntity } from '../tenants/tenant.entity';
+import { BillingInvoiceEntity } from './entities/billing-invoice.entity';
 import { BillingOverviewDto } from './dto/billing-overview.dto';
+import { ProvisionOfflineTenantDto } from './dto/provision-tenant.dto';
 import { InvoiceDto, InvoiceStatus } from './dto/invoice.dto';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { PaymentService } from '../payment/payment.service';
@@ -20,6 +24,7 @@ import { Role } from '@shared/types/role.enum';
 import { EmailService } from '../email/email.service';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import * as path from 'path';
 import { isCorporateEmail } from '@shared/utils/validation';
 
 // ─── Pricing Constants ───────────────────────────────────────────────────────
@@ -38,6 +43,10 @@ export class BillingService {
   constructor(
     @InjectRepository(SubscriptionEntity)
     private readonly subscriptionRepository: Repository<SubscriptionEntity>,
+    @InjectRepository(BillingInvoiceEntity)
+    private readonly invoiceRepository: Repository<BillingInvoiceEntity>,
+    @InjectRepository(TenantEntity)
+    private readonly tenantRepository: Repository<TenantEntity>,
     private readonly paymentService: PaymentService,
     private readonly tenantService: TenantService,
     private readonly invitationService: InvitationService,
@@ -251,8 +260,16 @@ export class BillingService {
    */
   async handlePaystackWebhook(rawBody: string, signature: string): Promise<void> {
     const secret = this.configService.get<string>('PAYSTACK_SECRET_KEY');
+
+    // C8 FIX: Guard against missing secret — a missing secret must NEVER silently
+    // accept any webhook, which would allow forged payment confirmations.
+    if (!secret) {
+      this.logger.error('[BILLING] PAYSTACK_SECRET_KEY is not configured. Webhook rejected.');
+      throw new InternalServerErrorException('Payment webhook configuration error.');
+    }
+
     const expectedSig = crypto
-      .createHmac('sha512', secret!)
+      .createHmac('sha512', secret)
       .update(rawBody)
       .digest('hex');
 
@@ -376,14 +393,10 @@ export class BillingService {
    * SuperAdmin bypasses the payment gateway entirely.
    * Provisions a tenant, creates an active subscription, dispatches magic-link.
    */
-  async provisionTenantBySuperAdmin(data: {
-    companyName: string;
-    adminEmail: string;
-    plan: string;
-    billingCycle: BillingCycle;
-    amountUsd: number;
-    months: number;
-  }) {
+  async provisionTenantBySuperAdmin(
+    data: ProvisionOfflineTenantDto,
+    file?: Express.Multer.File,
+  ) {
     this.logger.log(`SuperAdmin provisioning tenant for ${data.adminEmail}`);
 
     const now = new Date();
@@ -400,18 +413,41 @@ export class BillingService {
     await queryRunner.startTransaction();
 
     try {
-      const tenant = await this.tenantService.createTenant({
-        name: data.companyName,
-        schema_name: schemaName,
-        admin_email: data.adminEmail,
-        plan: data.plan,
+      // 1. Check for existing tenant to support RENEWAL/EXTENSION
+      let tenant = await this.tenantRepository.findOne({
+        where: { name: data.companyName },
       });
 
-      await queryRunner.manager.update('tenants', { tenant_id: tenant.tenant_id }, {
-        expires_at: periodEnd,
-        is_active: true,
-        plan: data.plan,
-      });
+      if (tenant) {
+        this.logger.log(`Existing tenant found for ${data.adminEmail}. Processing as RENEWAL.`);
+        
+        // Calculate new expiry: max(now, current_expiry) + months
+        const currentExpiry = tenant.expires_at ? new Date(tenant.expires_at) : now;
+        const baseDate = currentExpiry > now ? currentExpiry : now;
+        periodEnd.setTime(baseDate.getTime());
+        periodEnd.setMonth(periodEnd.getMonth() + data.months);
+
+        // Update tenant plan and expiry
+        await queryRunner.manager.update('tenants', { tenant_id: tenant.tenant_id }, {
+          expires_at: periodEnd,
+          is_active: true,
+          plan: data.plan,
+        });
+      } else {
+        this.logger.log(`No existing tenant found. Creating new tenant: ${data.companyName}`);
+        tenant = await this.tenantService.createTenant({
+          name: data.companyName,
+          schema_name: schemaName,
+          admin_email: data.adminEmail,
+          plan: data.plan,
+        });
+
+        await queryRunner.manager.update('tenants', { tenant_id: tenant.tenant_id }, {
+          expires_at: periodEnd,
+          is_active: true,
+          plan: data.plan,
+        });
+      }
 
       const subscription = this.subscriptionRepository.create({
         tenant_id: tenant.tenant_id,
@@ -424,16 +460,31 @@ export class BillingService {
         company_name: data.companyName,
         current_period_start: now,
         current_period_end: periodEnd,
+        payment_proof_text: data.paymentProofText || null,
+        offline_bank_reference: data.offlineBankReference || null,
+        payment_proof_url: file ? `/uploads/billing-receipts/${file.filename}` : null,
       });
 
       await queryRunner.manager.save(SubscriptionEntity, subscription);
+
+      const invoice = new BillingInvoiceEntity();
+      invoice.tenant_id = tenant.tenant_id;
+      invoice.subscription_id = subscription.id;
+      invoice.invoice_number = `INV-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+      invoice.amount_usd = subscription.amount_usd;
+      invoice.status = InvoiceStatus.Paid;
+      invoice.due_date = now;
+      invoice.paid_at = now;
+      await queryRunner.manager.save(BillingInvoiceEntity, invoice);
+
       await queryRunner.commitTransaction();
 
       // Magic link happens automatically inside tenant service. 
 
       return {
-        tenant,
-        message: `Tenant provisioned for ${data.months} month(s). Magic-link dispatched to ${data.adminEmail}.`,
+        tenant_id: tenant.tenant_id,
+        companyName: tenant.name,
+        message: `Tenant ${tenant.name} ${tenant.expires_at ? 'extended' : 'provisioned'} for ${data.months} month(s). New expiry: ${periodEnd.toISOString()}`,
         periodEnd,
       };
     } catch (err) {
@@ -512,35 +563,57 @@ export class BillingService {
 
   async getBillingOverview(): Promise<BillingOverviewDto> {
     const { summary } = await this.getAllTenantSubscriptions();
+    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const pastSubscriptions = await this.subscriptionRepository.find({
+      where: { 
+        created_at: LessThan(thirtyDaysAgo),
+      }
+    });
+
+    const pastActive = pastSubscriptions.filter(s => s.status === SubscriptionStatus.ACTIVE);
+    const pastMrr = pastActive
+      .filter(s => s.billing_cycle === BillingCycle.MONTHLY)
+      .reduce((acc, s) => acc + Number(s.amount_usd), 0);
+    
+    const mrrGrowthPercentage = pastMrr === 0 ? (summary.mrr_usd > 0 ? 100 : 0) : ((summary.mrr_usd - pastMrr) / pastMrr) * 100;
+    const subGrowthPercentage = pastActive.length === 0 ? (summary.active > 0 ? 100 : 0) : ((summary.active - pastActive.length) / pastActive.length) * 100;
+
     return {
       totalMrr: summary.mrr_usd,
       activeSubscriptions: summary.active,
       pendingInvoices: summary.trialing,
-      mrrGrowthPercentage: 0, // Requires historical data — implement later
-      subscriptionGrowthPercentage: 0,
+      mrrGrowthPercentage: Number(mrrGrowthPercentage.toFixed(2)),
+      subscriptionGrowthPercentage: Number(subGrowthPercentage.toFixed(2)),
     };
   }
 
   async getRecentInvoices(): Promise<InvoiceDto[]> {
-    const subs = await this.subscriptionRepository.find({
-      where: { status: SubscriptionStatus.ACTIVE },
+    const invoices = await this.invoiceRepository.find({
+      relations: ['subscription'],
       order: { created_at: 'DESC' },
       take: 20,
     });
 
-    return subs.map((s) => ({
-      id: s.id,
-      tenantName: s.company_name || 'Unknown',
-      amount: Number(s.amount_usd),
-      date: s.created_at,
-      status: InvoiceStatus.Paid,
+    return invoices.map(i => ({
+      id: i.id,
+      tenantName: i.subscription?.company_name || 'N/A',
+      amount: Number(i.amount_usd),
+      date: i.created_at,
+      status: i.status as InvoiceStatus,
     }));
   }
 
   async downloadInvoice(invoiceId: string): Promise<Buffer> {
-    const sub = await this.subscriptionRepository.findOne({ where: { id: invoiceId } });
-    if (!sub) throw new NotFoundException('Invoice not found');
+    const invoice = await this.invoiceRepository.findOne({ 
+      where: { id: invoiceId },
+      relations: ['subscription'] 
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
 
+    const sub = invoice.subscription;
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595, 842]); // A4
     const { height } = page.getSize();
@@ -557,14 +630,14 @@ export class BillingService {
     page.drawLine({ start: { x: 50, y: height - 100 }, end: { x: 545, y: height - 100 }, thickness: 1, color: teal });
 
     const rows = [
-      ['Invoice ID:', sub.id],
-      ['Company:', sub.company_name || 'N/A'],
-      ['Admin Email:', sub.admin_email || 'N/A'],
-      ['Plan:', sub.plan.toUpperCase()],
-      ['Billing Cycle:', sub.billing_cycle],
-      ['Period:', `${sub.current_period_start?.toDateString() || 'N/A'} → ${sub.current_period_end?.toDateString() || 'N/A'}`],
-      ['Status:', sub.status.toUpperCase()],
-      ['Amount (USD):', `$${Number(sub.amount_usd).toFixed(2)}`],
+      ['Invoice ID:', invoice.invoice_number],
+      ['Company:', sub?.company_name || 'N/A'],
+      ['Admin Email:', sub?.admin_email || 'N/A'],
+      ['Plan:', sub?.plan?.toUpperCase() || 'N/A'],
+      ['Billing Cycle:', sub?.billing_cycle || 'N/A'],
+      ['Period:', `${sub?.current_period_start?.toDateString() || 'N/A'} → ${sub?.current_period_end?.toDateString() || 'N/A'}`],
+      ['Status:', invoice.status.toUpperCase()],
+      ['Amount (USD):', `$${Number(invoice.amount_usd).toFixed(2)}`],
     ];
 
     rows.forEach(([label, value], i) => {
@@ -574,6 +647,20 @@ export class BillingService {
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
+  }
+
+  // ─── OFFLINE AUDIT PROOFS ────────────────────────────────────────────────────
+
+  async getPaymentProofPath(subscriptionId: string): Promise<string> {
+    const sub = await this.subscriptionRepository.findOne({ where: { id: subscriptionId } });
+    if (!sub || !sub.payment_proof_url) {
+      this.logger.warn(`No payment proof found for subscription ${subscriptionId}`);
+      throw new NotFoundException('No payment proof file associated with this subscription.');
+    }
+    
+    // Convert relative URL stored in DB to an absolute file system path
+    const absolutePath = path.join(process.cwd(), sub.payment_proof_url);
+    return absolutePath;
   }
 
   // ─── TEAM INVITATION ─────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { WbsBudgetStatus } from '@shared/types/wbs-budget-status.enum';
 import { CEOAnnotationEntity, AnnotationTargetType } from './annotation.entity';
 import { CreateAnnotationDto } from './dto/create-annotation.dto';
 import { ProjectEntity } from '../projects/project.entity';
+import { LpoEntity, LpoStatus } from '../projects/lpo.entity';
 
 @Injectable()
 export class DashboardService {
@@ -117,6 +118,7 @@ export class DashboardService {
   async getExecutiveAnalytics(tenantId: string, projectId?: string) {
     const budgetRepo = this.dataSource.getRepository(WbsBudgetEntity);
     const expenseRepo = this.dataSource.getRepository(LiveExpenseEntity);
+    const lpoRepo = this.dataSource.getRepository(LpoEntity);
 
     // 1. Basic Aggregates
     const budgetQuery = budgetRepo
@@ -130,9 +132,16 @@ export class DashboardService {
       .select('SUM(expense.amount)', 'total')
       .where('expense.tenant_id = :tenantId', { tenantId });
 
+    const lpoQuery = lpoRepo
+      .createQueryBuilder('lpo')
+      .select('SUM(lpo.amount_committed)', 'total')
+      .where('lpo.tenant_id = :tenantId', { tenantId })
+      .andWhere('lpo.status IN (:...lpoStatuses)', { lpoStatuses: [LpoStatus.OPEN, LpoStatus.PARTIALLY_PAID] });
+
     if (projectId) {
       budgetQuery.andWhere('wbs.project_id = :projectId', { projectId });
       expenseQuery.andWhere('expense.project_id = :projectId', { projectId });
+      lpoQuery.andWhere('lpo.project_id = :projectId', { projectId });
     }
 
     const budgetSum = await this.runWithTimeout(
@@ -145,9 +154,15 @@ export class DashboardService {
       8000,
       'getExecutiveAnalytics:expenseSum'
     );
+    const lpoSum = await this.runWithTimeout(
+      lpoQuery.getRawOne(),
+      8000,
+      'getExecutiveAnalytics:lpoSum'
+    );
 
     const totalBudgeted = parseFloat(budgetSum?.total || '0');
     const totalActualPaid = parseFloat(expenseSum?.total || '0');
+    const totalCommittedLPO = parseFloat(lpoSum?.total || '0');
     const variance = totalBudgeted > 0 ? ((totalActualPaid - totalBudgeted) / totalBudgeted) * 100 : 0;
 
     // 2. Burn Rate & Historical Trend
@@ -190,6 +205,7 @@ export class DashboardService {
       overview: {
         totalBudgeted,
         totalActualPaid,
+        totalCommittedLPO,
         variancePercentage: variance,
         burnRatePercentage: burnRate,
         avgDailySpend,
