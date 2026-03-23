@@ -39,6 +39,11 @@ const proxyCircuitBreaker = new CircuitBreaker(5, 30000);
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['shared', 'lucide-react'],
+
+  // ESLint runs as a separate CI step. Do not block production builds with warnings.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   
   // Exclude test files from being treated as pages
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'].map(ext => {
