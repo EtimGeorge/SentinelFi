@@ -1,5 +1,6 @@
 import React from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import MarketingNav from './MarketingNav';
 import { Shield } from 'lucide-react';
 
@@ -48,20 +49,20 @@ const MarketingLayout: React.FC<MarketingLayoutProps> = ({
           <div>
             <h4 className="text-white font-bold mb-6 m-heading uppercase tracking-widest text-xs">Ecosystem</h4>
             <ul className="space-y-4 text-sm text-m-text-muted">
-              <li><a href="/landing/features" className="hover:text-m-primary transition-colors">Features</a></li>
-              <li><a href="/landing/workflows" className="hover:text-m-primary transition-colors">Workflows</a></li>
-              <li><a href="/landing/pricing" className="hover:text-m-primary transition-colors">Pricing</a></li>
-              <li><a href="/landing/testimonials" className="hover:text-m-primary transition-colors">Success Stories</a></li>
+              <li><Link href="/landing/features" className="hover:text-m-primary transition-colors">Features</Link></li>
+              <li><Link href="/landing/workflows" className="hover:text-m-primary transition-colors">Workflows</Link></li>
+              <li><Link href="/landing/pricing" className="hover:text-m-primary transition-colors">Pricing</Link></li>
+              <li><Link href="/landing/testimonials" className="hover:text-m-primary transition-colors">Success Stories</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="text-white font-bold mb-6 m-heading uppercase tracking-widest text-xs">Platform</h4>
             <ul className="space-y-4 text-sm text-m-text-muted">
-              <li><a href="/about" className="hover:text-m-primary transition-colors">About Us</a></li>
-              <li><a href="/training" className="hover:text-m-primary transition-colors">Training</a></li>
-              <li><a href="/contact" className="hover:text-m-primary transition-colors">Contact</a></li>
-              <li><a href="/legal/privacy" className="hover:text-m-primary transition-colors">Privacy Policy</a></li>
+              <li><Link href="/about" className="hover:text-m-primary transition-colors">About Us</Link></li>
+              <li><Link href="/training" className="hover:text-m-primary transition-colors">Training</Link></li>
+              <li><Link href="/contact" className="hover:text-m-primary transition-colors">Contact</Link></li>
+              <li><Link href="/legal/privacy" className="hover:text-m-primary transition-colors">Privacy Policy</Link></li>
             </ul>
           </div>
         </div>
@@ -69,8 +70,8 @@ const MarketingLayout: React.FC<MarketingLayoutProps> = ({
         <div className="container mx-auto px-6 mt-16 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-m-text-muted font-mono uppercase tracking-tighter">
           <p>© 2026 SentinelFi Technology Operations. All Rights Reserved.</p>
           <div className="flex gap-6">
-            <a href="/legal/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
-            <a href="/legal/terms" className="hover:text-white transition-colors">Terms of Service</a>
+            <Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/legal/terms" className="hover:text-white transition-colors">Terms of Service</Link>
           </div>
         </div>
       </footer>
