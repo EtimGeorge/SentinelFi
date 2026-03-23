@@ -1,5 +1,0 @@
-commit 44c07feb2a5bec3bbcb45d7979bf1117e5a9ec21
-Author: {EtimGeorge} <saencrystal@gmail.com>
-Date:   Tue Mar 17 06:14:52 2026 +0100
-
-    fix: resolve WBS 500 error and Billing 404 subscription missing error, plus project-wide refinements and cleanup

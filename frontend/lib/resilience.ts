@@ -131,6 +131,7 @@ export class CircuitBreaker {
     this.lastFailureTime = Date.now();
     if (this.failures >= this.maxFailures) {
       this.state = 'OPEN';
+      console.warn(`[CircuitBreaker] ⚠️ Circuit OPEN after ${this.failures} failures. Cooling down for ${this.resetTimeoutMs}ms.`);
     }
   }
 

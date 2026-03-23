@@ -22,6 +22,7 @@ import { CurrencyService } from '../currency/currency.service';
 import { PaymentProvider } from '../payment/interfaces/payment-strategy.interface';
 import { Role } from '@shared/types/role.enum';
 import { EmailService } from '../email/email.service';
+import { WebhookService } from './webhook.service';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as path from 'path';
@@ -52,6 +53,7 @@ export class BillingService {
     private readonly invitationService: InvitationService,
     private readonly currencyService: CurrencyService,
     private readonly emailService: EmailService,
+    private readonly webhookService: WebhookService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
   ) {}
@@ -256,36 +258,20 @@ export class BillingService {
 
   /**
    * Handles verified Paystack charge.success webhook.
-   * THIS is where tenant provisioning and invitation dispatch happen.
+   * Leverages WebhookService for signature verification and idempotency.
    */
   async handlePaystackWebhook(rawBody: string, signature: string): Promise<void> {
-    const secret = this.configService.get<string>('PAYSTACK_SECRET_KEY');
-
-    // C8 FIX: Guard against missing secret — a missing secret must NEVER silently
-    // accept any webhook, which would allow forged payment confirmations.
-    if (!secret) {
-      this.logger.error('[BILLING] PAYSTACK_SECRET_KEY is not configured. Webhook rejected.');
-      throw new InternalServerErrorException('Payment webhook configuration error.');
-    }
-
-    const expectedSig = crypto
-      .createHmac('sha512', secret)
-      .update(rawBody)
-      .digest('hex');
-
-    if (expectedSig !== signature) {
-      this.logger.warn('Paystack webhook signature mismatch — rejecting');
-      throw new ForbiddenException('Invalid webhook signature');
-    }
+    const isNew = await this.webhookService.verifyPaystack(rawBody, signature);
+    if (!isNew) return; // Already processed
 
     const event = JSON.parse(rawBody);
-    if (event.event !== 'charge.success') return; // Ignore non-payment events
+    if (event.event !== 'charge.success') return;
 
-    const metadata = event.data.metadata || {};
+    const metadata = event.data?.metadata || {};
     const subscriptionId = metadata.subscription_id;
 
     if (!subscriptionId) {
-      this.logger.warn('Paystack webhook: no subscription_id in metadata');
+      this.logger.warn('[BILLING] Paystack webhook: no subscription_id in metadata');
       return;
     }
 
@@ -296,13 +282,16 @@ export class BillingService {
    * Handles verified PayPal PAYMENT.CAPTURE.COMPLETED webhook.
    */
   async handlePaypalWebhook(body: any): Promise<void> {
+    const isNew = await this.webhookService.verifyPaypal(body);
+    if (!isNew) return;
+
     if (body.event_type !== 'PAYMENT.CAPTURE.COMPLETED') return;
 
     const subscriptionId =
       body.resource?.custom_id || body.resource?.purchase_units?.[0]?.custom_id;
 
     if (!subscriptionId) {
-      this.logger.warn('PayPal webhook: no subscription_id in payload');
+      this.logger.warn('[BILLING] PayPal webhook: no subscription_id in payload');
       return;
     }
 

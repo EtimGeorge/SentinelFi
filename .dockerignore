@@ -1,20 +1,35 @@
-node_modules
-dist
+# Diagnostics & Logs
+*.log
+*.txt
+*.tmp
+*.bak
+*.tsbuildinfo
+typecheck.log
+diag_output.txt
+
+# Documentation & Context
+/docs/
+/scripts/
+/investigated-audit-documents/
+/pdf_extract/
+
+# Build Context
 .next
+dist
+build
 .git
 .vscode
+.idea
 tmp
-*.log
-*.sqlite
-.env
-.env.local
+node_modules
 backend/node_modules
 frontend/node_modules
 shared/node_modules
 ai-agent/venv
 ai-agent/__pycache__
 ai-agent/.ruff_cache
-ai-agent/diag_output.txt
-verify-boot.ts
-boot_debug.log
-test_db_conn_simple.js
+
+# Secrets
+.env
+.env.local
+.env.prod

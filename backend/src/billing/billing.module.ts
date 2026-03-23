@@ -12,9 +12,16 @@ import { TenantModule } from '../tenants/tenant.module';
 import { EmailModule } from '../email/email.module';
 import { CurrencyModule } from '../currency/currency.module';
 
+import { WebhookService } from './webhook.service';
+import { ProcessedWebhookEntity } from './entities/processed-webhook.entity';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SubscriptionEntity, BillingInvoiceEntity]),
+    TypeOrmModule.forFeature([
+      SubscriptionEntity, 
+      BillingInvoiceEntity, 
+      ProcessedWebhookEntity
+    ]),
     PaymentModule,
     AuthModule,
     TenantModule,
@@ -22,7 +29,7 @@ import { CurrencyModule } from '../currency/currency.module';
     CurrencyModule,
   ],
   controllers: [BillingController, SubscriptionController, WebhookController],
-  providers: [BillingService],
-  exports: [BillingService],
+  providers: [BillingService, WebhookService],
+  exports: [BillingService, WebhookService],
 })
 export class BillingModule {}

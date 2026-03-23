@@ -1,8 +1,0 @@
-﻿
-> sentinelfi-monorepo@1.0.0 start:backend
-> npm run start -w backend
-
-
-> backend@1.0.0 start
-> nest start --entryFile backend/src/main
-

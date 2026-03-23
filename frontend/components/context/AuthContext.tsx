@@ -173,8 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const smartAbortRef = useRef(new SmartAbortController());
   const loginInProgressRef = useRef(false);
+  const logoutInProgressRef = useRef(false); // NEW: Prevent logout loops
   const rateLimiterRef = useRef(new LoginRateLimiter());
-  // 1. Core Refs (Stable across transitions)
   const authStateRef = useRef<AuthState>(AuthState.INITIALIZING);
   const logoutRef = useRef<() => Promise<void>>();
   const routerRef = useRef(router);
@@ -270,6 +270,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loginInProgressRef.current = true;
     setIsLoading(true);
     setError(null);
+    authCircuitBreaker.reset(); // RESET circuit breaker on login attempt
     try {
       const endpoint = role === Role.SuperAdmin ? '/auth/login/super' : '/auth/login/tenant';
       const response = await apiClient.post<{ user: User }>(endpoint, { email: uid, password });
@@ -298,6 +299,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    if (logoutInProgressRef.current) return; // Prevent loop
+    logoutInProgressRef.current = true;
     AuthLogger.info('Logging out...');
     setIsLoading(true);
     try {
@@ -317,8 +320,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         channel.close();
       } catch (e) {
         // Graceful degradation
+        AuthLogger.warn('BroadcastChannel not supported for sync, performing local logout actions.');
+        // If BroadcastChannel fails, ensure local cleanup and redirect still happen
+        setIsLoading(false);
+        SessionStorage.clear();
+        logoutInProgressRef.current = false;
+        routerRef.current.push('/login');
+        return; // Exit to prevent double execution of cleanup below
       }
 
+      // These actions should always happen after logout, regardless of BroadcastChannel success
+      setIsLoading(false);
+      SessionStorage.clear();
+      logoutInProgressRef.current = false;
       routerRef.current.push('/login');
     }
   }, []);
@@ -415,7 +429,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(currentUser);
           setIsInitialized(true);
           setIsLoading(false);
-          if (currentUser) SessionStorage.save(currentUser);
+          if (currentUser) {
+            SessionStorage.save(currentUser);
+            authCircuitBreaker.reset(); // Success resets circuit
+          }
+        }
+      }).catch(() => {
+        if (isMountedRef.current) {
+          setIsInitialized(true);
+          setIsLoading(false);
         }
       });
     }
@@ -540,7 +562,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const responseInterceptor = apiClient.getAxiosInstance().interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
+        if (error.response?.status === 401 && !logoutInProgressRef.current) {
           AuthLogger.warn('[SECURED API] 401 Unauthorized detected. Executing logout.');
           if (logoutRef.current) logoutRef.current().catch(() => { });
         }

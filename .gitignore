@@ -56,27 +56,23 @@ ai-agent/__pycache__/
 ai-agent/.ruff_cache/
 
 # Temporary / Generated files (Root Level)
+*.log
+*.txt
+*.tmp
+*.bak
+*.swp
+*.ps1
+*.psm1
 npm_audit_report.json
 output.md
-status_output.txt
-test-api.js
-test-fetch.js
 typecheck_errors.txt
+diag_output.txt
+diagnostic.py
+env_audit.py
+test_key.py
 
-# Temporary / Generated files (Backend Specific)
-backend/*.txt
-backend/audit.js
-backend/check_budget_actuals.js
-backend/check_expense_dates.js
-backend/check_live_expense_cols.js
-backend/check_migrations.js
-backend/deep_audit.js
-backend/final_confirmation.js
-backend/fix_utils.js
-backend/test_backend_query.js
-backend/test_db_conn_v2.js
-backend/test_db_conn.js
-backend/test_serialization.js
-backend/test-api-fetch.js
-backend/test-api.js
-backend/test-queries.js
+# Directories
+/investigated-audit-documents/
+/pdf_extract/
+/tmp/
+/backups/
