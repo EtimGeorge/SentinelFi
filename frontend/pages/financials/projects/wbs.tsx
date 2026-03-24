@@ -405,7 +405,7 @@ const WBSManagerPage: React.FC = () => {
       ]);
   };
 
-  const renderTree = (parentId: string | null = null, level: number = 0, projects: { project_id: string; project_name: string; currency?: string }[]) => {
+  const renderTree = (parentId: string | null = null, level: number = 0) => {
     const children = items.filter(i => i.parent_wbs_id === parentId)
       .sort((a, b) => a.wbs_code.localeCompare(b.wbs_code, undefined, { numeric: true }));
 
