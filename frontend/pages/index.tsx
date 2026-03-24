@@ -13,6 +13,11 @@ import {
   Globe,
   Database
 } from 'lucide-react';
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
 
 const LandingPage: NextPageWithLayout = () => {
   const [activeRole, setActiveRole] = useState('CEO');
