@@ -68,7 +68,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; co
 
 const WBSManagerPage: React.FC = () => {
   const { hasAnyRole, isAuthenticated } = useAuth();
-  const { userCurrency, convertToDisplay } = useCurrency();
+  const { userCurrency, convertToDisplay, convertAmount } = useCurrency();
 
   const [items, setItems] = useState<WBSItem[]>([]);
   const [categories, setCategories] = useState<WBSCategory[]>([]);
