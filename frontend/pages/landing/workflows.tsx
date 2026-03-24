@@ -16,7 +16,13 @@ import {
   PieChart
 } from 'lucide-react';
 
-const WorkflowsPage: React.FC = () => {
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const WorkflowsPage: NextPageWithLayout = () => {
   const [activeRole, setActiveRole] = useState('CEO');
 
   const workflows = {

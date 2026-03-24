@@ -2,7 +2,13 @@ import React from 'react';
 import MarketingLayout from '../components/Landing/MarketingLayout';
 import { Target, Users, ShieldAlert, Award, Globe, History } from 'lucide-react';
 
-const AboutPage = () => {
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const AboutPage: NextPageWithLayout = () => {
   return (
     <>
       <section className="py-24 container mx-auto px-6">

@@ -8,7 +8,13 @@ interface ErrorProps {
   statusCode?: number;
 }
 
-const ErrorPage = ({ statusCode }: ErrorProps) => {
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const ErrorPage: NextPageWithLayout = ({ statusCode }: ErrorProps) => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-brand-dark px-4 font-inter">
       <div className="max-w-md w-full text-center space-y-8">

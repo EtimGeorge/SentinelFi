@@ -72,7 +72,13 @@ const testimonials: Testimonial[] = [
 
 const industries = ['All', 'Energy & Infrastructure', 'Government & Public Sector', 'Construction & Real Estate', 'Financial Services', 'Oil & Gas', 'Pan-African Infrastructure'];
 
-const TestimonialsPage: React.FC = () => {
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const TestimonialsPage: NextPageWithLayout = () => {
   const [activeIndustry, setActiveIndustry] = useState('All');
   const [activeIdx, setActiveIdx] = useState(0);
 

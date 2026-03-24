@@ -27,7 +27,13 @@ import { ReactElement } from 'react';
  * SetupPage handles the final account configuration for new Tenants 
  * who have just subscribed via the public landing page.
  */
-const SetupPage = () => {
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const SetupPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { email: queryEmail } = router.query;
 

@@ -2,7 +2,13 @@ import React from 'react';
 import MarketingLayout from '../components/Landing/MarketingLayout';
 import { Play, BookOpen, ScrollText, GraduationCap, Clock, Signal } from 'lucide-react';
 
-const TrainingPage = () => {
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const TrainingPage: NextPageWithLayout = () => {
   return (
     <section className="py-24 container mx-auto px-6">
         <div className="max-w-4xl mx-auto text-center mb-24">

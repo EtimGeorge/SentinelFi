@@ -24,7 +24,13 @@ import Input from '../../components/common/Input';
 import PublicLayout from '../../components/Layout/PublicLayout';
 import { ReactElement } from 'react';
 
-const AcceptInvitationPage = () => {
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const AcceptInvitationPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { token } = router.query;
 
