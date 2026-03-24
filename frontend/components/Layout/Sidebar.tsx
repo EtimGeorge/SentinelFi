@@ -249,7 +249,7 @@ const Sidebar: React.FC = () => {
             )}
             {isDesktopSidebarCollapsed && (
               <div className="p-2 bg-brand-primary rounded-lg animate-in zoom-in duration-300">
-                <Shield class="w-6 h-6 text-white" />
+                <Shield className="w-6 h-6 text-white" />
               </div>
             )}
           </div>
