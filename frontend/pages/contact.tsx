@@ -3,8 +3,13 @@ import MarketingLayout from '../components/Landing/MarketingLayout';
 import { Mail, Phone, MapPin, Send, MessageSquare, ShieldCheck, Globe } from 'lucide-react';
 import api from '../lib/api';
 import { toast } from 'react-hot-toast';
+import { NextPage } from 'next';
 
-const ContactPage: React.FC = () => {
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const ContactPage: NextPageWithLayout = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
