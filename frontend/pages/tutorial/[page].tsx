@@ -236,7 +236,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
 
           {/* ── Other Guides ─────────────────────────────────────────────── */}
           <section style={{ marginTop: 56 }}>
-            <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 11 }}>
+            <h2 style={{ margin: '0 0 16px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 11 }}>
               Other Guides
             </h2>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
