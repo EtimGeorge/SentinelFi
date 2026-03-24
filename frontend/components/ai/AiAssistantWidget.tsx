@@ -2,11 +2,12 @@ import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import {
   Bot, X, Minus, Send, Paperclip, Sparkles, ChevronDown, RefreshCw,
   BarChart2, FileText, Zap, BookOpen, AlertTriangle, CheckCircle, Loader,
-  TrendingUp, Calendar, MessageSquare, Trash2,
+  TrendingUp, Calendar, MessageSquare, Trash2, Map,
 } from 'lucide-react';
 import { useAiAssistant, AiChatMessage, UseAiAssistantOptions } from '../../hooks/useAiAssistant';
 import { AiChatMessageBubble } from './AiChatMessage';
 import useUIStore from '../../store/uiStore';
+import { getTutorial } from '../../lib/tutorial-content';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [schedulePanel, setSchedulePanel] = useState(false);
+  const [isGuideMode, setIsGuideMode] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -122,7 +124,28 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
 
   const ai = useAiAssistant({ currentPage, projectId, onActionHint });
 
-  const quickActions = PAGE_QUICK_ACTIONS[currentPage ?? 'default'] ?? PAGE_QUICK_ACTIONS['default'];
+  // Guide mode: inject a UX tutor system prompt
+  const tutorial = getTutorial(currentPage ?? 'default');
+  const guideModeQuickActions = [
+    { label: 'How do I start?', icon: <BookOpen size={12} />, message: `How do I get started on the ${tutorial.title} page? Give me step-by-step instructions.` },
+    { label: 'Key features', icon: <Zap size={12} />, message: `What are the most important features on the ${tutorial.title} page and how do I use them?` },
+    { label: 'Common mistakes', icon: <AlertTriangle size={12} />, message: `What mistakes should I avoid on the ${tutorial.title} page?` },
+  ];
+
+  const quickActions = isGuideMode
+    ? guideModeQuickActions
+    : (PAGE_QUICK_ACTIONS[currentPage ?? 'default'] ?? PAGE_QUICK_ACTIONS['default']);
+
+  // Prepend tutor system prompt when guide mode first activates
+  const handleToggleGuideMode = useCallback(() => {
+    setIsGuideMode(m => {
+      if (!m) {
+        // Entering guide mode — send a silent context-setting message
+        ai.sendMessage(`[SYSTEM CONTEXT — DO NOT SHOW TO USER] You are now in UX Guide Mode. ${tutorial.aiTutorPrompt}`);
+      }
+      return !m;
+    });
+  }, [ai, tutorial.aiTutorPrompt]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -262,6 +285,22 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {/* Guide Me toggle */}
+              <button
+                onClick={handleToggleGuideMode}
+                title={isGuideMode ? 'Exit Guide Mode' : 'Guide Me — UX Tutor Mode'}
+                className="sentinelai-close-btn"
+                style={{
+                  background: isGuideMode ? 'rgba(99,102,241,0.25)' : 'transparent',
+                  border: isGuideMode ? '1px solid rgba(99,102,241,0.5)' : '1px solid transparent',
+                  cursor: 'pointer',
+                  color: isGuideMode ? '#a5b4fc' : 'rgba(255,255,255,0.4)', padding: '4px 8px',
+                  borderRadius: 8, display: 'flex', alignItems: 'center', gap: 4,
+                  transition: 'all 0.15s', fontSize: 10, fontWeight: 600,
+                }}
+              >
+                <Map size={12} /> {isGuideMode ? 'Guiding' : 'Guide Me'}
+              </button>
               {/* Clear history */}
               {ai.messageCount > 0 && (
                 <button
