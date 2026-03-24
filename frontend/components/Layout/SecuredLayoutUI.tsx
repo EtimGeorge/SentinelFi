@@ -10,6 +10,7 @@ import { useAuth } from "../context/AuthContext";
 import { TourProvider } from "../../contexts/TourContext";
 import { TourOverlay } from "../tutorial/TourOverlay";
 import { TutorialFab } from "../tutorial/TutorialFab";
+import Head from "next/head";
 
 // Route path → tutorial pageKey mapping
 function resolvePageKey(pathname: string): string {
@@ -26,9 +27,10 @@ function resolvePageKey(pathname: string): string {
 
 interface SecuredLayoutContentProps {
   children: React.ReactNode;
+  title?: string;
 }
 
-const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children }) => {
+const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children, title }) => {
   const { isDesktopSidebarCollapsed, isMobileSidebarOpen, closeMobileSidebar, toggleMobileSidebar } =
     useUIStore();
   const router = useRouter();
@@ -39,6 +41,11 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children })
 
   return (
     <TourProvider>
+      {title && (
+        <Head>
+          <title>{title}</title>
+        </Head>
+      )}
       <div className="flex h-screen bg-brand-dark overflow-hidden print:h-auto print:overflow-visible print:bg-white text-gray-100 print:text-black">
         <div className="print:hidden shrink-0">
           <Sidebar />
