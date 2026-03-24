@@ -227,14 +227,14 @@ const WBSManagerPage: React.FC = () => {
   }, [projects]);
 
   const totalProjectBudgetFiltered = useMemo(() => {
-    return items.filter(i => !i.parent_wbs_id).reduce((sum, item) => {
+    return items.filter(i => !i.parent_wbs_id).reduce((sum: number, item: WBSItem) => {
       const projectCurrency = projectCurrencyMap[item.project_id || ''] || 'NGN';
       return sum + convertAmount(Number(item.total_cost_budgeted_rollup || item.total_cost_budgeted || 0), projectCurrency, userCurrency.code);
     }, 0);
   }, [items, projectCurrencyMap, userCurrency.code]);
 
   const totalSpentFiltered = useMemo(() => {
-    return items.filter(i => !i.parent_wbs_id).reduce((sum, item) => {
+    return items.filter(i => !i.parent_wbs_id).reduce((sum: number, item: WBSItem) => {
       const projectCurrency = projectCurrencyMap[item.project_id || ''] || 'NGN';
       return sum + convertAmount(Number(item.total_paid_rollup || 0), projectCurrency, userCurrency.code);
     }, 0);
