@@ -67,7 +67,7 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children })
         </div>
 
         <SessionTimeoutWarning />
-        <ChatWidget recipientId="SYSTEM" recipientName="SentinelFi Assistant" />
+        <ChatWidget initialRecipientId="SYSTEM" initialRecipientName="SentinelFi Assistant" />
 
         {/* ── Tutorial System ───────────────────────────────────────── */}
         <TourOverlay />
