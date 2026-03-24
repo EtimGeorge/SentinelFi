@@ -159,8 +159,14 @@ const PLANS = [
   },
 ];
 
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
-const PricingPage: React.FC = () => {
+const PricingPage: NextPageWithLayout = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('annual');
   const [currencies, setCurrencies] = useState<CurrencyRate[]>([]);
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyRate>({
