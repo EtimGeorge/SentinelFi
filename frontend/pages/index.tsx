@@ -247,6 +247,43 @@ const LandingPage: NextPageWithLayout = () => {
         </div>
       </section>
 
+      {/* Brand Identity & Ownership Section */}
+      <section className="py-24 bg-brand-dark relative z-10 border-y border-white/5">
+        <div className="container mx-auto px-6">
+          <div className="flex flex-col lg:flex-row items-center gap-16">
+            <div className="lg:w-1/3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-primary/30 bg-brand-primary/10 text-brand-primary text-xs font-mono mb-6 uppercase tracking-widest">
+                <ShieldCheck className="w-3 h-3" /> SentinelFi® Heritage
+              </div>
+              <h2 className="text-4xl md:text-5xl font-black m-heading mb-6 tracking-tight text-white">Backed by Industry Leaders</h2>
+              <p className="text-lg text-m-text-muted leading-relaxed">
+                SentinelFi® was forged from real-world engineering and energy sector challenges. We built the platform we needed to secure our own billion-dollar portfolios.
+              </p>
+            </div>
+            
+            <div className="lg:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+              <div className="glass-card p-8 border border-white/10 rounded-3xl bg-white/5 hover:bg-white/10 transition-colors group relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/20 blur-3xl -mr-10 -mt-10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary mb-4">Built & Owned By</h4>
+                <div className="text-2xl font-black text-white m-heading mb-4">Seancrystal Global Services Limited</div>
+                <p className="text-m-text-muted text-sm leading-relaxed">
+                  The primary architect and registered owner of the SentinelFi® platform. Driving digital transformation in capital project governance and financial security.
+                </p>
+              </div>
+
+              <div className="glass-card p-8 border border-white/10 rounded-3xl bg-white/5 hover:bg-white/10 transition-colors group relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-alert-critical/20 blur-3xl -mr-10 -mt-10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                <h4 className="text-xs font-black uppercase tracking-widest text-alert-critical mb-4">Funded By</h4>
+                <div className="text-2xl font-black text-white m-heading mb-4">Solution Energy & Engineering Services</div>
+                <p className="text-m-text-muted text-sm leading-relaxed">
+                  The strategic financial partner powering SentinelFi's rapid development. Leaders in global energy infrastructure and large-scale engineering operations.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA - High Impact */}
       <section className="py-40 relative overflow-hidden bg-brand-dark">
         <div className="hero-glow !bg-brand-primary/10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px]" />

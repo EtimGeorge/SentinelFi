@@ -38,12 +38,20 @@ const MarketingLayout: React.FC<MarketingLayoutProps> = ({
               <div className="p-2 bg-m-primary/20 rounded-lg">
                 <Shield className="w-6 h-6 text-m-primary" />
               </div>
-              <span className="text-2xl font-bold m-heading">SentinelFi</span>
+              <span className="text-2xl font-bold m-heading">SentinelFi<sup className="text-[10px] ml-0.5">®</sup></span>
             </div>
             <p className="text-m-text-muted max-w-sm leading-relaxed">
               Eliminating financial ambiguity through automated WBS governance, 
               AI-driven intelligence, and absolute multi-tenant sovereignty.
             </p>
+            <div className="pt-4 border-t border-white/10 space-y-2">
+              <p className="text-xs text-m-text-muted">
+                Built & Owned by <strong className="text-white hover:text-m-primary transition-colors cursor-pointer">Seancrystal Global Services Limited</strong>
+              </p>
+              <p className="text-xs text-m-text-muted">
+                Funded by <strong className="text-white">Solution Energy and Engineering Services Limited</strong>
+              </p>
+            </div>
           </div>
           
           <div>
@@ -68,8 +76,9 @@ const MarketingLayout: React.FC<MarketingLayoutProps> = ({
         </div>
         
         <div className="container mx-auto px-6 mt-16 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-m-text-muted font-mono uppercase tracking-tighter">
-          <p>© 2026 SentinelFi Technology Operations. All Rights Reserved.</p>
+          <p>© {new Date().getFullYear()} SentinelFi® — A Seancrystal Global Services Limited Product.</p>
           <div className="flex gap-6">
+            <Link href="/brand" className="hover:text-white transition-colors">Brand & Ownership</Link>
             <Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <Link href="/legal/terms" className="hover:text-white transition-colors">Terms of Service</Link>
           </div>

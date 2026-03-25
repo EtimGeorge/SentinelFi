@@ -139,8 +139,18 @@ export class BillingService {
       await queryRunner.commitTransaction();
 
       // 3. Dispatch magic-link invitation happens automatically in TenantService phase 3
+      // 4. Send trial activation confirmation email
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://sentinelfi.com');
+      this.emailService.sendTrialActivationEmail(data.email, {
+        firstName: data.firstName,
+        companyName: data.companyName,
+        adminEmail: data.email,
+        trialStartDate: new Date().toDateString(),
+        trialEndDate: trialEndsAt.toDateString(),
+        pricingUrl: `${frontendUrl}/landing/pricing`,
+      }).catch((err: Error) => this.logger.error(`[BILLING] Trial activation email failed: ${err.message}`));
 
-      this.logger.log(`Trial provisioned for ${data.email}. Magic-link dispatched.`);
+      this.logger.log(`Trial provisioned for ${data.email}. Emails dispatching.`);
       return {
         message: 'Trial provisioned. Check your email for access.',
         trialEndsAt,
@@ -365,14 +375,112 @@ export class BillingService {
       await queryRunner.commitTransaction();
 
       // 4. Dispatch magic-link happens automatically inside TenantService
+      // 5. Send subscription success + receipt email with PDF invoice
+      this.dispatchActivationEmails(sub, now, periodEnd, gatewayRef).catch((err: Error) =>
+        this.logger.error(`[BILLING] Post-activation emails failed for ${sub.admin_email}: ${err.message}`),
+      );
 
-      this.logger.log(`Subscription ${subscriptionId} activated for ${sub.admin_email}. Tenant created. Magic-link dispatched.`);
+      this.logger.log(`Subscription ${subscriptionId} activated for ${sub.admin_email}. Emails dispatching.`);
     } catch (err) {
       await queryRunner.rollbackTransaction();
       this.logger.error(`Failed to activate subscription ${subscriptionId}`, err);
       throw err;
     } finally {
       await queryRunner.release();
+    }
+  }
+
+  /**
+   * Sends subscription success + receipt email (with PDF) after activation.
+   * Runs async, decoupled from the main transaction.
+   */
+  private async dispatchActivationEmails(
+    sub: SubscriptionEntity,
+    activatedAt: Date,
+    periodEnd: Date,
+    gatewayRef?: string,
+  ): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://sentinelfi.com');
+    const invoiceNumber = `RCP-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    const amountFormatted = Number(sub.amount_usd).toFixed(2);
+    const toEmail = sub.admin_email!;
+    const firstName = sub.admin_first_name || sub.company_name || 'Valued Client';
+
+    // Generate PDF invoice for attachment
+    let pdfBuffer: Buffer | undefined;
+    try {
+      const invoiceEntity = await this.invoiceRepository.findOne({
+        where: { tenant_id: sub.tenant_id! },
+        order: { created_at: 'DESC' },
+        relations: ['subscription'],
+      });
+      if (invoiceEntity) {
+        pdfBuffer = await this.downloadInvoice(invoiceEntity.id);
+      }
+    } catch {
+      this.logger.warn('[BILLING] Could not generate PDF for receipt email — sending without attachment.');
+    }
+
+    // Send payment receipt with PDF attachment
+    await this.emailService.sendPaymentReceiptEmail(
+      toEmail,
+      {
+        firstName,
+        companyName: sub.company_name!,
+        adminEmail: toEmail,
+        invoiceNumber,
+        plan: sub.plan,
+        billingCycle: sub.billing_cycle,
+        gateway: sub.gateway || 'online',
+        gatewayReference: gatewayRef || sub.gateway_reference || 'N/A',
+        amountFormatted,
+        periodStart: activatedAt.toDateString(),
+        periodEnd: periodEnd.toDateString(),
+        dashboardUrl: `${frontendUrl}/dashboard`,
+      },
+      pdfBuffer,
+    );
+
+    // Send workspace provisioned confirmation
+    await this.emailService.sendSubscriptionSuccessEmail(toEmail, {
+      firstName,
+      companyName: sub.company_name!,
+      plan: sub.plan,
+      billingCycle: sub.billing_cycle,
+      periodEnd: periodEnd.toDateString(),
+      dashboardUrl: `${frontendUrl}/dashboard`,
+    });
+  }
+
+  /**
+   * Handles payment failure webhooks — sends failure alert to customer.
+   */
+  async handlePaymentFailed(data: {
+    email: string;
+    firstName: string;
+    companyName: string;
+    plan: string;
+    amountUsd: number;
+    gateway: string;
+    reference: string;
+    reason: string;
+  }): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://sentinelfi.com');
+    try {
+      await this.emailService.sendPaymentFailureEmail(data.email, {
+        firstName: data.firstName,
+        companyName: data.companyName,
+        plan: data.plan,
+        amountFormatted: Number(data.amountUsd).toFixed(2),
+        gateway: data.gateway,
+        gatewayReference: data.reference,
+        failureReason: data.reason,
+        failureDate: new Date().toDateString(),
+        retryUrl: `${frontendUrl}/landing/pricing`,
+      });
+      this.logger.log(`[BILLING] Payment failure alert sent to ${data.email}`);
+    } catch (err) {
+      this.logger.error(`[BILLING] Failed to send payment failure email to ${data.email}:`, err);
     }
   }
 
@@ -468,7 +576,12 @@ export class BillingService {
 
       await queryRunner.commitTransaction();
 
-      // Magic link happens automatically inside tenant service. 
+      // Magic link happens automatically inside tenant service.
+      // Send offline provisioning receipt email with PDF
+      const feUrl = this.configService.get<string>('FRONTEND_URL', 'https://sentinelfi.com');
+      this.generateAndSendOfflineReceipt(subscription, invoice, tenant, feUrl).catch((err: Error) =>
+        this.logger.error(`[BILLING] Offline receipt email failed: ${err.message}`),
+      );
 
       return {
         tenant_id: tenant.tenant_id,
@@ -608,34 +721,109 @@ export class BillingService {
     const { height } = page.getSize();
     const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const bodyFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const lightFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-    const teal = rgb(0.05, 0.58, 0.53);
-    const dark = rgb(0.1, 0.1, 0.15);
+    const teal  = rgb(0.00, 0.64, 0.71);  // #00A3B5
+    const dark  = rgb(0.10, 0.10, 0.15);
+    const gray  = rgb(0.44, 0.50, 0.56);
+    const green = rgb(0.13, 0.55, 0.13);
+    const white = rgb(1.00, 1.00, 1.00);
 
-    page.drawText('SENTINELFI', { x: 50, y: height - 60, font, size: 22, color: teal });
-    page.drawText('Financial Intelligence Platform', { x: 50, y: height - 80, font: bodyFont, size: 10, color: dark });
-    page.drawText('TAX INVOICE', { x: 400, y: height - 60, font, size: 16, color: dark });
+    // ── Header banner ───────────────────────────────────────────────────
+    page.drawRectangle({ x: 0, y: height - 110, width: 595, height: 110, color: rgb(0.00, 0.05, 0.09) });
+    page.drawText('SENTINELFI', { x: 50, y: height - 55, font, size: 26, color: teal });
+    page.drawText('\u00ae', { x: 185, y: height - 42, font, size: 11, color: teal });
+    page.drawText('Financial Intelligence Platform', { x: 50, y: height - 76, font: bodyFont, size: 10, color: white });
+    page.drawText('TAX INVOICE', { x: 400, y: height - 50, font, size: 18, color: white });
+    page.drawText(invoice.invoice_number, { x: 400, y: height - 72, font: bodyFont, size: 10, color: rgb(0.6,0.8,0.85) });
 
-    page.drawLine({ start: { x: 50, y: height - 100 }, end: { x: 545, y: height - 100 }, thickness: 1, color: teal });
+    // ── Issuer block ────────────────────────────────────────────────────
+    let y = height - 145;
+    page.drawText('Issued By:', { x: 50, y, font, size: 9, color: gray });
+    y -= 14;
+    page.drawText('Seancrystal Global Services Limited', { x: 50, y, font, size: 11, color: dark });
+    y -= 14;
+    page.drawText('Owner & Operator of SentinelFi\u00ae', { x: 50, y, font: lightFont, size: 9, color: gray });
+    y -= 12;
+    page.drawText('Funded by: Solution Energy and Engineering Services Limited', { x: 50, y, font: lightFont, size: 9, color: gray });
 
-    const rows = [
-      ['Invoice ID:', invoice.invoice_number],
-      ['Company:', sub?.company_name || 'N/A'],
+    // ── Separator ───────────────────────────────────────────────────────
+    y -= 18;
+    page.drawLine({ start: { x: 50, y }, end: { x: 545, y }, thickness: 0.5, color: teal });
+    y -= 20;
+
+    // ── Invoice details table ────────────────────────────────────────────
+    const rows: [string, string][] = [
+      ['Invoice Number:', invoice.invoice_number],
+      ['Date Issued:', invoice.paid_at?.toDateString() || new Date().toDateString()],
+      ['Billed To (Company):', sub?.company_name || 'N/A'],
       ['Admin Email:', sub?.admin_email || 'N/A'],
-      ['Plan:', sub?.plan?.toUpperCase() || 'N/A'],
+      ['Plan:', (sub?.plan || 'N/A').toUpperCase()],
       ['Billing Cycle:', sub?.billing_cycle || 'N/A'],
-      ['Period:', `${sub?.current_period_start?.toDateString() || 'N/A'} → ${sub?.current_period_end?.toDateString() || 'N/A'}`],
-      ['Status:', invoice.status.toUpperCase()],
+      ['Subscription Period:', `${sub?.current_period_start?.toDateString() || 'N/A'} \u2192 ${sub?.current_period_end?.toDateString() || 'N/A'}`],
+      ['Payment Gateway:', sub?.gateway || 'N/A'],
       ['Amount (USD):', `$${Number(invoice.amount_usd).toFixed(2)}`],
+      ['Status:', invoice.status.toUpperCase()],
     ];
 
-    rows.forEach(([label, value], i) => {
-      page.drawText(label, { x: 50, y: height - 140 - i * 25, font, size: 11, color: dark });
-      page.drawText(value, { x: 200, y: height - 140 - i * 25, font: bodyFont, size: 11, color: dark });
+    rows.forEach(([label, value]) => {
+      page.drawText(label, { x: 50, y, font, size: 10, color: gray });
+      page.drawText(value, { x: 230, y, font: bodyFont, size: 10, color: dark });
+      y -= 22;
     });
+
+    // ── Amount highlight box ─────────────────────────────────────────────
+    y -= 12;
+    page.drawRectangle({ x: 50, y: y - 10, width: 495, height: 44, color: rgb(0.93, 0.99, 0.99) });
+    page.drawText('TOTAL AMOUNT DUE (USD)', { x: 58, y: y + 18, font, size: 9, color: gray });
+    page.drawText(`$${Number(invoice.amount_usd).toFixed(2)}`, { x: 390, y: y + 12, font, size: 18, color: teal });
+
+    // ── PAID stamp (if paid) ─────────────────────────────────────────────
+    if (invoice.status === InvoiceStatus.Paid) {
+      page.drawRectangle({ x: 390, y: height - 195, width: 85, height: 30, color: rgb(0.13, 0.55, 0.13), borderColor: green, borderWidth: 1 });
+      page.drawText('\u2714  PAID', { x: 397, y: height - 185, font, size: 12, color: white });
+    }
+
+    // ── Footer ───────────────────────────────────────────────────────────
+    page.drawLine({ start: { x: 50, y: 80 }, end: { x: 545, y: 80 }, thickness: 0.5, color: teal });
+    page.drawText('\u00a9 ' + new Date().getFullYear() + ' Seancrystal Global Services Limited. All rights reserved.', { x: 50, y: 62, font: bodyFont, size: 8, color: gray });
+    page.drawText('SentinelFi\u00ae is a product of Seancrystal Global Services Limited. Funded by Solution Energy and Engineering Services Limited.', { x: 50, y: 48, font: lightFont, size: 7.5, color: gray });
+    page.drawText('For queries: support@sentinelfi.com', { x: 50, y: 34, font: bodyFont, size: 8, color: teal });
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
+  }
+
+  /**
+   * Helper: generate & send offline receipt email for SuperAdmin-provisioned tenants.
+   */
+  private async generateAndSendOfflineReceipt(
+    subscription: SubscriptionEntity,
+    invoice: BillingInvoiceEntity,
+    tenant: TenantEntity,
+    frontendUrl: string,
+  ): Promise<void> {
+    let pdfBuffer: Buffer | undefined;
+    try { pdfBuffer = await this.downloadInvoice(invoice.id); } catch { /* non-blocking */ }
+
+    await this.emailService.sendPaymentReceiptEmail(
+      subscription.admin_email!,
+      {
+        firstName: subscription.admin_first_name || tenant.name,
+        companyName: subscription.company_name!,
+        adminEmail: subscription.admin_email!,
+        invoiceNumber: invoice.invoice_number,
+        plan: subscription.plan,
+        billingCycle: subscription.billing_cycle,
+        gateway: 'Offline / Bank Transfer',
+        gatewayReference: subscription.offline_bank_reference || subscription.gateway_reference || 'N/A',
+        amountFormatted: Number(subscription.amount_usd).toFixed(2),
+        periodStart: subscription.current_period_start?.toDateString() || 'N/A',
+        periodEnd: subscription.current_period_end?.toDateString() || 'N/A',
+        dashboardUrl: `${frontendUrl}/dashboard`,
+      },
+      pdfBuffer,
+    );
   }
 
   // ─── OFFLINE AUDIT PROOFS ────────────────────────────────────────────────────

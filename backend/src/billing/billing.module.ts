@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { BillingController } from './billing.controller';
 import { BillingService } from './billing.service';
+import { RenewalReminderService } from './renewal-reminder.service';
 import { SubscriptionController } from './subscription.controller';
 import { WebhookController } from './webhook.controller';
 import { SubscriptionEntity } from './entities/subscription.entity';
@@ -22,6 +24,7 @@ import { ProcessedWebhookEntity } from './entities/processed-webhook.entity';
       BillingInvoiceEntity, 
       ProcessedWebhookEntity
     ]),
+    ScheduleModule.forRoot(),
     PaymentModule,
     AuthModule,
     TenantModule,
@@ -29,7 +32,7 @@ import { ProcessedWebhookEntity } from './entities/processed-webhook.entity';
     CurrencyModule,
   ],
   controllers: [BillingController, SubscriptionController, WebhookController],
-  providers: [BillingService, WebhookService],
+  providers: [BillingService, WebhookService, RenewalReminderService],
   exports: [BillingService, WebhookService],
 })
 export class BillingModule {}
