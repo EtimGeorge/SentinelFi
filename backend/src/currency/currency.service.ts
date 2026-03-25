@@ -4,6 +4,12 @@ import { Repository } from 'typeorm';
 import { CurrencyExchangeRateEntity, CurrencyMetadataEntity } from './currency.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
+interface ExchangeRateResponse {
+  result: string;
+  conversion_rates: Record<string, number>;
+  time_last_update_unix: number;
+}
+
 @Injectable()
 export class CurrencyService implements OnModuleInit {
   private readonly logger = new Logger(CurrencyService.name);
@@ -48,7 +54,7 @@ export class CurrencyService implements OnModuleInit {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as ExchangeRateResponse;
 
       if (data.result !== 'success') {
         throw new HttpException(

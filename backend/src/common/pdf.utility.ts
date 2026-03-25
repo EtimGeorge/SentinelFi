@@ -3,7 +3,7 @@ import { ProjectEntity } from "../projects/project.entity";
 import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
 import { LiveExpenseEntity } from "../wbs/live-expense.entity";
 import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
-import { formatCurrency } from "../../../frontend/lib/utils"; // Reusing frontend utility for consistency
+import { formatCurrency } from "@shared/utils/currency"; // Reusing shared utility for consistency
 
 export class PdfUtility {
   static formatCurrencyWithContext(amount: number, context?: any): string {

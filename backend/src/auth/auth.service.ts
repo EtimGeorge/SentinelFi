@@ -32,9 +32,10 @@ import { TENANT_DATA_SOURCE } from "../database/constants";
 import { CorrelatedLogger } from '../common/logger/correlated-logger';
 import { getCorrelationId } from "../common/interceptors/correlation.interceptor";
 import { JwtStrategy } from "./jwt.strategy";
+import { EmailService } from '../email/email.service';
+import { IAuthCache } from './auth-cache';
 import { TokenBlacklistService } from './token-blacklist.service';
 import { PasswordResetEntity } from './entities/password-reset.entity';
-import { EmailService } from '../email/email.service';
 
 // Interface for DTOs used within AuthService
 interface AuthCredentialDto {
@@ -98,6 +99,8 @@ export class AuthService {
     private readonly invitationService: InvitationService,
     private readonly tokenBlacklist: TokenBlacklistService,
     private readonly emailService: EmailService,
+    @Inject('IAuthCache')
+    private readonly authCache: IAuthCache,
   ) {
     // Start global cache cleanup ONLY if it's not already running
     if (!AuthService.cleanupInterval) {
@@ -611,7 +614,7 @@ export class AuthService {
     }
 
     // Invalidate the JWT validation cache so role/status changes take effect immediately
-    await JwtStrategy.invalidateUserCache(userId).catch(err =>
+    await this.authCache.delete(`auth_meta:${userId}`).catch((err: Error) =>
       this.logger.error(`[LOGOUT] Cache invalidation failed for user ${userId}: ${err.message}`)
     );
 
@@ -727,7 +730,7 @@ export class AuthService {
     }
 
     // Invalidate auth cache so the user must re-authenticate with the new password
-    await JwtStrategy.invalidateUserCache(user.id).catch(() => {});
+    await this.authCache.delete(`auth_meta:${user.id}`).catch(() => {});
     this.passwordHashCache.delete(`password_hash:${user.email}`);
 
     this.auditService.log(
@@ -1063,7 +1066,7 @@ export class AuthService {
     const savedUser = await this.dataSource.getRepository(UserEntity).save(user);
     
     // Invalidate JWT validation cache to reflect changes immediately
-    await JwtStrategy.invalidateUserCache(savedUser.id).catch(err => 
+    await this.authCache.delete(`auth_meta:${savedUser.id}`).catch((err: Error) => 
       this.logger.error(`Failed to invalidate cache for user ${savedUser.id}: ${err.message}`)
     );
 
