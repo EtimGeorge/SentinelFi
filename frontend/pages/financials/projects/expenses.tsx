@@ -11,7 +11,7 @@ import { useAuth } from "../../../components/context/AuthContext";
 import { useCurrency } from "../../../components/context/CurrencyContext";
 import { GetLiveExpensesDto, VarianceFlag } from "@shared/types/get-live-expenses.dto";
 import { LiveExpense } from "@shared/types/expense";
-import { ProjectEntity } from "../../../../backend/src/projects/project.entity";
+import { Project } from "@shared/types/project";
 import toast from 'react-hot-toast';
 import {
   DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2, Activity,
@@ -26,7 +26,7 @@ const ExpenseManagementPage: React.FC = () => {
   const [expenses, setExpenses] = useState<LiveExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [projects, setProjects] = useState<ProjectEntity[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   // Correction state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -83,7 +83,7 @@ const ExpenseManagementPage: React.FC = () => {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    api.get<{ projects: ProjectEntity[] }>("/projects?limit=100")
+    api.get<{ projects: Project[] }>("/projects?limit=100")
       .then(res => setProjects(res.data.projects))
       .catch(() => toast.error("Failed to fetch projects filter"));
   }, [isAuthenticated]);

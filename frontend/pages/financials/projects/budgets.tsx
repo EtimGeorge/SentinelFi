@@ -11,7 +11,7 @@ import { useAuth, Role } from '../../../components/context/AuthContext';
 import { useCurrency } from '../../../components/context/CurrencyContext';
 import { WbsBudgetStatus } from '@shared/types/wbs-budget-status.enum';
 import { WbsBudget } from '@shared/types/wbs';
-import { ProjectEntity } from '../../../../backend/src/projects/project.entity';
+import { Project } from '@shared/types/project';
 import toast from 'react-hot-toast';
 import {
   DollarSign, Download, Printer, Search, RefreshCcw, Edit3, Trash2,
@@ -33,7 +33,7 @@ const BudgetManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [projects, setProjects] = useState<ProjectEntity[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -73,7 +73,7 @@ const BudgetManagementPage: React.FC = () => {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    api.get<{ projects: ProjectEntity[] }>('/projects?limit=100')
+    api.get<{ projects: Project[] }>('/projects?limit=100')
       .then(res => setProjects(res.data.projects))
       .catch(() => toast.error("Failed to load projects filter"));
   }, [isAuthenticated]);

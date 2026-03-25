@@ -87,63 +87,120 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                 <button
                   onClick={handleStartTour}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '10px 18px',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '12px 24px',
                     background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    border: 'none', color: '#fff', borderRadius: 10,
-                    fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                    boxShadow: '0 4px 15px rgba(99,102,241,0.4)',
-                    transition: 'filter 0.15s',
+                    border: 'none', color: '#fff', borderRadius: 12,
+                    fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    boxShadow: '0 8px 25px rgba(99,102,241,0.5)',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
-                  onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.filter = 'brightness(1.1)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.filter = 'brightness(1)';
+                  }}
                 >
-                  <Play size={14} />
+                  <Play size={16} fill="currentColor" />
                   {isCompleted ? 'Restart Interactive Tour' : 'Start Interactive Tour'}
                 </button>
               )}
               <Link
                 href={`/${tutorial.pageKey}`}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '10px 18px',
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  color: 'rgba(255,255,255,0.7)', borderRadius: 10,
-                  fontSize: 13, fontWeight: 600, textDecoration: 'none',
-                  transition: 'background 0.15s',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '12px 24px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#e2e8f0', borderRadius: 12,
+                  fontSize: 14, fontWeight: 700, textDecoration: 'none',
+                  transition: 'all 0.2s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                }}
               >
-                Open Page <ChevronRight size={14} />
+                Go to Live Page <ChevronRight size={16} />
               </Link>
             </div>
           </div>
 
+          {/* ── Visual Guide (Video / Image) ───────────────────────────── */}
+          <div style={{
+            marginBottom: 56,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 24,
+            overflow: 'hidden',
+            aspectRatio: '16/9',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative',
+            boxShadow: '0 32px 64px rgba(0,0,0,0.4)',
+          }}>
+            {tutorial.videoUrl ? (
+              <iframe
+                src={tutorial.videoUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                allowFullScreen
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{
+                  width: 80, height: 80, borderRadius: '50%',
+                  background: 'rgba(99,102,241,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto 20px', color: '#6366f1',
+                }}>
+                  <Play size={32} />
+                </div>
+                <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700 }}>Interactive Navigation Guide</h3>
+                <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.4)', maxWidth: 400 }}>
+                  A visual walkthrough for the {tutorial.title} is being prepared.
+                  Use the 'Start Interactive Tour' above for a live guided experience.
+                </p>
+              </div>
+            )}
+            {/* Glossy overlay */}
+            <div style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none',
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%)',
+            }} />
+          </div>
+
           {/* ── AI Tutor CTA ─────────────────────────────────────────────── */}
           <div style={{
-            padding: '16px 20px',
-            background: 'linear-gradient(90deg, rgba(99,102,241,0.12), rgba(14,165,233,0.08))',
-            border: '1px solid rgba(99,102,241,0.25)',
-            borderRadius: 12,
-            display: 'flex', alignItems: 'center', gap: 12,
-            marginBottom: 48,
+            padding: '24px',
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(14,165,233,0.06) 100%)',
+            border: '1px solid rgba(99,102,241,0.2)',
+            borderRadius: 20,
+            display: 'flex', alignItems: 'center', gap: 20,
+            marginBottom: 56,
+            backdropFilter: 'blur(10px)',
           }}>
             <div style={{
-              width: 36, height: 36, borderRadius: '50%',
+              width: 52, height: 52, borderRadius: 16,
               background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0,
+              boxShadow: '0 10px 20px rgba(99,102,241,0.3)',
             }}>
-              <Sparkles size={16} />
+              <Sparkles size={24} color="#fff" />
             </div>
             <div style={{ flex: 1 }}>
-              <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 600, color: '#c7d2fe' }}>
-                Ask the AI Guide
-              </p>
-              <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-                Navigate back to the page and click the AI orb → "Guide Me" to get real-time, step-by-step coaching on any action.
+              <h4 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: '#fff' }}>
+                Ask the AI Tutor
+              </h4>
+              <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                Want a personalized walkthrough? Launch the AI Assistant from the header orb and toggle <strong>'Guide Me'</strong>. 
+                Our AI will give you real-time, context-aware coaching as you navigate the live interface.
               </p>
             </div>
           </div>
@@ -231,6 +288,43 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                   </div>
                 ))}
               </div>
+
+              {/* Section Gallery */}
+              {section.images && section.images.length > 0 && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: section.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: 16,
+                  marginTop: 20,
+                }}>
+                  {section.images.map((img, imi) => (
+                    <div 
+                      key={imi}
+                      style={{
+                        borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)',
+                        background: 'rgba(255,255,255,0.02)',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                      }}
+                    >
+                      <img 
+                        src={img} 
+                        alt={`${section.heading} visual ${imi + 1}`}
+                        style={{ width: '100%', display: 'block', height: 'auto', objectFit: 'cover' }}
+                      />
+                      <div style={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        padding: '8px 12px', background: 'rgba(0,0,0,0.6)',
+                        backdropFilter: 'blur(4px)', fontSize: 10, color: '#fff',
+                        fontWeight: 500, borderTop: '1px solid rgba(255,255,255,0.1)',
+                      }}>
+                        Visual Reference for Section {si + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           ))}
 

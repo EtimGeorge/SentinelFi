@@ -17,6 +17,7 @@ import { InvitationService } from "./invitation.service";
 import { EmailModule } from "../email/email.module";
 import { TokenBlacklistService } from "./token-blacklist.service";
 import { PasswordResetEntity } from "./entities/password-reset.entity";
+import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
 
 @Module({
   imports: [
@@ -49,11 +50,19 @@ import { PasswordResetEntity } from "./entities/password-reset.entity";
     InitialSuperAdminSeederService,
     TokenBlacklistService,
     {
+      provide: "IAuthCache",
+      useFactory: (configService: ConfigService, cacheManager: any) => {
+        const useRedis = configService.get("NODE_ENV") === "production" || configService.get("USE_REDIS") === "true";
+        return useRedis ? new RedisAuthCache(cacheManager) : new InMemoryAuthCache();
+      },
+      inject: [ConfigService, 'CACHE_MANAGER'],
+    },
+    {
       provide: "APP_PIPE",
       useValue: new ValidationPipe({ whitelist: true }),
     },
     Logger,
   ],
-  exports: [TypeOrmModule, JwtModule, AuthService, InvitationService, TokenBlacklistService],
+  exports: [TypeOrmModule, JwtModule, AuthService, InvitationService, TokenBlacklistService, "IAuthCache"],
 })
 export class AuthModule {}

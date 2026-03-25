@@ -188,6 +188,7 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
         <Tooltip content="SentinelFi AI Assistant" position="bottom">
           <button
             onClick={toggleAiAssistant}
+            data-tour="ai-assistant-toggle"
             className="relative flex items-center mx-1 sm:mx-2 text-indigo-400 focus:outline-none hover:text-indigo-300 hover:bg-indigo-900/40 p-1.5 rounded-md transition-colors"
             aria-label="Toggle AI Assistant"
           >

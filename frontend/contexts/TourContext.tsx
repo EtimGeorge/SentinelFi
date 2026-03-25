@@ -24,6 +24,7 @@ interface TourContextValue extends TourState {
   prevStep: () => void;
   endTour: () => void;
   skipToStep: (index: number) => void;
+  startStepById: (pageKey: string, stepId: string) => void;
   currentStep: TourStep | null;
   totalSteps: number;
   progress: number; // 0–100
@@ -111,6 +112,20 @@ export const TourProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
   }, []);
 
+  const startStepById = useCallback((pageKey: string, stepId: string) => {
+    const tutorial = getTutorial(pageKey);
+    const stepIndex = tutorial.tourSteps.findIndex(s => s.id === stepId);
+    if (stepIndex === -1) return;
+
+    setState(s => ({
+      ...s,
+      isActive: true,
+      pageKey,
+      steps: tutorial.tourSteps,
+      currentIndex: stepIndex,
+    }));
+  }, []);
+
   const currentStep = state.isActive && state.steps.length > 0
     ? state.steps[state.currentIndex]
     : null;
@@ -126,6 +141,7 @@ export const TourProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       prevStep,
       endTour,
       skipToStep,
+      startStepById,
       currentStep,
       totalSteps,
       progress,

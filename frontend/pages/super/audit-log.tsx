@@ -6,8 +6,7 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { useAuth } from '../../components/context/AuthContext';
 import { apiClient } from '../../lib/api';
-import { AuditLogEntity } from '@shared/types/audit'; 
-import { GetAuditLogsDto } from 'backend/src/audit/dto/get-audit-logs.dto'; 
+import { AuditLogEntity, GetAuditLogsDto, AuditLogResponse } from '@shared/types/audit'; 
 import { toast } from 'react-hot-toast';
 import { 
   FileText, 

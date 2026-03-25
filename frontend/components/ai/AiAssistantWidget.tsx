@@ -8,6 +8,7 @@ import { useAiAssistant, AiChatMessage, UseAiAssistantOptions } from '../../hook
 import { AiChatMessageBubble } from './AiChatMessage';
 import useUIStore from '../../store/uiStore';
 import { getTutorial } from '../../lib/tutorial-content';
+import { useTour } from '../../contexts/TourContext';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,8 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
   const [schedulePanel, setSchedulePanel] = useState(false);
   const [isGuideMode, setIsGuideMode] = useState(false);
 
+  const { startTour, isActive: isTourActive, startStepById } = useTour();
+
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -146,6 +149,11 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
       return !m;
     });
   }, [ai, tutorial.aiTutorPrompt]);
+
+  const handleStartInteractiveTour = useCallback(() => {
+    startTour(currentPage ?? 'default');
+    setAiAssistantOpen(false); // Close AI when tour starts to avoid overlap
+  }, [startTour, currentPage, setAiAssistantOpen]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -183,6 +191,16 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
     if (ai.isLoading) return;
     ai.sendMessage(message);
   }, [ai]);
+
+  const handleActionHint = useCallback((action: string) => {
+    if (action.startsWith('guide:')) {
+      const stepId = action.replace('guide:', '');
+      startStepById(currentPage ?? 'default', stepId);
+      setAiAssistantOpen(false); // Minimize to show the element
+    } else if (onActionHint) {
+      onActionHint(action);
+    }
+  }, [startStepById, currentPage, onActionHint, setAiAssistantOpen]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -383,6 +401,50 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
 
                     {/* Quick action chips */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                      {isGuideMode && (
+                        <>
+                          <button
+                            onClick={() => {
+                              window.open(`/tutorial/${currentPage ?? 'dashboard'}`, '_blank');
+                              setAiAssistantOpen(false);
+                            }}
+                            className="sentinelai-chip"
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              background: 'rgba(14,165,233,0.1)',
+                              border: '1px solid rgba(14,165,233,0.4)',
+                              borderRadius: 20, padding: '8px 16px',
+                              color: '#7dd3fc', fontSize: 12, cursor: 'pointer',
+                              transition: 'all 0.15s', width: '100%', marginBottom: 6,
+                              fontWeight: 700,
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <BookOpen size={14} style={{ color: '#0ea5e9' }} />
+                            Explore Full Visual Guide
+                          </button>
+
+                          {tutorial.tourSteps.length > 0 && (
+                            <button
+                              onClick={handleStartInteractiveTour}
+                              className="sentinelai-chip"
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                background: 'rgba(234,179,8,0.1)',
+                                border: '1px solid rgba(234,179,8,0.4)',
+                                borderRadius: 20, padding: '8px 16px',
+                                color: '#fbbf24', fontSize: 12, cursor: 'pointer',
+                                transition: 'all 0.15s', width: '100%', marginBottom: 12,
+                                fontWeight: 700,
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <Map size={14} style={{ color: '#fbbf24' }} />
+                              Start Interactive Tour
+                            </button>
+                          )}
+                        </>
+                      )}
                       {quickActions.map((action, i) => (
                         <button
                           key={i}
@@ -408,7 +470,12 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
 
                 {/* Messages */}
                 {ai.messages.map((msg) => (
-                  <AiChatMessageBubble key={msg.id} message={msg} onQuickAction={handleQuickAction} />
+                  <AiChatMessageBubble 
+                    key={msg.id} 
+                    message={msg} 
+                    onQuickAction={handleQuickAction} 
+                    onActionHint={handleActionHint}
+                  />
                 ))}
               </div>
 

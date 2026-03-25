@@ -5,6 +5,7 @@ import { AiChatMessage } from '../../hooks/useAiAssistant';
 interface AiChatMessageBubbleProps {
   message: AiChatMessage;
   onQuickAction?: (message: string) => void;
+  onActionHint?: (action: string) => void;
 }
 
 /**
@@ -12,7 +13,11 @@ interface AiChatMessageBubbleProps {
  * Supports markdown-ish formatting, action hints, suggestion chips,
  * loading animation, and copy-to-clipboard.
  */
-export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({ message, onQuickAction }) => {
+export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({ 
+  message, 
+  onQuickAction,
+  onActionHint 
+}) => {
   const [copied, setCopied] = useState(false);
   const isAssistant = message.role === 'assistant';
 
@@ -160,6 +165,7 @@ export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({ m
             {message.actionHints.map((hint, i) => (
               <button
                 key={i}
+                onClick={() => onActionHint?.(hint.action)}
                 className="sentinelai-action-btn"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,

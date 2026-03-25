@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import CategoryManager from '../../../components/budgets/CategoryManager';
 import BudgetGrid from '../../../components/budgets/BudgetGrid';
-import { OperationalBudgetEntity } from '../../../../backend/src/operational-budgets/operational-budget.entity';
+import { OperationalBudget } from '@shared/types/operational-budget';
 import toast from 'react-hot-toast';
 
 interface OperationalExpense {
@@ -28,7 +28,7 @@ interface OperationalExpense {
 
 const OperationalBudgetWorkspace: React.FC = () => {
   const { userCurrency, convertToDisplay } = useCurrency();
-  const [budgets, setBudgets] = useState<OperationalBudgetEntity[]>([]);
+  const [budgets, setBudgets] = useState<OperationalBudget[]>([]);
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
   const [view, setView] = useState<'workspace' | 'categories' | 'expenses'>('workspace');
   const [loading, setLoading] = useState(true);

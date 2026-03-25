@@ -147,6 +147,16 @@
    ============================================================ */
 
 @layer components {
+  /* Basic Glass Card */
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl transition-all duration-500 shadow-2xl;
+  }
+  
+  .glass-card:hover {
+    @apply bg-white/10 border-white/20 shadow-brand-primary/10;
+  }
+
+  /* Premium High-Blur Card */
   .glass-card-premium {
     @apply bg-brand-dark/40 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] 
            transition-all duration-700 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)]
@@ -157,8 +167,30 @@
     font-family: 'Sora', sans-serif;
   }
 
+  .m-heading {
+    @apply text-white transition-colors duration-300;
+  }
+
+  /* Gradient Text Implementation with Full Browser Support */
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-brand-primary;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
   .gradient-text-platinum {
     @apply bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-gray-500/50;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Premium Button Variants */
+  .m-button-primary {
+    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-brand-primary text-brand-dark font-black rounded-2xl 
+           transition-all duration-300 hover:bg-brand-primary/90 hover:scale-[1.02] hover:shadow-xl hover:shadow-brand-primary/20 
+           active:scale-100;
   }
 
   .m-button-premium {
@@ -168,6 +200,7 @@
            active:scale-95 uppercase tracking-widest text-sm;
   }
 
+  /* Interactive Navigation animations */
   .nav-item-animated {
     @apply relative py-2 overflow-hidden text-sm font-black uppercase tracking-widest text-slate-300 
            transition-all duration-500 hover:text-white;
@@ -182,46 +215,16 @@
   .nav-item-animated:hover::after {
     @apply opacity-100 translate-y-0 shadow-[0_0_15px_rgba(13,148,136,0.8)];
   }
+
+  .hero-glow {
+    @apply absolute pointer-events-none rounded-full bg-brand-primary/20 blur-[120px] mix-blend-screen animate-pulse;
+    animation-duration: 8s;
+  }
 }
 
 @layer utilities {
   .mask-radial {
     mask-image: radial-gradient(circle at center, black, transparent 80%);
-  }
-}
-
-/* ============================================================
-   AESTHETIC ENHANCEMENT UTILITIES
-   ============================================================ */
-
-@layer components {
-  .glass-card {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl transition-all duration-500 shadow-2xl;
-  }
-  
-  .glass-card:hover {
-    @apply bg-white/10 border-white/20 shadow-brand-primary/10;
-  }
-
-  .m-heading {
-    @apply text-white transition-colors duration-300;
-  }
-
-  .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-brand-primary;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  .m-button-primary {
-    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-brand-primary text-brand-dark font-black rounded-2xl 
-           transition-all duration-300 hover:bg-brand-primary/90 hover:scale-[1.02] hover:shadow-xl hover:shadow-brand-primary/20 
-           active:scale-100;
-  }
-
-  .hero-glow {
-    @apply absolute pointer-events-none rounded-full bg-brand-primary/20 blur-[120px] mix-blend-screen animate-pulse;
-    animation-duration: 8s;
   }
 }
 

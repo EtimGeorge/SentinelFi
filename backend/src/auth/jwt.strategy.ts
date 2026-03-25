@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Logger } from "@nestjs/common";
+import { Injectable, UnauthorizedException, Logger, Inject } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { ConfigService } from "@nestjs/config";
@@ -9,9 +9,10 @@ import { Request } from "express";
 import { Role } from "@shared/types/role.enum";
 import { CorrelatedLogger } from '../common/logger/correlated-logger';
 import { TokenBlacklistService } from './token-blacklist.service';
+import { IAuthCache } from "./auth-cache";
 
 const cookieExtractor = (req: Request): string | null => {
-  const logger = new CorrelatedLogger("CookieExtractor"); // CHANGED LINE
+  const logger = new CorrelatedLogger("CookieExtractor"); 
   let token = null;
 
   if (req && req.cookies) {
@@ -28,31 +29,20 @@ const cookieExtractor = (req: Request): string | null => {
   return token;
 };
 
-import { InMemoryAuthCache } from "./auth-cache";
-
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   private usersRepository: Repository<UserEntity>;
   private readonly logger = new CorrelatedLogger(JwtStrategy.name);
   
-  // Singleton cache shared across all validations
-  private static readonly authCache = new InMemoryAuthCache();
-  private static readonly inFlightValidations = new Map<string, Promise<UserPayload>>();
+  // Deduplication map for in-flight DB queries (remains in-memory as it's per-node transient state)
+  private readonly inFlightValidations = new Map<string, Promise<UserPayload>>();
   private readonly CACHE_TTL = 300; // seconds (5 minutes)
-
-  /**
-   * Static method to invalidate a user's auth cache entry.
-   * Useful when user roles or status change.
-   */
-  static async invalidateUserCache(userId: string): Promise<void> {
-    const cacheKey = `auth_meta:${userId}`;
-    await this.authCache.delete(cacheKey);
-  }
 
   constructor(
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
     private readonly tokenBlacklist: TokenBlacklistService,
+    @Inject("IAuthCache") private readonly authCache: IAuthCache,
   ) {
     const constructorLogger = new CorrelatedLogger(JwtStrategy.name + ':Constructor');
 
@@ -85,8 +75,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException("Invalid token: missing user ID");
     }
 
-    // C2 FIX: Reject any token that has been blacklisted (i.e., logged out).
-    // The JTI (JWT ID) is included in the payload. If missing, we cannot blacklist-check.
     const jti = (payload as any).jti as string | undefined;
     if (jti && this.tokenBlacklist.isBlacklisted(jti)) {
       this.logger.warn(`[Validate] Blacklisted token JTI ${jti} rejected for user ${userId}`);
@@ -94,9 +82,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     try {
-      // 1. Check Cache FIRST
+      // 1. Check Cache FIRST (Now uses injected IAuthCache - possibly Redis)
       const cacheKey = `auth_meta:${userId}`;
-      const cachedUser = await JwtStrategy.authCache.get(cacheKey);
+      const cachedUser = await this.authCache.get(cacheKey);
       
       if (cachedUser) {
         const cacheHitDuration = Date.now() - startTimeTotal;
@@ -105,8 +93,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
 
       // 2. DEDUPLICATE IN-FLIGHT QUERIES
-      // If multiple requests for the same user arrive at once, only one hits the DB.
-      let validationPromise = JwtStrategy.inFlightValidations.get(userId);
+      let validationPromise = this.inFlightValidations.get(userId);
       
       if (validationPromise) {
         this.logger.debug(`[Validate] [PERF] Deduplicating validation for sub: ${userId}`);
@@ -151,19 +138,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           this.logger.log(`[Validate] [PERF] DB Query successful for ${user.email} in ${queryDuration}ms.`);
 
           // Save to cache before returning
-          await JwtStrategy.authCache.set(cacheKey, userPayloadToReturn, this.CACHE_TTL);
+          await this.authCache.set(cacheKey, userPayloadToReturn, this.CACHE_TTL);
           return userPayloadToReturn;
       })();
 
       // Register the promise and clean up when done
-      JwtStrategy.inFlightValidations.set(userId, validationPromise);
+      this.inFlightValidations.set(userId, validationPromise);
       try {
         const result = await validationPromise;
         const totalDuration = Date.now() - startTimeTotal;
         this.logger.log(`[Validate] [PERF] Cache MISS completed for ${result.email} in ${totalDuration}ms.`);
         return result;
       } finally {
-        JwtStrategy.inFlightValidations.delete(userId);
+        this.inFlightValidations.delete(userId);
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);

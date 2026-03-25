@@ -214,7 +214,7 @@ const Sidebar: React.FC = () => {
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto">
+          <nav className="flex-1 overflow-y-auto" data-tour="sidebar-nav">
             <ul className="space-y-2">
               {navItems.map((item) => <NavItemLink key={item.name} item={item} isCollapsed={false} />)}
             </ul>
@@ -254,7 +254,7 @@ const Sidebar: React.FC = () => {
             )}
           </div>
 
-          <nav className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <nav className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" data-tour="sidebar-nav">
             <ul className="space-y-2">
               {navItems.map((item) => <NavItemLink key={item.name} item={item} isCollapsed={isDesktopSidebarCollapsed} />)}
             </ul>
@@ -263,6 +263,7 @@ const Sidebar: React.FC = () => {
           <div className="flex-shrink-0 mt-auto pt-4 border-t border-brand-primary/30">
             <button
               onClick={toggleDesktopSidebar}
+              data-tour="sidebar-toggle"
               className="w-full flex items-center justify-center p-2 rounded-md text-gray-400 hover:bg-brand-primary/20 hover:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary"
               aria-label="Toggle sidebar collapse"
             >
