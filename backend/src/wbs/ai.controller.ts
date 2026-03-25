@@ -14,7 +14,7 @@ import {
 } from "@nestjs/common";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
-import { Role } from "shared/types/role.enum";
+import { Role } from "@shared/types/role.enum";
 import { FileInterceptor } from "@nestjs/platform-express";
 import axios from "axios";
 import FormData from "form-data";

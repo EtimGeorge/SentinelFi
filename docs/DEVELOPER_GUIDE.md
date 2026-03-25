@@ -45,3 +45,27 @@ cd ai-agent && python -m venv venv && pip install -r requirements.txt && uvicorn
 
 ---
 *Excellence in financial engineering.*
+
+
+
+
+Once the containers are running successfully after your next docker-compose up --build, you can access the different parts of the SentinelFi ecosystem using these URLs in your browser:
+
+🌐 Main Application (Frontend)
+URL: http://localhost:3001
+
+What it is: This is the complete user interface. You can log in, view dashboards, and interact with all the financial modules here.
+⚙️ Backend API (System Core)
+URL: http://localhost:3000/api/v1/health
+
+What it is: Accessing this will show you a "status: ok" JSON message if the NestJS backend is healthy and connected to the database.
+🤖 AI Agent (FastAPI Engine)
+URL: http://localhost:8000
+
+What it is: This confirms the Python AI service is alive. You can also view the auto-generated API documentation (Swagger UI) at http://localhost:8000/docs.
+💡 Pro-Tip for Windows Users:
+If localhost doesn't resolve for any reason (common in some Docker Desktop configurations), try using the direct loopback IP: http://127.0.0.1:3001
+
+Wait for the logs! Ensure you see a message in your terminal like sentinelfi-frontend | Ready on http://0.0.0.0:3001 before opening the browser.
+
+
