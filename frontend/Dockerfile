@@ -28,8 +28,10 @@ WORKDIR /app
 COPY --from=builder /app/frontend/.next ./frontend/.next
 COPY --from=builder /app/frontend/public ./frontend/public
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/frontend/package*.json ./frontend/
+# Copy monorepo configuration for workspace resolution
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
+COPY --from=builder /app/frontend/package.json ./frontend/
 ENV NODE_ENV=production
 ENV PORT=3001
 

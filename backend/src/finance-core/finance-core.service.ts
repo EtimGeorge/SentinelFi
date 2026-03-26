@@ -1,4 +1,4 @@
-import { Injectable, Logger, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, ConflictException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { FiscalYearEntity } from './entities/fiscal-year.entity';
@@ -692,7 +692,7 @@ export class FinanceCoreService {
 
     if (!po) throw new NotFoundException(`Purchase Order ${poId} not found.`);
 
-    const tenant = await this.tenantService.findOne(tenantId);
+    const tenant = await this.tenantService.findOneTenant(tenantId);
     
     // Compile HBS
     const templatePath = path.join(__dirname, '..', 'common', 'templates', 'purchase-order.hbs');
@@ -752,7 +752,7 @@ export class FinanceCoreService {
 
     if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found.`);
 
-    const tenant = await this.tenantService.findOne(tenantId);
+    const tenant = await this.tenantService.findOneTenant(tenantId);
 
     const templatePath = path.join(__dirname, '..', 'common', 'templates', 'invoice.hbs');
     const templateSource = fs.readFileSync(templatePath, 'utf8');

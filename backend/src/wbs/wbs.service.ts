@@ -45,7 +45,7 @@ import { DOAService } from "../common/doa.service";
 import { ApprovalLogEntity, ApprovalDocumentType } from "../common/entities/approval-log.entity";
 import { AuditService } from "../audit/audit.service";
 import { BudgetImpactAnalysisDto } from "./dto/budget-impact-analysis.dto";
-import { WbsValidationResultDto } from "./dto/budget-impact-analysis.dto";
+import { WbsValidationResultDto } from "./dto/wbs-validation-result.dto";
 import * as fs from 'fs';
 import * as path from 'path';
 import * as hbs from 'handlebars';
@@ -2066,7 +2066,7 @@ export class WbsService {
       }
     }
 
-    const criticalCount = conflicts.filter(c => c.severity === 'CRITICAL').length;
+    const criticalCount = conflicts.filter((c: any) => c.severity === 'CRITICAL').length;
     
     return {
       isValid: criticalCount === 0,
@@ -2246,7 +2246,7 @@ export class WbsService {
     const project = await this.projectsService.findOne(projectId, tenantId);
     if (!project) throw new NotFoundException(`Project ${projectId} not found.`);
 
-    const tenant = await this.tenantService.findOne(tenantId);
+    const tenant = await this.tenantService.findOneTenant(tenantId);
     const rollupData = await this.getWbsBudgetRollup(tenantId, { projectId });
 
     // Group rollup data by Category

@@ -111,8 +111,8 @@ export class FinanceCoreController {
     @Req() req: AuthenticatedRequest,
     @Res() res: Response
   ) {
-    if (!req.user) throw new UnauthorizedException("User not authenticated.");
-    const buffer = await this.financeService.generatePurchaseOrderPdf(id, req.user.tenantId);
+    if (!req.user.tenant_id) throw new UnauthorizedException("Tenant context missing.");
+    const buffer = await this.financeService.generatePurchaseOrderPdf(id, req.user.tenant_id);
     
     res.set({
       'Content-Type': 'application/pdf',
@@ -153,8 +153,8 @@ export class FinanceCoreController {
     @Req() req: AuthenticatedRequest,
     @Res() res: Response
   ) {
-    if (!req.user) throw new UnauthorizedException("User not authenticated.");
-    const buffer = await this.financeService.generateInvoicePdf(id, req.user.tenantId);
+    if (!req.user.tenant_id) throw new UnauthorizedException("Tenant context missing.");
+    const buffer = await this.financeService.generateInvoicePdf(id, req.user.tenant_id);
     
     res.set({
       'Content-Type': 'application/pdf',
