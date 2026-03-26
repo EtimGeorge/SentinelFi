@@ -15,7 +15,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { FeatureFlagGuard, FEATURE_FLAG_KEY } from '../auth/guards/feature-flag.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from 'shared/types/role.enum';
+import { Role } from '@shared/types/role.enum';
 import { WbsService } from './wbs.service';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 import { IsString, IsEmail, IsArray, IsIn } from 'class-validator';

@@ -50,6 +50,21 @@ export class UpdateTenantDto extends PartialType(CreateTenantDto) {
   id?: string; // For patching a specific tenant by ID
 }
 
+export class UpdateTenantBrandingDto {
+  @IsOptional()
+  @IsString()
+  brandLogoBase64?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  brandPrimaryColorHex?: string;
+
+  @IsOptional()
+  @IsString()
+  companyAddress?: string;
+}
+
 export class GetTenantsDto extends PaginationDto {
   @IsOptional()
   @IsString()

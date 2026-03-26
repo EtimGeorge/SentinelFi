@@ -1,0 +1,21 @@
+{
+  "name": "Civil Construction (Standard)",
+  "industry": "CONSTRUCTION",
+  "structure": [
+    { "code": "1.0", "description": "Pre-Construction & Permitting" },
+    { "code": "1.1", "description": "Site Survey & Geotechnical", "parent_code": "1.0" },
+    { "code": "1.2", "description": "Building Permits & Environmental Clearing", "parent_code": "1.0" },
+    { "code": "2.0", "description": "Site Preparation & Mobilization" },
+    { "code": "2.1", "description": "Land Clearing & Grabbing", "parent_code": "2.0" },
+    { "code": "2.2", "description": "Temporary Utilities & Site Office", "parent_code": "2.0" },
+    { "code": "3.0", "description": "Substructure & Foundations" },
+    { "code": "3.1", "description": "Excavation & Piling", "parent_code": "3.0" },
+    { "code": "3.2", "description": "Concrete Footing & Slabs", "parent_code": "3.0" },
+    { "code": "4.0", "description": "Superstructure (Structural)" },
+    { "code": "4.1", "description": "Steel/RCC Framework", "parent_code": "4.0" },
+    { "code": "4.2", "description": "Masonry & Walling", "parent_code": "4.0" },
+    { "code": "5.0", "description": "MEP (Mechanical, Electrical, Plumbing)" },
+    { "code": "6.0", "description": "Finishing & Landscaping" },
+    { "code": "7.0", "description": "Handover & Documentation" }
+  ]
+}

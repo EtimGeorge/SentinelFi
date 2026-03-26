@@ -11,6 +11,7 @@ import { TenantEntity } from "./tenant.entity";
 import {
   CreateTenantDto,
   UpdateTenantDto,
+  UpdateTenantBrandingDto,
 } from "../superadmin/dto/create-tenant.dto";
 import { WbsService } from "../wbs/wbs.service"; // For seeding data
 import { AuditService } from "../audit/audit.service"; // NEW: Import AuditService
@@ -308,6 +309,31 @@ export class TenantService {
         "SYSTEM"
       ).catch(err => this.logger.error(`Failed to log tenant update: ${err.message}`));
     }
+
+    return savedTenant;
+  }
+
+  /**
+   * Updates a tenant's branding information (Logo, Color, Address).
+   */
+  async updateBranding(
+    id: string,
+    brandingDto: UpdateTenantBrandingDto,
+  ): Promise<TenantEntity> {
+    const tenant = await this.findOneTenant(id);
+
+    // Merge and save the changes
+    this.tenantRepository.merge(tenant, brandingDto);
+    const savedTenant = await this.tenantRepository.save(tenant);
+
+    this.auditService.log(
+      "SYSTEM",
+      "TENANT_BRANDING_UPDATED",
+      savedTenant.tenant_id,
+      `Tenant '${savedTenant.name}' branding updated.`,
+      {},
+      "SYSTEM"
+    ).catch(err => this.logger.error(`Failed to log tenant branding update: ${err.message}`));
 
     return savedTenant;
   }

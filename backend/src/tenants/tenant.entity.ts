@@ -43,6 +43,14 @@ export class TenantEntity {
   @Column({ type: "numeric", precision: 10, scale: 2, default: 0 })
   price!: number;
 
+  @Column({ type: "text", nullable: true })
+  brandLogoBase64!: string | null;
+
+  @Column({ type: "varchar", length: 7, nullable: true })
+  brandPrimaryColorHex!: string | null;
+
+  @Column({ type: "text", nullable: true })
+  companyAddress!: string | null;
 
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;

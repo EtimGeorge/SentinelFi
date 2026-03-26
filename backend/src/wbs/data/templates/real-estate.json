@@ -1,0 +1,14 @@
+{
+  "name": "Real Estate Development",
+  "industry": "REAL_ESTATE",
+  "structure": [
+    { "code": "001", "description": "Land Acquisition & Legal Due Diligence" },
+    { "code": "002", "description": "Market Analysis & Feasibility Study" },
+    { "code": "003", "description": "Concept Design & Master Planning" },
+    { "code": "004", "description": "Statutory Approvals & EIA" },
+    { "code": "005", "description": "Construction Contractor Tendering" },
+    { "code": "006", "description": "Construction Management (Owner Representation)" },
+    { "code": "007", "description": "Sales & Marketing Campaign" },
+    { "code": "008", "description": "Property Handover & Facility Setup" }
+  ]
+}

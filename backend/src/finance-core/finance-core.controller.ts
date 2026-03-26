@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Req, UnauthorizedException, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { FinanceCoreService } from './finance-core.service';
 import { GetFinancialDocumentsDto } from './dto/get-financial-documents.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -103,6 +104,24 @@ export class FinanceCoreController {
     return this.financeService.rejectRequisition(id, req.user);
   }
 
+  @Get('purchase-orders/:id/pdf')
+  @Roles(Role.CFO, Role.FinanceManager, Role.FinanceOfficer, Role.AdminDirector, Role.AdminManager, Role.CEO, Role.SuperAdmin)
+  async getPurchaseOrderPdf(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response
+  ) {
+    if (!req.user) throw new UnauthorizedException("User not authenticated.");
+    const buffer = await this.financeService.generatePurchaseOrderPdf(id, req.user.tenantId);
+    
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename=PO-${id}.pdf`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
   // --- Invoices ---
 
   @Get('invoices')
@@ -125,6 +144,24 @@ export class FinanceCoreController {
     exchangeRate?: number;
   }) {
     return this.financeService.createInvoice(body);
+  }
+
+  @Get('invoices/:id/pdf')
+  @Roles(Role.CFO, Role.FinanceManager, Role.FinanceOfficer, Role.AdminDirector, Role.AdminManager, Role.CEO, Role.SuperAdmin)
+  async getInvoicePdf(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response
+  ) {
+    if (!req.user) throw new UnauthorizedException("User not authenticated.");
+    const buffer = await this.financeService.generateInvoicePdf(id, req.user.tenantId);
+    
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename=Invoice-${id}.pdf`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   // --- Budget Consumption Analytics ---

@@ -878,5 +878,25 @@ export class WbsController {
     if (!req.user?.tenant_id) throw new UnauthorizedException('User not authenticated.');
     return this.wbsService.getCapexIntelligence(req.user.tenant_id, projectId);
   }
+
+  @Get("projects/:id/report-pdf")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO, Role.SuperAdmin)
+  async getProjectBudgetReport(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    const buffer = await this.wbsService.generateBudgetReportPdf(id, req.user.tenant_id);
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename=Budget-Report-${id}.pdf`,
+      "Content-Length": buffer.length,
+    });
+    res.end(buffer);
+  }
 }
 

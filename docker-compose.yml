@@ -25,6 +25,16 @@ services:
     env_file: .env.prod
     ports:
       - "3000:3000"
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/src
+          target: /app/backend/src
+        - action: sync
+          path: ./shared
+          target: /app/shared
+        - action: rebuild
+          path: ./backend/package.json
     depends_on:
       - db
       - redis
@@ -40,6 +50,19 @@ services:
       BACKEND_INTERNAL_URL: http://backend:3000
     ports:
       - "3001:3001"
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/components
+          target: /app/frontend/components
+        - action: sync
+          path: ./frontend/pages
+          target: /app/frontend/pages
+        - action: sync
+          path: ./shared
+          target: /app/shared
+        - action: rebuild
+          path: ./frontend/package.json
     depends_on:
       - backend
 

@@ -1,0 +1,14 @@
+{
+  "name": "Telecommunications (Tower Rollout)",
+  "industry": "TELECOM",
+  "structure": [
+    { "code": "SA-1", "description": "Site Acquisition & Lease Negotiation" },
+    { "code": "TS-2", "description": "Technical Site Survey & Design" },
+    { "code": "CW-3", "description": "Civil Works (Tower Foundation & Fencing)" },
+    { "code": "TI-4", "description": "Tower Installation & Rigging" },
+    { "code": "POW-5", "description": "Power Connection & Backup (Generator/Solar)" },
+    { "code": "TX-6", "description": "Transmission & Radio Integration (BBU/RRU)" },
+    { "code": "OPT-7", "description": "Network Optimization & Benchmarking" },
+    { "code": "PAT-8", "description": "Provisional Acceptance Testing (PAT)" }
+  ]
+}

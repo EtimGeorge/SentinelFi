@@ -6,7 +6,9 @@
     "tsConfigPath": "tsconfig.build.json",
     "webpackConfig": "webpack-hmr.config",
     "assets": [
-      { "include": "src/database/*.sql", "watch": true }
+      { "include": "src/database/*.sql", "watch": true },
+      { "include": "common/templates/*.hbs", "watch": true },
+      { "include": "wbs/data/templates/*.json", "watch": true }
     ],
     "copyAssetsToDist": true
   }

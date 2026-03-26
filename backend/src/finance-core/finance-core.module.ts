@@ -32,6 +32,7 @@ import { PayrollService } from './payroll.service';
 import { PayrollController } from './payroll.controller';
 import { CommonModule } from '../common/common.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { TenantModule } from '../tenants/tenant.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     ], TENANT_DATA_SOURCE),
     CommonModule,          // Provides DOAService
     NotificationsModule,   // Provides NotificationsService
+    TenantModule,          // Provides TenantService for branding
   ],
   providers: [FinanceCoreService, PayrollService],
   controllers: [FinanceCoreController, PayrollController],

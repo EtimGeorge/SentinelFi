@@ -189,6 +189,12 @@ const SettingsPage: React.FC = () => {
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [testingErp, setTestingErp] = useState(false);
 
+  // Tenant Branding state
+  const [tenantData, setTenantData] = useState<any>(null);
+  const [brandLogoBase64, setBrandLogoBase64] = useState<string>('');
+  const [brandPrimaryColorHex, setBrandPrimaryColorHex] = useState<string>('#6366f1');
+  const [companyAddress, setCompanyAddress] = useState<string>('');
+
   // User preference state (independent of tenant settings)
   const { updateProfile } = useAuth();
   const [personalInfo, setPersonalInfo] = useState({
@@ -218,8 +224,17 @@ const SettingsPage: React.FC = () => {
   const fetchSettings = useCallback(async () => {
     setLoadingSettings(true);
     try {
-      const { data } = await api.get('/settings');
-      setSettings(data);
+      const [settingsRes, tenantRes] = await Promise.all([
+        api.get('/settings'),
+        api.get('/admin/tenants/my').catch(() => ({ data: null }))
+      ]);
+      setSettings(settingsRes.data);
+      if (tenantRes.data) {
+        setTenantData(tenantRes.data);
+        setBrandLogoBase64(tenantRes.data.brandLogoBase64 || '');
+        setBrandPrimaryColorHex(tenantRes.data.brandPrimaryColorHex || '#6366f1');
+        setCompanyAddress(tenantRes.data.companyAddress || '');
+      }
     } catch {
       toast.error('Could not load settings.');
     } finally {
@@ -269,6 +284,36 @@ const SettingsPage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSaveBranding = async () => {
+    setIsSaving(true);
+    try {
+      await api.patch('/admin/tenants/my/branding', {
+        brandLogoBase64,
+        brandPrimaryColorHex,
+        companyAddress
+      });
+      toast.success('Branding updated successfully.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update branding.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      toast.error("Logo must be under 1MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setBrandLogoBase64(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveCurrency = async () => {
@@ -405,6 +450,57 @@ const SettingsPage: React.FC = () => {
           </select>
         </div>
       </Card>
+
+      {isAdmin && (
+        <Card title="Tenant Branding & Appearance" subtitle="Customise logos and colours for your automated PDF reports and invoices." borderTopColor="primary">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+             <div className="sm:col-span-2 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="w-16 h-16 rounded-lg bg-gray-800 border border-gray-600 flex items-center justify-center overflow-hidden shrink-0">
+                   {brandLogoBase64 ? (
+                      <img src={brandLogoBase64} alt="Brand Logo" className="max-w-full max-h-full object-contain" />
+                   ) : (
+                      <span className="text-xs text-gray-500 text-center leading-tight">No<br/>Logo</span>
+                   )}
+                </div>
+                <div>
+                   <label className="block text-xs text-gray-400 mb-1">Upload Company Logo (Max 1MB)</label>
+                   <input type="file" accept="image/png, image/jpeg, image/svg+xml" onChange={handleLogoUpload} className="text-sm text-gray-400 file:mr-3 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:bg-gray-700 file:text-white hover:file:bg-gray-600 transition cursor-pointer" />
+                </div>
+             </div>
+             
+             <div>
+                <label className="block text-xs text-gray-400 mb-1">Primary Brand Colour (Hex)</label>
+                <div className="flex gap-2">
+                  <div className="w-9 h-9 border border-gray-600 rounded-md shrink-0" style={{ backgroundColor: brandPrimaryColorHex }} />
+                  <input 
+                     value={brandPrimaryColorHex} 
+                     onChange={(e) => setBrandPrimaryColorHex(e.target.value)}
+                     maxLength={7}
+                     placeholder="#6366f1"
+                     className="w-full bg-gray-700/60 border border-gray-600 rounded-lg p-2 text-white focus:ring-1 focus:ring-brand-primary outline-none text-sm font-mono"
+                  />
+                </div>
+             </div>
+
+             <div className="sm:col-span-2">
+                <label className="block text-xs text-gray-400 mb-1">Registered Company Address</label>
+                <textarea 
+                   value={companyAddress} 
+                   onChange={(e) => setCompanyAddress(e.target.value)}
+                   rows={2}
+                   placeholder="123 Financial District, Lagos"
+                   className="w-full bg-gray-700/60 border border-gray-600 rounded-lg p-2 text-white focus:ring-1 focus:ring-brand-primary outline-none text-sm resize-none"
+                />
+             </div>
+             
+             <div className="sm:col-span-2 pt-1">
+               <Button onClick={handleSaveBranding} isLoading={isSaving} variant="primary" size="sm" icon={<Save size={14} />}>
+                 Save Branding Settings
+               </Button>
+             </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 

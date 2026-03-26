@@ -16,7 +16,7 @@ import { BudgetControlService } from "../common/budget-control.service";
 import { TenantModule } from "../tenants/tenant.module";
 
 @Module({
-  imports: [forwardRef(() => ProjectsModule), NotificationsModule, AuditModule, forwardRef(() => TenantModule)],
+  imports: [forwardRef(() => ProjectsModule), NotificationsModule, AuditModule, forwardRef(() => TenantModule), CommonModule],
   controllers: [WbsController, AiController, DcsController],
   providers: [
     {

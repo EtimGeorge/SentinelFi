@@ -1,0 +1,14 @@
+{
+  "name": "Renewable Energy (Solar Farm)",
+  "industry": "RENEWABLES",
+  "structure": [
+    { "code": "RD-1", "description": "Resource Assessment & Solar Studies" },
+    { "code": "EP-2", "description": "Environmental Permitting & Land Zoning" },
+    { "code": "GR-3", "description": "Grid Interconnection Agreement" },
+    { "code": "PC-4", "description": "Panel & Inverter Procurement" },
+    { "code": "SW-5", "description": "Substructure & Mounting Installation" },
+    { "code": "EW-6", "description": "Electrical Cabling & Wiring (DC/AC)" },
+    { "code": "SS-7", "description": "Substation Construction & Commissioning" },
+    { "code": "COD-8", "description": "Commercial Operation Date (COD) Testing" }
+  ]
+}

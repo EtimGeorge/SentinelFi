@@ -23,6 +23,12 @@ import { UserPayload } from '@shared/types/user';
 import { TENANT_DATA_SOURCE } from '../database/constants';
 import { GetFinancialDocumentsDto } from './dto/get-financial-documents.dto';
 import { SelectQueryBuilder } from 'typeorm';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as hbs from 'handlebars';
+import { format } from 'date-fns';
+import { PdfGenerationService } from '../common/pdf-generation.service';
+import { TenantService } from '../tenants/tenant.service';
 
 @Injectable()
 export class FinanceCoreService {
@@ -46,6 +52,8 @@ export class FinanceCoreService {
     @InjectRepository(ApprovalLogEntity, TENANT_DATA_SOURCE) private approvalLogRepo: Repository<ApprovalLogEntity>,
     private readonly doaService: DOAService,
     private readonly notificationsService: NotificationsService,
+    private readonly pdfService: PdfGenerationService,
+    private readonly tenantService: TenantService,
   ) {}
 
   private getTenantId(): string {
@@ -665,6 +673,127 @@ export class FinanceCoreService {
       procurementFunnel: { requisitions: reqCount, purchaseOrders: poCount, invoices: invCount, paid: paidCount },
       budgetRunway: { totalAllocated, totalSpent, utilizationPct, remainingBudget: totalAllocated - totalSpent },
     };
+  }
+
+  // --- PDF GENERATION ENGINE ---
+
+  private formatCurrency(amount: number, currency: string = 'USD'): string {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+    }).format(amount);
+  }
+
+  async generatePurchaseOrderPdf(poId: string, tenantId: string): Promise<Buffer> {
+    const po = await this.poRepo.findOne({
+      where: { id: poId, tenant_id: tenantId },
+      relations: ['requisition', 'requisition.requester', 'requisition.costCenter'],
+    });
+
+    if (!po) throw new NotFoundException(`Purchase Order ${poId} not found.`);
+
+    const tenant = await this.tenantService.findOne(tenantId);
+    
+    // Compile HBS
+    const templatePath = path.join(__dirname, '..', 'common', 'templates', 'purchase-order.hbs');
+    if (!fs.existsSync(templatePath)) {
+      this.logger.error(`Template not found at ${templatePath}`);
+      throw new InternalServerErrorException('PDF Template not found.');
+    }
+    const templateSource = fs.readFileSync(templatePath, 'utf8');
+    const template = hbs.compile(templateSource);
+
+    const data = {
+      poNumber: po.po_number,
+      brandPrimaryColorHex: tenant.brandPrimaryColorHex || '#0f172a',
+      brandLogoBase64: tenant.brandLogoBase64,
+      tenantName: tenant.name,
+      companyAddress: tenant.companyAddress || 'SentinelFi Platform',
+      poDate: format(po.created_at, 'MMM dd, yyyy'),
+      paymentTerms: 'Net 30', // Default
+      projectName: 'Main Operations',
+      vendorName: po.vendor_name,
+      vendorAddress: 'Registered Vendor Address', // Placeholder
+      vendorContact: 'Vendor Representative',
+      vendorEmail: 'vendor@example.com',
+      deliveryAddress: tenant.companyAddress || 'Main Office',
+      requesterName: `${po.requisition.requester.first_name} ${po.requisition.requester.last_name}`,
+      lineItems: [
+        {
+          description: po.requisition.description,
+          wbsCode: po.requisition.costCenter?.code || 'N/A',
+          quantity: 1,
+          formattedUnitPrice: this.formatCurrency(po.committed_amount, po.currency),
+          formattedTotal: this.formatCurrency(po.committed_amount, po.currency),
+        }
+      ],
+      formattedSubtotal: this.formatCurrency(po.committed_amount, po.currency),
+      formattedTax: this.formatCurrency(0, po.currency),
+      formattedGrandTotal: this.formatCurrency(po.committed_amount, po.currency),
+      currencyCode: po.currency,
+      termsAndConditions: 'Standard SentinelFi P2P Terms Apply.',
+      isApproved: po.status === POStatus.ISSUED,
+      approvalSignature: 'DIGITALLY SIGNED',
+      approvalDate: format(po.updated_at, 'MMM dd, yyyy'),
+      generationDate: format(new Date(), 'MMM dd, yyyy HH:mm'),
+      poStatus: po.status,
+      statusColor: po.status === POStatus.ISSUED ? '#10b981' : '#64748b'
+    };
+
+    const html = template(data);
+    return this.pdfService.generatePdfFromHtml(html);
+  }
+
+  async generateInvoicePdf(invoiceId: string, tenantId: string): Promise<Buffer> {
+    const invoice = await this.invoiceRepo.findOne({
+      where: { id: invoiceId, tenant_id: tenantId },
+      relations: ['costCenter', 'purchaseOrder'],
+    });
+
+    if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found.`);
+
+    const tenant = await this.tenantService.findOne(tenantId);
+
+    const templatePath = path.join(__dirname, '..', 'common', 'templates', 'invoice.hbs');
+    const templateSource = fs.readFileSync(templatePath, 'utf8');
+    const template = hbs.compile(templateSource);
+
+    const data = {
+      invoiceNumber: invoice.invoice_number,
+      brandPrimaryColorHex: tenant.brandPrimaryColorHex || '#0f172a',
+      brandLogoBase64: tenant.brandLogoBase64,
+      tenantName: tenant.name,
+      companyAddress: tenant.companyAddress || 'SentinelFi Platform',
+      issueDate: format(invoice.invoice_date, 'MMM dd, yyyy'),
+      dueDate: invoice.due_date ? format(invoice.due_date, 'MMM dd, yyyy') : 'Upon Receipt',
+      poNumber: invoice.purchaseOrder?.po_number || 'N/A',
+      clientName: tenant.name,
+      clientAddress: tenant.companyAddress,
+      clientContact: 'Finance Department',
+      clientEmail: 'finance@sentinelfi.com',
+      lineItems: [
+        {
+          description: `Services rendered for cost center ${invoice.costCenter.name}`,
+          quantity: 1,
+          formattedRate: this.formatCurrency(invoice.amount, invoice.currency),
+          formattedAmount: this.formatCurrency(invoice.amount, invoice.currency),
+        }
+      ],
+      formattedSubtotal: this.formatCurrency(invoice.amount, invoice.currency),
+      formattedTax: this.formatCurrency(0, invoice.currency),
+      formattedDiscount: this.formatCurrency(0, invoice.currency),
+      formattedGrandTotal: this.formatCurrency(invoice.amount, invoice.currency),
+      formattedAmountPaid: invoice.status === InvoiceStatus.PAID ? this.formatCurrency(invoice.amount, invoice.currency) : this.formatCurrency(0, invoice.currency),
+      formattedAmountDue: invoice.status === InvoiceStatus.PAID ? this.formatCurrency(0, invoice.currency) : this.formatCurrency(invoice.amount, invoice.currency),
+      currencyCode: invoice.currency,
+      paymentInstructions: 'Please wire to the account specified in your contract.',
+      generationDate: format(new Date(), 'MMM dd, yyyy HH:mm'),
+      invoiceStatus: invoice.status,
+      statusColor: invoice.status === InvoiceStatus.PAID ? '#10b981' : '#f59e0b'
+    };
+
+    const html = template(data);
+    return this.pdfService.generatePdfFromHtml(html);
   }
 }
 

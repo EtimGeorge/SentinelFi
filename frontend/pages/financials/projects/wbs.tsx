@@ -5,7 +5,7 @@ import {
   TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle,
   ChevronRight, ChevronDown, Layers, MessageSquare,
   CheckCircle, Clock, XCircle, Send, DollarSign, Tag, Database, Upload,
-  ArrowUp, ArrowDown
+  ArrowUp, ArrowDown, Download
 } from 'lucide-react';
 import Card from '../../../components/common/Card';
 import api from '../../../lib/api';
@@ -359,6 +359,30 @@ const WBSManagerPage: React.FC = () => {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (selectedProjectId === 'all') {
+      toast.error('Please select a specific project to export its budget report.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const projectName = projects.find(p => p.project_id === selectedProjectId)?.project_name || 'Project';
+      const response = await api.get(`/wbs/projects/${selectedProjectId}/report-pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Budget_Report_${projectName}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Budget Report PDF generated');
+    } catch (e: any) {
+      toast.error(`Failed to export PDF: ${e.response?.data?.message || e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure? This will delete the item and all its children.')) return;
 
@@ -558,6 +582,15 @@ const WBSManagerPage: React.FC = () => {
               </select>
             </div>
             <div className="h-10 w-px bg-gray-700 mx-2" />
+            <button 
+              onClick={handleDownloadPdf}
+              disabled={selectedProjectId === 'all'}
+              className="p-2 bg-brand-primary/10 border border-brand-primary/30 rounded-lg text-brand-primary hover:bg-brand-primary hover:text-white transition disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Export Budget Report (PDF)"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+            <div className="h-10 w-px bg-gray-700 mx-1" />
             <Layers className="w-8 h-8 text-brand-primary" />
           </div>
         }

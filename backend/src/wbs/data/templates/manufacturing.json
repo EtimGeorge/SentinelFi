@@ -1,0 +1,14 @@
+{
+  "name": "Manufacturing (Production Line Setup)",
+  "industry": "MANUFACTURING",
+  "structure": [
+    { "code": "PL-1", "description": "Process Engineering & Layout Design" },
+    { "code": "PL-2", "description": "Machinery Procurement & Logistics" },
+    { "code": "PL-3", "description": "Factory Retrofitting (Electrical/Air)" },
+    { "code": "PL-4", "description": "Installation & Commissioning" },
+    { "code": "PL-5", "description": "Standard Operating Procedures (SOPs)" },
+    { "code": "PL-6", "description": "Operator Training & Trial Runs" },
+    { "code": "PL-7", "description": "Mass Production Verification (PPAP)" },
+    { "code": "PL-8", "description": "Quality Management System (ISO)" }
+  ]
+}

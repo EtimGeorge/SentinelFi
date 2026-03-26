@@ -49,7 +49,7 @@ cd ai-agent && python -m venv venv && pip install -r requirements.txt && uvicorn
 
 
 
-Once the containers are running successfully after your next docker-compose up --build, you can access the different parts of the SentinelFi ecosystem using these URLs in your browser:
+Once the containers are running successfully after your next docker-compose up --build, or docker compose up --watch, you can access the different parts of the SentinelFi ecosystem using these URLs in your browser:
 
 🌐 Main Application (Frontend)
 URL: http://localhost:3001

@@ -17,7 +17,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Package,
-  ArrowRight
+  ArrowRight,
+  Download,
+  Printer
 } from 'lucide-react';
 import Link from 'next/link';
 import Tooltip from '../../../components/common/Tooltip';
@@ -35,7 +37,9 @@ const P2PDeskPage: React.FC = () => {
     createPurchaseOrder,
     fetchDepartments,
     fetchChartOfAccounts,
-    createRequisition
+    createRequisition,
+    downloadPurchaseOrderPdf,
+    downloadInvoicePdf
   } = useFinanceCore();
   const { convertToDisplay, convertAmount, availableCurrencies } = useCurrency();
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -421,8 +425,18 @@ const P2PDeskPage: React.FC = () => {
                   <td className="px-6 py-4">
                     <StatusBadge status={po.status} />
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">View Details</Button>
+                  <td className="px-6 py-4 text-right flex justify-end gap-2">
+                    <Tooltip content="Download formal Purchase Order document (PDF).">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => downloadPurchaseOrderPdf(po.id, po.po_number)}
+                        className="opacity-0 group-hover:opacity-100 transition border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </Button>
+                    </Tooltip>
+                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">View</Button>
                   </td>
                 </tr>
               ))}
@@ -448,8 +462,18 @@ const P2PDeskPage: React.FC = () => {
                   <td className="px-6 py-4">
                     <StatusBadge status={inv.status} />
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">Process Payment</Button>
+                  <td className="px-6 py-4 text-right flex justify-end gap-2">
+                    <Tooltip content="Download Invoice PDF record.">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => downloadInvoicePdf(inv.id, inv.invoice_number)}
+                        className="opacity-0 group-hover:opacity-100 transition border-brand-secondary/30 text-brand-secondary hover:bg-brand-secondary hover:text-white"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </Button>
+                    </Tooltip>
+                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">Pay</Button>
                   </td>
                 </tr>
               ))}

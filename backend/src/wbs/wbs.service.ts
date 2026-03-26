@@ -45,7 +45,13 @@ import { DOAService } from "../common/doa.service";
 import { ApprovalLogEntity, ApprovalDocumentType } from "../common/entities/approval-log.entity";
 import { AuditService } from "../audit/audit.service";
 import { BudgetImpactAnalysisDto } from "./dto/budget-impact-analysis.dto";
-import { WbsValidationResultDto } from "./dto/wbs-validation-result.dto";
+import { WbsValidationResultDto } from "./dto/budget-impact-analysis.dto";
+import * as fs from 'fs';
+import * as path from 'path';
+import * as hbs from 'handlebars';
+import { format } from 'date-fns';
+import { PdfGenerationService } from "../common/pdf-generation.service";
+import { TenantService } from "../tenants/tenant.service";
 
 interface WbsBudgetRollupQueryResult {
   wbs_id: string;
@@ -86,6 +92,8 @@ export class WbsService {
     private readonly doaService: DOAService,
     @InjectRepository(ApprovalLogEntity, TENANT_DATA_SOURCE)
     private approvalLogRepo: Repository<ApprovalLogEntity>,
+    private readonly pdfService: PdfGenerationService,
+    private readonly tenantService: TenantService,
   ) {}
 
   // Centralized Governance Constants for "Bulletproof" Verification
@@ -1206,62 +1214,45 @@ export class WbsService {
   }
 
   async seedDefaultTemplates(): Promise<void> {
-    const templates = [
-      {
-        name: 'Standard IT Project',
-        industry: IndustryType.IT,
-        structure: [
-          { code: '1.0', description: 'Initiation & Planning' },
-          { code: '1.1', description: 'Requirements Gathering', parent_code: '1.0' },
-          { code: '2.0', description: 'Design & Architecture' },
-          { code: '3.0', description: 'Development' },
-          { code: '3.1', description: 'Frontend Development', parent_code: '3.0' },
-          { code: '3.2', description: 'Backend API Development', parent_code: '3.0' },
-          { code: '4.0', description: 'Testing & QA' },
-          { code: '5.0', description: 'Deployment & Launch' },
-        ]
-      },
-      {
-        name: 'Building Construction',
-        industry: IndustryType.CONSTRUCTION,
-        structure: [
-          { code: '1.0', description: 'Pre-Construction & Permitting' },
-          { code: '2.0', description: 'Foundation & Earthworks' },
-          { code: '3.0', description: 'Structural Framing' },
-          { code: '4.0', description: 'Enclosure & Roofing' },
-          { code: '5.0', description: 'Mechanical, Electrical, Plumbing (MEP)' },
-          { code: '6.0', description: 'Interior Finishing' },
-          { code: '7.0', description: 'Site Work & Landscaping' },
-          { code: '8.0', description: 'Closeout & Handover' },
-        ]
-      },
-      {
-        name: 'Oil & Gas Facility Maintenance',
-        industry: IndustryType.OIL_GAS,
-        structure: [
-          { code: '1.0', description: 'Mobilization & Site Prep' },
-          { code: '2.0', description: 'Equipment Inspection (NDT)' },
-          { code: '3.0', description: 'Mechanical Overhaul' },
-          { code: '4.0', description: 'Instrumentation & Controls' },
-          { code: '5.0', description: 'Painting & Insulation' },
-          { code: '6.0', description: 'Testing & Re-commissioning' },
-          { code: '7.0', description: 'Demobilization' },
-        ]
-      }
-    ];
+    const templatesDir = path.join(__dirname, '..', 'wbs', 'data', 'templates');
+    
+    if (!fs.existsSync(templatesDir)) {
+      this.logger.warn(`WBS Templates directory not found at ${templatesDir}. Skipping seeding.`);
+      return;
+    }
 
-    for (const t of templates) {
-      const existing = await this.wbsTemplateRepository.findOne({
-        where: { name: t.name, tenant_id: IsNull() }
-      });
-      if (!existing) {
-        await this.wbsTemplateRepository.save(this.wbsTemplateRepository.create({
-          ...t,
-          tenant_id: null
-        }));
+    const files = fs.readdirSync(templatesDir).filter(f => f.endsWith('.json'));
+    
+    for (const file of files) {
+      try {
+        const filePath = path.join(templatesDir, file);
+        const content = fs.readFileSync(filePath, 'utf8');
+        const t = JSON.parse(content);
+
+        const existing = await this.wbsTemplateRepository.findOne({
+          where: { name: t.name, tenant_id: IsNull() }
+        });
+
+        if (!existing) {
+          await this.wbsTemplateRepository.save(this.wbsTemplateRepository.create({
+            name: t.name,
+            industry: t.industry,
+            structure: t.structure,
+            tenant_id: null
+          }));
+          this.logger.log(`Seeded WBS Template: ${t.name}`);
+        } else {
+          // Optional: Update structure if it changed
+          existing.structure = t.structure;
+          existing.industry = t.industry;
+          await this.wbsTemplateRepository.save(existing);
+        }
+      } catch (err: any) {
+        this.logger.error(`Failed to seed template from ${file}: ${err.message}`);
       }
     }
-    this.logger.log(`Default WBS templates verified/seeded.`);
+    
+    this.logger.log(`Default WBS templates verified/seeded from JSON assets.`);
   }
 
   // Enhanced WBS Budget Retrieval with Filters and Pagination
@@ -2240,5 +2231,97 @@ export class WbsService {
     } catch (err: any) {
       throw err;
     }
+  }
+
+  // --- PDF GENERATION ENGINE ---
+
+  private formatCurrency(amount: number, currency: string = 'USD'): string {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+    }).format(amount);
+  }
+
+  async generateBudgetReportPdf(projectId: string, tenantId: string): Promise<Buffer> {
+    const project = await this.projectsService.findOne(projectId, tenantId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found.`);
+
+    const tenant = await this.tenantService.findOne(tenantId);
+    const rollupData = await this.getWbsBudgetRollup(tenantId, { projectId });
+
+    // Group rollup data by Category
+    const categoriesMap = new Map<string, any>();
+
+    // Fetch all categories for this tenant to get names
+    const allCategories = await this.wbsCategoryRepository.find({ where: { tenant_id: tenantId } });
+    const categoryNameMap = new Map(allCategories.map(c => [c.id, c.name]));
+    const categoryCodeMap = new Map(allCategories.map(c => [c.id, c.code]));
+
+    let totalBudget = 0;
+    let totalSpent = 0;
+
+    rollupData.forEach(item => {
+      const catId = item.category_id || 'unassigned';
+      if (!categoriesMap.has(catId)) {
+        categoriesMap.set(catId, {
+          categoryCode: categoryCodeMap.get(catId) || 'N/A',
+          categoryName: categoryNameMap.get(catId) || 'Unassigned / Direct Costs',
+          items: [],
+          totalBudget: 0,
+          totalSpent: 0
+        });
+      }
+
+      const catGroup = categoriesMap.get(catId);
+      const budgeted = Number(item.total_cost_budgeted || 0);
+      const spent = Number(item.total_paid_rollup || 0);
+      const burnRate = budgeted > 0 ? (spent / budgeted) * 100 : 0;
+
+      catGroup.items.push({
+        wbsCode: item.wbs_code,
+        description: item.description,
+        formattedBudgeted: this.formatCurrency(budgeted),
+        formattedSpent: this.formatCurrency(spent),
+        burnRatePct: burnRate.toFixed(1),
+        statusClass: burnRate > 100 ? 'status-danger' : burnRate > 85 ? 'status-warn' : 'status-ok',
+        statusText: burnRate > 100 ? 'OVER' : burnRate > 85 ? 'RISK' : 'OK'
+      });
+
+      catGroup.totalBudget += budgeted;
+      catGroup.totalSpent += spent;
+      totalBudget += budgeted;
+      totalSpent += spent;
+    });
+
+    const budgetCategories = Array.from(categoriesMap.values()).map(cat => ({
+      ...cat,
+      formattedCategoryBudgeted: this.formatCurrency(cat.totalBudget),
+      formattedCategorySpent: this.formatCurrency(cat.totalSpent)
+    }));
+
+    const templatePath = path.join(__dirname, '..', 'common', 'templates', 'budget-report.hbs');
+    if (!fs.existsSync(templatePath)) {
+        this.logger.error(`Budget template not found at ${templatePath}`);
+        throw new InternalServerErrorException('Handbars template not found.');
+    }
+    const templateSource = fs.readFileSync(templatePath, 'utf8');
+    const template = hbs.compile(templateSource);
+
+    const data = {
+      reportTitle: 'Project Budget Performance Report',
+      brandPrimaryColorHex: tenant.brandPrimaryColorHex || '#0f172a',
+      brandLogoBase64: tenant.brandLogoBase64,
+      tenantName: tenant.name,
+      projectName: project.project_name,
+      generationDate: format(new Date(), 'MMM dd, yyyy HH:mm'),
+      formattedTotalBudget: this.formatCurrency(totalBudget),
+      formattedTotalSpent: this.formatCurrency(totalSpent),
+      isOverBudget: totalSpent > totalBudget,
+      formattedTotalVariance: this.formatCurrency(totalBudget - totalSpent),
+      budgetCategories
+    };
+
+    const html = template(data);
+    return this.pdfService.generatePdfFromHtml(html);
   }
 }
