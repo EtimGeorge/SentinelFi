@@ -1,0 +1,17 @@
+{
+  "name": "IT Software Development (Agile)",
+  "industry": "IT",
+  "structure": [
+    { "code": "SPR-0", "description": "Discovery & Sprint 0 (Architecture)" },
+    { "code": "DES", "description": "UI/UX Design & Prototyping" },
+    { "code": "FE", "description": "Frontend Development" },
+    { "code": "FE-1", "description": "Core Components Library", "parent_code": "FE" },
+    { "code": "FE-2", "description": "Feature Implementation", "parent_code": "FE" },
+    { "code": "BE", "description": "Backend & API Development" },
+    { "code": "BE-1", "description": "Database Schema & Migrations", "parent_code": "BE" },
+    { "code": "BE-2", "description": "Business Logic & Services", "parent_code": "BE" },
+    { "code": "QA", "description": "QA & Automated Testing" },
+    { "code": "OPS", "description": "DevOps & Cloud Infrastructure" },
+    { "code": "REL", "description": "UAT & Production Release" }
+  ]
+}

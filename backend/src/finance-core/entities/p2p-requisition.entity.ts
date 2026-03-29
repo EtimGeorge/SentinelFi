@@ -1,4 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn, OneToMany } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+} from "typeorm";
 import { CostCenterEntity } from "@src/finance-core/entities/cost-center.entity";
 import { GLAccountEntity } from "@src/finance-core/entities/gl-account.entity";
 import { UserEntity } from "@src/auth/user.entity";
@@ -9,7 +19,7 @@ export enum DocumentStatus {
   PENDING_APPROVAL = "PENDING_APPROVAL",
   APPROVED = "APPROVED",
   REJECTED = "REJECTED",
-  CANCELLED = "CANCELLED"
+  CANCELLED = "CANCELLED",
 }
 
 @Entity("p2p_requisition")
@@ -60,7 +70,7 @@ export class P2PRequisitionEntity {
   @Column({ type: "enum", enum: DocumentStatus, default: DocumentStatus.DRAFT })
   status!: DocumentStatus;
 
-  @Column({ type: "varchar", length: 3, default: 'USD' })
+  @Column({ type: "varchar", length: 3, default: "USD" })
   currency!: string;
 
   @Column({ type: "decimal", precision: 19, scale: 6, default: 1.0 })
@@ -69,7 +79,7 @@ export class P2PRequisitionEntity {
   @Column({ type: "decimal", precision: 19, scale: 4, nullable: true })
   base_amount!: number | null;
 
-  @OneToMany(() => P2PPurchaseOrderEntity, po => po.requisition)
+  @OneToMany(() => P2PPurchaseOrderEntity, (po) => po.requisition)
   purchaseOrders!: P2PPurchaseOrderEntity[];
 
   @CreateDateColumn({ type: "timestamptz" })

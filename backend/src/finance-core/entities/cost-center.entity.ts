@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { DepartmentEntity } from "./department.entity";
 import { UserEntity } from "../../auth/user.entity";
 
@@ -21,7 +30,7 @@ export class CostCenterEntity {
   @Column({ type: "uuid" })
   department_id!: string;
 
-  @ManyToOne(() => DepartmentEntity, dept => dept.costCenters)
+  @ManyToOne(() => DepartmentEntity, (dept) => dept.costCenters)
   @JoinColumn({ name: "department_id" })
   department!: DepartmentEntity;
 

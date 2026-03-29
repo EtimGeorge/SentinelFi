@@ -12,9 +12,18 @@ module.exports = {
         // Core Palette from DESIGN_SYSTEM.md
         'brand-primary': '#0D9488',    // Deep Vibrant Teal
         'brand-secondary': '#6B46C1',  // Rich Purple
-        'brand-dark': '#1E293B',       // Dark Navy (Base Background)
-        'alert-critical': '#EA580C',   // Electric Orange (Corrected)
+        'brand-dark': '#0B0F1A',       // Deep Dark Navy
+        'brand-darker': '#05070A',     // True Black
+        'alert-critical': '#EA580C',   // Electric Orange
         'alert-positive': '#059669',   // Saturated Green
+        
+        // Marketing Palette (Used in high-impact sections)
+        'm-primary': '#0D9488',
+        'm-secondary': '#6B46C1',
+        'm-accent': '#0891B2',         // Cyan Accent
+        'm-dark': '#0B0F1A',
+        'm-text-muted': '#CBD5E1', // Brightened for contrast (slate-300)
+
         gray: {
           800: '#1F2937',             // Dark Gray (Card/Panel Base)
         },
@@ -40,7 +49,18 @@ module.exports = {
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
+        sora: ['Sora', 'sans-serif'],
       },
+      animation: {
+        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'float': 'float 6s ease-in-out infinite',
+      },
+      keyframes: {
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-20px)' },
+        }
+      }
     },
   },
   plugins: [],

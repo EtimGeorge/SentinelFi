@@ -1,0 +1,35 @@
+# Diagnostics & Logs
+*.log
+*.txt
+*.tmp
+*.bak
+*.tsbuildinfo
+typecheck.log
+diag_output.txt
+
+# Documentation & Context
+/docs/
+/scripts/
+/investigated-audit-documents/
+/pdf_extract/
+
+# Build Context
+.next
+dist
+build
+.git
+.vscode
+.idea
+tmp
+node_modules
+backend/node_modules
+frontend/node_modules
+shared/node_modules
+ai-agent/venv
+ai-agent/__pycache__
+ai-agent/.ruff_cache
+
+# Secrets
+.env
+.env.local
+.env.prod

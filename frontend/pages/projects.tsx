@@ -38,13 +38,21 @@ interface ProjectSummary {
 
 import useGlobalStore from '../store/globalStore';
 
+interface WbsTemplate {
+  id: string;
+  name: string;
+  industry: string;
+  description: string;
+}
+
 const ProjectsPage: React.FC = () => {
   const router = useRouter();
   const apiRef = useRef(api);
-  const { convertToDisplay, userCurrency, currencies } = useCurrency();
+  const { convertToDisplay, convertAmount, userCurrency, currencies } = useCurrency();
   const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
   const [projectRawData, setProjectRawData] = useState<ProjectData[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [templates, setTemplates] = useState<WbsTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +79,7 @@ const ProjectsPage: React.FC = () => {
     vat_rate: 7.5,
     wht_rate: 5,
     sow_details: '',
+    wbs_template_id: '',
   });
   const [isNewClient, setIsNewClient] = useState(false);
   const [newClientName, setNewClientName] = useState('');
@@ -112,12 +121,23 @@ const ProjectsPage: React.FC = () => {
     }
   }, []);
 
+  const fetchTemplates = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const response = await apiRef.current.get<WbsTemplate[]>('/wbs/templates', { signal });
+      setTemplates(response.data);
+    } catch (e: any) {
+      if (e.name === 'CanceledError' || e.code === 'ERR_CANCELED') return;
+      console.error('Failed to fetch WBS templates', e);
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     fetchProjectData(controller.signal);
     fetchClients(controller.signal);
+    fetchTemplates(controller.signal);
     return () => controller.abort();
-  }, [fetchProjectData, fetchClients]);
+  }, [fetchProjectData, fetchClients, fetchTemplates]);
 
   // Step validation before advancing in wizard
   const validateStep = (currentStep: number): boolean => {
@@ -149,6 +169,7 @@ const ProjectsPage: React.FC = () => {
         return false;
       }
     }
+    // Step 3 (Templates) is optional, no validation required unless we want to force it
     return true;
   };
 
@@ -173,6 +194,20 @@ const ProjectsPage: React.FC = () => {
       console.log('[handleCreateProject] API response received:', response.data);
       const newProject = response.data;
 
+      // APPLY WBS TEMPLATE IF SELECTED
+      if (formData.wbs_template_id) {
+        try {
+          console.log(`[handleCreateProject] Applying WBS Template ${formData.wbs_template_id} to project ${newProject.project_id}`);
+          await apiRef.current.post(`/wbs/templates/apply/${newProject.project_id}`, {
+            templateId: formData.wbs_template_id
+          });
+          toast.success('Industry WBS template applied!');
+        } catch (templateErr: any) {
+          console.error('Failed to apply Wbs Template', templateErr);
+          toast.error(`Project created, but template application failed: ${templateErr.message}`);
+        }
+      }
+
       clearData();
       setIsModalOpen(false);
       setStep(1);
@@ -186,6 +221,7 @@ const ProjectsPage: React.FC = () => {
         vat_rate: 7.5,
         wht_rate: 5,
         sow_details: '',
+        wbs_template_id: '',
       });
 
       toast.success(`Project "${newProject.project_name}" initialized successfully!`);
@@ -511,7 +547,7 @@ const ProjectsPage: React.FC = () => {
           setIsModalOpen(false);
           setStep(1);
         }}
-        title={`Project Setup Wizard: Step ${step} of 3`}
+        title={`Project Setup Wizard: Step ${step} of 4`}
         size="lg"
         footer={
           <div className="flex justify-between w-full">
@@ -521,7 +557,7 @@ const ProjectsPage: React.FC = () => {
               </Button>
             ) : <div />}
 
-            {step < 3 ? (
+            {step < 4 ? (
               <Button variant="primary" onClick={advanceStep}>
                 Next Step <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -683,8 +719,49 @@ const ProjectsPage: React.FC = () => {
 
           {step === 3 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-xl mb-6">
+                <p className="text-sm text-brand-primary font-medium">Step 3: Industry-Specific Initialization</p>
+                <p className="text-xs text-gray-400">Select a pre-defined WBS hierarchy to accelerate project setup.</p>
+              </div>
+              <div className="space-y-4">
+                <label className="text-sm font-medium text-gray-400">WBS Structure Template (Optional)</label>
+                <div className="grid grid-cols-1 gap-3">
+                  <div 
+                    onClick={() => setFormData({...formData, wbs_template_id: ''})}
+                    className={`p-4 border rounded-xl cursor-pointer transition flex items-center justify-between ${!formData.wbs_template_id ? 'bg-brand-primary/10 border-brand-primary shadow-lg shadow-brand-primary/10' : 'bg-brand-dark/40 border-gray-700 hover:border-gray-500'}`}
+                  >
+                    <div>
+                      <p className="font-bold text-white">Blank Project</p>
+                      <p className="text-[10px] text-gray-500">Start from scratch with an empty WBS.</p>
+                    </div>
+                    {!formData.wbs_template_id && <CheckCircle className="w-5 h-5 text-brand-primary" />}
+                  </div>
+
+                  {templates.map(t => (
+                    <div 
+                      key={t.id}
+                      onClick={() => setFormData({...formData, wbs_template_id: t.id})}
+                      className={`p-4 border rounded-xl cursor-pointer transition flex items-center justify-between ${formData.wbs_template_id === t.id ? 'bg-brand-primary/20 border-brand-primary shadow-lg shadow-brand-primary/20' : 'bg-brand-dark/40 border-gray-700 hover:border-gray-500'}`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-white">{t.name}</p>
+                          <span className="px-1.5 py-0.5 rounded bg-gray-700 text-[8px] font-black uppercase text-gray-300">{t.industry}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 truncate max-w-sm">{t.description}</p>
+                      </div>
+                      {formData.wbs_template_id === t.id && <CheckCircle className="w-5 h-5 text-brand-primary" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="p-4 bg-green-900/10 border border-green-800/30 rounded-xl mb-6">
-                <p className="text-sm text-green-400 font-medium">Step 3: Strategic Overview</p>
+                <p className="text-sm text-green-400 font-medium">Step 4: Strategic Overview</p>
                 <p className="text-xs text-gray-400">Add notes or high-level Statement of Work details.</p>
               </div>
               <div className="space-y-2">

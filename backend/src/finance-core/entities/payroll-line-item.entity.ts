@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { PayrollRunEntity } from "./payroll-run.entity";
 import { CostCenterEntity } from "./cost-center.entity";
 import { GLAccountEntity } from "./gl-account.entity";
@@ -9,7 +18,7 @@ export enum PayrollLineItemType {
   BONUS = "BONUS",
   COMMISSION = "COMMISSION",
   EMPLOYER_TAX = "EMPLOYER_TAX",
-  EMPLOYER_BENEFIT = "EMPLOYER_BENEFIT"
+  EMPLOYER_BENEFIT = "EMPLOYER_BENEFIT",
 }
 
 @Entity("payroll_line_item")
@@ -24,7 +33,7 @@ export class PayrollLineItemEntity {
   @Column({ type: "uuid" })
   payroll_run_id!: string;
 
-  @ManyToOne(() => PayrollRunEntity, run => run.lineItems)
+  @ManyToOne(() => PayrollRunEntity, (run) => run.lineItems)
   @JoinColumn({ name: "payroll_run_id" })
   payrollRun!: PayrollRunEntity;
 

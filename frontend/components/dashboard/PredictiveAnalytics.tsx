@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   AreaChart,
   Area,
@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Calendar, Zap, AlertTriangle } from 'lucide-react';
 import Card from '../common/Card';
-import { formatCurrency } from '../../lib/utils';
+import { useCurrency } from '../../components/context/CurrencyContext';
 
 interface HistoryPoint {
   date: string;
@@ -37,21 +37,29 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
   estimatedExhaustionDate,
   currency
 }) => {
-  // Compute cumulative spending for Burn-up chart
-  let cumulative = 0;
-  const burnUpData = history.map(h => {
-    cumulative += h.amount;
-    return {
-      date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      spend: h.amount,
-      cumulative: cumulative,
-      budget: totalBudgeted
-    };
-  });
+  const { convertAmount, convertToDisplay, userCurrency } = useCurrency();
+
+  // Compute cumulative spending for Burn-up chart after converting to user currency
+  const burnUpData = useMemo(() => {
+    let cumulative = 0;
+    const sourceCurrency = currency || 'NGN';
+    return history.map(h => {
+      const convertedAmt = convertAmount(h.amount, sourceCurrency, userCurrency.code);
+      cumulative += convertedAmt;
+      return {
+        date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        spend: convertedAmt,
+        cumulative: cumulative,
+        budget: convertAmount(totalBudgeted, sourceCurrency, userCurrency.code)
+      };
+    });
+  }, [history, totalBudgeted, currency, userCurrency.code, convertAmount]);
 
   const isNearingExhaustion = estimatedExhaustionDate
     ? (new Date(estimatedExhaustionDate).getTime() - new Date().getTime()) < (30 * 24 * 60 * 60 * 1000)
     : false;
+
+  const currentCurrencySymbol = userCurrency.symbol;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -59,7 +67,7 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
       <div className="lg:col-span-2">
         <Card
           title="Project Financial Trajectory (Burn-up)"
-          subtitle="Cumulative spend vs Total Budgeted"
+          subtitle={`Cumulative spend vs Total Budgeted (${userCurrency.code})`}
           borderTopColor="primary"
         >
           <div className="h-[300px] w-full mt-4">
@@ -84,11 +92,12 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
                   fontSize={10}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                  tickFormatter={(value) => `${currentCurrencySymbol}${(value / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px' }}
                   itemStyle={{ fontSize: '12px' }}
+                  formatter={(value: any) => [convertToDisplay(Number(value)), 'Value']}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
                 <Area
@@ -123,28 +132,29 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
                 <Calendar className={`w-4 h-4 ${isNearingExhaustion ? 'text-red-400' : 'text-brand-primary'}`} />
                 <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Exhaustion Forecast</span>
               </div>
-              <p className={`text-2xl font-black ${isNearingExhaustion ? 'text-red-400' : 'text-white'}`}>
+              <p className={`text-xl sm:text-2xl font-black break-words ${isNearingExhaustion ? 'text-red-400' : 'text-white'}`}>
                 {estimatedExhaustionDate ? new Date(estimatedExhaustionDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}
               </p>
               <p className="text-[10px] text-gray-500 mt-1 uppercase">Based on 30-day velocity</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-800">
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-1 mb-1">
                   <TrendingUp className="w-3 h-3 text-gray-400" />
                   <span className="text-[9px] text-gray-500 uppercase font-bold">Daily Velocity</span>
                 </div>
-                <p className="text-sm font-bold text-white">{formatCurrency(avgDailySpend, currency)}</p>
+                <p className="text-xs sm:text-sm font-bold text-white break-words">{convertToDisplay(avgDailySpend, currency || 'NGN')}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-1 mb-1">
                   <Zap className="w-3 h-3 text-gray-400" />
-                  <span className="text-[9px] text-gray-500 uppercase font-bold">Burn Rate</span>
+                  <span className="text-[9px] text-gray-500 uppercase font-bold">Burn Velocity</span>
                 </div>
-                <p className="text-sm font-bold text-white">
-                  {((totalActualPaid / (totalBudgeted || 1)) * 100).toFixed(1)}%
+                <p className="text-xs sm:text-sm font-bold text-white break-words">
+                  {convertToDisplay(avgDailySpend * 30, currency || 'NGN')}/mo
                 </p>
+                <p className="text-[8px] text-gray-500 uppercase">Est. Monthly Burn</p>
               </div>
             </div>
 
@@ -152,8 +162,8 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
               <div className="mt-4 p-3 bg-red-900/20 border border-red-800/50 rounded-lg flex items-start gap-3 animate-pulse">
                 <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-[10px] font-black text-red-400 uppercase tracking-tighter">Critical Alert</p>
-                  <p className="text-[9px] text-gray-400 mt-0.5">Budget exhaustion predicted within 30 days. Action required.</p>
+                  <p className="text-[10px] font-black text-red-400 uppercase tracking-tighter">Budget Alert</p>
+                  <p className="text-[9px] text-gray-400 mt-0.5">Predicted exhaustion in &lt; 30 days based on current burn.</p>
                 </div>
               </div>
             )}
@@ -163,10 +173,10 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
         <Card title="Momentum Index" borderTopColor="secondary">
           <div className="h-[120px] w-full mt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={history}>
+              <LineChart data={burnUpData}>
                 <Line
                   type="monotone"
-                  dataKey="amount"
+                  dataKey="spend"
                   stroke="#10B981"
                   strokeWidth={2}
                   dot={false}
@@ -175,6 +185,7 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
                 <Tooltip
                   contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px' }}
                   itemStyle={{ fontSize: '10px' }}
+                  formatter={(value: any) => [convertToDisplay(Number(value)), 'Daily Spend']}
                 />
               </LineChart>
             </ResponsiveContainer>

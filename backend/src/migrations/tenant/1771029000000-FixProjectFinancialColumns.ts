@@ -1,11 +1,11 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class FixProjectFinancialColumns1771029000000 implements MigrationInterface {
-    name = 'FixProjectFinancialColumns1771029000000'
+  name = "FixProjectFinancialColumns1771029000000";
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        // Add missing financial columns to the project table with idempotency
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    // Add missing financial columns to the project table with idempotency
+    await queryRunner.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'currency') THEN
                     ALTER TABLE "project" ADD "currency" character varying(10) NOT NULL DEFAULT 'NGN';
@@ -24,13 +24,17 @@ export class FixProjectFinancialColumns1771029000000 implements MigrationInterfa
                 END IF;
             END $$;
         `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "project" DROP COLUMN "wht_rate"`);
-        await queryRunner.query(`ALTER TABLE "project" DROP COLUMN "vat_rate"`);
-        await queryRunner.query(`ALTER TABLE "project" DROP COLUMN "contingency_percent"`);
-        await queryRunner.query(`ALTER TABLE "project" DROP COLUMN "contract_value"`);
-        await queryRunner.query(`ALTER TABLE "project" DROP COLUMN "currency"`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "project" DROP COLUMN "wht_rate"`);
+    await queryRunner.query(`ALTER TABLE "project" DROP COLUMN "vat_rate"`);
+    await queryRunner.query(
+      `ALTER TABLE "project" DROP COLUMN "contingency_percent"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "project" DROP COLUMN "contract_value"`,
+    );
+    await queryRunner.query(`ALTER TABLE "project" DROP COLUMN "currency"`);
+  }
 }

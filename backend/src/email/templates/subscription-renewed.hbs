@@ -1,0 +1,35 @@
+<h1 style="font-size:26px;font-weight:900;color:#1a202c;margin:0 0 8px;letter-spacing:-0.5px;">🔄 Subscription Renewed Successfully</h1>
+<p style="color:#718096;font-size:15px;margin:0 0 24px;">
+  Great news, <strong>{{firstName}}</strong>! Your SentinelFi® subscription for <strong>{{companyName}}</strong> has been renewed.
+  Your workspace continues uninterrupted.
+</p>
+
+<div class="alert-success">
+  <strong>✅ Renewal Confirmed</strong> — Your <strong>{{plan}}</strong> plan is active for another {{billingCycle}}.
+</div>
+
+<div style="text-align:center;margin:28px 0;">
+  <div class="amount-highlight">${{amountFormatted}}</div>
+  <div style="color:#718096;font-size:13px;margin-top:6px;">{{plan}} Plan · {{billingCycle}} Renewal</div>
+</div>
+
+<table class="info-table">
+  <tr><td>Receipt Number</td><td>{{invoiceNumber}}</td></tr>
+  <tr><td>Company</td><td>{{companyName}}</td></tr>
+  <tr><td>Plan</td><td>{{plan}}</td></tr>
+  <tr><td>New Period</td><td>{{periodStart}} → {{periodEnd}}</td></tr>
+  <tr><td>Amount Charged</td><td><strong>${{amountFormatted}} USD</strong></td></tr>
+  <tr><td>Payment Reference</td><td style="font-family:monospace;font-size:12px;">{{gatewayReference}}</td></tr>
+</table>
+
+{{#if hasAttachment}}
+<div style="background:#f7f9fc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:20px 0;">
+  <span style="font-size:18px;">📎</span>
+  <strong style="color:#2d3748;font-size:14px;"> Renewal Invoice Attached</strong>
+  <p style="color:#718096;font-size:12px;margin:4px 0 0;">See the attached PDF for your official renewal receipt.</p>
+</div>
+{{/if}}
+
+<div style="text-align:center;margin:28px 0;">
+  <a href="{{dashboardUrl}}" class="button">Go to Dashboard →</a>
+</div>

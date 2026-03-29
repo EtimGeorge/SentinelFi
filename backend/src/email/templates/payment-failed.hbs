@@ -1,0 +1,34 @@
+<h1 style="font-size:26px;font-weight:900;color:#742a2a;margin:0 0 8px;letter-spacing:-0.5px;">⚠️ Payment Could Not Be Processed</h1>
+<p style="color:#718096;font-size:15px;margin:0 0 24px;">
+  Hello <strong>{{firstName}}</strong>, unfortunately we were unable to process your payment for the <strong>{{plan}}</strong> plan.
+  No charges have been made to your account.
+</p>
+
+<div class="alert-danger">
+  <strong>❌ Payment Failed</strong> — Reason: <em>{{failureReason}}</em>
+</div>
+
+<table class="info-table">
+  <tr><td>Company</td><td>{{companyName}}</td></tr>
+  <tr><td>Plan Attempted</td><td>{{plan}}</td></tr>
+  <tr><td>Amount</td><td>${{amountFormatted}} USD</td></tr>
+  <tr><td>Gateway</td><td>{{gateway}}</td></tr>
+  <tr><td>Reference</td><td style="font-family:monospace;font-size:12px;">{{gatewayReference}}</td></tr>
+  <tr><td>Date</td><td>{{failureDate}}</td></tr>
+</table>
+
+<h3 style="font-size:16px;font-weight:700;color:#2d3748;margin:28px 0 12px;">Common Reasons & Fixes</h3>
+<ul style="color:#4a5568;font-size:14px;line-height:1.8;padding-left:20px;">
+  <li><strong>Insufficient funds</strong> — Please ensure your account has enough balance and try again.</li>
+  <li><strong>Card expired</strong> — Update your card details with your bank or use a different card.</li>
+  <li><strong>Bank authorization required</strong> — Check your bank's app for a pending authorization request.</li>
+  <li><strong>Network timeout</strong> — This can happen with unstable connections. Please retry.</li>
+</ul>
+
+<div style="text-align:center;margin:28px 0;">
+  <a href="{{retryUrl}}" class="button" style="background:linear-gradient(135deg,#e53e3e,#c53030);">Retry Payment →</a>
+</div>
+
+<p style="color:#4a5568;font-size:14px;text-align:center;">
+  If the problem persists, please contact us at <a href="mailto:support@sentinelfi.com" style="color:#00A3B5;">support@sentinelfi.com</a> and quote your reference number.
+</p>

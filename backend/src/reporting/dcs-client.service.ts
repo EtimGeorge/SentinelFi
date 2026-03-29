@@ -15,15 +15,21 @@ export class DcsClientService {
     this.dcsApiKey = this.configService.get<string>("DCS_EXTERNAL_API_KEY");
   }
 
-  async pushReportToExternalDcs(document: DocumentControlEntity): Promise<boolean> {
+  async pushReportToExternalDcs(
+    document: DocumentControlEntity,
+  ): Promise<boolean> {
     if (!this.dcsApiUrl) {
-      this.logger.warn("DCS_EXTERNAL_API_URL not configured. Skipping external push.");
+      this.logger.warn(
+        "DCS_EXTERNAL_API_URL not configured. Skipping external push.",
+      );
       return false;
     }
 
     try {
-      this.logger.log(`Pushing report ${document.id} to external DCS: ${this.dcsApiUrl}`);
-      
+      this.logger.log(
+        `Pushing report ${document.id} to external DCS: ${this.dcsApiUrl}`,
+      );
+
       // Load file from path (assuming local file storage for this implementation)
       // In a real S3 scenario, we'd fetch the stream from S3.
       const fileBuffer = fs.readFileSync(document.file_path);
@@ -49,7 +55,9 @@ export class DcsClientService {
       });
 
       if (response.status === 200 || response.status === 201) {
-        this.logger.log(`Successfully pushed report ${document.id} to external DCS.`);
+        this.logger.log(
+          `Successfully pushed report ${document.id} to external DCS.`,
+        );
         return true;
       }
 

@@ -1,1 +1,1 @@
-export { UpdateSettingsDto } from 'shared/types/settings';
+export { UpdateSettingsDto } from "shared/types/settings";

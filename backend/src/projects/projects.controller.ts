@@ -40,7 +40,13 @@ export class ProjectsController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.CEO, Role.SuperAdmin)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
   @UsePipes(new ValidationPipe({ transform: true }))
   async createProject(
     @Body() createProjectDto: CreateProjectDto,
@@ -64,7 +70,13 @@ export class ProjectsController {
    */
   @Post("lpo")
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
   @UsePipes(new ValidationPipe({ transform: true }))
   async createLpo(
     @Body() createLpoDto: CreateLpoDto,
@@ -173,7 +185,13 @@ export class ProjectsController {
    * Permissions: Admin, ITHead, SuperAdmin
    */
   @Patch(":id")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.CEO, Role.SuperAdmin)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.TechnicalDirector,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateProject(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -223,7 +241,9 @@ export class ProjectsController {
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException("User not authenticated or tenant ID is missing.");
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
     }
     return this.projectsService.archive(id, req.user.tenant_id, req.user.id);
   }
@@ -239,7 +259,9 @@ export class ProjectsController {
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException("User not authenticated or tenant ID is missing.");
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
     }
     return this.projectsService.restore(id, req.user.tenant_id, req.user.id);
   }
@@ -249,7 +271,13 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Get(":id/cashflow")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
   async getCashFlow(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Query("year") year: number,
@@ -260,7 +288,11 @@ export class ProjectsController {
         "User not authenticated or tenant ID is missing.",
       );
     }
-    return this.projectsService.getCashFlowHeatmap(id, req.user.tenant_id, year || new Date().getFullYear());
+    return this.projectsService.getCashFlowHeatmap(
+      id,
+      req.user.tenant_id,
+      year || new Date().getFullYear(),
+    );
   }
 
   /**
@@ -268,7 +300,13 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Post(":id/inflow")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
   async createInflow(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() inflowData: any,
@@ -279,7 +317,11 @@ export class ProjectsController {
         "User not authenticated or tenant ID is missing.",
       );
     }
-    return this.projectsService.createInflow({ ...inflowData, project_id: id }, req.user.id, req.user.tenant_id);
+    return this.projectsService.createInflow(
+      { ...inflowData, project_id: id },
+      req.user.id,
+      req.user.tenant_id,
+    );
   }
 
   /**
@@ -287,7 +329,13 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Get(":id/audits")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
   async getAudits(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
@@ -305,7 +353,13 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Get(":id/lpos")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
   async getLpos(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,
@@ -323,7 +377,13 @@ export class ProjectsController {
    * Permissions: Admin, Finance, SuperAdmin
    */
   @Get(":id/inflows")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
   async getInflows(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthenticatedRequest,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import PdfPreviewModal from '../../../components/modals/PdfPreviewModal';
 import PageContainer from '../../../components/Layout/PageContainer';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
@@ -17,7 +18,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Package,
-  ArrowRight
+  ArrowRight,
+  Download,
+  Printer,
+  Eye,
+  BrainCircuit
 } from 'lucide-react';
 import Link from 'next/link';
 import Tooltip from '../../../components/common/Tooltip';
@@ -35,7 +40,11 @@ const P2PDeskPage: React.FC = () => {
     createPurchaseOrder,
     fetchDepartments,
     fetchChartOfAccounts,
-    createRequisition
+    createRequisition,
+    downloadPurchaseOrderPdf,
+    downloadInvoicePdf,
+    fetchReportBlob,
+    downloadBlob
   } = useFinanceCore();
   const { convertToDisplay, convertAmount, availableCurrencies } = useCurrency();
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -55,6 +64,36 @@ const P2PDeskPage: React.FC = () => {
     exchangeRate: 1.0,
     requiredByDate: ''
   });
+
+  // PDF Preview State
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<{ blob: Blob; title: string; filename: string } | null>(null);
+
+  const handlePreviewDocument = async (type: 'po' | 'invoice', id: string, docNumber: string) => {
+    setPreviewData(null);
+    setIsPreviewOpen(true);
+    
+    let endpoint = '';
+    let title = '';
+    let filename = '';
+
+    if (type === 'po') {
+      endpoint = `/procurement/purchase-orders/${id}/pdf`;
+      title = `Purchase Order ${docNumber}`;
+      filename = `PO-${docNumber}.pdf`;
+    } else if (type === 'invoice') {
+      endpoint = `/procurement/invoices/${id}/pdf`;
+      title = `Invoice ${docNumber}`;
+      filename = `Invoice-${docNumber}.pdf`;
+    }
+
+    const blob = await fetchReportBlob(endpoint);
+    if (blob) {
+      setPreviewData({ blob, title, filename });
+    } else {
+      setIsPreviewOpen(false);
+    }
+  };
   
 
   useEffect(() => {
@@ -421,8 +460,18 @@ const P2PDeskPage: React.FC = () => {
                   <td className="px-6 py-4">
                     <StatusBadge status={po.status} />
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">View Details</Button>
+                  <td className="px-6 py-4 text-right flex justify-end gap-2">
+                    <Tooltip content="Review formal Purchase Order document (PDF).">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handlePreviewDocument('po', po.id, po.po_number)}
+                        className="opacity-0 group-hover:opacity-100 transition border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                    </Tooltip>
+                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">View</Button>
                   </td>
                 </tr>
               ))}
@@ -448,8 +497,18 @@ const P2PDeskPage: React.FC = () => {
                   <td className="px-6 py-4">
                     <StatusBadge status={inv.status} />
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">Process Payment</Button>
+                  <td className="px-6 py-4 text-right flex justify-end gap-2">
+                    <Tooltip content="Review formal Invoice document (PDF).">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handlePreviewDocument('invoice', inv.id, inv.invoice_number)}
+                        className="opacity-0 group-hover:opacity-100 transition border-brand-secondary/30 text-brand-secondary hover:bg-brand-secondary hover:text-white"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                    </Tooltip>
+                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">Pay</Button>
                   </td>
                 </tr>
               ))}
@@ -469,6 +528,23 @@ const P2PDeskPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+      {/* PDF Preview Modal Integration */}
+      {isPreviewOpen && (
+        <PdfPreviewModal
+          isOpen={true}
+          onClose={() => {
+            setIsPreviewOpen(false);
+            setPreviewData(null);
+          }}
+          pdfBlob={previewData?.blob || null}
+          title={previewData?.title || 'Document Preview'}
+          onDownload={() => {
+            if (previewData) {
+              downloadBlob(previewData.blob, previewData.filename);
+            }
+          }}
+        />
+      )}
       </PageContainer>
     </>
   );

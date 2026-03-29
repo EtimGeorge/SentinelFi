@@ -1,4 +1,4 @@
-import { IsUUID, IsOptional } from 'class-validator';
+import { IsUUID, IsOptional } from "class-validator";
 
 export class ApplyWbsTemplateDto {
   @IsUUID()

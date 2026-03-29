@@ -1,0 +1,14 @@
+{
+  "name": "Healthcare Facility Infrastructure",
+  "industry": "HEALTHCARE",
+  "structure": [
+    { "code": "HC-1", "description": "Healthcare System Design & Workflow Mapping" },
+    { "code": "HC-2", "description": "Medical Equipment Planning & Specifications" },
+    { "code": "HC-3", "description": "Modular Operation Theater Construction" },
+    { "code": "HC-4", "description": "Central Medical Gas Piping System" },
+    { "code": "HC-5", "description": "HMIS & IT Infrastructure Integration" },
+    { "code": "HC-6", "description": "Staff Training & Simulation" },
+    { "code": "HC-7", "description": "Infection Control Risk Assessment (ICRA)" },
+    { "code": "HC-8", "description": "Statutory Commissioning & Accreditation" }
+  ]
+}

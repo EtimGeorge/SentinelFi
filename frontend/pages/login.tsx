@@ -231,13 +231,15 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
 
         <div className="p-8 text-center border-b border-gray-700">
 
-          <div className="flex justify-center mb-4">
-
-            <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="App Logo" height={60} width={240} />
-
+          <div className="flex justify-center mb-6">
+            <div className="relative w-40 h-40">
+              <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="App Logo" fill className="object-contain p-0.5" />
+            </div>
           </div>
 
-          <h1 className="text-3xl font-extrabold text-white mb-2">SentinelFi</h1>
+          <h1 className="text-3xl font-black text-white mb-2 uppercase tracking-tighter font-sora">
+            SENTINEL<span className="text-orange-500">FI</span>
+          </h1>
 
           <p className="text-sm text-gray-400">Financial Intelligence Platform</p>
 
@@ -509,22 +511,11 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
 
 
 
-          {/* Register Link */}
-
-          <div className="mt-6 text-center text-sm">
-
-            <p className="mt-2 text-gray-400">
-
-              Don&apos;t have an account?{' '}
-
-              <Link href="/register" className="text-brand-primary hover:underline">
-
-                Register
-
-              </Link>
-
+          {/* Register Link Disabled for Invite-Only */}
+          <div className="mt-8 pt-6 border-t border-gray-700 text-center">
+            <p className="text-xs text-gray-500 font-medium">
+              Access is restricted to authorized personnel.
             </p>
-
           </div>
 
         </form>

@@ -34,6 +34,7 @@ interface BudgetDetails {
   total_cost_budgeted: string;
   project_id: string;
   project_name: string;
+  project_currency: string;
   created_at: string;
   status: string;
   total_paid_rollup: number;
@@ -91,16 +92,16 @@ const BudgetDossierPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card className="p-4 border-gray-700 bg-brand-dark/30">
               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Allocated Budget</label>
-              <p className="text-xl font-bold text-white">{convertToDisplay(parseFloat(budget.total_cost_budgeted))}</p>
+              <p className="text-xl font-bold text-white">{convertToDisplay(parseFloat(budget.total_cost_budgeted), budget.project_currency)}</p>
             </Card>
             <Card className="p-4 border-gray-700 bg-brand-dark/30">
               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Actual Expenditure</label>
-              <p className="text-xl font-bold text-brand-secondary">{convertToDisplay(budget.total_paid_rollup)}</p>
+              <p className="text-xl font-bold text-brand-secondary">{convertToDisplay(budget.total_paid_rollup, budget.project_currency)}</p>
             </Card>
             <Card className="p-4 border-gray-700 bg-brand-dark/30">
               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Remaining Balance</label>
               <p className={`text-xl font-bold ${budget.remaining_budget < 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {convertToDisplay(budget.remaining_budget)}
+                {convertToDisplay(budget.remaining_budget, budget.project_currency)}
               </p>
             </Card>
             <Card className="p-4 border-gray-700 bg-brand-dark/30">
@@ -167,7 +168,7 @@ const BudgetDossierPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-black text-white">{convertToDisplay(parseFloat(expense.actual_paid_amount))}</p>
+                        <p className="text-sm font-black text-white">{convertToDisplay(parseFloat(expense.actual_paid_amount), budget.project_currency)}</p>
                         <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${expense.variance_flag.includes('OVERRUN') ? 'border-red-500/30 text-red-400' : 'border-green-500/30 text-green-400 '}`}>
                           {expense.variance_flag}
                         </span>

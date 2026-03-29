@@ -3,7 +3,13 @@ import Link from 'next/link';
 import { AlertCircle, Home, LogIn } from 'lucide-react';
 import PublicLayout from '../components/Layout/PublicLayout';
 
-const Custom404 = () => {
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const Custom404: NextPageWithLayout = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-brand-dark px-4">
       <div className="max-w-md w-full text-center space-y-6">

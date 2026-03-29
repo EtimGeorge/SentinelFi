@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
   OneToMany,
   Index,
+  DeleteDateColumn,
 } from "typeorm";
 import { OperationalBudgetEntity } from "./operational-budget.entity";
 import { OperationalExpenseEntity } from "./operational-expense.entity"; // Will be created next
@@ -46,7 +47,7 @@ export class OperationalBudgetCategoryEntity {
 
   @OneToMany(
     () => OperationalBudgetPeriodAllocationEntity,
-    (allocation) => allocation.category
+    (allocation) => allocation.category,
   )
   allocations!: OperationalBudgetPeriodAllocationEntity[];
 
@@ -55,4 +56,7 @@ export class OperationalBudgetCategoryEntity {
 
   @UpdateDateColumn({ type: "timestamp" })
   updated_at!: Date;
+
+  @DeleteDateColumn({ type: "timestamp", nullable: true })
+  deleted_at?: Date;
 }

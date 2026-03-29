@@ -1,11 +1,11 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class CreateApprovalLogTable1772336000000 implements MigrationInterface {
-    name = 'CreateApprovalLogTable1772336000000'
+  name = "CreateApprovalLogTable1772336000000";
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        // Create Enums if they don't exist
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    // Create Enums if they don't exist
+    await queryRunner.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'approval_log_document_type_enum') THEN
                     CREATE TYPE "approval_log_document_type_enum" AS ENUM('WBS_BUDGET', 'REQUISITION', 'PAYROLL_RUN');
@@ -16,7 +16,7 @@ export class CreateApprovalLogTable1772336000000 implements MigrationInterface {
             END $$;
         `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "approval_log" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid NOT NULL, 
@@ -31,13 +31,19 @@ export class CreateApprovalLogTable1772336000000 implements MigrationInterface {
             )
         `);
 
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_approval_log_tenant_id" ON "approval_log" ("tenant_id")`);
-        await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_approval_log_document_id" ON "approval_log" ("document_id")`);
-    }
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_approval_log_tenant_id" ON "approval_log" ("tenant_id")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_approval_log_document_id" ON "approval_log" ("document_id")`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE IF EXISTS "approval_log"`);
-        await queryRunner.query(`DROP TYPE IF EXISTS "approval_log_status_enum"`);
-        await queryRunner.query(`DROP TYPE IF EXISTS "approval_log_document_type_enum"`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS "approval_log"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "approval_log_status_enum"`);
+    await queryRunner.query(
+      `DROP TYPE IF EXISTS "approval_log_document_type_enum"`,
+    );
+  }
 }

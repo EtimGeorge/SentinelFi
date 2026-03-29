@@ -5,6 +5,7 @@ import {
   Column,
   Unique,
   OneToMany,
+  DeleteDateColumn,
 } from "typeorm";
 import type { UserEntity } from "../../src/auth/user.entity";
 
@@ -42,6 +43,14 @@ export class TenantEntity {
   @Column({ type: "numeric", precision: 10, scale: 2, default: 0 })
   price!: number;
 
+  @Column({ type: "text", nullable: true })
+  brandLogoBase64!: string | null;
+
+  @Column({ type: "varchar", length: 7, nullable: true })
+  brandPrimaryColorHex!: string | null;
+
+  @Column({ type: "text", nullable: true })
+  companyAddress!: string | null;
 
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
@@ -53,7 +62,7 @@ export class TenantEntity {
   })
   updated_at!: Date;
 
-  @Column({ type: "timestamptz", nullable: true })
+  @DeleteDateColumn({ type: "timestamptz", nullable: true })
   deleted_at!: Date | null;
 
   @OneToMany("UserEntity", "tenant")

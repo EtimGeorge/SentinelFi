@@ -236,7 +236,7 @@ const BudgetDraftingPage: React.FC = () => {
                     <div className="p-4 bg-brand-dark/70 rounded-lg border border-brand-secondary/50 text-center">
                         <p className="text-sm text-gray-400">TOTAL ESTIMATED COST</p>
                         <p className="text-3xl font-bold text-white mt-1">
-                            {convertToDisplay(estimatedCost, 'NGN')}
+                            {convertToDisplay(estimatedCost, userCurrency.code)}
                         </p>
                         <p className={`text-xs mt-1 flex items-center justify-center ${budgetStatus.color}`}>
                             <CheckSquare className="w-3 h-3 inline mr-1" /> {budgetStatus.text}

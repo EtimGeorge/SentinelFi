@@ -1,4 +1,3 @@
-
 export class SummaryStatsDto {
   totalBudgeted!: number;
   totalActualPaid!: number;

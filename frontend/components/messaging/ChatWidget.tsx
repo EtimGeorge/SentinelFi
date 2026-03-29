@@ -144,9 +144,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           </button>
         </Tooltip>
       ) : (
-        <div className="flex flex-col w-[360px] h-[580px] bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden transform origin-bottom-right transition-all">
+        <div className="flex flex-col w-[360px] max-h-[calc(100vh-100px)] h-[580px] bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden transform origin-bottom-right transition-all">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white">
+          <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white z-10">
             <div className="flex items-center gap-3">
               {viewMode !== 'CONVERSATIONS' && (
                 <button 
@@ -168,10 +168,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           </div>
 
           <div className="flex-1 overflow-hidden relative bg-slate-50 flex flex-col">
+            {/* Background Image & Overlay */}
+            <div 
+              className="absolute inset-0 z-0 bg-cover bg-center transition-opacity duration-700"
+              style={{ backgroundImage: 'url("/AI-DEGITAL-WALLPAPER.jpeg")' }}
+            />
+            <div className="absolute inset-0 z-0 bg-slate-900/80 backdrop-blur-[2px]" />
             
             {/* CONVERSATIONS LIST */}
             {viewMode === 'CONVERSATIONS' && (
-              <div className="flex-1 flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="flex-1 flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-300 z-10">
                 <div className="p-4 flex items-center justify-between">
                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-tighter">Recent Chats</h3>
                   <button 
@@ -228,7 +234,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
             {/* DIRECTORY / GROUP CREATION */}
             {viewMode === 'DIRECTORY' && (
-              <div className="flex-1 flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="flex-1 flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300 z-10">
                 <div className="p-4 bg-white border-b border-slate-100 space-y-3">
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -296,7 +302,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
             {/* CHAT INTERFACE */}
             {viewMode === 'CHAT' && activeConversationId && (
-              <div className="flex-1 flex flex-col h-full animate-in fade-in zoom-in-95 duration-300">
+              <div className="flex-1 flex flex-col h-full animate-in fade-in zoom-in-95 duration-300 z-10">
                 <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto space-y-4">
                   {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center opacity-50 space-y-3">

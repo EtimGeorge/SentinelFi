@@ -35,7 +35,7 @@ import { Role } from '@shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import Switch from '../../components/common/Switch';
 import Modal from '../../components/common/Modal'; 
-
+import { isCorporateEmail } from '@shared/utils/validation';
 const UserManagementPage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const isSuperAdminActor = useMemo(() => currentUser?.roles?.some(r => (typeof r === 'string' ? r === Role.SuperAdmin : r.name === Role.SuperAdmin)), [currentUser]);
@@ -156,14 +156,26 @@ const UserManagementPage: React.FC = () => {
   };
 
   const handleCreateUser = async () => {
-    if (!createForm.email || !createForm.password || !createForm.first_name) {
+    if (!createForm.email || !createForm.first_name) {
       addToast('Please fill in all required fields.', 'error');
       return;
     }
     setFormLoading(true);
     try {
-      await api.post('/auth/users', createForm);
-      addToast(`Operator ${createForm.email} registered successfully.`, 'success');
+      if (!isCorporateEmail(createForm.email)) {
+        addToast('SentinelFi requires a corporate email address for all operators.', 'error');
+        setFormLoading(false);
+        return;
+      }
+
+      // Transition to invitation flow
+      await api.post('/billing/invite', {
+        email: createForm.email,
+        role: createForm.role,
+        firstName: createForm.first_name,
+        lastName: createForm.last_name,
+      });
+      addToast(`Invitation sent to ${createForm.email} successfully.`, 'success');
       setIsCreateModalOpen(false);
       setCreateForm({
         email: '', username: '', first_name: '', last_name: '', password: '', role: Role.OperationalDirector, 
@@ -171,8 +183,9 @@ const UserManagementPage: React.FC = () => {
       });
       fetchUsers();
     } catch (e: any) {
-      addToast(`Registration failed: ${e.response?.data?.message || e.message}`, 'error');
+      addToast(`Invitation failed: ${e.response?.data?.message || e.message}`, 'error');
     } finally {
+      setFormLoading(true); // Keep loading state until refresh if needed, but here we set false
       setFormLoading(false);
     }
   };
@@ -480,7 +493,7 @@ const UserManagementPage: React.FC = () => {
             <button onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm font-bold transition">Cancel</button>
             <button onClick={handleCreateUser} disabled={formLoading} className="px-6 py-2 bg-brand-primary text-brand-dark rounded-xl font-black text-sm hover:scale-105 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-brand-primary/20">
               {formLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-              ENROLL OPERATOR
+              SEND INVITATION
             </button>
           </div>
         )}
@@ -530,15 +543,10 @@ const UserManagementPage: React.FC = () => {
               />
             </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Initial Password</label>
-            <input 
-              type="password" 
-              value={createForm.password}
-              onChange={(e) => setCreateForm({...createForm, password: e.target.value})}
-              className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none focus:border-brand-primary transition"
-              placeholder="••••••••" 
-            />
+          <div className="p-3 bg-brand-primary/10 border border-brand-primary/20 rounded-xl">
+            <p className="text-[11px] text-gray-300 leading-relaxed italic">
+              Operators will receive a secure magic link to set up their own password and finalize their account.
+            </p>
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Authority Level (Role)</label>

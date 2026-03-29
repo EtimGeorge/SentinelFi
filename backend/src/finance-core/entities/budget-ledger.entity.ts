@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { FiscalPeriodEntity } from "./fiscal-period.entity";
 import { CostCenterEntity } from "./cost-center.entity";
 import { GLAccountEntity } from "./gl-account.entity";
@@ -7,7 +16,7 @@ export enum BudgetLedgerType {
   PRIMARY_ALLOCATION = "PRIMARY_ALLOCATION",
   SUPPLEMENT = "SUPPLEMENT",
   TRANSFER_IN = "TRANSFER_IN",
-  TRANSFER_OUT = "TRANSFER_OUT"
+  TRANSFER_OUT = "TRANSFER_OUT",
 }
 
 @Entity("budget_ledger")

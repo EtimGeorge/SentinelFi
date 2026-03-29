@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Purchase Order - {{ poNumber }}</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            font-size: 14px;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding-bottom: 20px;
+            border-bottom: 3px solid {{ brandPrimaryColorHex }};
+            margin-bottom: 30px;
+        }
+        .company-info {
+            width: 50%;
+        }
+        .company-logo {
+            max-height: 80px;
+            max-width: 250px;
+            margin-bottom: 15px;
+        }
+        .doc-title {
+            text-align: right;
+            width: 50%;
+        }
+        .doc-title h1 {
+            color: {{ brandPrimaryColorHex }};
+            margin: 0 0 10px 0;
+            font-size: 32px;
+            text-transform: uppercase;
+        }
+        .meta-table {
+            width: 100%;
+            margin-bottom: 30px;
+            border-collapse: collapse;
+        }
+        .meta-table td {
+            padding: 5px;
+            vertical-align: top;
+        }
+        .meta-table .label {
+            font-weight: bold;
+            color: #555;
+            width: 120px;
+        }
+        .flex-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        .address-box {
+            width: 48%;
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .address-box h3 {
+            margin-top: 0;
+            color: {{ brandPrimaryColorHex }};
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+        .items-table th {
+            background-color: {{ brandPrimaryColorHex }};
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-size: 13px;
+        }
+        .items-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .items-table .text-right {
+            text-align: right;
+        }
+        .totals-section {
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .totals-table {
+            width: 350px;
+            border-collapse: collapse;
+        }
+        .totals-table td {
+            padding: 8px 10px;
+            text-align: right;
+        }
+        .totals-table .label {
+            font-weight: bold;
+            color: #555;
+            text-align: left;
+        }
+        .totals-table .grand-total {
+            font-size: 18px;
+            font-weight: bold;
+            color: {{ brandPrimaryColorHex }};
+            border-top: 2px solid {{ brandPrimaryColorHex }};
+            border-bottom: 2px solid {{ brandPrimaryColorHex }};
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 11px;
+            color: #777;
+            text-align: center;
+        }
+        .status-stamp {
+            position: absolute;
+            top: 250px;
+            right: 50px;
+            font-size: 40px;
+            font-weight: bold;
+            color: {{#if statusColor}}{{statusColor}}{{else}}#ddd{{/if}};
+            opacity: 0.3;
+            transform: rotate(-15deg);
+            border: 5px solid {{#if statusColor}}{{statusColor}}{{else}}#ddd{{/if}};
+            padding: 10px 20px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Status Stamp (Draft, Approved, Cancelled) -->
+        <div class="status-stamp">{{ poStatus }}</div>
+
+        <div class="header">
+            <div class="company-info">
+                {{#if brandLogoBase64}}
+                    <img src="{{ brandLogoBase64 }}" alt="Company Logo" class="company-logo" />
+                {{else}}
+                    <h2 style="color: {{ brandPrimaryColorHex }}; margin: 0 0 10px 0;">{{ tenantName }}</h2>
+                {{/if}}
+                <div style="color: #666; line-height: 1.5;">
+                    {{#if companyAddress}}
+                        {{ companyAddress }}
+                    {{else}}
+                        SentinelFi Platform
+                    {{/if}}
+                </div>
+            </div>
+            <div class="doc-title">
+                <h1>PURCHASE ORDER</h1>
+                <table class="meta-table" style="text-align: right; width: 100%;">
+                    <tr><td class="label">PO Number:</td><td>{{ poNumber }}</td></tr>
+                    <tr><td class="label">Date:</td><td>{{ poDate }}</td></tr>
+                    <tr><td class="label">Payment Terms:</td><td>{{ paymentTerms }}</td></tr>
+                    <tr><td class="label">Project:</td><td>{{ projectName }}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="flex-row">
+            <div class="address-box">
+                <h3>VENDOR</h3>
+                <strong>{{ vendorName }}</strong><br>
+                {{#if vendorAddress}}
+                    {{ vendorAddress }}<br>
+                {{/if}}
+                {{#if vendorContact}}
+                    Attn: {{ vendorContact }}<br>
+                {{/if}}
+                {{#if vendorEmail}}
+                    {{ vendorEmail }}
+                {{/if}}
+            </div>
+            <div class="address-box">
+                <h3>SHIP/BILL TO</h3>
+                <strong>{{ tenantName }}</strong><br>
+                {{#if deliveryAddress}}
+                    {{ deliveryAddress }}<br>
+                {{else}}
+                    {{ companyAddress }}<br>
+                {{/if}}
+                {{#if requesterName}}
+                    Requested By: {{ requesterName }}
+                {{/if}}
+            </div>
+        </div>
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>Item Description</th>
+                    <th style="width: 100px;">WBS Code</th>
+                    <th class="text-right" style="width: 80px;">Qty</th>
+                    <th class="text-right" style="width: 120px;">Unit Price</th>
+                    <th class="text-right" style="width: 120px;">Line Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each lineItems}}
+                <tr>
+                    <td>{{ this.description }}</td>
+                    <td><span style="font-size: 11px; color: #666;">{{ this.wbsCode }}</span></td>
+                    <td class="text-right">{{ this.quantity }}</td>
+                    <td class="text-right">{{ this.formattedUnitPrice }}</td>
+                    <td class="text-right">{{ this.formattedTotal }}</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+
+        <div class="totals-section">
+            <table class="totals-table">
+                <tr>
+                    <td class="label">Subtotal:</td>
+                    <td>{{ formattedSubtotal }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Tax ({{ taxPercent }}%):</td>
+                    <td>{{ formattedTax }}</td>
+                </tr>
+                <tr class="grand-total">
+                    <td class="label" style="color: {{ brandPrimaryColorHex }};">TOTAL:</td>
+                    <td>{{ formattedGrandTotal }} {{ currencyCode }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="margin-top: 40px;">
+            <h4 style="color: {{ brandPrimaryColorHex }}; margin-bottom: 5px;">Terms & Conditions</h4>
+            <p style="font-size: 12px; color: #666; white-space: pre-line;">
+                {{ termsAndConditions }}
+            </p>
+        </div>
+
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #ccc; display: flex; justify-content: space-between;">
+            <div style="width: 45%;">
+                <p><strong>Approved By:</strong></p>
+                <div style="height: 40px; border-bottom: 1px solid #333; margin-bottom: 5px; font-family: 'Courier New', Courier, monospace; font-size: 16px; padding-top: 15px;">
+                    {{#if isApproved}}{{ approvalSignature }}{{/if}}
+                </div>
+                <p style="font-size: 11px; color: #666;">Date: {{ approvalDate }}</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            Generated securely via SentinelFi Document Control System &bull; {{ generationDate }}
+        </div>
+    </div>
+</body>
+</html>

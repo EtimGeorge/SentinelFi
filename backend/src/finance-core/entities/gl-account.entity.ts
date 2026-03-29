@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { AccountGroupEntity } from "./account-group.entity";
 
 @Entity("gl_account")
@@ -26,7 +35,7 @@ export class GLAccountEntity {
   @Column({ type: "uuid" })
   account_group_id!: string;
 
-  @ManyToOne(() => AccountGroupEntity, group => group.glAccounts)
+  @ManyToOne(() => AccountGroupEntity, (group) => group.glAccounts)
   @JoinColumn({ name: "account_group_id" })
   accountGroup!: AccountGroupEntity;
 

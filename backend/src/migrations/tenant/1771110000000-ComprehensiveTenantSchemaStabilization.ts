@@ -1,11 +1,11 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class ComprehensiveTenantSchemaStabilization1771110000000 implements MigrationInterface {
-    name = 'ComprehensiveTenantSchemaStabilization1771110000000'
+  name = "ComprehensiveTenantSchemaStabilization1771110000000";
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        // --- 1. ENUMS ---
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    // --- 1. ENUMS ---
+    await queryRunner.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'budget_category_type_enum') THEN
                     CREATE TYPE "budget_category_type_enum" AS ENUM('CAPEX', 'OPEX');
@@ -19,10 +19,10 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
             END $$;
         `);
 
-        // --- 2. MISSING TABLES ---
+    // --- 2. MISSING TABLES ---
 
-        // project_audit
-        await queryRunner.query(`
+    // project_audit
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "project_audit" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid NOT NULL, 
@@ -37,8 +37,8 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
             )
         `);
 
-        // project_inflow
-        await queryRunner.query(`
+    // project_inflow
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "project_inflow" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid NOT NULL, 
@@ -55,8 +55,8 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
             )
         `);
 
-        // lpo
-        await queryRunner.query(`
+    // lpo
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "lpo" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid NOT NULL, 
@@ -77,8 +77,8 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
             )
         `);
 
-        // budget_category
-        await queryRunner.query(`
+    // budget_category
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "budget_category" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid, 
@@ -93,8 +93,8 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
             )
         `);
 
-        // operational_budget_period_allocation
-        await queryRunner.query(`
+    // operational_budget_period_allocation
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "operational_budget_period_allocation" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "operational_budget_category_id" uuid NOT NULL, 
@@ -109,8 +109,8 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
             )
         `);
 
-        // payroll_entry
-        await queryRunner.query(`
+    // payroll_entry
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "payroll_entry" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid NOT NULL, 
@@ -135,9 +135,9 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
             )
         `);
 
-        // --- 3. MISSING COLUMNS ---
+    // --- 3. MISSING COLUMNS ---
 
-        await queryRunner.query(`
+    await queryRunner.query(`
             DO $$ BEGIN
                 -- clients.deleted_at
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'clients' AND column_name = 'deleted_at') THEN
@@ -171,8 +171,8 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
             END $$;
         `);
 
-        // --- 4. CONSTRAINTS (Missing Foreign Keys) ---
-        await queryRunner.query(`
+    // --- 4. CONSTRAINTS (Missing Foreign Keys) ---
+    await queryRunner.query(`
             DO $$ BEGIN
                 -- project_audit -> project
                 IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_audit_project') THEN
@@ -211,15 +211,17 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
                 END IF;
             END $$;
         `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        // Down migration can be complex with multi-tenancy, usually we focus on 'up' stability
-        // But for completeness:
-        await queryRunner.query(`DROP TABLE IF EXISTS "payroll_entry"`);
-        await queryRunner.query(`DROP TABLE IF EXISTS "operational_budget_period_allocation"`);
-        await queryRunner.query(`DROP TABLE IF EXISTS "budget_category"`);
-        await queryRunner.query(`DROP TYPE IF EXISTS "period_type_enum"`);
-        await queryRunner.query(`DROP TYPE IF EXISTS "budget_category_type_enum"`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    // Down migration can be complex with multi-tenancy, usually we focus on 'up' stability
+    // But for completeness:
+    await queryRunner.query(`DROP TABLE IF EXISTS "payroll_entry"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "operational_budget_period_allocation"`,
+    );
+    await queryRunner.query(`DROP TABLE IF EXISTS "budget_category"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "period_type_enum"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "budget_category_type_enum"`);
+  }
 }

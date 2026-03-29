@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth, Role } from '../context/AuthContext';
-import { Search, Bell, Menu, User as UserIcon, LogOut } from 'lucide-react'; // Renamed User to avoid conflict
+import { Search, Bell, Menu, User as UserIcon, LogOut, Sparkles, Shield } from 'lucide-react'; // Renamed User to avoid conflict
 import Tooltip from '../common/Tooltip';
 import { useSecuredApi } from '../hooks/useSecuredApi';
 import useUIStore from '../../store/uiStore';
@@ -10,6 +10,7 @@ import { User } from '../../../shared/types/user'; // CORRECTED IMPORT
 import { LiveExpense } from '../../../shared/types/expense'; // CORRECTED IMPORT
 import { CurrencySelector } from '../common/CurrencySelector'; // Currency Switcher
 import useGlobalStore from '../../store/globalStore';
+import SubscriptionBanner from '../Billing/SubscriptionBanner';
 
 const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -39,6 +40,7 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const api = useSecuredApi();
   const unreadNotificationsCount = useUIStore((state) => state.unreadNotificationsCount);
+  const toggleAiAssistant = useUIStore((state) => state.toggleAiAssistant);
   const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
   const [projects, setProjects] = useState<{ project_id: string; project_name: string }[]>([]);
 
@@ -84,25 +86,48 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
   // State for user dropdown
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
 
+  const hasMissingProfile = user && (!user.first_name || !user.last_name);
+
   return (
-    <header className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700 text-gray-300">
-      <div className="flex items-center">
-        <button onClick={toggleSidebar} className="text-gray-400 focus:outline-none md:hidden p-1 mr-2">
+    <div className="flex flex-col w-full sticky top-0 z-40 overflow-visible">
+      {/* PROFILE COMPLETION BANNER (For Legacy Users) */}
+      {hasMissingProfile && (
+        <div className="bg-gradient-to-r from-indigo-600 to-brand-primary text-white px-6 py-1.5 flex items-center justify-between text-[11px] font-bold tracking-tight shadow-lg border-b border-white/10 animate-in slide-in-from-top duration-500">
+          <div className="flex items-center gap-2 text-white">
+            <div className="bg-white/20 p-1 rounded-md">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
+            <span>PRODUCTION READINESS: Your profile is missing name data. Please complete it to unlock full auditing capabilities.</span>
+          </div>
+          <Link href="/settings" className="bg-white text-brand-primary px-3 py-0.5 rounded-full hover:bg-gray-100 transition-all font-black uppercase text-[10px] shrink-0">
+            Complete Now
+          </Link>
+        </div>
+      )}
+      
+      <header className="flex items-center justify-between px-6 py-3 bg-brand-dark/80 backdrop-blur-xl border-b border-white/5 text-gray-300 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
+        <div className="flex items-center">
+        <button 
+          onClick={toggleSidebar} 
+          className="text-gray-400 focus:outline-none md:hidden p-1.5 mr-2 hover:bg-white/5 active:bg-white/10 rounded-lg transition-colors"
+          aria-label="Toggle Navigation Menu"
+        >
           <Menu className="h-5 w-5" />
         </button>
+        
         <div className="relative mx-2 md:mx-0">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3">
             <Search className="h-4 w-4 text-gray-500" />
           </span>
           <input
-            className="w-full py-1.5 pl-9 pr-4 text-xs text-gray-300 bg-brand-dark/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-primary/50 focus:bg-gray-900"
+            className="w-full py-2 pl-10 pr-4 text-xs font-medium text-white bg-white/5 border border-white/5 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-primary focus:border-brand-primary focus:bg-white/10 transition-all placeholder-gray-500 shadow-inner"
             type="text"
             placeholder="Search..."
             value={searchTerm}
             onChange={handleSearchChange}
           />
           {isSearchOpen && searchResults && (
-            <div className="absolute z-10 w-full mt-2 bg-gray-800 border border-gray-700 rounded-md shadow-lg">
+            <div className="absolute z-50 w-full mt-2 bg-brand-dark/95 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
               <div className="py-1">
                 {searchResults.wbsItems.length > 0 && (
                   <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">WBS Items</div>
@@ -134,6 +159,11 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
         </div>
       </div>
 
+      {/* Subscription Countdown Banner — shows when trial/subscription is expiring */}
+      <div className="flex-1 flex justify-center px-4 hidden md:flex">
+        <SubscriptionBanner />
+      </div>
+
       <div className="flex items-center">
         {/* Project Selector */}
         <div className="mr-1 sm:mr-2">
@@ -153,6 +183,19 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
         <div className="mr-1 sm:mr-2">
           <CurrencySelector />
         </div>
+
+        {/* AI Assistant Toggle Button */}
+        <Tooltip content="SentinelFi AI Assistant" position="bottom">
+          <button
+            onClick={toggleAiAssistant}
+            data-tour="ai-assistant-toggle"
+            className="relative flex items-center mx-1 sm:mx-2 text-indigo-400 focus:outline-none hover:text-indigo-300 hover:bg-indigo-900/40 p-1.5 rounded-md transition-colors"
+            aria-label="Toggle AI Assistant"
+          >
+            <Sparkles className="h-5 w-5" />
+          </button>
+        </Tooltip>
+
         <Tooltip content="Notifications" position="bottom">
           <button className="relative flex items-center mx-2 text-gray-400 focus:outline-none hover:text-white transition p-1">
             <Bell className="h-5 w-5" />
@@ -200,6 +243,7 @@ const LayoutNav: React.FC<LayoutNavProps> = ({ toggleSidebar }) => {
         </div>
       </div>
     </header>
+    </div>
   );
 };
 

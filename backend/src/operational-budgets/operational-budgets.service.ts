@@ -12,16 +12,23 @@ import { CreateOperationalBudgetDto } from "./dto/create-operational-budget.dto"
 import { UpdateOperationalBudgetDto } from "./dto/update-operational-budget.dto";
 import { GetOperationalBudgetsDto } from "./dto/get-operational-budgets.dto";
 import { OperationalBudgetCategoryEntity } from "./operational-budget-category.entity";
-import { OperationalExpenseEntity } from "./operational-expense.entity";
+import {
+  OperationalExpenseEntity,
+  OperationalExpenseStatus,
+} from "./operational-expense.entity";
 import { PayrollEntryEntity } from "./payroll-entry.entity";
 import { BudgetCategoryEntity } from "./budget-category.entity";
-import { OperationalBudgetPeriodAllocationEntity, PeriodType } from "./operational-budget-period-allocation.entity";
+import {
+  OperationalBudgetPeriodAllocationEntity,
+  PeriodType,
+} from "./operational-budget-period-allocation.entity";
 import { BudgetControlService } from "../common/budget-control.service";
 import { PdfUtility } from "../common/pdf.utility";
 import { ExcelUtility } from "../common/excel.utility";
 import { WordUtility } from "../common/word.utility";
 import { Buffer } from "buffer";
-
+import { VarianceFlag } from "@shared/types";
+import { NotificationsService } from "../notifications/notifications.service";
 
 // ---- OPEX Rollup Types ----
 export interface OpexCategoryRollup {
@@ -31,7 +38,7 @@ export interface OpexCategoryRollup {
   actual: number;
   variance: number;
   burnRate: number;
-  status: 'OVERRUN' | 'AT_RISK' | 'HEALTHY';
+  status: "OVERRUN" | "AT_RISK" | "HEALTHY";
 }
 
 export interface OpexBudgetRollup {
@@ -60,8 +67,6 @@ export interface OpexRollupResult {
 }
 // ---------------------------
 
-
-
 @Injectable()
 export class OperationalBudgetsService {
   private readonly logger = new Logger(OperationalBudgetsService.name);
@@ -79,44 +84,146 @@ export class OperationalBudgetsService {
     @Inject("OPERATIONALBUDGETPERIODALLOCATION_REPOSITORY")
     private allocationRepository: Repository<OperationalBudgetPeriodAllocationEntity>,
     private readonly budgetControlService: BudgetControlService,
+    private readonly notificationsService: NotificationsService,
   ) {}
+
+  // Centralized Governance Constants
+  private readonly CRITICAL_OVERRIDE_ROLES = [
+    "CFO",
+    "CEO",
+    "Admin Director",
+    "SuperAdmin",
+  ];
+  private readonly MAJOR_OVERRIDE_ROLES = [
+    "Finance Manager",
+    "CFO",
+    "CEO",
+    "Admin Director",
+    "SuperAdmin",
+    "Finance Officer",
+  ];
 
   async logExpense(
     expenseData: Partial<OperationalExpenseEntity>,
     userId: string,
     tenantId: string,
+    actorRole?: string,
   ): Promise<OperationalExpenseEntity> {
-    const expense = this.operationalExpenseRepository.create({
-      ...expenseData,
-      logged_by_user_id: userId,
-      tenant_id: tenantId,
-    });
+    let finalStatus = expenseData.status || OperationalExpenseStatus.PENDING; // Could be explicitly set
+    let finalFlag = VarianceFlag.NO_VARIANCE;
 
     // Automatically deduct from associated operational budget category if specified
     if (expenseData.operational_budget_category_id) {
-        // Find category to get the budget relationship
-        const category = await this.dataSource.getRepository(OperationalBudgetCategoryEntity).findOne({
-            where: { operational_budget_category_id: expenseData.operational_budget_category_id, tenant_id: tenantId },
-            relations: ['operationalBudget']
+      // Find category to get the budget relationship
+      const category = await this.dataSource
+        .getRepository(OperationalBudgetCategoryEntity)
+        .findOne({
+          where: {
+            operational_budget_category_id:
+              expenseData.operational_budget_category_id,
+            tenant_id: tenantId,
+          },
+          relations: ["operationalBudget"],
         });
 
-        if (category && category.operationalBudget) {
-            // Validate budget constraint
-            await this.budgetControlService.validateAndAlertOperationalExpense(
-                category.operationalBudget,
-                Number(expenseData.amount || 0)
-            );
+      if (category && category.operationalBudget) {
+        const budget = category.operationalBudget;
 
-            // Update category actual spent
-            category.actual_spent = Number(category.actual_spent) + Number(expenseData.amount || 0);
-            await this.dataSource.getRepository(OperationalBudgetCategoryEntity).save(category);
+        // Re-use logic from WbsService but adapt for OPEX limit vs Actual Spread
+        const totalActual = Number(budget.actual_spent || 0);
+        const budgetLimit = Number(budget.budgeted_amount || 0);
 
-            // Update parent budget actual spent
-            const budget = category.operationalBudget;
-            budget.actual_spent = Number(budget.actual_spent) + Number(expenseData.amount || 0);
-            await this.operationalBudgetRepository.save(budget);
+        // Calculate Pending Opex Expenses
+        const pendingResults = await this.dataSource.query(
+          `SELECT COALESCE(SUM(amount), 0) as total FROM operational_expense WHERE category_operational_budget_category_id = $1 AND tenant_id = $2 AND status = 'PENDING'`,
+          [category.operational_budget_category_id, tenantId],
+        );
+        // We'll estimate overrun based just on budget limits to mimic wbs
+        const projectedTotal =
+          totalActual +
+          parseFloat(pendingResults[0]?.total || 0) +
+          Number(expenseData.amount || 0);
+
+        // Tiered Variance Checking
+        if (budgetLimit <= 0) {
+          finalFlag = VarianceFlag.CRITICAL_VARIANCE;
+          const msg = `CRITICAL OVERRUN on OPEX Budget ${budget.name}: Budget has $0 defined, but expense is being logged.`;
+          this.notificationsService.sendVarianceAlert(
+            "Critical OPEX Overrun",
+            msg,
+            "error",
+          );
+        } else if (projectedTotal > budgetLimit) {
+          const variancePercentage =
+            ((projectedTotal - budgetLimit) / budgetLimit) * 100;
+          if (variancePercentage >= 10) {
+            finalFlag = VarianceFlag.CRITICAL_VARIANCE;
+          } else if (variancePercentage >= 5) {
+            finalFlag = VarianceFlag.MAJOR_VARIANCE;
+          } else {
+            finalFlag = VarianceFlag.MINOR_VARIANCE;
+          }
         }
+
+        // Governance Decisions
+        if (
+          finalFlag === VarianceFlag.CRITICAL_VARIANCE ||
+          finalFlag === VarianceFlag.MAJOR_VARIANCE
+        ) {
+          const isCritical = finalFlag === VarianceFlag.CRITICAL_VARIANCE;
+          const isAuthorizedAtAll = isCritical
+            ? actorRole && this.CRITICAL_OVERRIDE_ROLES.includes(actorRole)
+            : actorRole && this.MAJOR_OVERRIDE_ROLES.includes(actorRole);
+
+          if (!expenseData.override_reason) {
+            throw new BadRequestException({
+              statusCode: 403,
+              errorCode: finalFlag,
+              message: `OPEX overrun limit reached. Requires justification override.`,
+              requiredRoles: isCritical
+                ? this.CRITICAL_OVERRIDE_ROLES
+                : this.MAJOR_OVERRIDE_ROLES,
+            });
+          }
+
+          if (isAuthorizedAtAll) {
+            finalFlag = VarianceFlag.OVERRIDE_APPLIED;
+            finalStatus = OperationalExpenseStatus.APPROVED;
+            this.logger.warn(
+              `[OPEX] AUTHORIZED OVERRIDE by ${actorRole} | Budget: ${budget.name} | Reason: ${expenseData.override_reason}`,
+            );
+          } else {
+            finalStatus = OperationalExpenseStatus.PENDING;
+            this.logger.log(
+              `[OPEX] PENDING APPROVAL routed for ${actorRole} | Budget: ${budget.name}`,
+            );
+          }
+        } else {
+          finalStatus = OperationalExpenseStatus.APPROVED; // Auto-approve if no critical/major variance
+        }
+
+        // Update category actual spent ONLY if approved
+        if (finalStatus === OperationalExpenseStatus.APPROVED) {
+          category.actual_spent =
+            Number(category.actual_spent) + Number(expenseData.amount || 0);
+          await this.dataSource
+            .getRepository(OperationalBudgetCategoryEntity)
+            .save(category);
+
+          budget.actual_spent =
+            Number(budget.actual_spent) + Number(expenseData.amount || 0);
+          await this.operationalBudgetRepository.save(budget);
+        }
+      }
     }
+
+    const expense = this.operationalExpenseRepository.create({
+      ...expenseData,
+      status: finalStatus,
+      variance_flag: finalFlag,
+      logged_by_user_id: userId,
+      tenant_id: tenantId,
+    });
 
     return this.operationalExpenseRepository.save(expense);
   }
@@ -134,19 +241,23 @@ export class OperationalBudgetsService {
 
     // Automatically deduct from associated operational budget if specified
     if (payrollData.operational_budget_id) {
-        const budget = await this.operationalBudgetRepository.findOne({
-            where: { operational_budget_id: payrollData.operational_budget_id, tenant_id: tenantId }
-        });
-        if (budget) {
-            // Validate budget constraint
-            await this.budgetControlService.validateAndAlertOperationalExpense(
-                budget,
-                Number(payrollData.net_pay || 0)
-            );
+      const budget = await this.operationalBudgetRepository.findOne({
+        where: {
+          operational_budget_id: payrollData.operational_budget_id,
+          tenant_id: tenantId,
+        },
+      });
+      if (budget) {
+        // Validate budget constraint
+        await this.budgetControlService.validateAndAlertOperationalExpense(
+          budget,
+          Number(payrollData.net_pay || 0),
+        );
 
-            budget.actual_spent = Number(budget.actual_spent) + Number(payrollData.net_pay || 0);
-            await this.operationalBudgetRepository.save(budget);
-        }
+        budget.actual_spent =
+          Number(budget.actual_spent) + Number(payrollData.net_pay || 0);
+        await this.operationalBudgetRepository.save(budget);
+      }
     }
 
     return this.payrollEntryRepository.save(entry);
@@ -167,20 +278,32 @@ export class OperationalBudgetsService {
 
     try {
       if (expense.operational_budget_category_id) {
-        const category = await queryRunner.manager.findOne(OperationalBudgetCategoryEntity, {
-          where: { operational_budget_category_id: expense.operational_budget_category_id, tenant_id: tenantId },
-          relations: ['operationalBudget'],
-        });
+        const category = await queryRunner.manager.findOne(
+          OperationalBudgetCategoryEntity,
+          {
+            where: {
+              operational_budget_category_id:
+                expense.operational_budget_category_id,
+              tenant_id: tenantId,
+            },
+            relations: ["operationalBudget"],
+          },
+        );
 
         if (category) {
           // Revert category spend
-          category.actual_spent = Number(category.actual_spent) - Number(expense.amount);
-          await queryRunner.manager.save(OperationalBudgetCategoryEntity, category);
+          category.actual_spent =
+            Number(category.actual_spent) - Number(expense.amount);
+          await queryRunner.manager.save(
+            OperationalBudgetCategoryEntity,
+            category,
+          );
 
           // Revert budget spend
           if (category.operationalBudget) {
             const budget = category.operationalBudget;
-            budget.actual_spent = Number(budget.actual_spent) - Number(expense.amount);
+            budget.actual_spent =
+              Number(budget.actual_spent) - Number(expense.amount);
             await queryRunner.manager.save(OperationalBudgetEntity, budget);
           }
         }
@@ -214,18 +337,29 @@ export class OperationalBudgetsService {
     await queryRunner.startTransaction();
 
     try {
-      const amountDelta = Number(updateData.amount ?? expense.amount) - Number(expense.amount);
+      const amountDelta =
+        Number(updateData.amount ?? expense.amount) - Number(expense.amount);
 
       if (amountDelta !== 0 && expense.operational_budget_category_id) {
-        const category = await queryRunner.manager.findOne(OperationalBudgetCategoryEntity, {
-          where: { operational_budget_category_id: expense.operational_budget_category_id, tenant_id: tenantId },
-          relations: ['operationalBudget'],
-        });
+        const category = await queryRunner.manager.findOne(
+          OperationalBudgetCategoryEntity,
+          {
+            where: {
+              operational_budget_category_id:
+                expense.operational_budget_category_id,
+              tenant_id: tenantId,
+            },
+            relations: ["operationalBudget"],
+          },
+        );
 
         if (category) {
           // Adjust category spend
           category.actual_spent = Number(category.actual_spent) + amountDelta;
-          await queryRunner.manager.save(OperationalBudgetCategoryEntity, category);
+          await queryRunner.manager.save(
+            OperationalBudgetCategoryEntity,
+            category,
+          );
 
           // Adjust budget spend
           if (category.operationalBudget) {
@@ -237,7 +371,10 @@ export class OperationalBudgetsService {
       }
 
       Object.assign(expense, updateData);
-      const saved = await queryRunner.manager.save(OperationalExpenseEntity, expense);
+      const saved = await queryRunner.manager.save(
+        OperationalExpenseEntity,
+        expense,
+      );
       await queryRunner.commitTransaction();
       return saved;
     } catch (error) {
@@ -267,19 +404,27 @@ export class OperationalBudgetsService {
       .where("expense.tenant_id = :tenantId", { tenantId });
 
     if (budget_id) {
-      queryBuilder.andWhere("category.operational_budget_id = :budget_id", { budget_id });
+      queryBuilder.andWhere("category.operational_budget_id = :budget_id", {
+        budget_id,
+      });
     }
     if (category_id) {
-      queryBuilder.andWhere("expense.operational_budget_category_id = :category_id", { category_id });
+      queryBuilder.andWhere(
+        "expense.operational_budget_category_id = :category_id",
+        { category_id },
+      );
     }
     if (status) {
       queryBuilder.andWhere("expense.status = :status", { status });
     }
     if (startDate && endDate) {
-      queryBuilder.andWhere("expense.expense_date BETWEEN :startDate AND :endDate", {
-        startDate,
-        endDate,
-      });
+      queryBuilder.andWhere(
+        "expense.expense_date BETWEEN :startDate AND :endDate",
+        {
+          startDate,
+          endDate,
+        },
+      );
     }
 
     queryBuilder.orderBy("expense.expense_date", "DESC");
@@ -547,7 +692,9 @@ export class OperationalBudgetsService {
 
   // --- Category Management ---
 
-  async getAvailableCategories(tenantId: string): Promise<BudgetCategoryEntity[]> {
+  async getAvailableCategories(
+    tenantId: string,
+  ): Promise<BudgetCategoryEntity[]> {
     // Fetch system defaults (tenant_id is null) AND tenant specific categories
     return this.budgetCategoryRepository.find({
       where: [
@@ -562,7 +709,7 @@ export class OperationalBudgetsService {
     name: string,
     type: string, // Cast to enum in implementation if needed
     tenantId: string,
-    description?: string
+    description?: string,
   ): Promise<BudgetCategoryEntity> {
     const category = this.budgetCategoryRepository.create({
       name,
@@ -578,7 +725,7 @@ export class OperationalBudgetsService {
 
   async getBudgetGrid(
     operational_budget_id: string,
-    tenantId: string
+    tenantId: string,
   ): Promise<OperationalBudgetCategoryEntity[]> {
     // Fetch budget categories with their allocations
     return this.dataSource.getRepository(OperationalBudgetCategoryEntity).find({
@@ -593,19 +740,23 @@ export class OperationalBudgetsService {
     period_date: string, // YYYY-MM-DD
     amount: number,
     period_type: PeriodType,
-    tenantId: string
+    tenantId: string,
   ): Promise<OperationalBudgetPeriodAllocationEntity> {
     // Verify ownership via category
-    const category = await this.dataSource.getRepository(OperationalBudgetCategoryEntity).findOne({
-      where: { operational_budget_category_id, tenant_id: tenantId },
-    });
+    const category = await this.dataSource
+      .getRepository(OperationalBudgetCategoryEntity)
+      .findOne({
+        where: { operational_budget_category_id, tenant_id: tenantId },
+      });
 
     if (!category) {
-      throw new NotFoundException("Budget Category not found or access denied.");
+      throw new NotFoundException(
+        "Budget Category not found or access denied.",
+      );
     }
 
     const date = new Date(period_date);
-    
+
     let allocation = await this.allocationRepository.findOne({
       where: {
         operational_budget_category_id,
@@ -616,7 +767,7 @@ export class OperationalBudgetsService {
     if (allocation) {
       allocation.planned_amount = amount;
       // We might update period_type here if it changes, but usually it's fixed for the view
-      allocation.period_type = period_type; 
+      allocation.period_type = period_type;
     } else {
       allocation = this.allocationRepository.create({
         operational_budget_category_id,
@@ -627,10 +778,10 @@ export class OperationalBudgetsService {
     }
 
     const saved = await this.allocationRepository.save(allocation);
-    
+
     // Recalculate Total Budgeted for the Category
     await this.recalculateCategoryTotal(operational_budget_category_id);
-    
+
     return saved;
   }
 
@@ -638,14 +789,15 @@ export class OperationalBudgetsService {
     const { sum } = await this.allocationRepository
       .createQueryBuilder("allocation")
       .select("SUM(allocation.planned_amount)", "sum")
-      .where("allocation.operational_budget_category_id = :categoryId", { categoryId })
+      .where("allocation.operational_budget_category_id = :categoryId", {
+        categoryId,
+      })
       .getRawOne();
-      
-    await this.dataSource.getRepository(OperationalBudgetCategoryEntity).update(
-      categoryId, 
-      { budgeted_amount: sum || 0 }
-    );
-     
+
+    await this.dataSource
+      .getRepository(OperationalBudgetCategoryEntity)
+      .update(categoryId, { budgeted_amount: sum || 0 });
+
     // We should also roll up to the Parent Budget, but ensuring consistency in a distributed update requires locking or careful steps.
     // For now, we update the category. The Parent Budget update can be triggered or handled separately.
   }
@@ -665,66 +817,101 @@ export class OperationalBudgetsService {
       endDate?: string;
       budget_id?: string;
       type?: string;
-    } = {}
+    } = {},
   ): Promise<OpexRollupResult> {
     const { startDate, endDate, budget_id, type } = filters;
 
     // Step 1: Fetch all active budgets for tenant
     const budgetQb = this.operationalBudgetRepository
-      .createQueryBuilder('b')
-      .leftJoinAndSelect('b.categories', 'cat')
-      .where('b.tenant_id = :tenantId', { tenantId });
+      .createQueryBuilder("b")
+      .leftJoinAndSelect("b.categories", "cat")
+      .where("b.tenant_id = :tenantId", { tenantId });
 
-    if (budget_id) budgetQb.andWhere('b.operational_budget_id = :budget_id', { budget_id });
-    if (type) budgetQb.andWhere('b.type = :type', { type });
+    if (budget_id)
+      budgetQb.andWhere("b.operational_budget_id = :budget_id", { budget_id });
+    if (type) budgetQb.andWhere("b.type = :type", { type });
 
     const budgets = await budgetQb.getMany();
 
     if (!budgets.length) {
-      return { budgets: [], summary: { totalBudgeted: 0, totalActual: 0, totalVariance: 0, efficiencyScore: 100, topBurningCategories: [] } };
+      return {
+        budgets: [],
+        summary: {
+          totalBudgeted: 0,
+          totalActual: 0,
+          totalVariance: 0,
+          efficiencyScore: 100,
+          topBurningCategories: [],
+        },
+      };
     }
 
-    const categoryIds = budgets.flatMap(b => b.categories?.map(c => c.operational_budget_category_id) ?? []);
+    const categoryIds = budgets.flatMap(
+      (b) => b.categories?.map((c) => c.operational_budget_category_id) ?? [],
+    );
 
     // Step 2: Aggregate actual expenses per category with temporal filter
-    let expenseQb = this.operationalExpenseRepository
-      .createQueryBuilder('e')
-      .select('e.operational_budget_category_id', 'category_id')
-      .addSelect('SUM(e.amount)', 'actual_in_period')
-      .where('e.tenant_id = :tenantId', { tenantId });
+    const expenseQb = this.operationalExpenseRepository
+      .createQueryBuilder("e")
+      .select("e.operational_budget_category_id", "category_id")
+      .addSelect("SUM(e.amount)", "actual_in_period")
+      .where("e.tenant_id = :tenantId", { tenantId });
 
     if (categoryIds.length > 0) {
-      expenseQb.andWhere('e.operational_budget_category_id IN (:...categoryIds)', { categoryIds });
+      expenseQb.andWhere(
+        "e.operational_budget_category_id IN (:...categoryIds)",
+        { categoryIds },
+      );
     }
-    if (startDate) expenseQb.andWhere('e.expense_date >= :startDate', { startDate });
-    if (endDate) expenseQb.andWhere('e.expense_date <= :endDate', { endDate });
+    if (startDate)
+      expenseQb.andWhere("e.expense_date >= :startDate", { startDate });
+    if (endDate) expenseQb.andWhere("e.expense_date <= :endDate", { endDate });
 
-    expenseQb.andWhere("e.status != 'REJECTED'").groupBy('e.operational_budget_category_id');
+    expenseQb
+      .andWhere("e.status != 'REJECTED'")
+      .groupBy("e.operational_budget_category_id");
 
-    const actualByCategory: { category_id: string; actual_in_period: string }[] = await expenseQb.getRawMany();
-    const actualMap = new Map(actualByCategory.map(r => [r.category_id, parseFloat(r.actual_in_period) || 0]));
+    const actualByCategory: {
+      category_id: string;
+      actual_in_period: string;
+    }[] = await expenseQb.getRawMany();
+    const actualMap = new Map(
+      actualByCategory.map((r) => [
+        r.category_id,
+        parseFloat(r.actual_in_period) || 0,
+      ]),
+    );
 
     // Step 3: Build structured rollup per budget
     let totalBudgeted = 0;
     let totalActual = 0;
 
-    const rolledUpBudgets: OpexBudgetRollup[] = budgets.map(budget => {
-      const categories: OpexCategoryRollup[] = (budget.categories || []).map(cat => {
-        const budgeted = parseFloat(String(cat.budgeted_amount)) || 0;
-        const actual = actualMap.get(cat.operational_budget_category_id) ?? (parseFloat(String(cat.actual_spent)) || 0);
-        const variance = budgeted - actual;
-        const burnRate = budgeted > 0 ? (actual / budgeted) * 100 : 0;
+    const rolledUpBudgets: OpexBudgetRollup[] = budgets.map((budget) => {
+      const categories: OpexCategoryRollup[] = (budget.categories || []).map(
+        (cat) => {
+          const budgeted = parseFloat(String(cat.budgeted_amount)) || 0;
+          const actual =
+            actualMap.get(cat.operational_budget_category_id) ??
+            (parseFloat(String(cat.actual_spent)) || 0);
+          const variance = budgeted - actual;
+          const burnRate = budgeted > 0 ? (actual / budgeted) * 100 : 0;
 
-        return {
-          id: cat.operational_budget_category_id,
-          name: cat.name,
-          budgeted,
-          actual,
-          variance,
-          burnRate: parseFloat(burnRate.toFixed(2)),
-          status: burnRate > 100 ? 'OVERRUN' : burnRate > 85 ? 'AT_RISK' : 'HEALTHY',
-        };
-      });
+          return {
+            id: cat.operational_budget_category_id,
+            name: cat.name,
+            budgeted,
+            actual,
+            variance,
+            burnRate: parseFloat(burnRate.toFixed(2)),
+            status:
+              burnRate > 100
+                ? "OVERRUN"
+                : burnRate > 85
+                  ? "AT_RISK"
+                  : "HEALTHY",
+          };
+        },
+      );
 
       // Sort categories by actual spend descending for clarity
       categories.sort((a, b) => b.actual - a.actual);
@@ -746,7 +933,10 @@ export class OperationalBudgetsService {
         budgeted: budgetBudgeted,
         actual: budgetActual,
         variance: budgetVariance,
-        burnRate: budgetBudgeted > 0 ? parseFloat(((budgetActual / budgetBudgeted) * 100).toFixed(2)) : 0,
+        burnRate:
+          budgetBudgeted > 0
+            ? parseFloat(((budgetActual / budgetBudgeted) * 100).toFixed(2))
+            : 0,
         categories,
       };
     });
@@ -755,12 +945,17 @@ export class OperationalBudgetsService {
     rolledUpBudgets.sort((a, b) => b.burnRate - a.burnRate);
 
     const totalVariance = totalBudgeted - totalActual;
-    const efficiencyScore = totalBudgeted > 0 ? parseFloat(((1 - totalActual / totalBudgeted) * 100).toFixed(2)) : 100;
+    const efficiencyScore =
+      totalBudgeted > 0
+        ? parseFloat(((1 - totalActual / totalBudgeted) * 100).toFixed(2))
+        : 100;
 
     // Top 5 burning categories across all budgets
-    const allCategories = rolledUpBudgets.flatMap(b => b.categories);
+    const allCategories = rolledUpBudgets.flatMap((b) => b.categories);
     allCategories.sort((a, b) => b.actual - a.actual);
-    const topBurningCategories = allCategories.slice(0, 5).map(c => ({ name: c.name, actual: c.actual, burnRate: c.burnRate }));
+    const topBurningCategories = allCategories
+      .slice(0, 5)
+      .map((c) => ({ name: c.name, actual: c.actual, burnRate: c.burnRate }));
 
     return {
       budgets: rolledUpBudgets,
@@ -779,29 +974,40 @@ export class OperationalBudgetsService {
    * Batch generates payroll entries based on a provided template mapping.
    */
   async runPayrollBot(
-    payrollTemplate: { employee_name: string; base_salary: number; operational_budget_id: string; employee_id?: string }[],
+    payrollTemplate: {
+      employee_name: string;
+      base_salary: number;
+      operational_budget_id: string;
+      employee_id?: string;
+    }[],
     userId: string,
     tenantId: string,
   ): Promise<PayrollEntryEntity[]> {
-      const results: PayrollEntryEntity[] = [];
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const results: PayrollEntryEntity[] = [];
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-      this.logger.log(`Running Payroll Bot for ${payrollTemplate.length} employees on tenant ${tenantId}`);
+    this.logger.log(
+      `Running Payroll Bot for ${payrollTemplate.length} employees on tenant ${tenantId}`,
+    );
 
-      for (const item of payrollTemplate) {
-          // Calculate simple net pay (ignoring tax/pension for bot simplicity unless specified)
-          const entry = await this.logPayrollEntry({
-              ...item,
-              pay_period_start: startOfMonth,
-              pay_period_end: endOfMonth,
-              payment_date: now,
-              net_pay: Number(item.base_salary),
-              status: 'PAID'
-          }, userId, tenantId);
-          results.push(entry);
-      }
-      return results;
+    for (const item of payrollTemplate) {
+      // Calculate simple net pay (ignoring tax/pension for bot simplicity unless specified)
+      const entry = await this.logPayrollEntry(
+        {
+          ...item,
+          pay_period_start: startOfMonth,
+          pay_period_end: endOfMonth,
+          payment_date: now,
+          net_pay: Number(item.base_salary),
+          status: "PAID",
+        },
+        userId,
+        tenantId,
+      );
+      results.push(entry);
+    }
+    return results;
   }
 }

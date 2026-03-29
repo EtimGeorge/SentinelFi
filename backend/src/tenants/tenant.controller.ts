@@ -23,7 +23,12 @@ import { Roles } from "../auth/decorators/roles.decorator";
 
 import { TenantService } from "./tenant.service";
 
-import { CreateTenantDto, UpdateTenantDto, GetTenantsDto } from "../superadmin/dto/create-tenant.dto"; // Corrected import path
+import {
+  CreateTenantDto,
+  UpdateTenantDto,
+  UpdateTenantBrandingDto,
+  GetTenantsDto,
+} from "../superadmin/dto/create-tenant.dto";
 import { TenantEntity } from "./tenant.entity";
 import { Role } from "shared/types/role.enum";
 
@@ -40,12 +45,39 @@ export class TenantController {
    * Access: Tenant Admins, CFOs, etc.
    */
   @Get("my")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CEO, Role.CFO, Role.SuperAdmin)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.CFO,
+    Role.SuperAdmin,
+  )
   async getMyTenant(@Req() req: AuthenticatedRequest): Promise<TenantEntity> {
     if (!req.user.tenant_id) {
-       throw new ForbiddenException("No tenant associated with this account. If you are a SuperAdmin, use the global search.");
+      throw new ForbiddenException(
+        "No tenant associated with this account. If you are a SuperAdmin, use the global search.",
+      );
     }
     return this.tenantService.findOneTenant(req.user.tenant_id);
+  }
+
+  /**
+   * Updates branding metadata for the caller's own tenant.
+   * Access: Tenant Admins, CFOs, etc.
+   */
+  @Patch("my/branding")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CEO, Role.SuperAdmin)
+  async updateMyTenantBranding(
+    @Req() req: AuthenticatedRequest,
+    @Body() updateTenantBrandingDto: UpdateTenantBrandingDto,
+  ): Promise<TenantEntity> {
+    if (!req.user.tenant_id) {
+      throw new ForbiddenException("No tenant associated with this account.");
+    }
+    return this.tenantService.updateBranding(
+      req.user.tenant_id,
+      updateTenantBrandingDto,
+    );
   }
 
   /**
@@ -66,7 +98,7 @@ export class TenantController {
   @Post()
   @Roles(Role.SuperAdmin)
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('initialBudgetFile'))
+  @UseInterceptors(FileInterceptor("initialBudgetFile"))
   @UsePipes(new ValidationPipe({ transform: true }))
   async createTenant(
     @Body() createTenantDto: CreateTenantDto,
@@ -95,10 +127,20 @@ export class TenantController {
     @Param("id") id: string,
     @Body() updateTenantDto: UpdateTenantDto,
   ): Promise<TenantEntity> {
-    return this.tenantService.updateTenant(
-      id,
-      updateTenantDto,
-    );
+    return this.tenantService.updateTenant(id, updateTenantDto);
+  }
+
+  /**
+   * Update tenant branding metadata.
+   * Access: SuperAdmin only.
+   */
+  @Patch(":id/branding")
+  @Roles(Role.SuperAdmin)
+  async updateTenantBranding(
+    @Param("id") id: string,
+    @Body() updateTenantBrandingDto: UpdateTenantBrandingDto,
+  ): Promise<TenantEntity> {
+    return this.tenantService.updateBranding(id, updateTenantBrandingDto);
   }
 
   /**

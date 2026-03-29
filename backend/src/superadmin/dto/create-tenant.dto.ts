@@ -30,12 +30,39 @@ export class CreateTenantDto {
   @IsNotEmpty()
   @IsString()
   admin_email!: string;
+
+  @IsOptional()
+  @IsString()
+  admin_first_name?: string;
+
+  @IsOptional()
+  @IsString()
+  admin_last_name?: string;
+
+  @IsOptional()
+  @IsString()
+  default_currency_code?: string;
 }
 
 export class UpdateTenantDto extends PartialType(CreateTenantDto) {
   @IsOptional()
   @IsUUID()
   id?: string; // For patching a specific tenant by ID
+}
+
+export class UpdateTenantBrandingDto {
+  @IsOptional()
+  @IsString()
+  brandLogoBase64?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  brandPrimaryColorHex?: string;
+
+  @IsOptional()
+  @IsString()
+  companyAddress?: string;
 }
 
 export class GetTenantsDto extends PaginationDto {

@@ -11,7 +11,7 @@ import { useAuth } from "../../../components/context/AuthContext";
 import { useCurrency } from "../../../components/context/CurrencyContext";
 import { GetLiveExpensesDto, VarianceFlag } from "@shared/types/get-live-expenses.dto";
 import { LiveExpense } from "@shared/types/expense";
-import { ProjectEntity } from "../../../../backend/src/projects/project.entity";
+import { Project } from "@shared/types/project";
 import toast from 'react-hot-toast';
 import {
   DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2, Activity,
@@ -26,7 +26,7 @@ const ExpenseManagementPage: React.FC = () => {
   const [expenses, setExpenses] = useState<LiveExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [projects, setProjects] = useState<ProjectEntity[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   // Correction state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -69,11 +69,11 @@ const ExpenseManagementPage: React.FC = () => {
       totalExpenses += amountInUserCurrency;
 
       const flag = e.variance_flag as string;
-      if (flag === VarianceFlag.MAJOR_VARIANCE_OVERRUN || flag === VarianceFlag.MAJOR_VARIANCE_UNBUDGETED) {
+      if (flag === VarianceFlag.CRITICAL_VARIANCE || flag === VarianceFlag.UNAPPROVED_BUDGET_USAGE) {
         majorVariance++;
-      } else if (flag === VarianceFlag.OVER_BUDGET) {
+      } else if (flag === VarianceFlag.MAJOR_VARIANCE) {
         overBudget++;
-      } else if (flag === VarianceFlag.WITHIN_BUDGET || flag === VarianceFlag.NEGATIVE_VARIANCE || flag === VarianceFlag.NO_VARIANCE) {
+      } else if (flag === VarianceFlag.MINOR_VARIANCE || flag === VarianceFlag.NO_VARIANCE || flag === VarianceFlag.OVERRIDE_APPLIED) {
         withinBudget++;
       }
     });
@@ -83,7 +83,7 @@ const ExpenseManagementPage: React.FC = () => {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    api.get<{ projects: ProjectEntity[] }>("/projects?limit=100")
+    api.get<{ projects: Project[] }>("/projects?limit=100")
       .then(res => setProjects(res.data.projects))
       .catch(() => toast.error("Failed to fetch projects filter"));
   }, [isAuthenticated]);
@@ -246,11 +246,11 @@ const ExpenseManagementPage: React.FC = () => {
                 options={[
                   { value: "", label: "All Flags" },
                   { value: VarianceFlag.NO_VARIANCE, label: "No Variance" },
-                  { value: VarianceFlag.NEGATIVE_VARIANCE, label: "Negative Variance" },
-                  { value: VarianceFlag.POSITIVE_VARIANCE, label: "Positive Variance" },
-                  { value: VarianceFlag.OVER_BUDGET, label: "Over Budget" },
-                  { value: VarianceFlag.MAJOR_VARIANCE_OVERRUN, label: "Major Overrun" },
-                  { value: VarianceFlag.MAJOR_VARIANCE_UNBUDGETED, label: "Major Unbudgeted" },
+                  { value: VarianceFlag.MINOR_VARIANCE, label: "Minor Variance" },
+                  { value: VarianceFlag.MAJOR_VARIANCE, label: "Major Variance" },
+                  { value: VarianceFlag.CRITICAL_VARIANCE, label: "Critical Variance" },
+                  { value: VarianceFlag.UNAPPROVED_BUDGET_USAGE, label: "Unapproved Budget" },
+                  { value: VarianceFlag.OVERRIDE_APPLIED, label: "Override Applied" },
                 ]}
               />
               <Input type="date" label="Start Date" value={startDateFilter} onChange={(e) => setStartDateFilter(e.target.value)} />
@@ -306,14 +306,14 @@ const ExpenseManagementPage: React.FC = () => {
                       let icon = <CheckCircle className="w-3 h-3" />;
 
                       const flag = expense.variance_flag as string;
-                      if (flag === VarianceFlag.NO_VARIANCE || flag === VarianceFlag.WITHIN_BUDGET) {
+                      if (flag === VarianceFlag.NO_VARIANCE) {
                         badgeColor = 'bg-green-900/30 text-green-400 border border-green-800/50';
-                      } else if (flag === VarianceFlag.NEGATIVE_VARIANCE || flag === 'POSITIVE_VARIANCE') {
+                      } else if (flag === VarianceFlag.MINOR_VARIANCE || flag === VarianceFlag.OVERRIDE_APPLIED) {
                         badgeColor = 'bg-blue-900/30 text-blue-400 border border-blue-800/50';
-                      } else if (flag === VarianceFlag.OVER_BUDGET) {
+                      } else if (flag === VarianceFlag.MAJOR_VARIANCE) {
                         badgeColor = 'bg-orange-900/30 text-orange-400 border border-orange-800/50';
                         icon = <AlertTriangle className="w-3 h-3" />;
-                      } else if (flag === VarianceFlag.MAJOR_VARIANCE_OVERRUN || flag === VarianceFlag.MAJOR_VARIANCE_UNBUDGETED) {
+                      } else if (flag === VarianceFlag.CRITICAL_VARIANCE || flag === VarianceFlag.UNAPPROVED_BUDGET_USAGE) {
                         badgeColor = 'bg-red-900/30 text-red-500 border border-red-700/50 animate-pulse';
                         icon = <AlertTriangle className="w-3 h-3 text-red-500" />;
                       }
@@ -407,7 +407,7 @@ const ExpenseManagementPage: React.FC = () => {
             />
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Amount (NGN)"
+                label={`Amount (${selectedExpense?.wbsBudget?.project?.currency || 'NGN'})`}
                 type="number"
                 value={editAmount}
                 onChange={(e) => setEditAmount(e.target.value)}

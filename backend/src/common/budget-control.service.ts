@@ -13,7 +13,7 @@ import { NotificationsService } from "../notifications/notifications.service";
  */
 export interface VarianceCheckResult {
   flag: VarianceFlag;
-  action: 'ALLOW' | 'WARN' | 'REQUIRE_OVERRIDE' | 'BLOCK';
+  action: "ALLOW" | "WARN" | "REQUIRE_OVERRIDE" | "BLOCK";
   variancePercentage: number;
   overrunAmount: number;
   message: string;
@@ -43,19 +43,22 @@ export class BudgetControlService {
     committedAmount: number = 0,
   ): Promise<VarianceCheckResult> {
     // --- Guard 1: Budget State (Non-negotiable) ---
-    if (wbsItem.status !== WbsBudgetStatus.APPROVED && wbsItem.status !== 'RECALLED' as any) {
+    if (
+      wbsItem.status !== WbsBudgetStatus.APPROVED &&
+      wbsItem.status !== ("RECALLED" as any)
+    ) {
       this.notificationsService.sendVarianceAlert(
-        'Unapproved Budget Usage',
+        "Unapproved Budget Usage",
         `Expense logged against WBS ${wbsItem.wbs_code} which is in '${wbsItem.status}' state.`,
-        'warning',
+        "warning",
       );
       return {
         flag: VarianceFlag.UNAPPROVED_BUDGET_USAGE,
-        action: 'BLOCK',
+        action: "BLOCK",
         variancePercentage: 0,
         overrunAmount: 0,
         message: `Cannot log expense: WBS Budget line "${wbsItem.wbs_code}" is not APPROVED. Current status: ${wbsItem.status}.`,
-        requiredRoles: ['CFO', 'CEO', 'Admin Director'],
+        requiredRoles: ["CFO", "CEO", "Admin Director"],
       };
     }
 
@@ -65,13 +68,24 @@ export class BudgetControlService {
     const projectedTotal = totalActual + committedAmount + amount;
 
     if (budgetLimit <= 0) {
-      // No budget defined — allow with minor flag to avoid false blocks
+      // Enterprise rule: If a WBS has precisely zero budget, any spend is a CRITICAL BLOCK requiring CFO override.
+      const msg = `CRITICAL OVERRUN on WBS ${wbsItem.wbs_code}: WBS has $0 budget, but an expense of ${amount} is being logged.`;
+      this.notificationsService.sendVarianceAlert(
+        "Critical Budget Overrun",
+        msg,
+        "error",
+      );
+      this.logger.error(
+        `[BudgetControl] ZERO-BUDGET BLOCK | Tenant: ${tenant_id} | WBS: ${wbsItem.wbs_code}`,
+      );
+
       return {
-        flag: VarianceFlag.MINOR_VARIANCE,
-        action: 'WARN',
-        variancePercentage: 0,
-        overrunAmount: 0,
-        message: `WBS "${wbsItem.wbs_code}" has no defined budget limit. Proceeding with log.`,
+        flag: VarianceFlag.CRITICAL_VARIANCE,
+        action: "BLOCK",
+        variancePercentage: 100, // Represented as 100% since any spend is an overrun
+        overrunAmount: projectedTotal,
+        message: `Hard block: WBS "${wbsItem.wbs_code}" has $0 budget defined. A CFO or CEO override is required to log expenses against unfunded nodes.`,
+        requiredRoles: ["CFO", "CEO", "Admin Director"],
       };
     }
 
@@ -82,40 +96,58 @@ export class BudgetControlService {
       // --- Tier 3: CRITICAL (>= 10%) — Hard Block, CFO/CEO Override Required ---
       if (variancePercentage >= 10) {
         const msg = `CRITICAL OVERRUN on WBS ${wbsItem.wbs_code}: ${variancePercentage.toFixed(1)}% over budget (${overrunAmount.toFixed(2)} excess).`;
-        this.notificationsService.sendVarianceAlert('Critical Budget Overrun', msg, 'error');
-        this.logger.error(`[BudgetControl] CRITICAL BLOCK | Tenant: ${tenant_id} | WBS: ${wbsItem.wbs_code} | Overrun: ${variancePercentage.toFixed(1)}%`);
+        this.notificationsService.sendVarianceAlert(
+          "Critical Budget Overrun",
+          msg,
+          "error",
+        );
+        this.logger.error(
+          `[BudgetControl] CRITICAL BLOCK | Tenant: ${tenant_id} | WBS: ${wbsItem.wbs_code} | Overrun: ${variancePercentage.toFixed(1)}%`,
+        );
         return {
           flag: VarianceFlag.CRITICAL_VARIANCE,
-          action: 'BLOCK',
+          action: "BLOCK",
           variancePercentage,
           overrunAmount,
           message: `Hard block: A ${variancePercentage.toFixed(1)}% overrun on WBS "${wbsItem.wbs_code}" requires CFO or CEO override with documented justification.`,
-          requiredRoles: ['CFO', 'CEO', 'Admin Director'],
+          requiredRoles: ["CFO", "CEO", "Admin Director"],
         };
       }
 
       // --- Tier 2: MAJOR (5% to <10%) — Requires Override from Finance Manager+ ---
       if (variancePercentage >= 5) {
         const msg = `Major variance on WBS ${wbsItem.wbs_code}: ${variancePercentage.toFixed(1)}% over budget.`;
-        this.notificationsService.sendVarianceAlert('Major Budget Variance', msg, 'error');
-        this.logger.warn(`[BudgetControl] MAJOR | Tenant: ${tenant_id} | WBS: ${wbsItem.wbs_code} | Overrun: ${variancePercentage.toFixed(1)}%`);
+        this.notificationsService.sendVarianceAlert(
+          "Major Budget Variance",
+          msg,
+          "error",
+        );
+        this.logger.warn(
+          `[BudgetControl] MAJOR | Tenant: ${tenant_id} | WBS: ${wbsItem.wbs_code} | Overrun: ${variancePercentage.toFixed(1)}%`,
+        );
         return {
           flag: VarianceFlag.MAJOR_VARIANCE,
-          action: 'REQUIRE_OVERRIDE',
+          action: "REQUIRE_OVERRIDE",
           variancePercentage,
           overrunAmount,
           message: `A ${variancePercentage.toFixed(1)}% budget overrun on WBS "${wbsItem.wbs_code}" requires Finance Manager approval with an override reason.`,
-          requiredRoles: ['Finance Manager', 'CFO', 'CEO', 'Admin Director'],
+          requiredRoles: ["Finance Manager", "CFO", "CEO", "Admin Director"],
         };
       }
 
       // --- Tier 1: MINOR (>0% to <5%) — Warn & Log ---
       const msg = `Minor variance on WBS ${wbsItem.wbs_code}: ${variancePercentage.toFixed(1)}% over budget.`;
-      this.notificationsService.sendVarianceAlert('Minor Budget Variance', msg, 'warning');
-      this.logger.log(`[BudgetControl] MINOR | Tenant: ${tenant_id} | WBS: ${wbsItem.wbs_code} | Overrun: ${variancePercentage.toFixed(1)}%`);
+      this.notificationsService.sendVarianceAlert(
+        "Minor Budget Variance",
+        msg,
+        "warning",
+      );
+      this.logger.log(
+        `[BudgetControl] MINOR | Tenant: ${tenant_id} | WBS: ${wbsItem.wbs_code} | Overrun: ${variancePercentage.toFixed(1)}%`,
+      );
       return {
         flag: VarianceFlag.MINOR_VARIANCE,
-        action: 'WARN',
+        action: "WARN",
         variancePercentage,
         overrunAmount,
         message: `Minor overrun (${variancePercentage.toFixed(1)}%) on WBS "${wbsItem.wbs_code}". Logged with MINOR_VARIANCE flag.`,
@@ -124,10 +156,10 @@ export class BudgetControlService {
 
     return {
       flag: VarianceFlag.NO_VARIANCE,
-      action: 'ALLOW',
+      action: "ALLOW",
       variancePercentage: 0,
       overrunAmount: 0,
-      message: 'Expense is within budget limits.',
+      message: "Expense is within budget limits.",
     };
   }
 
@@ -137,28 +169,38 @@ export class BudgetControlService {
     amount: number,
     tenant_id: string,
     committedAmount: number = 0,
-  ): Promise<'MAJOR_VARIANCE' | 'MINOR_VARIANCE' | 'UNAPPROVED_BUDGET_USAGE' | 'NO_VARIANCE' | 'CRITICAL_VARIANCE'> {
-    const result = await this.validateWbsExpense(wbsItem, amount, tenant_id, committedAmount);
+  ): Promise<
+    | "MAJOR_VARIANCE"
+    | "MINOR_VARIANCE"
+    | "UNAPPROVED_BUDGET_USAGE"
+    | "NO_VARIANCE"
+    | "CRITICAL_VARIANCE"
+  > {
+    const result = await this.validateWbsExpense(
+      wbsItem,
+      amount,
+      tenant_id,
+      committedAmount,
+    );
     return result.flag as any;
   }
 
   async validateAndAlertOperationalExpense(
     budget: OperationalBudgetEntity,
     amount: number,
-  ): Promise<'OVER_BUDGET' | 'NO_VARIANCE'> {
+  ): Promise<"OVER_BUDGET" | "NO_VARIANCE"> {
     const totalSpent = Number(budget.actual_spent || 0);
     const budgetLimit = Number(budget.budgeted_amount || 0);
 
     if (totalSpent + amount > budgetLimit) {
       this.notificationsService.sendVarianceAlert(
-        'Operational Budget Overrun',
+        "Operational Budget Overrun",
         `Budget "${budget.name}" has exceeded its limit by ${(totalSpent + amount - budgetLimit).toFixed(2)}.`,
-        'error',
+        "error",
       );
-      return 'OVER_BUDGET';
+      return "OVER_BUDGET";
     }
 
-    return 'NO_VARIANCE';
+    return "NO_VARIANCE";
   }
 }
-

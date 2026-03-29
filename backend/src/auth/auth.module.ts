@@ -1,8 +1,8 @@
 import { Module, ValidationPipe, Logger } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { UserEntity } from "./user.entity";
-import { RoleEntity } from "./role.entity"; // Import RoleEntity
-import { PermissionEntity } from "./permission.entity"; // Import PermissionEntity
+import { RoleEntity } from "./role.entity";
+import { PermissionEntity } from "./permission.entity";
 import { AuthService } from "./auth.service";
 import { AuthController } from "./auth.controller";
 import { JwtModule } from "@nestjs/jwt";
@@ -11,12 +11,25 @@ import { JwtStrategy } from "./jwt.strategy";
 import * as ms from "ms";
 import { InitialSuperAdminSeederService } from "./initial-superadmin-seeder.service";
 import { AuditModule } from "../audit/audit.module";
-import { TenantRepositoriesModule } from "../tenant-repositories.module"; // Import the new module
+import { TenantRepositoriesModule } from "../tenant-repositories.module";
+import { InvitationEntity } from "./entities/invitation.entity";
+import { InvitationService } from "./invitation.service";
+import { EmailModule } from "../email/email.module";
+import { TokenBlacklistService } from "./token-blacklist.service";
+import { PasswordResetEntity } from "./entities/password-reset.entity";
+import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
 
 @Module({
   imports: [
-    TenantRepositoriesModule, // Import the tenant repositories module
-    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity]), // Add RoleEntity and PermissionEntity
+    TenantRepositoriesModule,
+    TypeOrmModule.forFeature([
+      UserEntity,
+      RoleEntity,
+      PermissionEntity,
+      InvitationEntity,
+      PasswordResetEntity,
+    ]),
+    EmailModule,
     JwtModule.registerAsync({
       useFactory: async (configService: ConfigService) => {
         const expiresInDuration =
@@ -38,14 +51,35 @@ import { TenantRepositoriesModule } from "../tenant-repositories.module"; // Imp
   controllers: [AuthController],
   providers: [
     AuthService,
+    InvitationService,
     JwtStrategy,
     InitialSuperAdminSeederService,
+    TokenBlacklistService,
+    {
+      provide: "IAuthCache",
+      useFactory: (configService: ConfigService, cacheManager: any) => {
+        const useRedis =
+          configService.get("NODE_ENV") === "production" ||
+          configService.get("USE_REDIS") === "true";
+        return useRedis
+          ? new RedisAuthCache(cacheManager)
+          : new InMemoryAuthCache();
+      },
+      inject: [ConfigService, "CACHE_MANAGER"],
+    },
     {
       provide: "APP_PIPE",
       useValue: new ValidationPipe({ whitelist: true }),
     },
     Logger,
   ],
-  exports: [TypeOrmModule, JwtModule, AuthService],
+  exports: [
+    TypeOrmModule,
+    JwtModule,
+    AuthService,
+    InvitationService,
+    TokenBlacklistService,
+    "IAuthCache",
+  ],
 })
 export class AuthModule {}

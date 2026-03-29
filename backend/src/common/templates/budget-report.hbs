@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Budget Report</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            font-size: 13px;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-bottom: 20px;
+            border-bottom: 3px solid {{ brandPrimaryColorHex }};
+            margin-bottom: 30px;
+        }
+        .company-info {
+            width: 60%;
+        }
+        .company-logo {
+            max-height: 80px;
+            max-width: 250px;
+            margin-bottom: 10px;
+        }
+        .doc-title {
+            text-align: right;
+            width: 40%;
+        }
+        .doc-title h1 {
+            color: {{ brandPrimaryColorHex }};
+            margin: 0 0 5px 0;
+            font-size: 28px;
+            text-transform: uppercase;
+        }
+        .report-meta {
+            font-size: 12px;
+            color: #666;
+            text-align: right;
+        }
+        .summary-boxes {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        .summary-box {
+            width: 31%;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-top: 4px solid {{ brandPrimaryColorHex }};
+            border-radius: 4px;
+            padding: 15px;
+            text-align: center;
+        }
+        .summary-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .summary-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #212529;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+        .data-table th {
+            background-color: {{ brandPrimaryColorHex }};
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .data-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .data-table tr.category-row td {
+            background-color: #fdfdfd;
+            font-weight: bold;
+            color: {{ brandPrimaryColorHex }};
+            border-bottom: 2px solid #dee2e6;
+            padding-top: 15px;
+        }
+        .data-table tr.item-row td {
+            font-size: 12px;
+        }
+        .data-table tr:last-child td {
+            border-bottom: 2px solid {{ brandPrimaryColorHex }};
+        }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-ok { background-color: #d4edda; color: #155724; }
+        .status-warn { background-color: #fff3cd; color: #856404; }
+        .status-danger { background-color: #f8d7da; color: #721c24; }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 11px;
+            color: #777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="company-info">
+                {{#if brandLogoBase64}}
+                    <img src="{{ brandLogoBase64 }}" alt="Company Logo" class="company-logo" />
+                {{else}}
+                    <h2 style="color: {{ brandPrimaryColorHex }}; margin: 0 0 5px 0;">{{ tenantName }}</h2>
+                {{/if}}
+                <div style="color: #666;">
+                    Financial Planning & Analysis
+                </div>
+            </div>
+            <div class="doc-title">
+                <h1>{{ reportTitle }}</h1>
+                <div class="report-meta">
+                    <strong>Project:</strong> {{ projectName }}<br>
+                    <strong>Generated:</strong> {{ generationDate }}
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-boxes">
+            <div class="summary-box">
+                <div class="summary-label">Total Budgeted</div>
+                <div class="summary-value" style="color: {{ brandPrimaryColorHex }};">{{ formattedTotalBudget }}</div>
+            </div>
+            <div class="summary-box">
+                <div class="summary-label">Actual Spent</div>
+                <div class="summary-value">{{ formattedTotalSpent }}</div>
+            </div>
+            <div class="summary-box" style="border-top-color: {{#if isOverBudget}}#dc3545{{else}}#28a745{{/if}};">
+                <div class="summary-label">Remaining Variance</div>
+                <div class="summary-value" style="color: {{#if isOverBudget}}#dc3545{{else}}#28a745{{/if}};">{{ formattedTotalVariance }}</div>
+            </div>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">WBS Code</th>
+                    <th style="width: 30%;">Description</th>
+                    <th class="text-right" style="width: 15%;">Budgeted</th>
+                    <th class="text-right" style="width: 15%;">Spent</th>
+                    <th class="text-right" style="width: 10%;">Burn%</th>
+                    <th class="text-center" style="width: 15%;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each budgetCategories}}
+                
+                <!-- Category Heading -->
+                <tr class="category-row">
+                    <td>{{ this.categoryCode }}</td>
+                    <td colspan="5">{{ this.categoryName }}</td>
+                </tr>
+                
+                <!-- Category Items -->
+                {{#each this.items}}
+                <tr class="item-row">
+                    <td><span style="color: #888;">&nbsp;&nbsp;&nbsp;↳</span> {{ this.wbsCode }}</td>
+                    <td>{{ this.description }}</td>
+                    <td class="text-right">{{ this.formattedBudgeted }}</td>
+                    <td class="text-right">{{ this.formattedSpent }}</td>
+                    <td class="text-right">{{ this.burnRatePct }}%</td>
+                    <td class="text-center">
+                        <span class="status-badge {{ this.statusClass }}">{{ this.statusText }}</span>
+                    </td>
+                </tr>
+                {{/each}}
+                
+                <!-- Category Subtotal -->
+                <tr style="background-color: #fefaef;">
+                    <td colspan="2" class="text-right" style="font-weight: bold; font-size: 11px;">Category Subtotal:</td>
+                    <td class="text-right" style="font-weight: bold; font-size: 11px;">{{ this.formattedCategoryBudgeted }}</td>
+                    <td class="text-right" style="font-weight: bold; font-size: 11px;">{{ this.formattedCategorySpent }}</td>
+                    <td colspan="2"></td>
+                </tr>
+                
+                {{/each}}
+            </tbody>
+        </table>
+
+        <div class="footer">
+            SentinelFi Enterprise Reporting Engine &bull; Document strictly confidential outside of {{ tenantName }}
+        </div>
+    </div>
+</body>
+</html>

@@ -26,6 +26,7 @@ interface ExpenseDetails {
   budget_description: string;
   project_id: string;
   project_name: string;
+  project_currency: string;
   description: string;
   actual_paid_amount: string;
   expense_date: string;
@@ -97,7 +98,7 @@ const ExpenseDossierPage: React.FC = () => {
                 </p>
               </div>
               <div className="text-left md:text-right">
-                <p className="text-4xl font-black text-white">{convertToDisplay(parseFloat(expense.actual_paid_amount))}</p>
+                <p className="text-4xl font-black text-white">{convertToDisplay(parseFloat(expense.actual_paid_amount), expense.project_currency)}</p>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Confirmed Settlement Amount</p>
               </div>
             </div>

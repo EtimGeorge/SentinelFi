@@ -4,8 +4,9 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
-  OneToMany, // Import OneToMany
+  OneToMany,
   Index,
+  DeleteDateColumn,
 } from "typeorm";
 import { UserEntity } from "../auth/user.entity"; // Assuming UserEntity exists for creator
 import {
@@ -62,11 +63,14 @@ export class OperationalBudgetEntity {
   @Column({ type: "timestamptz", nullable: true })
   updated_at!: Date | null;
 
+  @DeleteDateColumn({ type: "timestamptz", nullable: true })
+  deleted_at?: Date;
+
   // Foreign Key to User who created/manages this budget
   @Column({ type: "uuid" })
   created_by_user_id!: string;
 
-  @ManyToOne('UserEntity') // Reference UserEntity by string name
+  @ManyToOne("UserEntity") // Reference UserEntity by string name
   @JoinColumn({ name: "created_by_user_id", referencedColumnName: "id" }) // Explicitly define referencedColumnName
   createdBy!: UserEntity;
 
@@ -76,10 +80,7 @@ export class OperationalBudgetEntity {
   )
   categories!: OperationalBudgetCategoryEntity[];
 
-  @OneToMany(
-    () => PayrollEntryEntity,
-    (payroll) => payroll.operationalBudget,
-  )
+  @OneToMany(() => PayrollEntryEntity, (payroll) => payroll.operationalBudget)
   payrollEntries!: PayrollEntryEntity[];
 
   // Future integration: Link to specific department or cost center if needed

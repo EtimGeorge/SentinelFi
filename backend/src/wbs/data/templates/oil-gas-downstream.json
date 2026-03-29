@@ -1,0 +1,14 @@
+{
+  "name": "Oil & Gas (Downstream Refinery Ops)",
+  "industry": "OIL_GAS",
+  "structure": [
+    { "code": "REF-1", "description": "Process Unit Turnaround Planning" },
+    { "code": "REF-2", "description": "Catalyst Replacement & Reactivation" },
+    { "code": "REF-3", "description": "Pressure Vessel Inspection & Repair" },
+    { "code": "REF-4", "description": "Piping Integrity & Pipeline Pigging" },
+    { "code": "REF-5", "description": "Safety Valve Calibration & Recertification" },
+    { "code": "REF-6", "description": "Instrumentation & SCADA Maintenance" },
+    { "code": "REF-7", "description": "Flare Stack Inspection" },
+    { "code": "REF-8", "description": "Start-up & Performance Monitoring" }
+  ]
+}

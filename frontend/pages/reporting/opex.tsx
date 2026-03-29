@@ -240,11 +240,11 @@ const OpexEfficiencyPage: React.FC = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-black text-slate-500 uppercase">Total Budget</span>
-                      <span className="text-sm font-bold text-white">{convertToDisplay(summary.totalBudgeted, false)}</span>
+                      <span className="text-sm font-bold text-white">{convertToDisplay(summary.totalBudgeted, 'NGN', false)}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-black text-slate-500 uppercase">Actual Burn</span>
-                      <span className="text-sm font-bold text-white">{convertToDisplay(summary.totalActual, false)}</span>
+                      <span className="text-sm font-bold text-white">{convertToDisplay(summary.totalActual, 'NGN', false)}</span>
                     </div>
                   </div>
                 )}
@@ -278,7 +278,7 @@ const OpexEfficiencyPage: React.FC = () => {
                   <div className="p-4 bg-red-500/10 rounded-2xl"><TrendingDown className="w-7 h-7 text-red-400" /></div>
                   <div>
                     <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Total Variance</p>
-                    <p className={`text-2xl font-black ${summary.totalVariance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{convertToDisplay(Math.abs(summary.totalVariance), undefined, false)}</p>
+                    <p className={`text-2xl font-black ${summary.totalVariance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{convertToDisplay(Math.abs(summary.totalVariance), 'NGN', false)}</p>
                   </div>
                 </Card>
                 <Card className="bg-slate-900/80 border-slate-800 p-6 flex items-center gap-5">
@@ -326,9 +326,9 @@ const OpexEfficiencyPage: React.FC = () => {
                 {!loading && summary && (
                   <div className="grid grid-cols-3 gap-6">
                     {[
-                      { label: 'Total OPEX Budget', value: convertToDisplay(summary.totalBudgeted, undefined, false) },
-                      { label: 'Total Actual Burn', value: convertToDisplay(summary.totalActual, undefined, false) },
-                      { label: 'Net Variance', value: (summary.totalVariance >= 0 ? '+' : '') + convertToDisplay(summary.totalVariance, undefined, false) },
+                      { label: 'Total OPEX Budget', value: convertToDisplay(summary.totalBudgeted, 'NGN', false) },
+                      { label: 'Total Actual Burn', value: convertToDisplay(summary.totalActual, 'NGN', false) },
+                      { label: 'Net Variance', value: (summary.totalVariance >= 0 ? '+' : '') + convertToDisplay(summary.totalVariance, 'NGN', false) },
                     ].map(kpi => (
                       <div key={kpi.label} className="text-center p-6 bg-slate-50 rounded-2xl border border-slate-100">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{kpi.label}</p>
@@ -367,11 +367,11 @@ const OpexEfficiencyPage: React.FC = () => {
                             <div className="flex items-center gap-8 text-right">
                               <div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase">Budget</p>
-                                <p className="font-black text-slate-900">{convertToDisplay(budget.budgeted, false)}</p>
+                                <p className="font-black text-slate-900">{convertToDisplay(budget.budgeted, 'NGN', false)}</p>
                               </div>
                               <div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase">Actual</p>
-                                <p className="font-black text-slate-700">{convertToDisplay(budget.actual, false)}</p>
+                                <p className="font-black text-slate-700">{convertToDisplay(budget.actual, 'NGN', false)}</p>
                               </div>
                               <div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase">Burn</p>
@@ -403,10 +403,10 @@ const OpexEfficiencyPage: React.FC = () => {
                                           <span className={`ml-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase ${cat.status === 'OVERRUN' ? 'bg-red-100 text-red-600' : cat.status === 'AT_RISK' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-700'}`}>{cat.status}</span>
                                         </div>
                                       </td>
-                                      <td className="px-4 py-3.5 text-right font-bold text-slate-900 text-xs">{convertToDisplay(cat.budgeted, false)}</td>
-                                      <td className="px-4 py-3.5 text-right font-bold text-slate-600 text-xs">{convertToDisplay(cat.actual, false)}</td>
+                                      <td className="px-4 py-3.5 text-right font-bold text-slate-900 text-xs">{convertToDisplay(cat.budgeted, 'NGN', false)}</td>
+                                      <td className="px-4 py-3.5 text-right font-bold text-slate-600 text-xs">{convertToDisplay(cat.actual, 'NGN', false)}</td>
                                       <td className={`px-4 py-3.5 text-right font-black text-xs ${cat.variance < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                        {cat.variance >= 0 ? '+' : ''}{convertToDisplay(cat.variance, false)}
+                                        {cat.variance >= 0 ? '+' : ''}{convertToDisplay(cat.variance, 'NGN', false)}
                                       </td>
                                       <td className={`px-4 py-3.5 text-right font-black text-xs ${statusColors[cat.status]}`}>
                                         {cat.burnRate.toFixed(1)}%

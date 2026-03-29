@@ -9,9 +9,11 @@ import { BudgetCategoryEntity } from "./budget-category.entity";
 import { OperationalBudgetPeriodAllocationEntity } from "./operational-budget-period-allocation.entity";
 import { OperationalBudgetsService } from "./operational-budgets.service";
 import { OperationalBudgetsController } from "./operational-budgets.controller";
+import { NotificationsModule } from "../notifications/notifications.module";
+import { CommonModule } from "../common/common.module";
 
 @Module({
-  imports: [],
+  imports: [NotificationsModule, CommonModule],
   controllers: [OperationalBudgetsController],
   providers: [
     {

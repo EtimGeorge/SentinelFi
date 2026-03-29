@@ -14,7 +14,7 @@ import {
 } from "@nestjs/common";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
-import { Role } from "shared/types/role.enum";
+import { Role } from "@shared/types/role.enum";
 import { FileInterceptor } from "@nestjs/platform-express";
 import axios from "axios";
 import FormData from "form-data";
@@ -70,21 +70,31 @@ export class AiController {
 
       // 3. Validate the AI Agent's response structure before returning to frontend
       const aiData = response.data;
-      
+
       // Structural Validation: Ensure it's an array and has required fields
       if (!Array.isArray(aiData)) {
-         throw new BadRequestException("AI Agent returned invalid data format: Expected an array of WBS items.");
+        throw new BadRequestException(
+          "AI Agent returned invalid data format: Expected an array of WBS items.",
+        );
       }
 
       // Basic schema validation for the first few items to ensure reliability
       for (const item of aiData.slice(0, 10)) {
-         if (!item.wbs_code || !item.description || item.total_cost_budgeted === undefined) {
-             throw new BadRequestException("AI Agent returned malformed WBS items: Missing mandatory fields (wbs_code, description, total_cost_budgeted).");
-         }
+        if (
+          !item.wbs_code ||
+          !item.description ||
+          item.total_cost_budgeted === undefined
+        ) {
+          throw new BadRequestException(
+            "AI Agent returned malformed WBS items: Missing mandatory fields (wbs_code, description, total_cost_budgeted).",
+          );
+        }
       }
 
-      this.logger.log(`AI Agent successfully processed budget for project: ${projectName}. Items: ${aiData.length}`);
-      
+      this.logger.log(
+        `AI Agent successfully processed budget for project: ${projectName}. Items: ${aiData.length}`,
+      );
+
       return aiData;
     } catch (error: any) {
       // Handle network errors or errors thrown by the Python agent

@@ -289,6 +289,25 @@ const ProjectOverviewPage: React.FC = () => {
         }
     };
 
+    const handleDownloadBudgetPdf = async () => {
+        setLoading(true);
+        try {
+            const response = await apiRef.current.get(`/wbs/projects/${id}/report-pdf`, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Budget_Report_${project?.project_name}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success('Budget Report downloaded');
+        } catch (e: any) {
+            toast.error(`Failed to download budget report: ${e.response?.data?.message || e.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleExportExpenses = async (format: 'csv' | 'pdf' | 'xlsx' = 'csv') => {
         try {
             const response = await apiRef.current.get(`/wbs/expenses/export?projectId=${id}&format=${format}`, { responseType: 'blob' });
@@ -542,6 +561,10 @@ const ProjectOverviewPage: React.FC = () => {
                                                 <button onClick={handleDownloadBudgets} className="flex flex-col items-center justify-center p-4 bg-gray-800/50 rounded-xl hover:bg-gray-700 transition border border-gray-700">
                                                     <Download className="w-6 h-6 text-brand-secondary mb-2" />
                                                     <span className="text-xs font-bold text-gray-300">Export Budget (CSV)</span>
+                                                </button>
+                                                <button onClick={handleDownloadBudgetPdf} className="flex flex-col items-center justify-center p-4 bg-brand-primary/10 rounded-xl hover:bg-brand-primary/20 transition border border-brand-primary/30">
+                                                    <Download className="w-6 h-6 text-brand-primary mb-2" />
+                                                    <span className="text-xs font-bold text-brand-primary">Budget Report (PDF)</span>
                                                 </button>
                                                 <div className="relative group">
                                                     <button className="flex flex-col items-center justify-center p-4 bg-gray-800/50 rounded-xl hover:bg-gray-700 transition border border-gray-700 w-full">
@@ -1002,13 +1025,13 @@ const ProjectOverviewPage: React.FC = () => {
                                                         {audit.old_value !== null && (
                                                             <div className="text-xs">
                                                                 <span className="text-gray-500 mr-2">Old:</span>
-                                                                <span className="text-gray-400 font-mono">{convertToDisplay(audit.old_value)}</span>
+                                                                <span className="text-gray-400 font-mono">{convertToDisplay(audit.old_value, project.currency || 'NGN')}</span>
                                                             </div>
                                                         )}
                                                         {audit.new_value !== null && (
                                                             <div className="text-xs">
                                                                 <span className="text-gray-500 mr-2">New:</span>
-                                                                <span className="text-brand-primary font-mono font-bold">{convertToDisplay(audit.new_value)}</span>
+                                                                <span className="text-brand-primary font-mono font-bold">{convertToDisplay(audit.new_value, project.currency || 'NGN')}</span>
                                                             </div>
                                                         )}
                                                     </div>

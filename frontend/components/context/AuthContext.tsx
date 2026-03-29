@@ -69,7 +69,8 @@ interface AuthContextType {
   error: Error | null;
   login: (uid: string, password: string, role: Role) => Promise<void>;
   logout: () => Promise<void>;
-  refreshUser: (silent?: boolean) => Promise<void>; // Updated signature
+  refreshUser: (silent?: boolean) => Promise<void>; 
+  updateProfile: (data: Partial<User>) => Promise<void>; // NEW: Profile update
   getPrimaryRole: () => Role | null;
   getDefaultRoute: () => string;
   stopImpersonation: () => Promise<void>;
@@ -172,8 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const smartAbortRef = useRef(new SmartAbortController());
   const loginInProgressRef = useRef(false);
+  const logoutInProgressRef = useRef(false); // NEW: Prevent logout loops
   const rateLimiterRef = useRef(new LoginRateLimiter());
-  // 1. Core Refs (Stable across transitions)
   const authStateRef = useRef<AuthState>(AuthState.INITIALIZING);
   const logoutRef = useRef<() => Promise<void>>();
   const routerRef = useRef(router);
@@ -269,6 +270,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loginInProgressRef.current = true;
     setIsLoading(true);
     setError(null);
+    authCircuitBreaker.reset(); // RESET circuit breaker on login attempt
     try {
       const endpoint = role === Role.SuperAdmin ? '/auth/login/super' : '/auth/login/tenant';
       const response = await apiClient.post<{ user: User }>(endpoint, { email: uid, password });
@@ -297,6 +299,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    if (logoutInProgressRef.current) return; // Prevent loop
+    logoutInProgressRef.current = true;
     AuthLogger.info('Logging out...');
     setIsLoading(true);
     try {
@@ -316,8 +320,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         channel.close();
       } catch (e) {
         // Graceful degradation
+        AuthLogger.warn('BroadcastChannel not supported for sync, performing local logout actions.');
+        // If BroadcastChannel fails, ensure local cleanup and redirect still happen
+        setIsLoading(false);
+        SessionStorage.clear();
+        logoutInProgressRef.current = false;
+        routerRef.current.push('/login');
+        return; // Exit to prevent double execution of cleanup below
       }
 
+      // These actions should always happen after logout, regardless of BroadcastChannel success
+      setIsLoading(false);
+      SessionStorage.clear();
+      logoutInProgressRef.current = false;
       routerRef.current.push('/login');
     }
   }, []);
@@ -355,6 +370,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshUser, router]);
 
+  const updateProfile = useCallback(async (data: Partial<User>) => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.patch<User>('/auth/profile', data);
+      setUser(response);
+      SessionStorage.save(response);
+      AuthLogger.success('Profile updated successfully');
+    } catch (err: any) {
+      const message = err.response?.data?.message || err.message || 'Profile update failed';
+      throw new Error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const isImpersonating = !!user?.impersonator_id;
 
   // 2. Effects Hooks - Defined AFTER callbacks they depend on
@@ -386,7 +416,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (isMountedRef.current) {
               setUser(null);
               SessionStorage.clear();
-              router.push('/login?reason=session_expired');
+              // REDIRECT REMOVED: Managed by RouteGuard
             }
           }
           if (isMountedRef.current) setIsSyncing(false);
@@ -399,7 +429,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(currentUser);
           setIsInitialized(true);
           setIsLoading(false);
-          if (currentUser) SessionStorage.save(currentUser);
+          if (currentUser) {
+            SessionStorage.save(currentUser);
+            authCircuitBreaker.reset(); // Success resets circuit
+          }
+        }
+      }).catch(() => {
+        if (isMountedRef.current) {
+          setIsInitialized(true);
+          setIsLoading(false);
         }
       });
     }
@@ -441,7 +479,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           AuthLogger.warn('[SYNC] Session terminated in another tab. Logging out locally.');
           setUser(null);
           SessionStorage.clear();
-          router.push('/login?reason=multi_tab_logout');
+          // REDIRECT REMOVED: Managed by RouteGuard
         }
       } else if (type === 'LOGIN') {
         const newUser = event.data.user;
@@ -470,7 +508,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (e.key === 'sentinelfi_auth_user') {
         if (e.newValue === null && user) {
           setUser(null);
-          router.push('/login');
+          // REDIRECT REMOVED: Managed by RouteGuard
         }
         // Note: Logic to picking up login from storage is complex due to JSON parsing, 
         // BroadcastChannel is preferred for Login sync.
@@ -524,7 +562,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const responseInterceptor = apiClient.getAxiosInstance().interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
+        if (error.response?.status === 401 && !logoutInProgressRef.current) {
           AuthLogger.warn('[SECURED API] 401 Unauthorized detected. Executing logout.');
           if (logoutRef.current) logoutRef.current().catch(() => { });
         }
@@ -567,7 +605,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fetchCurrentUser().then(currentUser => {
         if (isMountedRef.current && currentUser === null) {
           setUser(null);
-          router.push('/login?reason=session_expired');
+          // REDIRECT REMOVED: Managed by RouteGuard
         }
       });
     }, intervalMs);
@@ -599,6 +637,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       refreshUser,
+      updateProfile, // Exposed here
       getPrimaryRole,
       getDefaultRoute,
       stopImpersonation,
@@ -660,7 +699,27 @@ export function useAuth() {
   return context;
 }
 
-export const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password', '/_error', '/404', '/500'];
+export const PUBLIC_ROUTES = [
+  '/', 
+  '/login', 
+  '/register', 
+  '/forgot-password', 
+  '/reset-password', 
+  '/about', 
+  '/training', 
+  '/contact', 
+  '/_error', 
+  '/404', 
+  '/500', 
+  '/landing/(.*)',
+  '/auth/accept-invitation',
+  '/auth/setup',
+  '/auth/check-email',
+  '/billing/success',
+  '/legal/terms',
+  '/legal/privacy',
+  '/landing/testimonials'
+];
 
 export const ROLE_ROUTES: Record<Role, string[]> = {
   [Role.SuperAdmin]: ['/super'],

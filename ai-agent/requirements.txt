@@ -1,17 +1,23 @@
+langchain-google-genai==1.0.7
+google-generativeai==0.7.2
+langchain-openai==0.1.8
+langchain==0.2.1
+langchain-community==0.2.1
 fastapi==0.111.0
 uvicorn==0.29.0
-langchain==0.2.1
-pydantic==2.7.3
+pydantic==2.7.4
 numpy==1.26.4
 pandas==2.2.2
 python-multipart==0.0.9
 psycopg2-binary==2.9.9
 python-dotenv==1.0.1
-# OCR/Document Intelligence dependencies
+slowapi==0.1.9
+structlog==24.1.0
+# OCR / Document Intelligence
 pypdf==4.2.0
 python-docx==1.1.2
 Pillow==10.3.0
 pytesseract==0.3.10
-# For processing complex documents like the NGN template
 unstructured==0.14.3
+# Code quality
 ruff==0.3.0

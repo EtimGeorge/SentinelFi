@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { ConversationEntity } from "./conversation.entity";
 import { UserEntity } from "../../auth/user.entity";
 
@@ -12,7 +20,9 @@ export class ConversationMemberEntity {
   @Column({ type: "uuid" })
   conversation_id!: string;
 
-  @ManyToOne(() => ConversationEntity, conv => conv.members, { onDelete: "CASCADE" })
+  @ManyToOne(() => ConversationEntity, (conv) => conv.members, {
+    onDelete: "CASCADE",
+  })
   @JoinColumn({ name: "conversation_id" })
   conversation!: ConversationEntity;
 

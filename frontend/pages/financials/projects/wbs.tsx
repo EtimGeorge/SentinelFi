@@ -5,8 +5,11 @@ import {
   TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle,
   ChevronRight, ChevronDown, Layers, MessageSquare,
   CheckCircle, Clock, XCircle, Send, DollarSign, Tag, Database, Upload,
-  ArrowUp, ArrowDown
+  ArrowUp, ArrowDown, Download, BrainCircuit, Eye, FileText, Zap, FileSpreadsheet
 } from 'lucide-react';
+import PdfPreviewModal from '../../../components/modals/PdfPreviewModal';
+import Button from '../../../components/common/Button';
+import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import Card from '../../../components/common/Card';
 import api from '../../../lib/api';
 import { useAuth } from '../../../components/context/AuthContext';
@@ -68,13 +71,13 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; co
 
 const WBSManagerPage: React.FC = () => {
   const { hasAnyRole, isAuthenticated } = useAuth();
-  const { userCurrency, convertToDisplay } = useCurrency();
+  const { userCurrency, convertToDisplay, convertAmount } = useCurrency();
 
   const [items, setItems] = useState<WBSItem[]>([]);
   const [categories, setCategories] = useState<WBSCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const [projects, setProjects] = useState<{ project_id: string; project_name: string }[]>([]);
+  const [projects, setProjects] = useState<{ project_id: string; project_name: string; currency?: string }[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [contractValidation, setContractValidation] = useState<ContractValidation | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -82,6 +85,53 @@ const WBSManagerPage: React.FC = () => {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [forensics, setForensics] = useState<{
+    burnRate: number;
+    avgDailySpend: number;
+    estimatedExhaustionDate: string | null;
+    riskLevel: string;
+  } | null>(null);
+  const { fetchReportBlob, downloadBlob } = useFinanceCore();
+
+
+  // PDF Preview State
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<{ blob: Blob; title: string; filename: string } | null>(null);
+
+  const handlePreviewReport = async (type: 'budget' | 'ai-insight' | 'expenses') => {
+    if (selectedProjectId === 'all') {
+      toast.error('Please select a specific project for reporting.');
+      return;
+    }
+    
+    setPreviewData(null);
+    setIsPreviewOpen(true);
+    
+    let endpoint = '';
+    let title = '';
+    let filename = '';
+
+    if (type === 'budget') {
+      endpoint = `/wbs/projects/${selectedProjectId}/report-pdf`;
+      title = 'Project Budget Performance';
+      filename = `Budget-Report-${selectedProjectId}.pdf`;
+    } else if (type === 'ai-insight') {
+      endpoint = `/wbs/projects/${selectedProjectId}/ai-insight`;
+      title = 'AI Financial Strategy & Risk Analysis';
+      filename = `AI-Insight-${selectedProjectId}.pdf`;
+    } else if (type === 'expenses') {
+      endpoint = `/wbs/projects/${selectedProjectId}/expenses-pdf`;
+      title = 'Technical Expenses Ledger';
+      filename = `Expenses-Ledger-${selectedProjectId}.pdf`;
+    }
+
+    const blob = await fetchReportBlob(endpoint);
+    if (blob) {
+      setPreviewData({ blob, title, filename });
+    } else {
+      setIsPreviewOpen(false);
+    }
+  };
 
   // State for Add/Edit
   const [actionNode, setActionNode] = useState<{
@@ -189,6 +239,17 @@ const WBSManagerPage: React.FC = () => {
       } else {
         setContractValidation(null);
       }
+
+      // Fetch Forensics if a specific project is selected
+      if (selectedProjectId !== 'all') {
+        try {
+          const forensicsRes = await api.get(`/wbs/projects/${selectedProjectId}/forensics`, { signal: controller?.signal });
+          setForensics(forensicsRes.data);
+        } catch { setForensics(null); }
+      } else {
+        setForensics(null);
+      }
+
     } catch (e: any) {
       if (e.name !== 'CanceledError') {
         toast.error(`Failed to fetch WBS: ${e.message}`);
@@ -217,6 +278,28 @@ const WBSManagerPage: React.FC = () => {
       .catch(() => { });
     return () => controller.abort();
   }, [isAuthenticated]);
+
+  // Project Currency Map for fast lookups
+  const projectCurrencyMap = useMemo(() => {
+    return projects.reduce((acc, p) => {
+      acc[p.project_id] = p.currency || 'NGN';
+      return acc;
+    }, {} as Record<string, string>);
+  }, [projects]);
+
+  const totalProjectBudgetFiltered = useMemo(() => {
+    return items.filter(i => !i.parent_wbs_id).reduce((sum: number, item: WBSItem) => {
+      const projectCurrency = projectCurrencyMap[item.project_id || ''] || 'NGN';
+      return sum + convertAmount(Number(item.total_cost_budgeted_rollup || item.total_cost_budgeted || 0), projectCurrency, userCurrency.code);
+    }, 0);
+  }, [items, projectCurrencyMap, userCurrency.code]);
+
+  const totalSpentFiltered = useMemo(() => {
+    return items.filter(i => !i.parent_wbs_id).reduce((sum: number, item: WBSItem) => {
+      const projectCurrency = projectCurrencyMap[item.project_id || ''] || 'NGN';
+      return sum + convertAmount(Number(item.total_paid_rollup || 0), projectCurrency, userCurrency.code);
+    }, 0);
+  }, [items, projectCurrencyMap, userCurrency.code]);
 
   // Fetch WBS data
   useEffect(() => {
@@ -337,6 +420,30 @@ const WBSManagerPage: React.FC = () => {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (selectedProjectId === 'all') {
+      toast.error('Please select a specific project to export its budget report.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const projectName = projects.find(p => p.project_id === selectedProjectId)?.project_name || 'Project';
+      const response = await api.get(`/wbs/projects/${selectedProjectId}/report-pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Budget_Report_${projectName}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Budget Report PDF generated');
+    } catch (e: any) {
+      toast.error(`Failed to export PDF: ${e.response?.data?.message || e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure? This will delete the item and all its children.')) return;
 
@@ -436,7 +543,7 @@ const WBSManagerPage: React.FC = () => {
                   <span className="text-gray-200 text-sm truncate pr-4">{item.description}</span>
                   {!isParent && Number(item.total_cost_budgeted_rollup || 0) === 0 && (
                     <span className="text-[10px] text-gray-500 font-mono mt-0.5">
-                      {item.uom ? `${item.uom}: ` : 'QTY: '}{item.quantity_budgeted || 1} @ {convertToDisplay(item.unit_cost_budgeted || 0)}
+                      {item.uom ? `${item.uom}: ` : 'QTY: '}{item.quantity_budgeted || 1} @ {convertToDisplay(item.unit_cost_budgeted || 0, projectCurrencyMap[item.project_id || ''] || 'NGN')}
                     </span>
                   )}
                 </div>
@@ -446,12 +553,12 @@ const WBSManagerPage: React.FC = () => {
             {/* Financial Columns */}
             <div className="flex items-center gap-4 text-right mr-4">
               <div className="min-w-[90px]">
-                <p className="font-black text-sm text-gray-100">{convertToDisplay(budgeted)}</p>
+                <p className="font-black text-sm text-gray-100">{convertToDisplay(budgeted, projectCurrencyMap[item.project_id || ''] || 'NGN')}</p>
                 <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Budget</p>
               </div>
               {spent > 0 && (
                 <div className="min-w-[90px]">
-                  <p className="font-bold text-sm text-gray-300">{convertToDisplay(spent)}</p>
+                  <p className="font-bold text-sm text-gray-300">{convertToDisplay(spent, projectCurrencyMap[item.project_id || ''] || 'NGN')}</p>
                   <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Actual</p>
                 </div>
               )}
@@ -535,43 +642,114 @@ const WBSManagerPage: React.FC = () => {
                 ))}
               </select>
             </div>
-            <div className="h-10 w-px bg-gray-700 mx-2" />
+            
+            <div className="h-10 w-px bg-gray-700 mx-1" />
+            
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-gray-700 text-gray-400 hover:text-white"
+                disabled={selectedProjectId === 'all'}
+                onClick={() => handlePreviewReport('expenses')}
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Ledger
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-gray-700 text-gray-400 hover:text-white"
+                disabled={selectedProjectId === 'all'}
+                onClick={() => handlePreviewReport('budget')}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Budget
+              </Button>
+              <Button 
+                variant="primary" 
+                size="sm" 
+                className="bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20"
+                disabled={selectedProjectId === 'all'}
+                onClick={() => handlePreviewReport('ai-insight')}
+              >
+                <BrainCircuit className="w-4 h-4 mr-2" />
+                AI Insight
+              </Button>
+            </div>
+            
+            <div className="h-10 w-px bg-gray-700 mx-1" />
             <Layers className="w-8 h-8 text-brand-primary" />
           </div>
         }
       >
         {/* Project Budget Total Summary */}
         {items.length > 0 && (
-          <div className="mb-4 p-4 bg-gradient-to-r from-brand-primary/10 to-transparent border border-brand-primary/20 rounded-xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <DollarSign className="w-5 h-5 text-brand-primary" />
-                <div>
-                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Total Project Budget</p>
-                  <p className="text-xl font-black text-white">
-                    {convertToDisplay(
-                      items.filter(i => !i.parent_wbs_id).reduce((sum, i) => sum + Number(i.total_cost_budgeted_rollup || i.total_cost_budgeted || 0), 0)
-                    )}
-                  </p>
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-gradient-to-r from-brand-primary/10 to-transparent border border-brand-primary/20 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <DollarSign className="w-5 h-5 text-brand-primary" />
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Total Project Budget</p>
+                    <p className="text-xl font-black text-white">
+                      {convertToDisplay(totalProjectBudgetFiltered, userCurrency.code)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-6">
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-500 uppercase font-bold">Total Spent</p>
-                  <p className="text-sm font-bold text-gray-300">
-                    {convertToDisplay(
-                      items.filter(i => !i.parent_wbs_id).reduce((sum, i) => sum + Number(i.total_paid_rollup || 0), 0)
-                    )}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-500 uppercase font-bold">Root Items</p>
-                  <p className="text-sm font-bold text-brand-primary">{items.filter(i => !i.parent_wbs_id).length}</p>
+                <div className="flex gap-6">
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold">Total Spent</p>
+                    <p className="text-sm font-bold text-gray-300">
+                      {convertToDisplay(totalSpentFiltered, userCurrency.code)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold">Root Items</p>
+                    <p className="text-sm font-bold text-brand-primary">{items.filter(i => !i.parent_wbs_id).length}</p>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* NEW: Forensics Card */}
+            {forensics && (
+              <div className={`p-4 border rounded-xl flex items-center justify-between ${
+                forensics.riskLevel === 'CRITICAL' ? 'bg-red-900/10 border-red-700/30' : 
+                forensics.riskLevel === 'WARNING' ? 'bg-yellow-900/10 border-yellow-700/30' : 
+                'bg-green-900/10 border-green-700/30'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <Zap className={`w-5 h-5 ${
+                    forensics.riskLevel === 'CRITICAL' ? 'text-red-500' : 
+                    forensics.riskLevel === 'WARNING' ? 'text-yellow-500' : 
+                    'text-green-500'
+                  }`} />
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Predictive Run-Rate</p>
+                    <div className="flex items-center gap-2">
+                       <p className="text-lg font-black text-white">{convertToDisplay(forensics.avgDailySpend, projectCurrencyMap[selectedProjectId] || 'NGN')}</p>
+                       <span className="text-[10px] text-gray-500 font-bold">/ DAY</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-500 uppercase font-bold">Projected Exhaustion</p>
+                  <p className={`text-sm font-black ${
+                    forensics.riskLevel === 'CRITICAL' ? 'text-red-400' : 
+                    forensics.riskLevel === 'WARNING' ? 'text-yellow-400' : 
+                    'text-green-400'
+                  }`}>
+                    {forensics.estimatedExhaustionDate ? new Date(forensics.estimatedExhaustionDate).toLocaleDateString('en-GB') : 'SUSTAINABLE'}
+                  </p>
+                  <p className="text-[10px] font-bold text-gray-500">{forensics.riskLevel} STATUS</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
+
 
         {/* Contract Value Warning Banner */}
         {contractValidation?.overBudget && (
@@ -580,8 +758,8 @@ const WBSManagerPage: React.FC = () => {
             <div>
               <p className="text-sm font-bold text-red-300">Budget Exceeds Contract Value</p>
               <p className="text-xs text-red-400 mt-0.5">
-                Total WBS budgets ({convertToDisplay(contractValidation.totalBudgeted)}) exceed the contract value ({convertToDisplay(contractValidation.contractValue)}) by{' '}
-                <span className="font-bold">{convertToDisplay(contractValidation.totalBudgeted - contractValidation.contractValue)}</span>.
+                Total WBS budgets ({convertToDisplay(contractValidation.totalBudgeted, projectCurrencyMap[selectedProjectId] || 'NGN')}) exceed the contract value ({convertToDisplay(contractValidation.contractValue, projectCurrencyMap[selectedProjectId] || 'NGN')}) by{' '}
+                <span className="font-bold">{convertToDisplay(contractValidation.totalBudgeted - contractValidation.contractValue, projectCurrencyMap[selectedProjectId] || 'NGN')}</span>.
               </p>
             </div>
           </div>
@@ -840,7 +1018,7 @@ const WBSManagerPage: React.FC = () => {
                   </div>
                   <div className="p-2 bg-brand-primary/10 border border-brand-primary/30 rounded text-center">
                     <p className="text-[10px] text-gray-400 uppercase font-bold">Auto-Computed Total ({userCurrency.code})</p>
-                    <p className="text-xl font-black text-brand-primary">{convertToDisplay(formData.total)}</p>
+                    <p className="text-xl font-black text-brand-primary">{convertToDisplay(formData.total, projectCurrencyMap[formData.projectId || selectedProjectId] || 'NGN')}</p>
                     <p className="text-[9px] text-gray-500 mt-0.5">unit cost × quantity × days</p>
                   </div>
 
@@ -948,6 +1126,24 @@ const WBSManagerPage: React.FC = () => {
           api.get<WBSCategory[]>('/wbs/categories').then(res => setCategories(res.data));
         }}
       />
+
+      {/* PDF Preview Modal Integration */}
+      {isPreviewOpen && (
+        <PdfPreviewModal
+          isOpen={true}
+          onClose={() => {
+            setIsPreviewOpen(false);
+            setPreviewData(null);
+          }}
+          pdfBlob={previewData?.blob || null}
+          title={previewData?.title || 'Report Preview'}
+          onDownload={() => {
+            if (previewData) {
+              downloadBlob(previewData.blob, previewData.filename);
+            }
+          }}
+        />
+      )}
     </>
   );
 };

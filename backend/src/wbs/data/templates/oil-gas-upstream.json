@@ -1,0 +1,16 @@
+{
+  "name": "Oil & Gas (Upstream Drilling)",
+  "industry": "OIL_GAS",
+  "structure": [
+    { "code": "100", "description": "Mobilization & Rig-Up" },
+    { "code": "200", "description": "Drilling Operations" },
+    { "code": "210", "description": "Surface Hole (Spud)", "parent_code": "200" },
+    { "code": "220", "description": "Intermediate Section", "parent_code": "200" },
+    { "code": "230", "description": "Production Section (TD)", "parent_code": "200" },
+    { "code": "300", "description": "Casing & Cementing" },
+    { "code": "400", "description": "Logging & Well Evaluation" },
+    { "code": "500", "description": "Completion & Testing" },
+    { "code": "600", "description": "Wellhead Installation" },
+    { "code": "700", "description": "Demobilization" }
+  ]
+}

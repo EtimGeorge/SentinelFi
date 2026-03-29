@@ -1,6 +1,6 @@
 // backend/src/common/logger/correlated-logger.ts
-import { Logger } from '@nestjs/common';
-import { getCorrelationId } from '../interceptors/correlation.interceptor'; // Import the helper
+import { Logger } from "@nestjs/common";
+import { getCorrelationId } from "../interceptors/correlation.interceptor"; // Import the helper
 
 export class CorrelatedLogger extends Logger {
   // Override log methods to prepend correlation ID
@@ -30,9 +30,10 @@ export class CorrelatedLogger extends Logger {
     let stringMessage: string;
 
     try {
-        stringMessage = typeof message === 'string' ? message : JSON.stringify(message);
+      stringMessage =
+        typeof message === "string" ? message : JSON.stringify(message);
     } catch (error) {
-        stringMessage = '[Circular/Error in JSON.stringify]';
+      stringMessage = "[Circular/Error in JSON.stringify]";
     }
 
     if (correlationId) {

@@ -3,9 +3,9 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { TenantSettingsService } from '../../tenants/tenant-settings.service';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { TenantSettingsService } from "../../tenants/tenant-settings.service";
 
 /**
  * Metadata key used to annotate which feature flag must be enabled.
@@ -15,7 +15,7 @@ import { TenantSettingsService } from '../../tenants/tenant-settings.service';
  *   or
  *   @SetMetadata('requiresFeature', 'isApiEnabled')
  */
-export const FEATURE_FLAG_KEY = 'requiresFeature';
+export const FEATURE_FLAG_KEY = "requiresFeature";
 
 /**
  * FeatureFlagGuard
@@ -36,10 +36,10 @@ export class FeatureFlagGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Read which feature flag this endpoint requires
-    const requiredFlag = this.reflector.getAllAndOverride<string>(FEATURE_FLAG_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredFlag = this.reflector.getAllAndOverride<string>(
+      FEATURE_FLAG_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     // No flag required — pass through
     if (!requiredFlag) return true;
@@ -50,21 +50,22 @@ export class FeatureFlagGuard implements CanActivate {
     // If there's no tenant context (SuperAdmin calling directly), allow
     if (!tenantId) return true;
 
-    const settings = await this.tenantSettingsService.getOrCreateSettings(tenantId);
+    const settings =
+      await this.tenantSettingsService.getOrCreateSettings(tenantId);
 
     const isEnabled = (settings as any)[requiredFlag];
 
     if (!isEnabled) {
       const friendlyName =
-        requiredFlag === 'isDcsEnabled'
-          ? 'Document Control System (DCS)'
-          : requiredFlag === 'isApiEnabled'
-          ? 'ERP / External API integration'
-          : requiredFlag;
+        requiredFlag === "isDcsEnabled"
+          ? "Document Control System (DCS)"
+          : requiredFlag === "isApiEnabled"
+            ? "ERP / External API integration"
+            : requiredFlag;
 
       throw new ForbiddenException(
         `${friendlyName} is not enabled for your organisation. ` +
-        `An Admin can enable it from Settings → DCS & API.`,
+          `An Admin can enable it from Settings → DCS & API.`,
       );
     }
 

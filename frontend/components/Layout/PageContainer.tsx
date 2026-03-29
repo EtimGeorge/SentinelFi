@@ -14,7 +14,7 @@ interface PageContainerProps {
  */
 const PageContainer: React.FC<PageContainerProps> = ({ children, title, subtitle, headerContent, className = '' }) => {
   return (
-    <div className={`bg-gray-800 p-4 sm:p-6 rounded-xl shadow-lg border border-gray-700/50 print:bg-transparent print:p-0 print:border-none print:shadow-none print:text-black ${className}`}>
+    <div className={`bg-gray-800 p-4 sm:p-6 rounded-xl shadow-lg border border-gray-700/50 print:bg-transparent print:p-0 print:border-none print:shadow-none print:text-black min-w-0 ${className}`}>
       {(title || headerContent) && (
         <div className={`mb-4 flex ${headerContent ? 'justify-between items-center' : 'flex-col'} border-b border-gray-700 pb-4 print:hidden`}>
           <div>

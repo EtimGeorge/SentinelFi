@@ -490,7 +490,7 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
       const newTenant = await api.post<Tenant>('/super/tenants', tenantData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      addToast(`Tenant ${newTenant.data.name} provisioned successfully! Admin password: ${newTenant.data.admin_password || 'Securely Generated'}`, 'success', 8000);
+      addToast(`Tenant ${newTenant.data.name} provisioned successfully! An invitation has been dispatched to ${newTenant.data.admin_email}.`, 'success', 8000);
       setShowCreateModal(false);
       fetchTenants();
     } catch (e: any) {

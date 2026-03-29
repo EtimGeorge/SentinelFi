@@ -12,7 +12,7 @@ import { useCurrency } from '../../../../components/context/CurrencyContext';
 import { getWBSColor } from '../../../../lib/utils';
 import { Role } from '@shared/types/role.enum';
 import { WbsBudget } from '@shared/types/wbs';
-import { ProjectEntity } from '../../../../../backend/src/projects/project.entity';
+import { Project } from '@shared/types/project';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, Download, Printer, Search, FileDown, Layers, Target,
@@ -63,7 +63,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
     uom?: string | null;
   }
 
-  const [project, setProject] = useState<ProjectEntity | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [budgets, setBudgets] = useState<WbsBudgetExtended[]>([]);
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -107,7 +107,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
     setLoading(true);
     try {
       // 1. Fetch Project Details
-      const projRes = await api.get<ProjectEntity>(`/projects/${projectId}`);
+      const projRes = await api.get<Project>(`/projects/${projectId}`);
       setProject(projRes.data);
 
       // 2. Fetch Granular Budget Data (using rollup endpoint for complete hierarchy)

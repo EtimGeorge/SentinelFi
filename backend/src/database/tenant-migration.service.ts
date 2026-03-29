@@ -16,7 +16,7 @@ import { WbsCategoryEntity } from "../wbs/wbs-category.entity";
 import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
 import { OperationalBudgetCategoryEntity } from "../operational-budgets/operational-budget-category.entity";
 import { OperationalExpenseEntity } from "../operational-budgets/operational-expense.entity";
-import { PayrollEntryEntity } from '../operational-budgets/payroll-entry.entity';
+import { PayrollEntryEntity } from "../operational-budgets/payroll-entry.entity";
 import { UserEntity } from "../auth/user.entity";
 import { RoleEntity } from "../auth/role.entity"; // NEW
 import { PermissionEntity } from "../auth/permission.entity"; // NEW
@@ -40,7 +40,9 @@ export class TenantMigrationService {
 
     let databaseUrl = this.configService.get<string>("DATABASE_URL");
     if (!databaseUrl) {
-      this.logger.error("DATABASE_URL environment variable is not set for tenant migrations.");
+      this.logger.error(
+        "DATABASE_URL environment variable is not set for tenant migrations.",
+      );
       throw new InternalServerErrorException(
         "DATABASE_URL environment variable is not set for tenant migrations. Please check your .env files (backend/.env or backend/.env.local).",
       );
@@ -57,20 +59,21 @@ export class TenantMigrationService {
     const credsMatch = databaseUrl.match(/^(postgres:\/\/)([^:]+):(.+)@(.+)$/);
     if (credsMatch) {
       const [, proto, user, pass, rest] = credsMatch;
-      const needsEncoding = /[\#\?\[\]\@]/.test(pass) || /[\#\?\[\]\@]/.test(user);
+      const needsEncoding =
+        /[\#\?\[\]\@]/.test(pass) || /[\#\?\[\]\@]/.test(user);
       if (needsEncoding) {
-         sanitizedUrl = `${proto}${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${rest}`;
+        sanitizedUrl = `${proto}${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${rest}`;
       }
     }
 
     const isNeon = sanitizedUrl.includes("neon.tech");
     const hasSslMode = sanitizedUrl.includes("sslmode=");
 
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = process.env.NODE_ENV === "production";
 
     // Define tenant-specific DataSource options
     const tenantDataSourceOptions: DataSourceOptions = {
-      type: 'postgres',
+      type: "postgres",
       url: sanitizedUrl,
       ssl: isNeon && !hasSslMode ? { rejectUnauthorized: false } : undefined,
       schema: schemaName, // CRITICAL: Dynamically set the schema name
@@ -87,17 +90,17 @@ export class TenantMigrationService {
         OperationalBudgetPeriodAllocationEntity,
         ClientEntity,
         CEOAnnotationEntity,
-        UserEntity,           // Public entity (for reference)
-        RoleEntity,           // Public entity (for reference)
-        PermissionEntity,     // Public entity (for reference)
-        TenantEntity,         // Public entity (for reference)
-        AuditLogEntity,       // Public entity (for reference)
-        ApprovalLogEntity,    // Added
+        UserEntity, // Public entity (for reference)
+        RoleEntity, // Public entity (for reference)
+        PermissionEntity, // Public entity (for reference)
+        TenantEntity, // Public entity (for reference)
+        AuditLogEntity, // Public entity (for reference)
+        ApprovalLogEntity, // Added
       ],
       migrations: [getTenantMigrationsPath()],
-      migrationsTableName: 'tenant_migrations', // Dedicated migrations table for tenant schemas
+      migrationsTableName: "tenant_migrations", // Dedicated migrations table for tenant schemas
       synchronize: false, // Always false in production
-      logging: ['error', 'warn'], // Only log errors and warnings for migrations
+      logging: ["error", "warn"], // Only log errors and warnings for migrations
     };
 
     const tenantDataSource = new DataSource(tenantDataSourceOptions);

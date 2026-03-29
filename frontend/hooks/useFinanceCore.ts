@@ -295,6 +295,73 @@ export const useFinanceCore = () => {
         
     }, []);
 
+    const downloadPurchaseOrderPdf = useCallback(async (id: string, poNumber: string) => {
+        setLoading(true);
+        try {
+            const response = await apiClient.getAxiosInstance().get(`/finance-core/purchase-orders/${id}/pdf`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `PO_${poNumber}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success('Purchase Order downloaded');
+        } catch (error) {
+            toast.error('Failed to download Purchase Order PDF');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const downloadInvoicePdf = useCallback(async (id: string, invNumber: string) => {
+        setLoading(true);
+        try {
+            const response = await apiClient.getAxiosInstance().get(`/finance-core/invoices/${id}/pdf`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Invoice_${invNumber}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success('Invoice downloaded');
+        } catch (error) {
+            toast.error('Failed to download Invoice PDF');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const fetchReportBlob = useCallback(async (endpoint: string) => {
+        setLoading(true);
+        try {
+            const response = await apiClient.getAxiosInstance().get(endpoint, {
+                responseType: 'blob'
+            });
+            return new Blob([response.data], { type: 'application/pdf' });
+        } catch (error) {
+            toast.error('Error generating report');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const downloadBlob = (blob: Blob, filename: string) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    };
+
     return {
         loading,
         fetchFiscalYears,
@@ -319,6 +386,10 @@ export const useFinanceCore = () => {
         fetchOperationalAnalytics,
         fetchCapexDashboard,
         fetchOpexDashboard,
+        downloadPurchaseOrderPdf,
+        downloadInvoicePdf,
+        fetchReportBlob,
+        downloadBlob,
     };
 };
 

@@ -1,0 +1,14 @@
+{
+  "name": "Mining Operations (Exploration Phase)",
+  "industry": "MINING",
+  "structure": [
+    { "code": "MN-1", "description": "Geological Mapping & Sampling" },
+    { "code": "MN-2", "description": "Exploration Drilling Program" },
+    { "code": "MN-3", "description": "Mineral Resource Estimation" },
+    { "code": "MN-4", "description": "Pre-Feasibility Study (PFS)" },
+    { "code": "MN-5", "description": "Community Engagement & Resettlement" },
+    { "code": "MN-6", "description": "Haul Road Construction" },
+    { "code": "MN-7", "description": "Crushing & Processing Plant Setup" },
+    { "code": "MN-8", "description": "Mine Closure & Rehabilitation Plan" }
+  ]
+}

@@ -6,16 +6,16 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from "@nestjs/common";
-import * as ExcelJS from 'exceljs';
+import * as ExcelJS from "exceljs";
 import { ClsService } from "nestjs-cls";
 import { InjectRepository } from "@nestjs/typeorm";
 import {
   Repository,
-  SelectQueryBuilder,
   DataSource,
   In,
   IsNull,
 } from "typeorm";
+
 import { WbsBudgetEntity } from "./wbs-budget.entity";
 import { WbsCategoryEntity } from "./wbs-category.entity";
 import { CreateWbsBudgetDto } from "./dto/create-wbs-budget.dto";
@@ -31,21 +31,37 @@ import { WbsBudgetRollupDto } from "./dto/wbs-budget-rollup.dto";
 import { UpdateWbsCategoryDto } from "./dto/update-wbs-category.dto";
 import { CreateWbsCategoryDto } from "./dto/create-wbs-category.dto";
 import { WbsTemplateEntity } from "./wbs-template.entity";
-import { IndustryType, UserPayload, WbsBudgetStatus, VarianceFlag, ApprovalStatus } from "@shared/types";
+import {
+  UserPayload,
+  WbsBudgetStatus,
+  VarianceFlag,
+  ApprovalStatus,
+} from "@shared/types";
 import { CreateWbsTemplateDto } from "./dto/create-wbs-template.dto";
-import { ApplyWbsTemplateDto } from "./dto/apply-wbs-template.dto";
-import { GetProjectsDto } from "../projects/dto/get-projects.dto";
 import { ProjectEntity } from "../projects/project.entity";
+
 import { ProjectsService } from "../projects/projects.service";
 import { UserEntity } from "../auth/user.entity"; // NEW: Import UserEntity
 import { Buffer } from "buffer"; // Needed for export methods
 import { NotificationsService } from "../notifications/notifications.service"; // NEW: Import NotificationsService
 import { BudgetControlService } from "../common/budget-control.service";
 import { DOAService } from "../common/doa.service";
-import { ApprovalLogEntity, ApprovalDocumentType } from "../common/entities/approval-log.entity";
+import {
+  ApprovalLogEntity,
+  ApprovalDocumentType,
+} from "../common/entities/approval-log.entity";
 import { AuditService } from "../audit/audit.service";
 import { BudgetImpactAnalysisDto } from "./dto/budget-impact-analysis.dto";
 import { WbsValidationResultDto } from "./dto/wbs-validation-result.dto";
+import * as fs from "fs";
+import * as path from "path";
+import * as hbs from "handlebars";
+import { format } from "date-fns";
+import { PdfGenerationService } from "../common/pdf-generation.service";
+import { TenantService } from "../tenants/tenant.service";
+import { FinancialForensicsService } from "../common/services/financial-forensics.service";
+
+
 
 interface WbsBudgetRollupQueryResult {
   wbs_id: string;
@@ -64,6 +80,7 @@ interface WbsBudgetRollupQueryResult {
   custom_metadata: Record<string, any> | null;
 }
 
+
 @Injectable()
 export class WbsService {
   private readonly logger = new Logger(WbsService.name);
@@ -80,17 +97,32 @@ export class WbsService {
     @Inject("LIVEEXPENSE_REPOSITORY")
     private liveExpenseRepository: Repository<LiveExpenseEntity>,
     private readonly projectsService: ProjectsService,
-    private readonly notificationsService: NotificationsService, 
+    private readonly notificationsService: NotificationsService,
     private readonly budgetControlService: BudgetControlService,
     private readonly auditService: AuditService,
     private readonly doaService: DOAService,
     @InjectRepository(ApprovalLogEntity, TENANT_DATA_SOURCE)
     private approvalLogRepo: Repository<ApprovalLogEntity>,
+    private readonly pdfService: PdfGenerationService,
+    private readonly tenantService: TenantService,
+    private readonly forensicsService: FinancialForensicsService,
   ) {}
 
   // Centralized Governance Constants for "Bulletproof" Verification
-  private readonly CRITICAL_OVERRIDE_ROLES = ['CFO', 'CEO', 'Admin Director', 'SuperAdmin'];
-  private readonly MAJOR_OVERRIDE_ROLES = ['Finance Manager', 'CFO', 'CEO', 'Admin Director', 'SuperAdmin', 'Finance Officer'];
+  private readonly CRITICAL_OVERRIDE_ROLES = [
+    "CFO",
+    "CEO",
+    "Admin Director",
+    "SuperAdmin",
+  ];
+  private readonly MAJOR_OVERRIDE_ROLES = [
+    "Finance Manager",
+    "CFO",
+    "CEO",
+    "Admin Director",
+    "SuperAdmin",
+    "Finance Officer",
+  ];
 
   // WBS Budget (Draft) Operations
   async createWbsBudgetDraft(
@@ -140,18 +172,19 @@ export class WbsService {
     const qty = quantity_budgeted || 1;
     const days = days_budgeted || 1;
     const computedTotal = unitCost * qty * days;
-    const finalTotal = total_cost_budgeted && total_cost_budgeted > 0
-      ? total_cost_budgeted
-      : computedTotal;
+    const finalTotal =
+      total_cost_budgeted && total_cost_budgeted > 0
+        ? total_cost_budgeted
+        : computedTotal;
 
     // Get max sort_order for siblings
     const maxSortItem = await this.wbsBudgetRepository.findOne({
-      where: { 
-        parent_wbs_id: parent_wbs_id ?? IsNull(), 
+      where: {
+        parent_wbs_id: parent_wbs_id ?? IsNull(),
         tenant_id: tenant_id,
-        project_id: project_id 
+        project_id: project_id,
       },
-      order: { sort_order: 'DESC' }
+      order: { sort_order: "DESC" },
     });
 
     const wbsBudget = new WbsBudgetEntity();
@@ -172,7 +205,11 @@ export class WbsService {
 
     // Validate total WBS budgets against contract value (warn, don't block)
     if (project) {
-      await this.validateBudgetAgainstContractValue(project_id, tenant_id, project);
+      await this.validateBudgetAgainstContractValue(
+        project_id,
+        tenant_id,
+        project,
+      );
     }
 
     return saved;
@@ -201,9 +238,10 @@ export class WbsService {
       const qty = dto.quantity_budgeted || 1;
       const days = dto.days_budgeted || 1;
       const computedTotal = unitCost * qty * days;
-      const finalTotal = dto.total_cost_budgeted && dto.total_cost_budgeted > 0
-        ? dto.total_cost_budgeted
-        : computedTotal;
+      const finalTotal =
+        dto.total_cost_budgeted && dto.total_cost_budgeted > 0
+          ? dto.total_cost_budgeted
+          : computedTotal;
 
       const newWbsBudget = new WbsBudgetEntity();
       newWbsBudget.project_id = dto.project_id;
@@ -301,16 +339,27 @@ export class WbsService {
 
     // --- 1. Validate existence of WBS item ---
     const wbsItem = wbs_id
-      ? await this.wbsBudgetRepository.findOne({ where: { wbs_id, tenant_id }, relations: ['project'] })
+      ? await this.wbsBudgetRepository.findOne({
+          where: { wbs_id, tenant_id },
+          relations: ["project"],
+        })
       : null;
 
     if (wbs_id && !wbsItem) {
-      throw new NotFoundException(`WBS Budget line with ID "${wbs_id}" not found for this tenant.`);
+      throw new NotFoundException(
+        `WBS Budget line with ID "${wbs_id}" not found for this tenant.`,
+      );
     }
 
     // --- [GUARD] Budget State Check ---
-    if (wbsItem && wbsItem.status !== WbsBudgetStatus.APPROVED && wbsItem.status !== WbsBudgetStatus.RECALLED) {
-       throw new BadRequestException(`"${wbsItem.wbs_code}" cannot be used for expenses because it is in ${wbsItem.status} status. It must be APPROVED or RECALLED first.`);
+    if (
+      wbsItem &&
+      wbsItem.status !== WbsBudgetStatus.APPROVED &&
+      wbsItem.status !== WbsBudgetStatus.RECALLED
+    ) {
+      throw new BadRequestException(
+        `"${wbsItem.wbs_code}" cannot be used for expenses because it is in ${wbsItem.status} status. It must be APPROVED or RECALLED first.`,
+      );
     }
 
     // --- 2. Variance & Override Check ---
@@ -319,7 +368,10 @@ export class WbsService {
 
     if (wbsItem) {
       const committedResults = await this.dataSource.query(
-        `SELECT COALESCE(SUM(amount_committed - amount_paid), 0) as total FROM lpo WHERE wbs_id = $1 AND tenant_id = $2`,
+        `SELECT 
+           (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) FROM lpo WHERE wbs_id = $1 AND tenant_id = $2) +
+           (SELECT COALESCE(SUM(amount), 0) FROM live_expense WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
+         AS total`,
         [wbsItem.wbs_id, tenant_id],
       );
       const committedAmount = parseFloat(committedResults[0]?.total || 0);
@@ -335,44 +387,53 @@ export class WbsService {
 
       // 2. [ADVANCED] Quantity/Duration Variance Check
       if (expenseDto.quantity > 0 && wbsItem.quantity_budgeted > 0) {
-          const remainingQty = wbsItem.quantity_budgeted - (wbsItem.quantity_actual || 0);
-          if (expenseDto.quantity > remainingQty * 1.05) {
-              finalFlag = VarianceFlag.MAJOR_VARIANCE;
-          }
+        const remainingQty =
+          wbsItem.quantity_budgeted - (wbsItem.quantity_actual || 0);
+        if (expenseDto.quantity > remainingQty * 1.05) {
+          finalFlag = VarianceFlag.MAJOR_VARIANCE;
+        }
       }
       if (expenseDto.days && wbsItem.days_budgeted! > 0) {
-          const remainingDays = wbsItem.days_budgeted! - (wbsItem.days_actual || 0);
-          if (expenseDto.days > remainingDays * 1.05) {
-              finalFlag = VarianceFlag.MAJOR_VARIANCE;
-          }
+        const remainingDays =
+          wbsItem.days_budgeted! - (wbsItem.days_actual || 0);
+        if (expenseDto.days > remainingDays * 1.05) {
+          finalFlag = VarianceFlag.MAJOR_VARIANCE;
+        }
       }
 
       // --- Enforce Governance Decisions (Asynchronous Flow) ---
-      if (varianceResult.action === 'BLOCK' || varianceResult.action === 'REQUIRE_OVERRIDE') {
-        const isCritical = varianceResult.action === 'BLOCK';
+      if (
+        varianceResult.action === "BLOCK" ||
+        varianceResult.action === "REQUIRE_OVERRIDE"
+      ) {
+        const isCritical = varianceResult.action === "BLOCK";
         const isAuthorizedAtAll = isCritical
           ? actorRole && this.CRITICAL_OVERRIDE_ROLES.includes(actorRole)
           : actorRole && this.MAJOR_OVERRIDE_ROLES.includes(actorRole);
 
         if (!override_reason) {
-            // Still hard-block if they didn't even provide a reason.
-             throw new BadRequestException({
-                statusCode: 403,
-                errorCode: varianceResult.flag,
-                message: varianceResult.message,
-                requiredRoles: varianceResult.requiredRoles,
-                hint: 'Provide an override_reason justification before submitting.',
-              });
+          // Still hard-block if they didn't even provide a reason.
+          throw new BadRequestException({
+            statusCode: 403,
+            errorCode: varianceResult.flag,
+            message: varianceResult.message,
+            requiredRoles: varianceResult.requiredRoles,
+            hint: "Provide an override_reason justification before submitting.",
+          });
         }
 
         if (isAuthorizedAtAll) {
           // User HAS authority to force it through immediately.
-          this.logger.warn(`[WBS] AUTHORIZED OVERRIDE by ${actorRole} | WBS: ${wbsItem.wbs_code} | Reason: ${override_reason}`);
+          this.logger.warn(
+            `[WBS] AUTHORIZED OVERRIDE by ${actorRole} | WBS: ${wbsItem.wbs_code} | Reason: ${override_reason}`,
+          );
           finalFlag = VarianceFlag.OVERRIDE_APPLIED;
           approvalStatus = ApprovalStatus.APPROVED;
         } else {
           // User lacks authority, route to pending queue.
-          this.logger.log(`[WBS] PENDING APPROVAL routed for ${actorRole} | WBS: ${wbsItem.wbs_code}`);
+          this.logger.log(
+            `[WBS] PENDING APPROVAL routed for ${actorRole} | WBS: ${wbsItem.wbs_code}`,
+          );
           approvalStatus = ApprovalStatus.PENDING_APPROVAL;
         }
       }
@@ -387,12 +448,19 @@ export class WbsService {
       // Calculate tax if project is available
       let vatAmount = 0;
       let whtAmount = 0;
-      const projectData = wbsItem?.project
-        ?? (project_id ? await this.projectsService.findOne(project_id, tenant_id).catch(() => null) : null);
+      const projectData =
+        wbsItem?.project ??
+        (project_id
+          ? await this.projectsService
+              .findOne(project_id, tenant_id)
+              .catch(() => null)
+          : null);
 
       if (projectData) {
-        vatAmount = expenseDto.amount * (Number(projectData.vat_rate || 0) / 100);
-        whtAmount = expenseDto.amount * (Number(projectData.wht_rate || 0) / 100);
+        vatAmount =
+          expenseDto.amount * (Number(projectData.vat_rate || 0) / 100);
+        whtAmount =
+          expenseDto.amount * (Number(projectData.wht_rate || 0) / 100);
       }
 
       const liveExpense = queryRunner.manager.create(LiveExpenseEntity, {
@@ -406,47 +474,50 @@ export class WbsService {
         expense_date: expenseDto.expense_date || new Date(),
       });
 
-      const savedExpense = await queryRunner.manager.save(LiveExpenseEntity, liveExpense);
+      const savedExpense = await queryRunner.manager.save(
+        LiveExpenseEntity,
+        liveExpense,
+      );
 
       // ONLY increment denormalized actual spend if APPROVED
       if (wbsItem && approvalStatus === ApprovalStatus.APPROVED) {
         await queryRunner.manager.increment(
           WbsBudgetEntity,
           { wbs_id: wbsItem.wbs_id, tenant_id },
-          'total_cost_actual',
+          "total_cost_actual",
           expenseDto.amount,
         );
-        
+
         // Granular Fulfillment Tracking
         if (expenseDto.quantity) {
           await queryRunner.manager.increment(
             WbsBudgetEntity,
             { wbs_id: wbsItem.wbs_id, tenant_id },
-            'quantity_actual',
+            "quantity_actual",
             expenseDto.quantity,
           );
         }
-        
+
         if (expenseDto.days) {
           await queryRunner.manager.increment(
             WbsBudgetEntity,
             { wbs_id: wbsItem.wbs_id, tenant_id },
-            'days_actual',
+            "days_actual",
             expenseDto.days,
           );
         }
 
         // If it was an override that was instantly approved, notify the team
         if (finalFlag === VarianceFlag.OVERRIDE_APPLIED && override_reason) {
-            this.notificationsService.sendOverrideApprovedAlert({
-                authorizer: actorRole || 'System',
-                wbsCode: wbsItem.wbs_code,
-                projectName: projectData?.project_name || 'Unknown Project',
-                amount: expenseDto.amount,
-                varianceFlag: finalFlag || 'UNKNOWN',
-                overrideReason: override_reason,
-                expenseId: savedExpense.id,
-            });
+          this.notificationsService.sendOverrideApprovedAlert({
+            authorizer: actorRole || "System",
+            wbsCode: wbsItem.wbs_code,
+            projectName: projectData?.project_name || "Unknown Project",
+            amount: expenseDto.amount,
+            varianceFlag: finalFlag || "UNKNOWN",
+            overrideReason: override_reason,
+            expenseId: savedExpense.id,
+          });
         }
       }
 
@@ -454,13 +525,14 @@ export class WbsService {
       return savedExpense;
     } catch (err) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`[WBS] logLiveExpenseEntry transaction failed: ${(err as Error).message}`);
+      this.logger.error(
+        `[WBS] logLiveExpenseEntry transaction failed: ${(err as Error).message}`,
+      );
       throw err;
     } finally {
       await queryRunner.release();
     }
   }
-
 
   /**
    * ADVANCED: Batch version of logLiveExpenseEntry — support partial success.
@@ -472,139 +544,201 @@ export class WbsService {
     userId: string,
     tenant_id: string,
     actorRole?: string,
-  ): Promise<{ 
-    saved: LiveExpenseEntity[]; 
-    errors: { index: number; wbs_code?: string; message: string; errorCode?: string }[];
+  ): Promise<{
+    saved: LiveExpenseEntity[];
+    errors: {
+      index: number;
+      wbs_code?: string;
+      message: string;
+      errorCode?: string;
+    }[];
     totalCount: number;
     successCount: number;
   }> {
-    const results: { saved: LiveExpenseEntity[]; errors: any[] } = { saved: [], errors: [] };
+    const results: { saved: LiveExpenseEntity[]; errors: any[] } = {
+      saved: [],
+      errors: [],
+    };
 
     for (let i = 0; i < entries.length; i++) {
-        const expenseDto = entries[i];
-        const queryRunner = this.dataSource.createQueryRunner();
-        await queryRunner.connect();
-        await queryRunner.startTransaction();
+      const expenseDto = entries[i];
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
 
-        try {
-            const { wbs_id, override_reason } = expenseDto;
-            const wbsItem = wbs_id
-                ? await queryRunner.manager.findOne(WbsBudgetEntity, { where: { wbs_id, tenant_id }, relations: ['project'] })
-                : null;
+      try {
+        const { wbs_id, override_reason } = expenseDto;
+        const wbsItem = wbs_id
+          ? await queryRunner.manager.findOne(WbsBudgetEntity, {
+              where: { wbs_id, tenant_id },
+              relations: ["project"],
+            })
+          : null;
 
-            if (wbs_id && !wbsItem) {
-                throw new Error(`WBS Budget line "${wbs_id}" not found.`);
-            }
-
-            // --- [GUARD] Budget State Check ---
-            if (wbsItem && wbsItem.status !== WbsBudgetStatus.APPROVED && wbsItem.status !== WbsBudgetStatus.RECALLED) {
-                 throw new Error(`"${wbsItem.wbs_code}" is in ${wbsItem.status} status. Expenses can only be logged against APPROVED or RECALLED budget lines.`);
-            }
-
-            let approvalStatus = ApprovalStatus.APPROVED;
-            let finalFlag = VarianceFlag.NO_VARIANCE;
-
-            if (wbsItem) {
-                // 1. Financial Variance Check
-                const committedResults = await queryRunner.manager.query(
-                    `SELECT COALESCE(SUM(amount_committed - amount_paid), 0) as total FROM lpo WHERE wbs_id = $1 AND tenant_id = $2`,
-                    [wbsItem.wbs_id, tenant_id],
-                );
-                const committedAmount = parseFloat(committedResults[0]?.total || 0);
-                const varianceResult = await this.budgetControlService.validateWbsExpense(wbsItem, expenseDto.amount, tenant_id, committedAmount);
-                finalFlag = varianceResult.flag;
-
-                // 2. [ADVANCED] Quantity/Duration Variance Check
-                // Challenging the logic: Price might be OK, but quantity leak is a risk.
-                if (expenseDto.quantity > 0 && wbsItem.quantity_budgeted > 0) {
-                    const remainingQty = wbsItem.quantity_budgeted - (wbsItem.quantity_actual || 0);
-                    if (expenseDto.quantity > remainingQty * 1.05) { // 5% buffer on quantity too
-                        finalFlag = VarianceFlag.MAJOR_VARIANCE; // Force review if quantity is excessive
-                    }
-                }
-
-                if (varianceResult.action === 'BLOCK' || varianceResult.action === 'REQUIRE_OVERRIDE') {
-                    const isCritical = varianceResult.action === 'BLOCK';
-                    const isAuthorizedAtAll = isCritical
-                        ? actorRole && this.CRITICAL_OVERRIDE_ROLES.includes(actorRole)
-                        : actorRole && this.MAJOR_OVERRIDE_ROLES.includes(actorRole);
-
-                    if (!override_reason) {
-                        throw new BadRequestException({
-                            errorCode: varianceResult.flag,
-                            message: `Provisionally blocked (${wbsItem.wbs_code}): Justification required for budget overrun.`,
-                            requiredRoles: varianceResult.requiredRoles,
-                        });
-                    }
-
-                    if (isAuthorizedAtAll) {
-                        finalFlag = VarianceFlag.OVERRIDE_APPLIED;
-                        approvalStatus = ApprovalStatus.APPROVED;
-                    } else {
-                        approvalStatus = ApprovalStatus.PENDING_APPROVAL;
-                    }
-                }
-
-                if (approvalStatus === ApprovalStatus.APPROVED) {
-                    await queryRunner.manager.increment(WbsBudgetEntity, { wbs_id: wbsItem.wbs_id, tenant_id }, 'total_cost_actual', expenseDto.amount);
-                    if (expenseDto.quantity) await queryRunner.manager.increment(WbsBudgetEntity, { wbs_id: wbsItem.wbs_id, tenant_id }, 'quantity_actual', expenseDto.quantity);
-                    if (expenseDto.days) await queryRunner.manager.increment(WbsBudgetEntity, { wbs_id: wbsItem.wbs_id, tenant_id }, 'days_actual', expenseDto.days);
-
-                    if (finalFlag === VarianceFlag.OVERRIDE_APPLIED && override_reason) {
-                        this.notificationsService.sendOverrideApprovedAlert({
-                            authorizer: actorRole || 'System',
-                            wbsCode: wbsItem.wbs_code,
-                            projectName: wbsItem.project?.project_name || 'Unknown Project',
-                            amount: expenseDto.amount,
-                            varianceFlag: finalFlag,
-                            overrideReason: override_reason,
-                        });
-                    }
-                }
-            }
-
-            // Calculate tax
-            let vatAmount = 0;
-            let whtAmount = 0;
-            const projectData = wbsItem?.project ?? (expenseDto.project_id ? await this.projectsService.findOne(expenseDto.project_id, tenant_id).catch(() => null) : null);
-            if (projectData) {
-                vatAmount = expenseDto.amount * (Number(projectData.vat_rate || 0) / 100);
-                whtAmount = expenseDto.amount * (Number(projectData.wht_rate || 0) / 100);
-            }
-
-            const liveExpense = queryRunner.manager.create(LiveExpenseEntity, {
-                ...expenseDto,
-                user_id: userId,
-                tenant_id,
-                vat_amount: vatAmount,
-                wht_amount: whtAmount,
-                variance_flag: finalFlag,
-                approval_status: approvalStatus,
-                expense_date: expenseDto.expense_date || new Date(),
-            });
-
-            const saved = await queryRunner.manager.save(LiveExpenseEntity, liveExpense);
-            results.saved.push(saved);
-            await queryRunner.commitTransaction();
-        } catch (err: any) {
-            await queryRunner.rollbackTransaction();
-            results.errors.push({
-                index: i,
-                wbs_code: entries[i].wbs_id, // we might not have the code yet if lookup failed
-                message: err.message,
-                errorCode: err.response?.errorCode || 'VALIDATION_ERROR',
-            });
-            this.logger.warn(`[WBS] Batch item ${i} failed: ${err.message}`);
-        } finally {
-            await queryRunner.release();
+        if (wbs_id && !wbsItem) {
+          throw new Error(`WBS Budget line "${wbs_id}" not found.`);
         }
+
+        // --- [GUARD] Budget State Check ---
+        if (
+          wbsItem &&
+          wbsItem.status !== WbsBudgetStatus.APPROVED &&
+          wbsItem.status !== WbsBudgetStatus.RECALLED
+        ) {
+          throw new Error(
+            `"${wbsItem.wbs_code}" is in ${wbsItem.status} status. Expenses can only be logged against APPROVED or RECALLED budget lines.`,
+          );
+        }
+
+        let approvalStatus = ApprovalStatus.APPROVED;
+        let finalFlag = VarianceFlag.NO_VARIANCE;
+
+        if (wbsItem) {
+          // 1. Financial Variance Check
+          const committedResults = await queryRunner.manager.query(
+            `SELECT 
+                       (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) FROM lpo WHERE wbs_id = $1 AND tenant_id = $2) +
+                       (SELECT COALESCE(SUM(amount), 0) FROM live_expense WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
+                     AS total`,
+            [wbsItem.wbs_id, tenant_id],
+          );
+          const committedAmount = parseFloat(committedResults[0]?.total || 0);
+          const varianceResult =
+            await this.budgetControlService.validateWbsExpense(
+              wbsItem,
+              expenseDto.amount,
+              tenant_id,
+              committedAmount,
+            );
+          finalFlag = varianceResult.flag;
+
+          // 2. [ADVANCED] Quantity/Duration Variance Check
+          // Challenging the logic: Price might be OK, but quantity leak is a risk.
+          if (expenseDto.quantity > 0 && wbsItem.quantity_budgeted > 0) {
+            const remainingQty =
+              wbsItem.quantity_budgeted - (wbsItem.quantity_actual || 0);
+            if (expenseDto.quantity > remainingQty * 1.05) {
+              // 5% buffer on quantity too
+              finalFlag = VarianceFlag.MAJOR_VARIANCE; // Force review if quantity is excessive
+            }
+          }
+
+          if (
+            varianceResult.action === "BLOCK" ||
+            varianceResult.action === "REQUIRE_OVERRIDE"
+          ) {
+            const isCritical = varianceResult.action === "BLOCK";
+            const isAuthorizedAtAll = isCritical
+              ? actorRole && this.CRITICAL_OVERRIDE_ROLES.includes(actorRole)
+              : actorRole && this.MAJOR_OVERRIDE_ROLES.includes(actorRole);
+
+            if (!override_reason) {
+              throw new BadRequestException({
+                errorCode: varianceResult.flag,
+                message: `Provisionally blocked (${wbsItem.wbs_code}): Justification required for budget overrun.`,
+                requiredRoles: varianceResult.requiredRoles,
+              });
+            }
+
+            if (isAuthorizedAtAll) {
+              finalFlag = VarianceFlag.OVERRIDE_APPLIED;
+              approvalStatus = ApprovalStatus.APPROVED;
+            } else {
+              approvalStatus = ApprovalStatus.PENDING_APPROVAL;
+            }
+          }
+
+          if (approvalStatus === ApprovalStatus.APPROVED) {
+            await queryRunner.manager.increment(
+              WbsBudgetEntity,
+              { wbs_id: wbsItem.wbs_id, tenant_id },
+              "total_cost_actual",
+              expenseDto.amount,
+            );
+            if (expenseDto.quantity)
+              await queryRunner.manager.increment(
+                WbsBudgetEntity,
+                { wbs_id: wbsItem.wbs_id, tenant_id },
+                "quantity_actual",
+                expenseDto.quantity,
+              );
+            if (expenseDto.days)
+              await queryRunner.manager.increment(
+                WbsBudgetEntity,
+                { wbs_id: wbsItem.wbs_id, tenant_id },
+                "days_actual",
+                expenseDto.days,
+              );
+
+            if (
+              finalFlag === VarianceFlag.OVERRIDE_APPLIED &&
+              override_reason
+            ) {
+              this.notificationsService.sendOverrideApprovedAlert({
+                authorizer: actorRole || "System",
+                wbsCode: wbsItem.wbs_code,
+                projectName: wbsItem.project?.project_name || "Unknown Project",
+                amount: expenseDto.amount,
+                varianceFlag: finalFlag,
+                overrideReason: override_reason,
+              });
+            }
+          }
+        }
+
+        // Calculate tax
+        let vatAmount = 0;
+        let whtAmount = 0;
+        const projectData =
+          wbsItem?.project ??
+          (expenseDto.project_id
+            ? await this.projectsService
+                .findOne(expenseDto.project_id, tenant_id)
+                .catch(() => null)
+            : null);
+        if (projectData) {
+          vatAmount =
+            expenseDto.amount * (Number(projectData.vat_rate || 0) / 100);
+          whtAmount =
+            expenseDto.amount * (Number(projectData.wht_rate || 0) / 100);
+        }
+
+        const liveExpense = queryRunner.manager.create(LiveExpenseEntity, {
+          ...expenseDto,
+          user_id: userId,
+          tenant_id,
+          vat_amount: vatAmount,
+          wht_amount: whtAmount,
+          variance_flag: finalFlag,
+          approval_status: approvalStatus,
+          expense_date: expenseDto.expense_date || new Date(),
+        });
+
+        const saved = await queryRunner.manager.save(
+          LiveExpenseEntity,
+          liveExpense,
+        );
+        results.saved.push(saved);
+        await queryRunner.commitTransaction();
+      } catch (err: any) {
+        await queryRunner.rollbackTransaction();
+        results.errors.push({
+          index: i,
+          wbs_code: entries[i].wbs_id, // we might not have the code yet if lookup failed
+          message: err.message,
+          errorCode: err.response?.errorCode || "VALIDATION_ERROR",
+        });
+        this.logger.warn(`[WBS] Batch item ${i} failed: ${err.message}`);
+      } finally {
+        await queryRunner.release();
+      }
     }
 
     return {
-        saved: results.saved,
-        errors: results.errors,
-        totalCount: entries.length,
-        successCount: results.saved.length,
+      saved: results.saved,
+      errors: results.errors,
+      totalCount: entries.length,
+      successCount: results.saved.length,
     };
   }
 
@@ -612,10 +746,13 @@ export class WbsService {
     return this.liveExpenseRepository.find({
       where: {
         tenant_id,
-        variance_flag: In([VarianceFlag.MAJOR_VARIANCE, VarianceFlag.UNAPPROVED_BUDGET_USAGE])
+        variance_flag: In([
+          VarianceFlag.MAJOR_VARIANCE,
+          VarianceFlag.UNAPPROVED_BUDGET_USAGE,
+        ]),
       },
-      relations: ['wbsBudget'],
-      order: { created_at: 'DESC' }
+      relations: ["wbsBudget"],
+      order: { created_at: "DESC" },
     });
   }
 
@@ -630,8 +767,8 @@ export class WbsService {
         tenant_id,
         approval_status: ApprovalStatus.PENDING_APPROVAL,
       },
-      relations: ['wbsBudget', 'wbsBudget.project'],
-      order: { created_at: 'DESC' },
+      relations: ["wbsBudget", "wbsBudget.project"],
+      order: { created_at: "DESC" },
     });
   }
 
@@ -646,7 +783,7 @@ export class WbsService {
   ): Promise<LiveExpenseEntity> {
     const expense = await this.liveExpenseRepository.findOne({
       where: { id: expenseId, tenant_id },
-      relations: ['wbsBudget', 'wbsBudget.project'],
+      relations: ["wbsBudget", "wbsBudget.project"],
     });
 
     if (!expense) {
@@ -654,7 +791,9 @@ export class WbsService {
     }
 
     if (expense.approval_status !== ApprovalStatus.PENDING_APPROVAL) {
-      throw new BadRequestException(`Expense is not in a pending state (Current: ${expense.approval_status}).`);
+      throw new BadRequestException(
+        `Expense is not in a pending state (Current: ${expense.approval_status}).`,
+      );
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -665,14 +804,17 @@ export class WbsService {
       // 1. Update the expense status
       expense.approval_status = ApprovalStatus.APPROVED;
       expense.variance_flag = VarianceFlag.OVERRIDE_APPLIED;
-      const savedExpense = await queryRunner.manager.save(LiveExpenseEntity, expense);
+      const savedExpense = await queryRunner.manager.save(
+        LiveExpenseEntity,
+        expense,
+      );
 
       // 2. Increment the actual budget spending (since it was deferred earlier)
       if (expense.wbsBudget) {
         await queryRunner.manager.increment(
           WbsBudgetEntity,
           { wbs_id: expense.wbsBudget.wbs_id, tenant_id },
-          'total_cost_actual',
+          "total_cost_actual",
           expense.amount,
         );
       }
@@ -682,19 +824,25 @@ export class WbsService {
       // 3. Notify the enterprise that an override was authorized
       this.notificationsService.sendOverrideApprovedAlert({
         authorizer: authorizerRole,
-        wbsCode: expense.wbsBudget?.wbs_code || 'Unknown',
-        projectName: expense.wbsBudget?.project?.project_name || 'Unknown Project',
+        wbsCode: expense.wbsBudget?.wbs_code || "Unknown",
+        projectName:
+          expense.wbsBudget?.project?.project_name || "Unknown Project",
         amount: expense.amount,
-        varianceFlag: 'OVERRIDE_APPLIED',
-        overrideReason: expense.override_reason || 'Approved via Governance Hub',
+        varianceFlag: "OVERRIDE_APPLIED",
+        overrideReason:
+          expense.override_reason || "Approved via Governance Hub",
         expenseId: expense.id,
       });
 
-      this.logger.log(`[WBS] Overrun approved by ${authorizerRole} for Expense: ${expense.id}`);
+      this.logger.log(
+        `[WBS] Overrun approved by ${authorizerRole} for Expense: ${expense.id}`,
+      );
       return savedExpense;
     } catch (err) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`[WBS] Failed to approve overrun ${expenseId}: ${(err as Error).message}`);
+      this.logger.error(
+        `[WBS] Failed to approve overrun ${expenseId}: ${(err as Error).message}`,
+      );
       throw err;
     } finally {
       await queryRunner.release();
@@ -726,41 +874,98 @@ export class WbsService {
 
         if (oldWbsId === newWbsId && oldWbsId) {
           // Normal Delta Update on the same budget line
-          const amountDelta = (updateDto.amount ?? liveExpense.amount) - (liveExpense.amount || 0);
-          const quantityDelta = (updateDto.quantity ?? liveExpense.quantity ?? 0) - (liveExpense.quantity || 0);
-          const daysDelta = (updateDto.days ?? liveExpense.days ?? 0) - (liveExpense.days || 0);
+          const amountDelta =
+            (updateDto.amount ?? liveExpense.amount) -
+            (liveExpense.amount || 0);
+          const quantityDelta =
+            (updateDto.quantity ?? liveExpense.quantity ?? 0) -
+            (liveExpense.quantity || 0);
+          const daysDelta =
+            (updateDto.days ?? liveExpense.days ?? 0) - (liveExpense.days || 0);
 
           if (amountDelta !== 0) {
-            await queryRunner.manager.increment(WbsBudgetEntity, { wbs_id: oldWbsId, tenant_id }, 'total_cost_actual', amountDelta);
+            await queryRunner.manager.increment(
+              WbsBudgetEntity,
+              { wbs_id: oldWbsId, tenant_id },
+              "total_cost_actual",
+              amountDelta,
+            );
           }
           if (quantityDelta !== 0) {
-            await queryRunner.manager.increment(WbsBudgetEntity, { wbs_id: oldWbsId, tenant_id }, 'quantity_actual', quantityDelta);
+            await queryRunner.manager.increment(
+              WbsBudgetEntity,
+              { wbs_id: oldWbsId, tenant_id },
+              "quantity_actual",
+              quantityDelta,
+            );
           }
           if (daysDelta !== 0) {
-            await queryRunner.manager.increment(WbsBudgetEntity, { wbs_id: oldWbsId, tenant_id }, 'days_actual', daysDelta);
+            await queryRunner.manager.increment(
+              WbsBudgetEntity,
+              { wbs_id: oldWbsId, tenant_id },
+              "days_actual",
+              daysDelta,
+            );
           }
         } else if (oldWbsId !== newWbsId) {
           // WBS SWITCH: Revert old, Apply new
           if (oldWbsId) {
-            await queryRunner.manager.decrement(WbsBudgetEntity, { wbs_id: oldWbsId, tenant_id }, 'total_cost_actual', liveExpense.amount);
-            if (liveExpense.quantity) await queryRunner.manager.decrement(WbsBudgetEntity, { wbs_id: oldWbsId, tenant_id }, 'quantity_actual', liveExpense.quantity);
-            if (liveExpense.days) await queryRunner.manager.decrement(WbsBudgetEntity, { wbs_id: oldWbsId, tenant_id }, 'days_actual', liveExpense.days);
+            await queryRunner.manager.decrement(
+              WbsBudgetEntity,
+              { wbs_id: oldWbsId, tenant_id },
+              "total_cost_actual",
+              liveExpense.amount,
+            );
+            if (liveExpense.quantity)
+              await queryRunner.manager.decrement(
+                WbsBudgetEntity,
+                { wbs_id: oldWbsId, tenant_id },
+                "quantity_actual",
+                liveExpense.quantity,
+              );
+            if (liveExpense.days)
+              await queryRunner.manager.decrement(
+                WbsBudgetEntity,
+                { wbs_id: oldWbsId, tenant_id },
+                "days_actual",
+                liveExpense.days,
+              );
           }
-          
+
           if (newWbsId) {
             const finalAmount = updateDto.amount ?? liveExpense.amount;
             const finalQuantity = updateDto.quantity ?? liveExpense.quantity;
             const finalDays = updateDto.days ?? liveExpense.days;
-            
-            await queryRunner.manager.increment(WbsBudgetEntity, { wbs_id: newWbsId, tenant_id }, 'total_cost_actual', finalAmount);
-            if (finalQuantity) await queryRunner.manager.increment(WbsBudgetEntity, { wbs_id: newWbsId, tenant_id }, 'quantity_actual', finalQuantity);
-            if (finalDays) await queryRunner.manager.increment(WbsBudgetEntity, { wbs_id: newWbsId, tenant_id }, 'days_actual', finalDays);
+
+            await queryRunner.manager.increment(
+              WbsBudgetEntity,
+              { wbs_id: newWbsId, tenant_id },
+              "total_cost_actual",
+              finalAmount,
+            );
+            if (finalQuantity)
+              await queryRunner.manager.increment(
+                WbsBudgetEntity,
+                { wbs_id: newWbsId, tenant_id },
+                "quantity_actual",
+                finalQuantity,
+              );
+            if (finalDays)
+              await queryRunner.manager.increment(
+                WbsBudgetEntity,
+                { wbs_id: newWbsId, tenant_id },
+                "days_actual",
+                finalDays,
+              );
           }
         }
       }
 
       Object.assign(liveExpense, updateDto);
-      const saved = await queryRunner.manager.save(LiveExpenseEntity, liveExpense);
+      const saved = await queryRunner.manager.save(
+        LiveExpenseEntity,
+        liveExpense,
+      );
       await queryRunner.commitTransaction();
       return saved;
     } catch (error) {
@@ -788,28 +993,31 @@ export class WbsService {
 
     try {
       // 1. Rollback metrics if it was APPROVED
-      if (liveExpense.approval_status === ApprovalStatus.APPROVED && liveExpense.wbs_id) {
+      if (
+        liveExpense.approval_status === ApprovalStatus.APPROVED &&
+        liveExpense.wbs_id
+      ) {
         await queryRunner.manager.decrement(
           WbsBudgetEntity,
           { wbs_id: liveExpense.wbs_id, tenant_id },
-          'total_cost_actual',
+          "total_cost_actual",
           liveExpense.amount,
         );
-        
+
         if (liveExpense.quantity) {
           await queryRunner.manager.decrement(
             WbsBudgetEntity,
             { wbs_id: liveExpense.wbs_id, tenant_id },
-            'quantity_actual',
+            "quantity_actual",
             liveExpense.quantity,
           );
         }
-        
+
         if (liveExpense.days) {
           await queryRunner.manager.decrement(
             WbsBudgetEntity,
             { wbs_id: liveExpense.wbs_id, tenant_id },
-            'days_actual',
+            "days_actual",
             liveExpense.days,
           );
         }
@@ -827,8 +1035,14 @@ export class WbsService {
     }
   }
 
-  async deleteLiveExpenseBatch(ids: string[], tenant_id: string): Promise<{ successCount: number; errors: any[] }> {
-    const results: { successCount: number; errors: { id: string; message: string }[] } = { successCount: 0, errors: [] };
+  async deleteLiveExpenseBatch(
+    ids: string[],
+    tenant_id: string,
+  ): Promise<{ successCount: number; errors: any[] }> {
+    const results: {
+      successCount: number;
+      errors: { id: string; message: string }[];
+    } = { successCount: 0, errors: [] };
     for (const id of ids) {
       try {
         await this.deleteLiveExpenseEntry(id, tenant_id);
@@ -846,7 +1060,11 @@ export class WbsService {
     tenant_id: string,
   ): Promise<WbsCategoryEntity> {
     const existingCategory = await this.wbsCategoryRepository.findOne({
-      where: { name: dto.name, tenant_id: tenant_id, parent_id: dto.parent_id ?? IsNull() },
+      where: {
+        name: dto.name,
+        tenant_id: tenant_id,
+        parent_id: dto.parent_id ?? IsNull(),
+      },
     });
     if (existingCategory) {
       throw new ConflictException(
@@ -859,7 +1077,9 @@ export class WbsService {
         where: { id: dto.parent_id, tenant_id: tenant_id },
       });
       if (!parent) {
-        throw new NotFoundException(`Parent category with ID ${dto.parent_id} not found in tenant ${tenant_id}`);
+        throw new NotFoundException(
+          `Parent category with ID ${dto.parent_id} not found in tenant ${tenant_id}`,
+        );
       }
     }
 
@@ -874,10 +1094,15 @@ export class WbsService {
     return this.wbsCategoryRepository.save(category);
   }
 
-  async findAllWbsCategories(tenant_id: string, includeInactive: boolean = false): Promise<WbsCategoryEntity[]> {
+  async findAllWbsCategories(
+    tenant_id: string,
+    includeInactive: boolean = false,
+  ): Promise<WbsCategoryEntity[]> {
     return this.wbsCategoryRepository.find({
-      where: includeInactive ? { tenant_id: tenant_id } : { tenant_id: tenant_id, is_active: true },
-      order: { sort_order: 'ASC', name: 'ASC' },
+      where: includeInactive
+        ? { tenant_id: tenant_id }
+        : { tenant_id: tenant_id, is_active: true },
+      order: { sort_order: "ASC", name: "ASC" },
     });
   }
 
@@ -897,12 +1122,24 @@ export class WbsService {
 
     // Check for name uniqueness if name or parent is being changed
     const newName = updateWbsCategoryDto.name ?? category.name;
-    const newParentId = updateWbsCategoryDto.parent_id === undefined ? category.parent_id : updateWbsCategoryDto.parent_id;
+    const newParentId =
+      updateWbsCategoryDto.parent_id === undefined
+        ? category.parent_id
+        : updateWbsCategoryDto.parent_id;
 
-    if (updateWbsCategoryDto.name !== undefined || updateWbsCategoryDto.parent_id !== undefined) {
-      const existingCategoryWithName = await this.wbsCategoryRepository.findOne({
-        where: { name: newName, tenant_id: tenant_id, parent_id: newParentId ?? IsNull() },
-      });
+    if (
+      updateWbsCategoryDto.name !== undefined ||
+      updateWbsCategoryDto.parent_id !== undefined
+    ) {
+      const existingCategoryWithName = await this.wbsCategoryRepository.findOne(
+        {
+          where: {
+            name: newName,
+            tenant_id: tenant_id,
+            parent_id: newParentId ?? IsNull(),
+          },
+        },
+      );
       if (existingCategoryWithName && existingCategoryWithName.id !== id) {
         throw new ConflictException(
           `WBS Category with name "${newName}" already exists for this level in tenant ${tenant_id}`,
@@ -911,15 +1148,17 @@ export class WbsService {
     }
 
     if (updateWbsCategoryDto.parent_id) {
-        if (updateWbsCategoryDto.parent_id === id) {
-            throw new BadRequestException("A category cannot be its own parent.");
-        }
-        const parent = await this.wbsCategoryRepository.findOne({
-          where: { id: updateWbsCategoryDto.parent_id, tenant_id: tenant_id },
-        });
-        if (!parent) {
-          throw new NotFoundException(`Parent category with ID ${updateWbsCategoryDto.parent_id} not found in tenant ${tenant_id}`);
-        }
+      if (updateWbsCategoryDto.parent_id === id) {
+        throw new BadRequestException("A category cannot be its own parent.");
+      }
+      const parent = await this.wbsCategoryRepository.findOne({
+        where: { id: updateWbsCategoryDto.parent_id, tenant_id: tenant_id },
+      });
+      if (!parent) {
+        throw new NotFoundException(
+          `Parent category with ID ${updateWbsCategoryDto.parent_id} not found in tenant ${tenant_id}`,
+        );
+      }
     }
 
     // Merge all provided fields
@@ -927,7 +1166,11 @@ export class WbsService {
     return this.wbsCategoryRepository.save(category);
   }
 
-  async deleteWbsCategory(id: string, tenant_id: string, forceSoftDelete: boolean = false): Promise<{ softDeleted: boolean; usageCount: number }> {
+  async deleteWbsCategory(
+    id: string,
+    tenant_id: string,
+    forceSoftDelete: boolean = false,
+  ): Promise<{ softDeleted: boolean; usageCount: number }> {
     const category = await this.wbsCategoryRepository.findOne({
       where: { id, tenant_id: tenant_id },
     });
@@ -936,21 +1179,21 @@ export class WbsService {
         `WBS Category with ID ${id} not found for tenant ${tenant_id}`,
       );
     }
-    
+
     // Count distinct budgets (across projects) using this category
     const usageCount = await this.wbsBudgetRepository.count({
-        where: { category_id: id, tenant_id: tenant_id }
+      where: { category_id: id, tenant_id: tenant_id },
     });
 
     if (usageCount > 0 && !forceSoftDelete) {
-        // Return without deleting, signaling the controller to prompt user
-        return { softDeleted: false, usageCount };
+      // Return without deleting, signaling the controller to prompt user
+      return { softDeleted: false, usageCount };
     }
 
     if (usageCount > 0 || forceSoftDelete) {
-        category.is_active = false;
-        await this.wbsCategoryRepository.save(category);
-        return { softDeleted: true, usageCount };
+      category.is_active = false;
+      await this.wbsCategoryRepository.save(category);
+      return { softDeleted: true, usageCount };
     }
 
     await this.wbsCategoryRepository.delete({ id, tenant_id: tenant_id });
@@ -966,7 +1209,7 @@ export class WbsService {
   ): Promise<WbsBudgetEntity> {
     const wbsBudget = await this.wbsBudgetRepository.findOne({
       where: { wbs_id: id, tenant_id },
-      relations: ['project'], // Need project for currency
+      relations: ["project"], // Need project for currency
     });
     if (!wbsBudget) {
       throw new NotFoundException(`WBS Budget ${id} not found`);
@@ -975,7 +1218,10 @@ export class WbsService {
     // Validate state transitions
     const validTransitions: Record<string, string[]> = {
       [WbsBudgetStatus.DRAFT]: [WbsBudgetStatus.PENDING],
-      [WbsBudgetStatus.PENDING]: [WbsBudgetStatus.APPROVED, WbsBudgetStatus.REJECTED],
+      [WbsBudgetStatus.PENDING]: [
+        WbsBudgetStatus.APPROVED,
+        WbsBudgetStatus.REJECTED,
+      ],
       [WbsBudgetStatus.REJECTED]: [WbsBudgetStatus.DRAFT], // Can revert to draft for editing
       [WbsBudgetStatus.APPROVED]: [], // Final state — no transitions
     };
@@ -983,16 +1229,16 @@ export class WbsService {
     const allowed = validTransitions[wbsBudget.status] || [];
     if (!allowed.includes(newStatus)) {
       throw new BadRequestException(
-        `Cannot transition from ${wbsBudget.status} to ${newStatus}. Valid transitions: ${allowed.join(', ') || 'none'}`,
+        `Cannot transition from ${wbsBudget.status} to ${newStatus}. Valid transitions: ${allowed.join(", ") || "none"}`,
       );
     }
 
     // IF APPROVED: Check DOA Authority
     if (newStatus === WbsBudgetStatus.APPROVED) {
       await this.doaService.validateAuthority(
-        actor, 
+        actor,
         Number(wbsBudget.total_cost_budgeted),
-        wbsBudget.project?.currency || 'USD'
+        wbsBudget.project?.currency || "USD",
       );
     }
 
@@ -1015,15 +1261,19 @@ export class WbsService {
     await this.approvalLogRepo.save(log);
 
     // Send notification on status change
-    const actionLabel = newStatus === WbsBudgetStatus.APPROVED ? 'Budget Approved'
-      : newStatus === WbsBudgetStatus.REJECTED ? 'Budget Rejected'
-      : newStatus === WbsBudgetStatus.PENDING ? 'Budget Submitted for Approval'
-      : 'Budget Status Changed';
+    const actionLabel =
+      newStatus === WbsBudgetStatus.APPROVED
+        ? "Budget Approved"
+        : newStatus === WbsBudgetStatus.REJECTED
+          ? "Budget Rejected"
+          : newStatus === WbsBudgetStatus.PENDING
+            ? "Budget Submitted for Approval"
+            : "Budget Status Changed";
 
     this.notificationsService.sendVarianceAlert(
       actionLabel,
       `WBS ${wbsBudget.wbs_code} (${wbsBudget.description}) status changed to ${newStatus} by ${actor.first_name} ${actor.last_name}.`,
-      newStatus === WbsBudgetStatus.REJECTED ? 'warning' : 'info',
+      newStatus === WbsBudgetStatus.REJECTED ? "warning" : "info",
     );
 
     return saved;
@@ -1031,35 +1281,42 @@ export class WbsService {
 
   private mapToApprovalStatus(wbsStatus: WbsBudgetStatus): ApprovalStatus {
     switch (wbsStatus) {
-      case WbsBudgetStatus.PENDING: return ApprovalStatus.PENDING_APPROVAL;
-      case WbsBudgetStatus.APPROVED: return ApprovalStatus.APPROVED;
-      case WbsBudgetStatus.REJECTED: return ApprovalStatus.REJECTED;
-      default: return ApprovalStatus.PENDING_APPROVAL;
+      case WbsBudgetStatus.PENDING:
+        return ApprovalStatus.PENDING_APPROVAL;
+      case WbsBudgetStatus.APPROVED:
+        return ApprovalStatus.APPROVED;
+      case WbsBudgetStatus.REJECTED:
+        return ApprovalStatus.REJECTED;
+      default:
+        return ApprovalStatus.PENDING_APPROVAL;
     }
   }
 
   // ===== NEW: Bulk Project Budget Submission =====
-  async submitProjectBudgetDrafts(projectId: string, tenant_id: string): Promise<{ count: number }> {
+  async submitProjectBudgetDrafts(
+    projectId: string,
+    tenant_id: string,
+  ): Promise<{ count: number }> {
     const result = await this.wbsBudgetRepository.update(
-      { 
+      {
         project_id: projectId,
         tenant_id,
         status: In([WbsBudgetStatus.DRAFT, WbsBudgetStatus.REJECTED]),
       },
-      { 
+      {
         status: WbsBudgetStatus.PENDING,
-        updated_at: new Date()
-      }
+        updated_at: new Date(),
+      },
     );
 
     if (result.affected && result.affected > 0) {
-       // Since we don't have the project details directly here easily without another query, 
-       // we just use the ID for the notification.
-       this.notificationsService.sendVarianceAlert(
-         'Project Budget Submitted',
-         `${result.affected} line items for project ${projectId} have been submitted for approval.`,
-         'info',
-       );
+      // Since we don't have the project details directly here easily without another query,
+      // we just use the ID for the notification.
+      this.notificationsService.sendVarianceAlert(
+        "Project Budget Submitted",
+        `${result.affected} line items for project ${projectId} have been submitted for approval.`,
+        "info",
+      );
     }
 
     return { count: result.affected || 0 };
@@ -1070,27 +1327,35 @@ export class WbsService {
     projectId: string,
     tenant_id: string,
     project?: ProjectEntity,
-  ): Promise<{ totalBudgeted: number; contractValue: number; overBudget: boolean }> {
+  ): Promise<{
+    totalBudgeted: number;
+    contractValue: number;
+    overBudget: boolean;
+  }> {
     if (!project) {
-      project = await this.dataSource
-        .getRepository(ProjectEntity)
-        .findOne({ where: { project_id: projectId, tenant_id } }) || undefined;
+      project =
+        (await this.dataSource
+          .getRepository(ProjectEntity)
+          .findOne({ where: { project_id: projectId, tenant_id } })) ||
+        undefined;
     }
-    if (!project) return { totalBudgeted: 0, contractValue: 0, overBudget: false };
+    if (!project)
+      return { totalBudgeted: 0, contractValue: 0, overBudget: false };
 
     const contractValue = Number(project.contract_value || 0);
-    if (contractValue <= 0) return { totalBudgeted: 0, contractValue: 0, overBudget: false };
+    if (contractValue <= 0)
+      return { totalBudgeted: 0, contractValue: 0, overBudget: false };
 
     // Sum all root-level WBS budgets for this project
     const result = await this.wbsBudgetRepository
-      .createQueryBuilder('wbs')
-      .select('COALESCE(SUM(wbs.total_cost_budgeted), 0)', 'total')
-      .where('wbs.project_id = :projectId', { projectId })
-      .andWhere('wbs.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('wbs.parent_wbs_id IS NULL') // Only root-level to avoid double-counting
+      .createQueryBuilder("wbs")
+      .select("COALESCE(SUM(wbs.total_cost_budgeted), 0)", "total")
+      .where("wbs.project_id = :projectId", { projectId })
+      .andWhere("wbs.tenant_id = :tenant_id", { tenant_id })
+      .andWhere("wbs.parent_wbs_id IS NULL") // Only root-level to avoid double-counting
       .getRawOne();
 
-    const totalBudgeted = parseFloat(result?.total || '0');
+    const totalBudgeted = parseFloat(result?.total || "0");
     const overBudget = totalBudgeted > contractValue;
 
     if (overBudget) {
@@ -1099,9 +1364,9 @@ export class WbsService {
         `[validateBudgetAgainstContractValue] Project ${projectId}: Total WBS budgets (${totalBudgeted}) exceed contract value (${contractValue}) by ${overage}`,
       );
       this.notificationsService.sendVarianceAlert(
-        'Budget Exceeds Contract Value',
+        "Budget Exceeds Contract Value",
         `Total WBS budgets (${totalBudgeted.toFixed(2)}) exceed the contract value (${contractValue.toFixed(2)}) by ${overage.toFixed(2)}.`,
-        'warning',
+        "warning",
       );
     }
 
@@ -1111,14 +1376,62 @@ export class WbsService {
   // ===== NEW: Seed Default Categories for Tenant =====
   async seedDefaultCategories(tenant_id: string): Promise<WbsCategoryEntity[]> {
     const defaults = [
-      { code: 'LAB', name: 'Labor', color: '#3B82F6', description: 'Workforce costs — wages, salaries, benefits', sort_order: 1 },
-      { code: 'MAT', name: 'Materials', color: '#10B981', description: 'Raw materials, supplies, consumables', sort_order: 2 },
-      { code: 'EQP', name: 'Equipment', color: '#F59E0B', description: 'Machinery, tools, rentals', sort_order: 3 },
-      { code: 'SUB', name: 'Subcontractor', color: '#8B5CF6', description: 'Third-party contracted services', sort_order: 4 },
-      { code: 'PRO', name: 'Professional Services', color: '#EC4899', description: 'Consultancy, legal, engineering', sort_order: 5 },
-      { code: 'TRV', name: 'Travel & Logistics', color: '#06B6D4', description: 'Transportation, accommodation, per diem', sort_order: 6 },
-      { code: 'OVH', name: 'Overhead', color: '#6B7280', description: 'Administrative, insurance, utilities', sort_order: 7 },
-      { code: 'CON', name: 'Contingency', color: '#EF4444', description: 'Risk reserves, unforeseen costs', sort_order: 8 },
+      {
+        code: "LAB",
+        name: "Labor",
+        color: "#3B82F6",
+        description: "Workforce costs — wages, salaries, benefits",
+        sort_order: 1,
+      },
+      {
+        code: "MAT",
+        name: "Materials",
+        color: "#10B981",
+        description: "Raw materials, supplies, consumables",
+        sort_order: 2,
+      },
+      {
+        code: "EQP",
+        name: "Equipment",
+        color: "#F59E0B",
+        description: "Machinery, tools, rentals",
+        sort_order: 3,
+      },
+      {
+        code: "SUB",
+        name: "Subcontractor",
+        color: "#8B5CF6",
+        description: "Third-party contracted services",
+        sort_order: 4,
+      },
+      {
+        code: "PRO",
+        name: "Professional Services",
+        color: "#EC4899",
+        description: "Consultancy, legal, engineering",
+        sort_order: 5,
+      },
+      {
+        code: "TRV",
+        name: "Travel & Logistics",
+        color: "#06B6D4",
+        description: "Transportation, accommodation, per diem",
+        sort_order: 6,
+      },
+      {
+        code: "OVH",
+        name: "Overhead",
+        color: "#6B7280",
+        description: "Administrative, insurance, utilities",
+        sort_order: 7,
+      },
+      {
+        code: "CON",
+        name: "Contingency",
+        color: "#EF4444",
+        description: "Risk reserves, unforeseen costs",
+        sort_order: 8,
+      },
     ];
 
     const categories: WbsCategoryEntity[] = [];
@@ -1132,7 +1445,9 @@ export class WbsService {
         categories.push(await this.wbsCategoryRepository.save(cat));
       }
     }
-    this.logger.log(`Seeded ${categories.length} default WBS categories for tenant ${tenant_id}`);
+    this.logger.log(
+      `Seeded ${categories.length} default WBS categories for tenant ${tenant_id}`,
+    );
     return categories;
   }
 
@@ -1143,13 +1458,13 @@ export class WbsService {
         { tenant_id: IsNull() }, // System templates
         { tenant_id: tenant_id }, // Tenant-specific templates
       ],
-      order: { name: 'ASC' }
+      order: { name: "ASC" },
     });
   }
 
   async createWbsTemplate(
     dto: CreateWbsTemplateDto,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<WbsTemplateEntity> {
     const template = this.wbsTemplateRepository.create({
       ...dto,
@@ -1162,100 +1477,101 @@ export class WbsService {
     projectId: string,
     templateId: string,
     userId: string,
-    tenant_id: string
+    tenant_id: string,
   ): Promise<void> {
     const template = await this.wbsTemplateRepository.findOne({
-      where: { id: templateId }
+      where: { id: templateId },
     });
-    
+
     if (!template) {
       throw new NotFoundException(`WBS Template ${templateId} not found`);
     }
 
-    const structure = Array.isArray(template.structure) ? template.structure : [];
+    const structure = Array.isArray(template.structure)
+      ? template.structure
+      : [];
     const codeToId: Record<string, string> = {};
 
     // Sort items to ensure parents are created before children if codes are hierarchical
-    const sortedItems = [...structure].sort((a, b) => a.code.length - b.code.length);
+    const sortedItems = [...structure].sort(
+      (a, b) => a.code.length - b.code.length,
+    );
 
     for (const item of sortedItems) {
       const parentId = item.parent_code ? codeToId[item.parent_code] : null;
 
-      const createdItem = await this.createWbsBudgetDraft({
-        project_id: projectId,
-        parent_wbs_id: parentId,
-        wbs_code: item.code,
-        description: item.description,
-        unit_cost_budgeted: 0,
-        quantity_budgeted: 1,
-        days_budgeted: 1,
-        total_cost_budgeted: 0,
-        category_id: undefined,
-      }, userId, tenant_id);
+      const createdItem = await this.createWbsBudgetDraft(
+        {
+          project_id: projectId,
+          parent_wbs_id: parentId,
+          wbs_code: item.code,
+          description: item.description,
+          unit_cost_budgeted: 0,
+          quantity_budgeted: 1,
+          days_budgeted: 1,
+          total_cost_budgeted: 0,
+          category_id: undefined,
+        },
+        userId,
+        tenant_id,
+      );
 
       codeToId[item.code] = createdItem.wbs_id;
     }
-    
-    this.logger.log(`Applied template "${template.name}" to project ${projectId} (${sortedItems.length} items)`);
+
+    this.logger.log(
+      `Applied template "${template.name}" to project ${projectId} (${sortedItems.length} items)`,
+    );
   }
 
   async seedDefaultTemplates(): Promise<void> {
-    const templates = [
-      {
-        name: 'Standard IT Project',
-        industry: IndustryType.IT,
-        structure: [
-          { code: '1.0', description: 'Initiation & Planning' },
-          { code: '1.1', description: 'Requirements Gathering', parent_code: '1.0' },
-          { code: '2.0', description: 'Design & Architecture' },
-          { code: '3.0', description: 'Development' },
-          { code: '3.1', description: 'Frontend Development', parent_code: '3.0' },
-          { code: '3.2', description: 'Backend API Development', parent_code: '3.0' },
-          { code: '4.0', description: 'Testing & QA' },
-          { code: '5.0', description: 'Deployment & Launch' },
-        ]
-      },
-      {
-        name: 'Building Construction',
-        industry: IndustryType.CONSTRUCTION,
-        structure: [
-          { code: '1.0', description: 'Pre-Construction & Permitting' },
-          { code: '2.0', description: 'Foundation & Earthworks' },
-          { code: '3.0', description: 'Structural Framing' },
-          { code: '4.0', description: 'Enclosure & Roofing' },
-          { code: '5.0', description: 'Mechanical, Electrical, Plumbing (MEP)' },
-          { code: '6.0', description: 'Interior Finishing' },
-          { code: '7.0', description: 'Site Work & Landscaping' },
-          { code: '8.0', description: 'Closeout & Handover' },
-        ]
-      },
-      {
-        name: 'Oil & Gas Facility Maintenance',
-        industry: IndustryType.OIL_GAS,
-        structure: [
-          { code: '1.0', description: 'Mobilization & Site Prep' },
-          { code: '2.0', description: 'Equipment Inspection (NDT)' },
-          { code: '3.0', description: 'Mechanical Overhaul' },
-          { code: '4.0', description: 'Instrumentation & Controls' },
-          { code: '5.0', description: 'Painting & Insulation' },
-          { code: '6.0', description: 'Testing & Re-commissioning' },
-          { code: '7.0', description: 'Demobilization' },
-        ]
-      }
-    ];
+    const templatesDir = path.join(__dirname, "..", "wbs", "data", "templates");
 
-    for (const t of templates) {
-      const existing = await this.wbsTemplateRepository.findOne({
-        where: { name: t.name, tenant_id: IsNull() }
-      });
-      if (!existing) {
-        await this.wbsTemplateRepository.save(this.wbsTemplateRepository.create({
-          ...t,
-          tenant_id: null
-        }));
+    if (!fs.existsSync(templatesDir)) {
+      this.logger.warn(
+        `WBS Templates directory not found at ${templatesDir}. Skipping seeding.`,
+      );
+      return;
+    }
+
+    const files = fs
+      .readdirSync(templatesDir)
+      .filter((f) => f.endsWith(".json"));
+
+    for (const file of files) {
+      try {
+        const filePath = path.join(templatesDir, file);
+        const content = fs.readFileSync(filePath, "utf8");
+        const t = JSON.parse(content);
+
+        const existing = await this.wbsTemplateRepository.findOne({
+          where: { name: t.name, tenant_id: IsNull() },
+        });
+
+        if (!existing) {
+          await this.wbsTemplateRepository.save(
+            this.wbsTemplateRepository.create({
+              name: t.name,
+              industry: t.industry,
+              structure: t.structure,
+              tenant_id: null,
+            }),
+          );
+          this.logger.log(`Seeded WBS Template: ${t.name}`);
+        } else {
+          // Optional: Update structure if it changed
+          existing.structure = t.structure;
+          existing.industry = t.industry;
+          await this.wbsTemplateRepository.save(existing);
+        }
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to seed template from ${file}: ${err.message}`,
+        );
       }
     }
-    this.logger.log(`Default WBS templates verified/seeded.`);
+
+    this.logger.log(`Default WBS templates verified/seeded from JSON assets.`);
   }
 
   // Enhanced WBS Budget Retrieval with Filters and Pagination
@@ -1278,49 +1594,44 @@ export class WbsService {
     } = getWbsBudgetsDto;
 
     const queryBuilder = this.wbsBudgetRepository
-      .createQueryBuilder("wbsBudget")
-      .leftJoinAndSelect("wbsBudget.project", "project")
-      .leftJoinAndSelect("wbsBudget.category", "category")
-      .where("wbsBudget.tenant_id = :tenant_id", { tenant_id });
+      .createQueryBuilder("wbs")
+      .leftJoinAndSelect("wbs.project", "project")
+      .leftJoinAndSelect("wbs.category", "category")
+      .where("wbs.tenant_id = :tenant_id", { tenant_id });
 
     if (wbsCode) {
-      queryBuilder.andWhere("wbsBudget.wbs_code ILIKE :wbsCode", {
+      queryBuilder.andWhere("wbs.wbs_code ILIKE :wbsCode", {
         wbsCode: `%${wbsCode}%`,
       });
     }
     if (description) {
-      queryBuilder.andWhere("wbsBudget.description ILIKE :description", {
+      queryBuilder.andWhere("wbs.description ILIKE :description", {
         description: `%${description}%`,
       });
     }
     if (status) {
-      queryBuilder.andWhere("wbsBudget.status = :status", { status });
+      queryBuilder.andWhere("wbs.status = :status", { status });
     }
     if (categoryId) {
-      queryBuilder.andWhere("wbsBudget.category_id = :categoryId", {
+      queryBuilder.andWhere("wbs.category_id = :categoryId", {
         categoryId,
       });
     }
     if (projectId) {
-      queryBuilder.andWhere("wbsBudget.project_id = :projectId", { projectId });
+      queryBuilder.andWhere("wbs.project_id = :projectId", { projectId });
     }
     if (userId) {
-      queryBuilder.andWhere("wbsBudget.user_id = :userId", { userId });
+      queryBuilder.andWhere("wbs.user_id = :userId", { userId });
     }
-    // Removed parentWbsId logic
-    // if (parentWbsId === null) {
-    //   // Explicitly search for root-level WBS items (where parent_wbs_id is NULL)
-    //   queryBuilder.andWhere("wbsBudget.parent_wbs_id IS NULL");
-    // } else if (parentWbsId) {
-    //   // Search for children of a specific parent
-    //   queryBuilder.andWhere("wbsBudget.parent_wbs_id = :parentWbsId", { parentWbsId });
-    // }
 
-    if (sortBy === 'wbs_code') {
+    if (sortBy === "wbs_code") {
       // Advanced Logic: Numerical sorting for WBS strings (1.9 before 1.10)
-      queryBuilder.orderBy(`string_to_array(wbsBudget.wbs_code, '.')::int[]`, sortOrder);
+      queryBuilder.orderBy(
+        `string_to_array(wbs.wbs_code, '.')::int[]`,
+        sortOrder,
+      );
     } else {
-      queryBuilder.orderBy(`wbsBudget.${sortBy}`, sortOrder);
+      queryBuilder.orderBy(`wbs.${sortBy}`, sortOrder);
     }
     queryBuilder.skip((page - 1) * limit).take(limit);
 
@@ -1328,24 +1639,41 @@ export class WbsService {
       const [data, total] = await queryBuilder.getManyAndCount();
       return { data, total };
     } catch (err: any) {
-      this.logger.error(`[WBS] Database query failed with sortBy='${sortBy}'. Error: ${err.message}`);
-      
-      // Safety Fallback: Use basic Alphanumeric sorting on wbs_code
-      this.logger.warn(`[WBS] Falling back to standard string-based WBS sorting.`);
-      const fallbackQuery = this.wbsBudgetRepository.createQueryBuilder("wbsBudget")
-        .leftJoinAndSelect("wbsBudget.project", "project")
-        .leftJoinAndSelect("wbsBudget.category", "category")
-        .where("wbsBudget.tenant_id = :tenant_id", { tenant_id });
+      this.logger.error(
+        `[WBS] Database query failed with sortBy='${sortBy}'. Error: ${err.message}`,
+      );
 
-      if (projectId) fallbackQuery.andWhere("wbsBudget.project_id = :projectId", { projectId });
-      if (status) fallbackQuery.andWhere("wbsBudget.status = :status", { status });
-      
+      // Safety Fallback: Use basic Alphanumeric sorting on wbs_code
+      this.logger.warn(
+        `[WBS] Falling back to standard string-based WBS sorting.`,
+      );
+      const fallbackQuery = this.wbsBudgetRepository
+        .createQueryBuilder("wbs")
+        .leftJoinAndSelect("wbs.project", "project")
+        .leftJoinAndSelect("wbs.category", "category")
+        .where("wbs.tenant_id = :tenant_id", { tenant_id });
+
+      if (projectId)
+        fallbackQuery.andWhere("wbs.project_id = :projectId", { projectId });
+      if (status) fallbackQuery.andWhere("wbs.status = :status", { status });
+      if (wbsCode)
+        fallbackQuery.andWhere("wbs.wbs_code ILIKE :wbsCode", {
+          wbsCode: `%${wbsCode}%`,
+        });
+      if (description)
+        fallbackQuery.andWhere("wbs.description ILIKE :description", {
+          description: `%${description}%`,
+        });
+      if (categoryId)
+        fallbackQuery.andWhere("wbs.category_id = :categoryId", { categoryId });
+      if (userId) fallbackQuery.andWhere("wbs.user_id = :userId", { userId });
+
       const [data, total] = await fallbackQuery
-        .orderBy("wbsBudget.wbs_code", "ASC")
+        .orderBy("wbs.wbs_code", "ASC")
         .skip((page - 1) * limit)
         .take(limit)
         .getManyAndCount();
-        
+
       return { data, total };
     }
   }
@@ -1407,17 +1735,17 @@ export class WbsService {
     filters: { startDate?: string; endDate?: string; projectId?: string } = {},
   ): Promise<WbsBudgetRollupDto[]> {
     const { startDate, endDate, projectId } = filters;
-    
+
     const queryParams: any[] = [tenant_id];
     let paramIdx = 2;
-    
-    let projectIdClause = '';
+
+    let projectIdClause = "";
     if (projectId) {
       projectIdClause = `AND w.project_id = $${paramIdx++}`;
       queryParams.push(projectId);
     }
 
-    let dateFiltersLive = '';
+    let dateFiltersLive = "";
     let startDateIdx = -1;
     let endDateIdx = -1;
 
@@ -1432,7 +1760,7 @@ export class WbsService {
       dateFiltersLive += ` AND e.created_at <= $${endDateIdx}`;
     }
 
-    let dateFiltersLpo = '';
+    let dateFiltersLpo = "";
     if (startDate) dateFiltersLpo += ` AND l.created_at >= $${startDateIdx}`;
     if (endDate) dateFiltersLpo += ` AND l.created_at <= $${endDateIdx}`;
 
@@ -1510,9 +1838,13 @@ export class WbsService {
     const finalResults = await this.dataSource.query(query, queryParams);
 
     return finalResults.map((r: any) => {
-      const hasChildren = r.has_children === true || r.has_children === 't';
-      const ownBudget = r.total_cost_budgeted ? parseFloat(r.total_cost_budgeted.toString()) : 0;
-      const rollupBudget = r.total_cost_budgeted_rollup ? parseFloat(r.total_cost_budgeted_rollup.toString()) : 0;
+      const hasChildren = r.has_children === true || r.has_children === "t";
+      const ownBudget = r.total_cost_budgeted
+        ? parseFloat(r.total_cost_budgeted.toString())
+        : 0;
+      const rollupBudget = r.total_cost_budgeted_rollup
+        ? parseFloat(r.total_cost_budgeted_rollup.toString())
+        : 0;
 
       return {
         wbs_id: r.wbs_id,
@@ -1522,17 +1854,29 @@ export class WbsService {
         total_cost_budgeted: hasChildren ? rollupBudget : ownBudget, // FIX: Parents sum their children, leaves use their own budget
         total_cost_budgeted_rollup: rollupBudget,
         has_children: hasChildren,
-        total_paid_rollup: r.total_paid_rollup ? parseFloat(r.total_paid_rollup.toString()) : 0,
-        total_paid_self: r.total_paid_self ? parseFloat(r.total_paid_self.toString()) : 0,
-        total_committed_lpo: r.total_committed_lpo ? parseFloat(r.total_committed_lpo.toString()) : 0,
+        total_paid_rollup: r.total_paid_rollup
+          ? parseFloat(r.total_paid_rollup.toString())
+          : 0,
+        total_paid_self: r.total_paid_self
+          ? parseFloat(r.total_paid_self.toString())
+          : 0,
+        total_committed_lpo: r.total_committed_lpo
+          ? parseFloat(r.total_committed_lpo.toString())
+          : 0,
         status: r.status,
         category_id: r.category_id,
         project_id: r.project_id,
         sort_order: r.sort_order ? parseInt(r.sort_order.toString()) : 0,
         uom: r.uom,
-        quantity_budgeted: r.quantity_budgeted ? parseFloat(r.quantity_budgeted.toString()) : null,
-        days_budgeted: r.days_budgeted ? parseFloat(r.days_budgeted.toString()) : null,
-        unit_cost_budgeted: r.unit_cost_budgeted ? parseFloat(r.unit_cost_budgeted.toString()) : null,
+        quantity_budgeted: r.quantity_budgeted
+          ? parseFloat(r.quantity_budgeted.toString())
+          : null,
+        days_budgeted: r.days_budgeted
+          ? parseFloat(r.days_budgeted.toString())
+          : null,
+        unit_cost_budgeted: r.unit_cost_budgeted
+          ? parseFloat(r.unit_cost_budgeted.toString())
+          : null,
         custom_metadata: r.custom_metadata,
       };
     });
@@ -1618,7 +1962,7 @@ export class WbsService {
           `"${expense.id}"`,
           `"${expense.wbs_id || "N/A"}"`,
           `"${expense.project_id || "N/A"}"`,
-          `"${expense.description.replace(/"/g, '""')}"`,
+          `"${(expense.description || "").replace(/"/g, '""')}"`,
           expense.amount,
           `"${expense.user_id}"`,
           expense.created_at.toISOString(),
@@ -1635,7 +1979,7 @@ export class WbsService {
   async findBudgetDossier(id: string, tenant_id: string) {
     const budget = await this.wbsBudgetRepository.findOne({
       where: { wbs_id: id, tenant_id },
-      relations: ['project', 'category', 'user']
+      relations: ["project", "category", "user"],
     });
 
     if (!budget) {
@@ -1643,22 +1987,24 @@ export class WbsService {
     }
 
     // Calculate Rollups
-    const rollupResults = await this.getWbsBudgetRollup(tenant_id, { 
-      projectId: budget.project_id 
+    const rollupResults = await this.getWbsBudgetRollup(tenant_id, {
+      projectId: budget.project_id,
     });
-    
-    const budgetRollup = rollupResults.find(r => r.wbs_id === id);
+
+    const budgetRollup = rollupResults.find((r) => r.wbs_id === id);
     const totalPaidRollup = budgetRollup?.total_paid_rollup || 0;
-    const remainingBudget = Number(budget.total_cost_budgeted) - totalPaidRollup;
-    const burnRate = Number(budget.total_cost_budgeted) > 0 
-      ? (totalPaidRollup / Number(budget.total_cost_budgeted)) * 100 
-      : 0;
+    const remainingBudget =
+      Number(budget.total_cost_budgeted) - totalPaidRollup;
+    const burnRate =
+      Number(budget.total_cost_budgeted) > 0
+        ? (totalPaidRollup / Number(budget.total_cost_budgeted)) * 100
+        : 0;
 
     // Fetch Recent Related Expenses
     const expenses = await this.liveExpenseRepository.find({
       where: { wbs_id: id, tenant_id },
-      order: { expense_date: 'DESC' },
-      take: 10
+      order: { expense_date: "DESC" },
+      take: 10,
     });
 
     return {
@@ -1667,26 +2013,27 @@ export class WbsService {
       description: budget.description,
       total_cost_budgeted: budget.total_cost_budgeted,
       project_id: budget.project_id,
-      project_name: budget.project?.project_name || 'N/A',
+      project_name: budget.project?.project_name || "N/A",
+      project_currency: budget.project?.currency || "NGN",
       created_at: budget.created_at,
       status: budget.status,
       total_paid_rollup: totalPaidRollup,
       remaining_budget: remainingBudget,
       burn_rate: burnRate,
-      expenses: expenses.map(e => ({
+      expenses: expenses.map((e) => ({
         expense_id: e.id,
         description: e.description,
         actual_paid_amount: e.amount,
         expense_date: e.expense_date,
-        variance_flag: e.variance_flag
-      }))
+        variance_flag: e.variance_flag,
+      })),
     };
   }
 
   async findExpenseDossier(id: string, tenant_id: string) {
     const expense = await this.liveExpenseRepository.findOne({
       where: { id, tenant_id },
-      relations: ['wbsBudget', 'wbsBudget.project']
+      relations: ["wbsBudget", "wbsBudget.project"],
     });
 
     if (!expense) {
@@ -1696,22 +2043,23 @@ export class WbsService {
     // Fetch user email for attribution
     const user = await this.dataSource.getRepository(UserEntity).findOne({
       where: { id: expense.user_id },
-      select: ['email']
+      select: ["email"],
     });
 
     return {
       expense_id: expense.id,
       wbs_id: expense.wbs_id,
-      wbs_code: expense.wbsBudget?.wbs_code || 'N/A',
-      budget_description: expense.wbsBudget?.description || 'N/A',
+      wbs_code: expense.wbsBudget?.wbs_code || "N/A",
+      budget_description: expense.wbsBudget?.description || "N/A",
       project_id: expense.project_id,
-      project_name: expense.wbsBudget?.project?.project_name || 'N/A',
+      project_name: expense.wbsBudget?.project?.project_name || "N/A",
+      project_currency: expense.wbsBudget?.project?.currency || "NGN",
       description: expense.description,
       actual_paid_amount: expense.amount,
       expense_date: expense.expense_date,
       variance_flag: expense.variance_flag,
       created_at: expense.created_at,
-      performed_by_email: user?.email || 'System/Unknown'
+      performed_by_email: user?.email || "System/Unknown",
     };
   }
 
@@ -1721,13 +2069,14 @@ export class WbsService {
     userId: string,
     tenant_id: string,
   ): Promise<{ imported: number; errors: string[] }> {
-    const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
-    if (lines.length <= 1) return { imported: 0, errors: ['CSV is empty or missing data'] };
+    const lines = csvContent.split(/\r?\n/).filter((line) => line.trim());
+    if (lines.length <= 1)
+      return { imported: 0, errors: ["CSV is empty or missing data"] };
 
     // Basic CSV parser that handles quoted strings
     const parseCsvLine = (line: string) => {
       const result = [];
-      let current = '';
+      let current = "";
       let inQuotes = false;
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
@@ -1736,9 +2085,9 @@ export class WbsService {
           i++;
         } else if (char === '"') {
           inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
+        } else if (char === "," && !inQuotes) {
           result.push(current.trim());
-          current = '';
+          current = "";
         } else {
           current += char;
         }
@@ -1747,7 +2096,7 @@ export class WbsService {
       return result;
     };
 
-    const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase());
+    const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
     const dataRows = lines.slice(1);
 
     const importDtos: any[] = [];
@@ -1761,12 +2110,15 @@ export class WbsService {
         const val = row[index];
         if (!val) return;
 
-        if (header.includes('code')) dto.wbs_code = val;
-        else if (header.includes('description')) dto.description = val;
-        else if (header.includes('unit cost')) dto.unit_cost_budgeted = parseFloat(val) || 0;
-        else if (header.includes('quantity')) dto.quantity_budgeted = parseFloat(val) || 0;
-        else if (header.includes('days')) dto.days_budgeted = parseInt(val) || 1;
-        else if (header.includes('parent')) dto.parent_wbs_code = val; // Store for matching
+        if (header.includes("code")) dto.wbs_code = val;
+        else if (header.includes("description")) dto.description = val;
+        else if (header.includes("unit cost"))
+          dto.unit_cost_budgeted = parseFloat(val) || 0;
+        else if (header.includes("quantity"))
+          dto.quantity_budgeted = parseFloat(val) || 0;
+        else if (header.includes("days"))
+          dto.days_budgeted = parseInt(val) || 1;
+        else if (header.includes("parent")) dto.parent_wbs_code = val; // Store for matching
       });
 
       if (!dto.wbs_code || !dto.description) {
@@ -1779,21 +2131,27 @@ export class WbsService {
     if (importDtos.length === 0) return { imported: 0, errors };
 
     // Step 2: Resolve parent-child relationships if parent codes are provided
-    // This requires two passes or a clever mapping. 
+    // This requires two passes or a clever mapping.
     // Since createWbsBudgetDraftBatch handles flat lists, we'll implement a localized version here
     // that resolves codes to parent IDs within this batch or against existing ones.
-    
+
     const codeToId: Record<string, string> = {};
     let importedCount = 0;
 
     // We process one by one to handle hierarchy correctly within the import
     for (const dto of importDtos) {
-      const parentId = dto.parent_wbs_code ? codeToId[dto.parent_wbs_code] : null;
+      const parentId = dto.parent_wbs_code
+        ? codeToId[dto.parent_wbs_code]
+        : null;
       try {
-        const savedItem = await this.createWbsBudgetDraft({
-          ...dto,
-          parent_wbs_id: parentId,
-        }, userId, tenant_id);
+        const savedItem = await this.createWbsBudgetDraft(
+          {
+            ...dto,
+            parent_wbs_id: parentId,
+          },
+          userId,
+          tenant_id,
+        );
         codeToId[dto.wbs_code] = savedItem.wbs_id;
         importedCount++;
       } catch (err: any) {
@@ -1816,7 +2174,7 @@ export class WbsService {
         await queryRunner.manager.update(
           WbsBudgetEntity,
           { wbs_id: item.id, tenant_id },
-          { sort_order: item.sort_order }
+          { sort_order: item.sort_order },
         );
       }
       await queryRunner.commitTransaction();
@@ -1840,10 +2198,10 @@ export class WbsService {
     if (!worksheet) {
       throw new BadRequestException("No worksheet found in Excel file.");
     }
-    
+
     const importDtos: any[] = [];
     const errors: string[] = [];
-    
+
     const headers: string[] = [];
     worksheet.getRow(1).eachCell((cell) => {
       headers.push(cell.text.toLowerCase());
@@ -1851,20 +2209,25 @@ export class WbsService {
 
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;
-      
+
       const dto: any = { project_id: projectId };
       row.eachCell((cell, colNumber) => {
         const header = headers[colNumber - 1];
         if (!header) return;
         const val = cell.text;
 
-        if (header.includes('code') && !header.includes('parent')) dto.wbs_code = val;
-        else if (header.includes('description')) dto.description = val;
-        else if (header.includes('unit cost')) dto.unit_cost_budgeted = parseFloat(val) || 0;
-        else if (header.includes('quantity')) dto.quantity_budgeted = parseFloat(val) || 1;
-        else if (header.includes('days')) dto.days_budgeted = parseInt(val) || 1;
-        else if (header.includes('total')) dto.total_cost_budgeted = parseFloat(val) || 0;
-        else if (header.includes('parent')) dto.parent_wbs_code = val;
+        if (header.includes("code") && !header.includes("parent"))
+          dto.wbs_code = val;
+        else if (header.includes("description")) dto.description = val;
+        else if (header.includes("unit cost"))
+          dto.unit_cost_budgeted = parseFloat(val) || 0;
+        else if (header.includes("quantity"))
+          dto.quantity_budgeted = parseFloat(val) || 1;
+        else if (header.includes("days"))
+          dto.days_budgeted = parseInt(val) || 1;
+        else if (header.includes("total"))
+          dto.total_cost_budgeted = parseFloat(val) || 0;
+        else if (header.includes("parent")) dto.parent_wbs_code = val;
       });
 
       if (!dto.wbs_code || !dto.description) {
@@ -1878,12 +2241,18 @@ export class WbsService {
     let importedCount = 0;
 
     for (const dto of importDtos) {
-      const parentId = dto.parent_wbs_code ? codeToId[dto.parent_wbs_code] : null;
+      const parentId = dto.parent_wbs_code
+        ? codeToId[dto.parent_wbs_code]
+        : null;
       try {
-        const savedItem = await this.createWbsBudgetDraft({
-          ...dto,
-          parent_wbs_id: parentId,
-        }, userId, tenant_id);
+        const savedItem = await this.createWbsBudgetDraft(
+          {
+            ...dto,
+            parent_wbs_id: parentId,
+          },
+          userId,
+          tenant_id,
+        );
         codeToId[dto.wbs_code] = savedItem.wbs_id;
         importedCount++;
       } catch (err: any) {
@@ -1904,7 +2273,7 @@ export class WbsService {
   ): Promise<BudgetImpactAnalysisDto> {
     const draft = await this.wbsBudgetRepository.findOne({
       where: { wbs_id: draftId, tenant_id: tenantId },
-      relations: ['project', 'category'],
+      relations: ["project", "category"],
     });
 
     if (!draft) {
@@ -1915,37 +2284,41 @@ export class WbsService {
     const project = draft.project;
 
     if (!project) {
-        throw new BadRequestException("Draft is not associated with a project.");
+      throw new BadRequestException("Draft is not associated with a project.");
     }
 
     // 1. Core Financial Baseline
     const approvedResult = await this.wbsBudgetRepository
-      .createQueryBuilder('wbs')
-      .select('SUM(wbs.total_cost_budgeted)', 'total')
-      .where('wbs.project_id = :projectId', { projectId })
-      .andWhere('wbs.tenant_id = :tenantId', { tenantId })
-      .andWhere('wbs.status = :status', { status: WbsBudgetStatus.APPROVED })
-      .andWhere('wbs.parent_wbs_id IS NULL')
+      .createQueryBuilder("wbs")
+      .select("SUM(wbs.total_cost_budgeted)", "total")
+      .where("wbs.project_id = :projectId", { projectId })
+      .andWhere("wbs.tenant_id = :tenantId", { tenantId })
+      .andWhere("wbs.status = :status", { status: WbsBudgetStatus.APPROVED })
+      .andWhere("wbs.parent_wbs_id IS NULL")
       .getRawOne();
 
     const pendingResult = await this.wbsBudgetRepository
-      .createQueryBuilder('wbs')
-      .select('SUM(wbs.total_cost_budgeted)', 'total')
-      .where('wbs.project_id = :projectId', { projectId })
-      .andWhere('wbs.tenant_id = :tenantId', { tenantId })
-      .andWhere('wbs.status = :status', { status: WbsBudgetStatus.PENDING })
-      .andWhere('wbs.parent_wbs_id IS NULL')
+      .createQueryBuilder("wbs")
+      .select("SUM(wbs.total_cost_budgeted)", "total")
+      .where("wbs.project_id = :projectId", { projectId })
+      .andWhere("wbs.tenant_id = :tenantId", { tenantId })
+      .andWhere("wbs.status = :status", { status: WbsBudgetStatus.PENDING })
+      .andWhere("wbs.parent_wbs_id IS NULL")
       .getRawOne();
 
-    const totalApprovedAmount = parseFloat(approvedResult?.total || '0');
-    const totalPendingAmount = parseFloat(pendingResult?.total || '0');
+    const totalApprovedAmount = parseFloat(approvedResult?.total || "0");
+    const totalPendingAmount = parseFloat(pendingResult?.total || "0");
     const contractValue = Number(project.contract_value || 0);
 
     // 2. Simulated Impact
     const draftAmount = Number(draft.total_cost_budgeted || 0);
     const newTotalIfApproved = totalApprovedAmount + draftAmount;
-    const remainingContractBuffer = Math.max(0, contractValue - newTotalIfApproved);
-    const percentage = contractValue > 0 ? (newTotalIfApproved / contractValue) * 100 : 0;
+    const remainingContractBuffer = Math.max(
+      0,
+      contractValue - newTotalIfApproved,
+    );
+    const percentage =
+      contractValue > 0 ? (newTotalIfApproved / contractValue) * 100 : 0;
 
     // 3. Tax Impact (VAT/WHT)
     const vatRate = Number(project.vat_rate || 7.5) / 100;
@@ -1955,24 +2328,26 @@ export class WbsService {
 
     // 4. Risk Intelligence (Historical Volatility)
     const { logs } = await this.auditService.findAuditLogs({
-      targetType: 'WBS_BUDGET',
-      action: 'STATUS_UPDATE', // Filter for status changes
+      targetType: "WBS_BUDGET",
+      action: "STATUS_UPDATE", // Filter for status changes
       tenantId: tenantId as any,
       limit: 100,
     });
 
-    const relevantLogs = logs.filter(l => l.targetId === draftId);
+    const relevantLogs = logs.filter((l) => l.targetId === draftId);
     // Find previous rejections (status changed to REJECTED in details)
-    const previousRejections = relevantLogs.filter(l => (l.details as any)?.newStatus === WbsBudgetStatus.REJECTED);
+    const previousRejections = relevantLogs.filter(
+      (l) => (l.details as any)?.newStatus === WbsBudgetStatus.REJECTED,
+    );
     const rejectionsCount = previousRejections.length;
-    
-    // Volatility Score: Higher based on rejections and total status changes
-    const volatilityScore = (rejectionsCount * 30) + (relevantLogs.length * 5);
 
-    let riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'LOW';
-    if (percentage > 100) riskLevel = 'CRITICAL';
-    else if (percentage > 90 || volatilityScore > 50) riskLevel = 'HIGH';
-    else if (percentage > 75 || volatilityScore > 30) riskLevel = 'MEDIUM';
+    // Volatility Score: Higher based on rejections and total status changes
+    const volatilityScore = rejectionsCount * 30 + relevantLogs.length * 5;
+
+    let riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" = "LOW";
+    if (percentage > 100) riskLevel = "CRITICAL";
+    else if (percentage > 90 || volatilityScore > 50) riskLevel = "HIGH";
+    else if (percentage > 75 || volatilityScore > 30) riskLevel = "MEDIUM";
 
     return {
       draftId,
@@ -1999,25 +2374,39 @@ export class WbsService {
     tenantId: string,
     existingItemId?: string,
   ): Promise<WbsValidationResultDto> {
-    const conflicts: WbsValidationResultDto['conflicts'] = [];
-    const { wbs_code, parent_wbs_id, project_id, total_cost_budgeted, unit_cost_budgeted, quantity_budgeted, days_budgeted } = dto;
+    const conflicts: WbsValidationResultDto["conflicts"] = [];
+    const {
+      wbs_code,
+      parent_wbs_id,
+      project_id,
+      total_cost_budgeted,
+      unit_cost_budgeted,
+      quantity_budgeted,
+      days_budgeted,
+    } = dto;
 
     if (!project_id) {
-        return { 
-          isValid: false, 
-          conflicts: [{ type: 'PROJECT_MISMATCH', severity: 'CRITICAL', message: 'Project context is missing.' }], 
-          summary: 'Validation failed: Missing project context.' 
-        };
+      return {
+        isValid: false,
+        conflicts: [
+          {
+            type: "PROJECT_MISMATCH",
+            severity: "CRITICAL",
+            message: "Project context is missing.",
+          },
+        ],
+        summary: "Validation failed: Missing project context.",
+      };
     }
 
     const duplicate = await this.wbsBudgetRepository.findOne({
-      where: { wbs_code, project_id, tenant_id: tenantId }
+      where: { wbs_code, project_id, tenant_id: tenantId },
     });
 
     if (duplicate && duplicate.wbs_id !== existingItemId) {
       conflicts.push({
-        type: 'DUPLICATE_CODE',
-        severity: 'CRITICAL',
+        type: "DUPLICATE_CODE",
+        severity: "CRITICAL",
         message: `WBS Code "${wbs_code}" is already in use for this project.`,
       });
     }
@@ -2026,59 +2415,65 @@ export class WbsService {
     const qty = quantity_budgeted || 1;
     const days = days_budgeted || 1;
     const computedTotal = unitCost * qty * days;
-    const draftAmount = total_cost_budgeted && total_cost_budgeted > 0 ? total_cost_budgeted : computedTotal;
+    const draftAmount =
+      total_cost_budgeted && total_cost_budgeted > 0
+        ? total_cost_budgeted
+        : computedTotal;
 
     if (parent_wbs_id) {
       const parent = await this.wbsBudgetRepository.findOne({
-        where: { wbs_id: parent_wbs_id, tenant_id: tenantId }
+        where: { wbs_id: parent_wbs_id, tenant_id: tenantId },
       });
 
       if (parent) {
-        if (!wbs_code.startsWith(parent.wbs_code + '.')) {
-             conflicts.push({
-                type: 'HIERARCHY_MISMATCH',
-                severity: 'WARNING',
-                message: `WBS Code "${wbs_code}" should start with "${parent.wbs_code}."`,
-             });
+        if (!wbs_code.startsWith(parent.wbs_code + ".")) {
+          conflicts.push({
+            type: "HIERARCHY_MISMATCH",
+            severity: "WARNING",
+            message: `WBS Code "${wbs_code}" should start with "${parent.wbs_code}."`,
+          });
         }
         if (parent.project_id !== project_id) {
-             conflicts.push({
-                type: 'PROJECT_MISMATCH',
-                severity: 'CRITICAL',
-                message: 'Parent item project mismatch detected.',
-             });
+          conflicts.push({
+            type: "PROJECT_MISMATCH",
+            severity: "CRITICAL",
+            message: "Parent item project mismatch detected.",
+          });
         }
 
         const brothers = await this.wbsBudgetRepository.find({
-            where: { parent_wbs_id, tenant_id: tenantId }
+          where: { parent_wbs_id, tenant_id: tenantId },
         });
-        
+
         let childrenTotal = 0;
         for (const brother of brothers) {
-            if (brother.wbs_id !== existingItemId) {
-                childrenTotal += Number(brother.total_cost_budgeted || 0);
-            }
+          if (brother.wbs_id !== existingItemId) {
+            childrenTotal += Number(brother.total_cost_budgeted || 0);
+          }
         }
 
         const parentLimit = Number(parent.total_cost_budgeted || 0);
-        if (parentLimit > 0 && (childrenTotal + draftAmount) > parentLimit) {
-            conflicts.push({
-                type: 'BUDGET_OVERRUN',
-                severity: 'WARNING',
-                message: 'Structural Overage: subtree budget exceeds parent limit.',
-            });
+        if (parentLimit > 0 && childrenTotal + draftAmount > parentLimit) {
+          conflicts.push({
+            type: "BUDGET_OVERRUN",
+            severity: "WARNING",
+            message: "Structural Overage: subtree budget exceeds parent limit.",
+          });
         }
       }
     }
 
-    const criticalCount = conflicts.filter(c => c.severity === 'CRITICAL').length;
-    
+    const criticalCount = conflicts.filter(
+      (c: any) => c.severity === "CRITICAL",
+    ).length;
+
     return {
       isValid: criticalCount === 0,
       conflicts,
-      summary: conflicts.length === 0 
-        ? 'Code and Budget structure are healthy.' 
-        : `Detected ${conflicts.length} structural issue(s).`
+      summary:
+        conflicts.length === 0
+          ? "Code and Budget structure are healthy."
+          : `Detected ${conflicts.length} structural issue(s).`,
     };
   }
 
@@ -2115,20 +2510,22 @@ export class WbsService {
     try {
       await this.auditService.log(
         recalledBy.id,
-        'RECALL_APPROVAL',
+        "RECALL_APPROVAL",
         tenantId,
         `Budget ${wbsId} approval recalled by ${recalledBy.email}`,
         {
-          entity: 'WbsBudget',
+          entity: "WbsBudget",
           entityId: wbsId,
           previous_status: previousStatus,
           new_status: WbsBudgetStatus.RECALLED,
-          reason: reason || 'No reason provided',
+          reason: reason || "No reason provided",
         },
-        recalledBy.email
+        recalledBy.email,
       );
     } catch (e) {
-      this.logger.warn(`Audit log failed for recall on ${wbsId}: ${(e as Error).message}`);
+      this.logger.warn(
+        `Audit log failed for recall on ${wbsId}: ${(e as Error).message}`,
+      );
     }
 
     this.logger.log(
@@ -2142,24 +2539,41 @@ export class WbsService {
    * CAPEX Portfolio Intelligence Dashboard Aggregation.
    * Supports Portfolio mode (all projects) and Drill-Down mode (single project).
    */
-  async getCapexIntelligence(tenantId: string, projectId?: string): Promise<any> {
+  async getCapexIntelligence(
+    tenantId: string,
+    projectId?: string,
+  ): Promise<any> {
     try {
-      this.logger.log(`Fetching CAPEX Intelligence for tenant ${tenantId}, project ${projectId ?? 'ALL'}`);
+      this.logger.log(
+        `Fetching CAPEX Intelligence for tenant ${tenantId}, project ${projectId ?? "ALL"}`,
+      );
       const projectRepo = this.dataSource.getRepository(ProjectEntity);
 
-      const projectQuery = projectRepo.createQueryBuilder('p')
-        .where('p.tenant_id = :tenantId', { tenantId })
-        .andWhere('p.deleted_at IS NULL');
+      const projectQuery = projectRepo
+        .createQueryBuilder("p")
+        .where("p.tenant_id = :tenantId", { tenantId })
+        .andWhere("p.deleted_at IS NULL");
       if (projectId) {
-        projectQuery.andWhere('p.project_id = :projectId', { projectId });
+        projectQuery.andWhere("p.project_id = :projectId", { projectId });
       }
       const projects = await projectQuery.getMany();
-      const projectIds = projects.map(p => p.project_id);
-      
+      const projectIds = projects.map((p) => p.project_id);
+
       if (projectIds.length === 0) {
         return {
-          kpis: { totalPortfolioValue: 0, activeProjects: 0, avgUtilization: 0, totalBudgeted: 0, totalActual: 0, totalLpoCommitments: 0, remainingBudget: 0 },
-          monthlyBurnByCategory: [], portfolioHeatMap: [], topCostOverruns: [], projectList: [],
+          kpis: {
+            totalPortfolioValue: 0,
+            activeProjects: 0,
+            avgUtilization: 0,
+            totalBudgeted: 0,
+            totalActual: 0,
+            totalLpoCommitments: 0,
+            remainingBudget: 0,
+          },
+          monthlyBurnByCategory: [],
+          portfolioHeatMap: [],
+          topCostOverruns: [],
+          projectList: [],
         };
       }
 
@@ -2204,23 +2618,43 @@ export class WbsService {
         .map((p: any) => ({
           ...p,
           variance: Number(p.total_actual) - Number(p.total_budgeted),
-          variance_pct: Number(p.total_budgeted) > 0
-            ? Math.round(((Number(p.total_actual) - Number(p.total_budgeted)) / Number(p.total_budgeted)) * 100)
-            : 0,
+          variance_pct:
+            Number(p.total_budgeted) > 0
+              ? Math.round(
+                  ((Number(p.total_actual) - Number(p.total_budgeted)) /
+                    Number(p.total_budgeted)) *
+                    100,
+                )
+              : 0,
         }))
         .sort((a: any, b: any) => b.variance_pct - a.variance_pct)
         .slice(0, 5);
 
-      const totalBudgeted = portfolioHeatMap.reduce((s: number, p: any) => s + Number(p.total_budgeted || 0), 0);
-      const totalActual = portfolioHeatMap.reduce((s: number, p: any) => s + Number(p.total_actual || 0), 0);
-      const totalCommitted = portfolioHeatMap.reduce((s: number, p: any) => s + Number(p.total_committed || 0), 0);
-      const totalPortfolioValue = portfolioHeatMap.reduce((s: number, p: any) => s + Number(p.contract_value || 0), 0);
+      const totalBudgeted = portfolioHeatMap.reduce(
+        (s: number, p: any) => s + Number(p.total_budgeted || 0),
+        0,
+      );
+      const totalActual = portfolioHeatMap.reduce(
+        (s: number, p: any) => s + Number(p.total_actual || 0),
+        0,
+      );
+      const totalCommitted = portfolioHeatMap.reduce(
+        (s: number, p: any) => s + Number(p.total_committed || 0),
+        0,
+      );
+      const totalPortfolioValue = portfolioHeatMap.reduce(
+        (s: number, p: any) => s + Number(p.contract_value || 0),
+        0,
+      );
 
       const result = {
         kpis: {
           totalPortfolioValue,
           activeProjects: projects.length,
-          avgUtilization: totalBudgeted > 0 ? Math.round((totalActual / totalBudgeted) * 100) : 0,
+          avgUtilization:
+            totalBudgeted > 0
+              ? Math.round((totalActual / totalBudgeted) * 100)
+              : 0,
           totalBudgeted,
           totalActual,
           totalLpoCommitments: totalCommitted,
@@ -2229,12 +2663,298 @@ export class WbsService {
         monthlyBurnByCategory: monthlyBurn,
         portfolioHeatMap,
         topCostOverruns,
-        projectList: projects.map(p => ({ id: p.project_id, name: p.project_name })),
+        projectList: projects.map((p) => ({
+          id: p.project_id,
+          name: p.project_name,
+        })),
       };
 
       return result;
     } catch (err: any) {
       throw err;
     }
+  }
+
+  // --- PDF GENERATION ENGINE ---
+
+  private formatCurrency(amount: number, currency: string = "USD"): string {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency,
+    }).format(amount);
+  }
+
+  async generateBudgetReportPdf(
+    projectId: string,
+    tenantId: string,
+  ): Promise<Buffer> {
+    const project = await this.projectsService.findOne(projectId, tenantId);
+    if (!project)
+      throw new NotFoundException(`Project ${projectId} not found.`);
+
+    const tenant = await this.tenantService.findOneTenant(tenantId);
+    const rollupData = await this.getWbsBudgetRollup(tenantId, { projectId });
+
+    // Group rollup data by Category
+    const categoriesMap = new Map<string, any>();
+
+    // Fetch all categories for this tenant to get names
+    const allCategories = await this.wbsCategoryRepository.find({
+      where: { tenant_id: tenantId },
+    });
+    const categoryNameMap = new Map(allCategories.map((c) => [c.id, c.name]));
+    const categoryCodeMap = new Map(allCategories.map((c) => [c.id, c.code]));
+
+    let totalBudget = 0;
+    let totalSpent = 0;
+
+    rollupData.forEach((item) => {
+      const catId = item.category_id || "unassigned";
+      if (!categoriesMap.has(catId)) {
+        categoriesMap.set(catId, {
+          categoryCode: categoryCodeMap.get(catId) || "N/A",
+          categoryName:
+            categoryNameMap.get(catId) || "Unassigned / Direct Costs",
+          items: [],
+          totalBudget: 0,
+          totalSpent: 0,
+        });
+      }
+
+      const catGroup = categoriesMap.get(catId);
+      const budgeted = Number(item.total_cost_budgeted || 0);
+      const spent = Number(item.total_paid_rollup || 0);
+      const burnRate = budgeted > 0 ? (spent / budgeted) * 100 : 0;
+
+      catGroup.items.push({
+        wbsCode: item.wbs_code,
+        description: item.description,
+        formattedBudgeted: this.formatCurrency(budgeted),
+        formattedSpent: this.formatCurrency(spent),
+        burnRatePct: burnRate.toFixed(1),
+        statusClass:
+          burnRate > 100
+            ? "status-danger"
+            : burnRate > 85
+              ? "status-warn"
+              : "status-ok",
+        statusText: burnRate > 100 ? "OVER" : burnRate > 85 ? "RISK" : "OK",
+      });
+
+      catGroup.totalBudget += budgeted;
+      catGroup.totalSpent += spent;
+      totalBudget += budgeted;
+      totalSpent += spent;
+    });
+
+    const budgetCategories = Array.from(categoriesMap.values()).map((cat) => ({
+      ...cat,
+      formattedCategoryBudgeted: this.formatCurrency(cat.totalBudget),
+      formattedCategorySpent: this.formatCurrency(cat.totalSpent),
+    }));
+
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "common",
+      "templates",
+      "budget-report.hbs",
+    );
+    if (!fs.existsSync(templatePath)) {
+      this.logger.error(`Budget template not found at ${templatePath}`);
+      throw new InternalServerErrorException("Handbars template not found.");
+    }
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const template = hbs.compile(templateSource);
+
+    const data = {
+      reportTitle: "Project Budget Performance Report",
+      brandPrimaryColorHex: tenant.brandPrimaryColorHex || "#0f172a",
+      brandLogoBase64: tenant.brandLogoBase64,
+      tenantName: tenant.name,
+      projectName: project.project_name,
+      generationDate: format(new Date(), "MMM dd, yyyy HH:mm"),
+      formattedTotalBudget: this.formatCurrency(totalBudget),
+      formattedTotalSpent: this.formatCurrency(totalSpent),
+      isOverBudget: totalSpent > totalBudget,
+      formattedTotalVariance: this.formatCurrency(totalBudget - totalSpent),
+      budgetCategories,
+    };
+
+    const html = template(data);
+    return this.pdfService.generatePdfFromHtml(html);
+  }
+
+  async getProjectForensics(projectId: string, tenantId: string) {
+    const project = await this.projectsService.findOne(projectId, tenantId);
+    if (!project)
+      throw new NotFoundException(`Project ${projectId} not found.`);
+
+    // 1. Get Rollup Financials
+    const rollupData = await this.getWbsBudgetRollup(tenantId, { projectId });
+    const totalBudget = rollupData.reduce(
+      (sum, item) => sum + Number(item.total_cost_budgeted || 0),
+      0,
+    );
+    const totalSpent = rollupData.reduce(
+      (sum, item) => sum + Number(item.total_paid_rollup || 0),
+      0,
+    );
+
+    // 2. Fetch 30-day History for Burn Rate
+    const history = await this.dataSource.query(
+      `SELECT DATE(expense_date) as date, SUM(amount) as amount 
+       FROM live_expense 
+       WHERE project_id = $1 AND tenant_id = $2 
+       AND expense_date >= CURRENT_DATE - INTERVAL '30 days'
+       GROUP BY DATE(expense_date) ORDER BY DATE(expense_date) ASC`,
+      [projectId, tenantId],
+    );
+
+    // 3. Delegation to Central Forensics Service
+    return this.forensicsService.calculateForensics(
+      totalBudget,
+      totalSpent,
+      0, // totalCommittedLPO - placeholder for now
+      history.map((h: any) => ({
+        date: format(h.date, "yyyy-MM-dd"),
+        amount: parseFloat(h.amount),
+      })),
+    );
+
+
+  }
+
+  async generateAiInsightPdf(
+    projectId: string,
+    tenantId: string,
+  ): Promise<Buffer> {
+    const project = await this.projectsService.findOne(projectId, tenantId);
+    const tenant = await this.tenantService.findOneTenant(tenantId);
+    const forensics = await this.getProjectForensics(projectId, tenantId);
+
+    const rollupData = await this.getWbsBudgetRollup(tenantId, { projectId });
+    const totalBudget = rollupData.reduce(
+      (sum, item) => sum + Number(item.total_cost_budgeted || 0),
+      0,
+    );
+    const totalSpent = rollupData.reduce(
+      (sum, item) => sum + Number(item.total_paid_rollup || 0),
+      0,
+    );
+
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "common",
+      "templates",
+      "ai-insight-report.hbs",
+    );
+    if (!fs.existsSync(templatePath))
+      throw new InternalServerErrorException("AI Insight template not found.");
+
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const template = hbs.compile(templateSource);
+
+    // Dynamic AI Narrative Generation based on Forensics
+    const exhaustionDateStr = forensics.estimatedExhaustionDate
+      ? format(new Date(forensics.estimatedExhaustionDate), "MMMM dd, yyyy")
+      : "N/A";
+
+    const aiNarrative = `
+      <p>The project exhibit a **${forensics.riskLevel}** financial risk profile. 
+      With a monthly burn rate of **${forensics.burnRatePercentage.toFixed(1)}%**, budget depletion is projected for **${exhaustionDateStr}**.</p>
+
+      <p>Current variance analysis indicates a ${totalSpent > totalBudget ? "cost overrun" : "favorable variance"} 
+      of ${this.formatCurrency(Math.abs(totalBudget - totalSpent))}.</p>
+    `;
+
+
+    const recommendations = [
+      forensics.riskLevel === "CRITICAL"
+        ? "Immediate budget reallocation or project scope reduction required."
+        : "Maintain current spending controls and monitor weekly.",
+      "Audit the top cost centers for recurring overruns.",
+      "Negotiate with vendors for volume-based discounts if scalability is expected.",
+    ];
+
+    const data = {
+      brandPrimaryColorHex: tenant.brandPrimaryColorHex || "#0f172a",
+      brandLogoBase64: tenant.brandLogoBase64,
+      tenantName: tenant.name,
+      projectName: project.project_name,
+      formattedTotalBudget: this.formatCurrency(totalBudget),
+      formattedTotalActual: this.formatCurrency(totalSpent),
+      formattedRemaining: this.formatCurrency(
+        Math.max(0, totalBudget - totalSpent),
+      ),
+      riskLevel: forensics.riskLevel,
+      aiNarrative,
+      recommendations,
+      generationDate: format(new Date(), "MMM dd, yyyy"),
+    };
+
+    const html = template(data);
+    return this.pdfService.generatePdfFromHtml(html);
+  }
+
+  async generateExpensesReportPdf(
+    projectId: string,
+    tenantId: string,
+  ): Promise<Buffer> {
+    return this.getProjectExpensesReport(projectId, tenantId);
+  }
+
+  async getProjectExpensesReport(
+    projectId: string,
+    tenantId: string,
+  ): Promise<Buffer> {
+
+    const project = await this.projectsService.findOne(projectId, tenantId);
+    const tenant = await this.tenantService.findOneTenant(tenantId);
+
+    const expenses = await this.liveExpenseRepository.find({
+      where: { project_id: projectId, tenant_id: tenantId },
+      relations: ["wbsBudget"],
+      order: { expense_date: "DESC" },
+    });
+
+    const totalSpend = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "common",
+      "templates",
+      "expenses-report.hbs",
+    );
+    if (!fs.existsSync(templatePath))
+      throw new InternalServerErrorException("Expenses template not found.");
+
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const template = hbs.compile(templateSource);
+
+    const data = {
+      brandPrimaryColorHex: tenant.brandPrimaryColorHex || "#0f172a",
+      brandLogoBase64: tenant.brandLogoBase64,
+      tenantName: tenant.name,
+      projectName: project.project_name,
+      projectCode: project.project_code || "N/A",
+      totalExpensesCount: expenses.length,
+      totalSpend: this.formatCurrency(totalSpend),
+      periodLabel: "Lifetime to Date",
+      expenses: expenses.map((e) => ({
+        date: format(e.expense_date, "yyyy-MM-dd"),
+        wbsCode: e.wbsBudget?.wbs_code || "N/A",
+        description: e.description,
+        vendor: e.vendor_name || "Generic Vendor",
+        category: "Operating Expense",
+        formattedAmount: this.formatCurrency(Number(e.amount)),
+      })),
+      generationDate: format(new Date(), "MMM dd, yyyy"),
+    };
+
+    const html = template(data);
+    return this.pdfService.generatePdfFromHtml(html);
   }
 }

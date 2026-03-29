@@ -20,8 +20,13 @@ export class ProjectEntity {
   @PrimaryGeneratedColumn("uuid")
   project_id!: string;
 
+  @Column({ type: "varchar", length: 100, nullable: true })
+  project_code!: string | null;
+
   @Column({ type: "varchar", length: 255 })
   project_name!: string;
+
+
 
   @Column({ type: "text", nullable: true })
   rfq_number!: string | null; // Request for Quotation

@@ -6,6 +6,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from "typeorm";
 import { OperationalBudgetEntity } from "./operational-budget.entity";
 import { UserEntity } from "../auth/user.entity";
@@ -69,6 +70,9 @@ export class PayrollEntryEntity {
 
   @UpdateDateColumn({ type: "timestamptz" })
   updated_at!: Date;
+
+  @DeleteDateColumn({ type: "timestamptz", nullable: true })
+  deleted_at?: Date;
 
   @Column({ type: "uuid" })
   processed_by_user_id!: string;

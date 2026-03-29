@@ -38,6 +38,6 @@
     "strict": true,
     "lib": ["es2020"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../shared/types/**/*"],
   "references": [{ "path": "../shared" }]
 }

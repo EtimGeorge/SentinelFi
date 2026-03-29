@@ -4,12 +4,16 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  Index,
+  DeleteDateColumn,
 } from "typeorm";
 import { WbsBudgetEntity } from "./wbs-budget.entity";
 import type { WbsCategoryEntity } from "./wbs-category.entity"; // Fix circular dependency
 import { ApprovalStatus } from "../../../shared/types/approval-status.enum";
 
 @Entity({ name: "live_expense" })
+@Index(["tenant_id", "wbs_id", "expense_date"])
+@Index(["tenant_id", "project_id", "expense_date"])
 export class LiveExpenseEntity {
   // ADDED ! NON-NULL ASSERTION OPERATOR
   @PrimaryGeneratedColumn("uuid")
@@ -45,8 +49,12 @@ export class LiveExpenseEntity {
   @Column({ type: "date", default: () => "CURRENT_DATE" })
   expense_date!: Date;
 
-  @Column({ type: "text" })
-  description!: string;
+  @Column({ type: "text", nullable: true })
+  description!: string | null;
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  vendor_name!: string | null;
+
 
   // Financial Fields (ADDED ! to all)
   @Column({ type: "numeric", precision: 19, scale: 4 })
@@ -93,4 +101,7 @@ export class LiveExpenseEntity {
 
   @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
+
+  @DeleteDateColumn({ type: "timestamptz", nullable: true })
+  deleted_at?: Date;
 }

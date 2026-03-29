@@ -1,11 +1,16 @@
 // backend/src/auth/guards/roles.guard.ts
-import { Injectable, CanActivate, ExecutionContext, Logger } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { Role } from '@shared/types/role.enum';
-import { ROLES_KEY } from '../decorators/roles.decorator';
-import { UserPayload, SimpleRole } from '@shared/types/user'; 
-import { AuthenticatedRequest } from '../../common/interfaces/authenticated-request.interface';
-import { CorrelatedLogger } from '../../common/logger/correlated-logger'; 
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  Logger,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { Role } from "@shared/types/role.enum";
+import { ROLES_KEY } from "../decorators/roles.decorator";
+import { UserPayload, SimpleRole } from "@shared/types/user";
+import { AuthenticatedRequest } from "../../common/interfaces/authenticated-request.interface";
+import { CorrelatedLogger } from "../../common/logger/correlated-logger";
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -22,7 +27,7 @@ export class RolesGuard implements CanActivate {
     this.logger.debug(`Required roles: ${JSON.stringify(requiredRoles)}`);
 
     if (!requiredRoles) {
-      this.logger.debug('No roles required for this route, allowing access.');
+      this.logger.debug("No roles required for this route, allowing access.");
       return true; // If no roles are required, allow access
     }
 
@@ -30,45 +35,62 @@ export class RolesGuard implements CanActivate {
     const user = request.user;
 
     if (!user || !user.roles || user.roles.length === 0) {
-        this.logger.warn(`Access denied: No user or roles attached to request for user: ${user?.email}`);
-        return false; // No user or roles attached to request
+      this.logger.warn(
+        `Access denied: No user or roles attached to request for user: ${user?.email}`,
+      );
+      return false; // No user or roles attached to request
     }
 
     // Ensure user.roles is always treated as an array of strings for comparison
     // This handles both `string[]` from token payload and `SimpleRole[]` from DB user entity
-    const userRoleNames: string[] = user.roles.map((role: string | SimpleRole) => {
-        const roleName = typeof role === 'string' ? role : role.name;
+    const userRoleNames: string[] = user.roles.map(
+      (role: string | SimpleRole) => {
+        const roleName = typeof role === "string" ? role : role.name;
         // Safe logging - avoid JSON.stringify on potential entities
         this.logger.debug(`Processing user role: ${roleName}`);
         return roleName;
-    });
+      },
+    );
 
-    this.logger.debug(`User roles from JWT/DB: ${JSON.stringify(userRoleNames)}`);
+    this.logger.debug(
+      `User roles from JWT/DB: ${JSON.stringify(userRoleNames)}`,
+    );
 
     const hasPermission = requiredRoles.some((requiredRole) => {
-        const found = userRoleNames.includes(requiredRole);
-        this.logger.debug(`Checking if user has required role "${requiredRole}". Found: ${found}`);
-        return found;
+      const found = userRoleNames.includes(requiredRole);
+      this.logger.debug(
+        `Checking if user has required role "${requiredRole}". Found: ${found}`,
+      );
+      return found;
     });
 
     // --- SUPERADMIN NON-INTERFERENCE POLICY ---
-    // If the route requires Tenant roles (any role other than SuperAdmin), 
+    // If the route requires Tenant roles (any role other than SuperAdmin),
     // we block SuperAdmin from accessing it directly to prevent accidental interference.
     // They must use 'Impersonation Mode' if they need to access tenant-scoped data.
-    const isTenantScopedRoute = requiredRoles.some(role => role !== Role.SuperAdmin);
-    const isActingAsSuperAdmin = userRoleNames.includes(Role.SuperAdmin) && !user.impersonator_id;
+    const isTenantScopedRoute = requiredRoles.some(
+      (role) => role !== Role.SuperAdmin,
+    );
+    const isActingAsSuperAdmin =
+      userRoleNames.includes(Role.SuperAdmin) && !user.impersonator_id;
 
     if (hasPermission && isTenantScopedRoute && isActingAsSuperAdmin) {
-        this.logger.warn(`Access denied for SuperAdmin ${user.email} on tenant-scoped route. Non-interference policy enforced. Use impersonation for access.`);
-        return false; 
+      this.logger.warn(
+        `Access denied for SuperAdmin ${user.email} on tenant-scoped route. Non-interference policy enforced. Use impersonation for access.`,
+      );
+      return false;
     }
 
     if (hasPermission) {
-        this.logger.log(`Access granted for user ${user.email}. Has required role.`);
+      this.logger.log(
+        `Access granted for user ${user.email}. Has required role.`,
+      );
     } else {
-        this.logger.warn(`Access denied for user ${user.email}. Missing one of required roles: ${JSON.stringify(requiredRoles)}. User has roles: ${JSON.stringify(userRoleNames)}`);
+      this.logger.warn(
+        `Access denied for user ${user.email}. Missing one of required roles: ${JSON.stringify(requiredRoles)}. User has roles: ${JSON.stringify(userRoleNames)}`,
+      );
     }
-    
+
     return hasPermission;
   }
 }

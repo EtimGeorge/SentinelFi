@@ -14,16 +14,16 @@ import { Role } from "@shared/types/role.enum";
 
 // Create a class for SimpleRole to be used with @Type decorator
 export class SimpleRoleDto implements SimpleRole {
-    @IsUUID()
-    id!: string;
+  @IsUUID()
+  id!: string;
 
-    @IsString()
-    @IsIn(Object.values(Role))
-    name!: Role;
+  @IsString()
+  @IsIn(Object.values(Role))
+  name!: Role;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+  @IsOptional()
+  @IsString()
+  description?: string;
 }
 
 // DTO for responding with user data (excludes password hash, etc.)

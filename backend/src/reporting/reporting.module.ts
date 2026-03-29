@@ -9,13 +9,18 @@ import { WbsModule } from "../wbs/wbs.module";
 import { OperationalBudgetsModule } from "../operational-budgets/operational-budgets.module";
 import { ProjectsModule } from "../projects/projects.module";
 import { TENANT_DATA_SOURCE } from "../database/constants";
+import { AiAssistantModule } from "../ai-assistant/ai-assistant.module";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([DocumentControlEntity, ReportScheduleEntity], TENANT_DATA_SOURCE),
+    TypeOrmModule.forFeature(
+      [DocumentControlEntity, ReportScheduleEntity],
+      TENANT_DATA_SOURCE,
+    ),
     WbsModule,
     OperationalBudgetsModule,
     ProjectsModule,
+    AiAssistantModule,
   ],
   providers: [ReportingService, DcsClientService],
   controllers: [ReportingController],

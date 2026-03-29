@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import {
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
+import { AiNarrativePanel } from '../../../components/ai/AiNarrativePanel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ interface KpiCardProps {
   accent: string;
 }
 
-interface ProjectOption { id: string; name: string; }
+interface ProjectOption { id: string; name: string; currency?: string; }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -99,7 +100,13 @@ const CapexDashboard: React.FC<CapexDashboardProps> = ({ fetchCapexDashboard, fm
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState('');
   const [projectList, setProjectList] = useState<ProjectOption[]>([]);
-  const Tooltip = makeTooltip(fmt);
+  
+  const selectedProjectCurrency = useMemo(() => {
+    if (!selectedProject) return 'NGN';
+    return projectList.find(p => p.id === selectedProject)?.currency || 'NGN';
+  }, [selectedProject, projectList]);
+
+  const Tooltip = makeTooltip((n) => fmt(n, selectedProjectCurrency));
 
   const load = useCallback(async (pid?: string) => {
     setLoading(true);
@@ -155,12 +162,12 @@ const CapexDashboard: React.FC<CapexDashboardProps> = ({ fetchCapexDashboard, fm
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
-        <KpiCard label="Total Portfolio Value" value={fmt(kpis.totalPortfolioValue)} icon={<Briefcase size={18} />} accent="#6366f1" />
+        <KpiCard label="Total Portfolio Value" value={fmt(kpis.totalPortfolioValue, selectedProjectCurrency)} icon={<Briefcase size={18} />} accent="#6366f1" />
         <KpiCard label="Active Projects" value={kpis.activeProjects.toString()} icon={<Layers size={18} />} accent="#8b5cf6" sub="in portfolio" />
-        <KpiCard label="Total Budgeted" value={fmt(kpis.totalBudgeted)} icon={<Target size={18} />} accent="#a78bfa" />
-        <KpiCard label="Total Actual Spent" value={fmt(kpis.totalActual)} icon={<DollarSign size={18} />} accent="#f59e0b" trend={kpis.avgUtilization} sub={`${kpis.avgUtilization}% of budget`} />
-        <KpiCard label="LPO Commitments" value={fmt(kpis.totalLpoCommitments)} icon={<ShoppingBag size={18} />} accent="#ef4444" sub="committed not yet disbursed" />
-        <KpiCard label="Remaining Budget" value={fmt(kpis.remainingBudget)} icon={<Activity size={18} />} accent={kpis.remainingBudget < 0 ? '#ef4444' : '#22c55e'} />
+        <KpiCard label="Total Budgeted" value={fmt(kpis.totalBudgeted, selectedProjectCurrency)} icon={<Target size={18} />} accent="#a78bfa" />
+        <KpiCard label="Total Actual Spent" value={fmt(kpis.totalActual, selectedProjectCurrency)} icon={<DollarSign size={18} />} accent="#f59e0b" trend={kpis.avgUtilization} sub={`${kpis.avgUtilization}% of budget`} />
+        <KpiCard label="LPO Commitments" value={fmt(kpis.totalLpoCommitments, selectedProjectCurrency)} icon={<ShoppingBag size={18} />} accent="#ef4444" sub="committed not yet disbursed" />
+        <KpiCard label="Remaining Budget" value={fmt(kpis.remainingBudget, selectedProjectCurrency)} icon={<Activity size={18} />} accent={kpis.remainingBudget < 0 ? '#ef4444' : '#22c55e'} />
       </div>
 
       {/* Charts Row 1 */}
@@ -170,7 +177,7 @@ const CapexDashboard: React.FC<CapexDashboardProps> = ({ fetchCapexDashboard, fm
             <BarChart data={burnChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} />
-              <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => fmt(v)} />
+              <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => fmt(v, selectedProjectCurrency)} />
               <Tooltip content={<Tooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {burnCategories.map((cat, i) => (
@@ -215,7 +222,7 @@ const CapexDashboard: React.FC<CapexDashboardProps> = ({ fetchCapexDashboard, fm
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="name" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.4)' }} />
-              <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => fmt(v)} />
+              <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => fmt(v, selectedProjectCurrency)} />
               <Tooltip content={<Tooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Area type="monotone" dataKey="committed" stroke="#6366f1" fill="url(#gCommitted)" name="LPO Committed" strokeWidth={2} />
@@ -237,7 +244,7 @@ const CapexDashboard: React.FC<CapexDashboardProps> = ({ fetchCapexDashboard, fm
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', minWidth: 28 }}>#{i + 1}</span>
                   <span style={{ flex: 1, fontSize: 11, color: 'rgba(255,255,255,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                   <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 700 }}>+{p.variance_pct}%</span>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{fmt(p.variance)}</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{fmt(p.variance, selectedProjectCurrency)}</span>
                 </div>
               ))}
             </div>
@@ -260,7 +267,7 @@ const OpexDashboard: React.FC<OpexDashboardProps> = ({ fetchOpexDashboard, fisca
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState('');
-  const Tooltip = makeTooltip(fmt);
+  const Tooltip = makeTooltip((n) => fmt(n, 'NGN'));
 
   const load = useCallback(async (yearId?: string) => {
     setLoading(true);
@@ -328,12 +335,12 @@ const OpexDashboard: React.FC<OpexDashboardProps> = ({ fetchOpexDashboard, fisca
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
-        <KpiCard label="Total Budget Allocated" value={fmt(kpis.totalAllocated)} icon={<Target size={18} />} accent="#0ea5e9" />
-        <KpiCard label="YTD Actual Spend" value={fmt(kpis.totalSpent)} icon={<DollarSign size={18} />} accent="#f59e0b" sub={`${kpis.utilizationPct}% utilised`} />
-        <KpiCard label="Budget Variance" value={fmt(Math.abs(kpis.variance))} icon={kpis.variance >= 0 ? <TrendingDown size={18} /> : <TrendingUp size={18} />}
+        <KpiCard label="Total Budget Allocated" value={fmt(kpis.totalAllocated, 'NGN')} icon={<Target size={18} />} accent="#0ea5e9" />
+        <KpiCard label="YTD Actual Spend" value={fmt(kpis.totalSpent, 'NGN')} icon={<DollarSign size={18} />} accent="#f59e0b" sub={`${kpis.utilizationPct}% utilised`} />
+        <KpiCard label="Budget Variance" value={fmt(Math.abs(kpis.variance), 'NGN')} icon={kpis.variance >= 0 ? <TrendingDown size={18} /> : <TrendingUp size={18} />}
           accent={kpis.variance >= 0 ? '#22c55e' : '#ef4444'} sub={kpis.variance >= 0 ? 'Under budget' : 'Over budget'} />
         <KpiCard label="P2P Cycle Count" value={kpis.p2pCycleCount.toString()} icon={<ShoppingBag size={18} />} accent="#8b5cf6" sub="open requisitions" />
-        <KpiCard label="YTD Gross Payroll" value={fmt(kpis.payrollGross)} icon={<Users size={18} />} accent="#6366f1" />
+        <KpiCard label="YTD Gross Payroll" value={fmt(kpis.payrollGross, 'NGN')} icon={<Users size={18} />} accent="#6366f1" />
       </div>
 
       {/* Charts Row 1 */}
@@ -342,7 +349,7 @@ const OpexDashboard: React.FC<OpexDashboardProps> = ({ fetchOpexDashboard, fisca
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={deptChartData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => fmt(v)} />
+              <XAxis type="number" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => fmt(v, 'NGN')} />
               <YAxis type="category" dataKey="department" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.7)' }} width={90} />
               <Tooltip content={<Tooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -385,7 +392,7 @@ const OpexDashboard: React.FC<OpexDashboardProps> = ({ fetchOpexDashboard, fisca
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} />
-              <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => fmt(v)} />
+              <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)' }} tickFormatter={v => fmt(v, 'NGN')} />
               <Tooltip content={<Tooltip />} />
               <Area type="monotone" dataKey="actual" name="OPEX Spend" stroke="#0ea5e9" fill="url(#gBurn)" strokeWidth={2} dot={{ r: 3, fill: '#0ea5e9' }} />
             </AreaChart>
@@ -420,7 +427,7 @@ const OpexDashboard: React.FC<OpexDashboardProps> = ({ fetchOpexDashboard, fisca
               </div>
               <div style={{ marginTop: 8 }}>
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-                  Remaining: <strong style={{ color: '#fff' }}>{fmt(budgetRunway.remainingBudget)}</strong>
+                  Remaining: <strong style={{ color: '#fff' }}>{fmt(budgetRunway.remainingBudget, 'NGN')}</strong>
                 </span>
               </div>
             </div>
@@ -517,6 +524,9 @@ const FinancialIntelligencePage: React.FC = () => {
             {tabs.find(t => t.id === activeTab)?.description}
           </p>
         </div>
+
+        {/* AI Narrative Panel — auto-analyzes the current dashboard */}
+        <AiNarrativePanel scope={activeTab} />
 
         {/* Dashboard content */}
         {activeTab === 'capex' && <CapexDashboard fetchCapexDashboard={fetchCapexDashboard} fmt={fmt} />}

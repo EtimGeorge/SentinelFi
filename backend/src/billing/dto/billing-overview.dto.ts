@@ -1,1 +1,1 @@
-export { BillingOverviewDto } from 'shared/types/billing';
+export { BillingOverviewDto } from "shared/types/billing";

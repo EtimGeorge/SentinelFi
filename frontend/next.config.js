@@ -39,6 +39,11 @@ const proxyCircuitBreaker = new CircuitBreaker(5, 30000);
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['shared', 'lucide-react'],
+
+  // ESLint runs as a separate CI step. Do not block production builds with warnings.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   
   // Exclude test files from being treated as pages
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'].map(ext => {
@@ -47,11 +52,11 @@ const nextConfig = {
 
   // API Proxy Rewrites
   async rewrites() {
+    const backendUrl = process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1:3001';
     return [
       {
         source: '/api/v1/:path*',
-        // destination: 'http://localhost:3001/api/v1/:path*',
-        destination: 'http://127.0.0.1:3001/api/v1/:path*',
+        destination: `${backendUrl}/api/v1/:path*`,
       },
     ];
   },

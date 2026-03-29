@@ -25,13 +25,13 @@ const Card: React.FC<CardProps> = ({ children, title, subtitle, className = '', 
   const paddingClass = noPadding ? '' : 'p-6'; // Conditionally apply padding
 
   return (
-    <div className={`bg-gray-800 ${paddingClass} rounded-xl shadow-2xl ${borderClass} ${className}`}>
+    <div className={`bg-gray-800 ${paddingClass} rounded-xl shadow-2xl ${borderClass} ${className} flex flex-col min-w-0`}>
       
       {(title || headerContent) && (
-        <div className={`mb-4 flex ${headerContent ? 'justify-between items-center' : 'flex-col'} border-b border-gray-700 pb-3`}>
-          <div>
-            {title && <h2 className="text-xl font-semibold text-white">{title}</h2>}
-            {subtitle && <p className="text-sm text-gray-400 mt-1">{subtitle}</p>}
+        <div className={`mb-4 flex ${headerContent ? 'justify-between items-center' : 'flex-col'} border-b border-gray-700 pb-3 h-auto`}>
+          <div className="min-w-0">
+            {title && <h2 className="text-lg md:text-xl font-semibold text-white break-words">{title}</h2>}
+            {subtitle && <p className="text-xs md:text-sm text-gray-400 mt-1 break-words">{subtitle}</p>}
           </div>
           {headerContent && <div>{headerContent}</div>}
         </div>
