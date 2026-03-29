@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsOptional, Length, MaxLength, IsUUID } from "class-validator";
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  Length,
+  MaxLength,
+  IsUUID,
+} from "class-validator";
 import { Transform } from "class-transformer";
 
 /**

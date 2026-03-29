@@ -12,7 +12,12 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MessageEntity, ConversationEntity, ConversationMemberEntity, UserEntity]),
+    TypeOrmModule.forFeature([
+      MessageEntity,
+      ConversationEntity,
+      ConversationMemberEntity,
+      UserEntity,
+    ]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

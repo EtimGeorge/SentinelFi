@@ -1,4 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, OneToMany, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  OneToMany,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { FiscalPeriodEntity } from "./fiscal-period.entity";
 import { PayrollLineItemEntity } from "./payroll-line-item.entity";
 
@@ -6,7 +16,7 @@ export enum PayrollRunStatus {
   DRAFT = "DRAFT",
   REVIEW = "REVIEW",
   APPROVED = "APPROVED",
-  POSTED = "POSTED" // Posted to General Ledger
+  POSTED = "POSTED", // Posted to General Ledger
 }
 
 @Entity("payroll_run")
@@ -40,10 +50,14 @@ export class PayrollRunEntity {
   @Column({ type: "decimal", precision: 19, scale: 4, default: 0 })
   total_benefits_employer!: number;
 
-  @Column({ type: "enum", enum: PayrollRunStatus, default: PayrollRunStatus.DRAFT })
+  @Column({
+    type: "enum",
+    enum: PayrollRunStatus,
+    default: PayrollRunStatus.DRAFT,
+  })
   status!: PayrollRunStatus;
 
-  @OneToMany(() => PayrollLineItemEntity, li => li.payrollRun)
+  @OneToMany(() => PayrollLineItemEntity, (li) => li.payrollRun)
   lineItems!: PayrollLineItemEntity[];
 
   @CreateDateColumn({ type: "timestamptz" })

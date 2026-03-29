@@ -38,17 +38,17 @@ export class TenantService {
 
   /**
    * Creates a new tenant using a two-phase commit strategy:
-   * 
+   *
    * PHASE 1: Create and commit the PostgreSQL schema
    *  - This makes the schema visible to subsequent connections
-   * 
+   *
    * PHASE 2: Run migrations and save tenant record
    *  - If this fails, the orphaned schema is cleaned up
-   * 
+   *
    * This approach solves the "schema does not exist" error that occurs when
    * TenantMigrationService creates a new DataSource - the schema must be
    * committed before the new connection attempts to use it.
-   * 
+   *
    * @param createTenantDto - The DTO containing the tenant's information.
    * @param initialBudgetFile - Optional file for future AI processing.
    * @returns The newly created TenantEntity.
@@ -68,18 +68,24 @@ export class TenantService {
     });
 
     if (existingTenant) {
-      this.auditService.log(
-        null,
-        "TENANT_CREATION_FAILED",
-        null,
-        `Conflicting tenant name or schema name: ${createTenantDto.name}/${schema_name}`,
-        {
-          requestedName: createTenantDto.name,
-          requestedSchemaName: schema_name,
-          reason: "Conflict: Tenant or schema name already exists.",
-        },
-        "SYSTEM"
-      ).catch(err => this.logger.error(`Failed to log tenant creation conflict: ${err.message}`));
+      this.auditService
+        .log(
+          null,
+          "TENANT_CREATION_FAILED",
+          null,
+          `Conflicting tenant name or schema name: ${createTenantDto.name}/${schema_name}`,
+          {
+            requestedName: createTenantDto.name,
+            requestedSchemaName: schema_name,
+            reason: "Conflict: Tenant or schema name already exists.",
+          },
+          "SYSTEM",
+        )
+        .catch((err) =>
+          this.logger.error(
+            `Failed to log tenant creation conflict: ${err.message}`,
+          ),
+        );
 
       throw new ConflictException(
         "Tenant with this name or a conflicting schema name already exists.",
@@ -89,16 +95,16 @@ export class TenantService {
     // ADDITIONAL PRE-FLIGHT: Check if schema already exists from failed previous run
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
-    
+
     try {
       const schemaCheckResult = await queryRunner.query(
         `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1`,
-        [schema_name]
+        [schema_name],
       );
-      
+
       if (schemaCheckResult.length > 0) {
         this.logger.warn(
-          `Schema "${schema_name}" already exists (likely from failed previous run). Dropping it for clean retry...`
+          `Schema "${schema_name}" already exists (likely from failed previous run). Dropping it for clean retry...`,
         );
         await this.dropTenantSchema(schema_name);
       }
@@ -116,16 +122,20 @@ export class TenantService {
 
       try {
         this.logger.log(`[Phase 1] Creating schema: ${schema_name}`);
-        await schemaQueryRunner.query(`CREATE SCHEMA IF NOT EXISTS "${schema_name}"`);
+        await schemaQueryRunner.query(
+          `CREATE SCHEMA IF NOT EXISTS "${schema_name}"`,
+        );
 
         // CRITICAL: Commit immediately so new DataSource can see the schema
         await schemaQueryRunner.commitTransaction();
         schemaCreated = true;
-        this.logger.log(`[Phase 1] ✅ Schema "${schema_name}" created and committed.`);
+        this.logger.log(
+          `[Phase 1] ✅ Schema "${schema_name}" created and committed.`,
+        );
       } catch (schemaError) {
         await schemaQueryRunner.rollbackTransaction();
         this.logger.error(
-          `[Phase 1] ❌ Failed to create schema: ${schemaError instanceof Error ? schemaError.message : "Unknown error"}`
+          `[Phase 1] ❌ Failed to create schema: ${schemaError instanceof Error ? schemaError.message : "Unknown error"}`,
         );
         throw schemaError;
       } finally {
@@ -135,9 +145,13 @@ export class TenantService {
       // ========== PHASE 2: Run Migrations and Save Tenant Record ==========
       try {
         // Run migrations on the newly committed schema
-        this.logger.log(`[Phase 2] Running migrations for schema: ${schema_name}`);
+        this.logger.log(
+          `[Phase 2] Running migrations for schema: ${schema_name}`,
+        );
         await this.tenantMigrationService.runTenantMigrations(schema_name);
-        this.logger.log(`[Phase 2] ✅ Migrations successfully applied to schema: "${schema_name}"`);
+        this.logger.log(
+          `[Phase 2] ✅ Migrations successfully applied to schema: "${schema_name}"`,
+        );
 
         // Create and save tenant record in a separate transaction
         const tenantQueryRunner = this.dataSource.createQueryRunner();
@@ -150,7 +164,8 @@ export class TenantService {
             schema_name: schema_name,
             is_active: createTenantDto.is_active ?? true,
             plan: createTenantDto.plan ?? "basic", // Use provided plan or default
-            default_currency_code: createTenantDto.default_currency_code ?? 'USD',
+            default_currency_code:
+              createTenantDto.default_currency_code ?? "USD",
           });
           const savedTenant = await tenantQueryRunner.manager.save(newTenant);
 
@@ -167,46 +182,58 @@ export class TenantService {
           await tenantQueryRunner.commitTransaction();
 
           // PHASE 3: Invite Initial Admin User (Now that tenant exists)
-          this.logger.log(`[Phase 3] Inviting initial admin user for tenant '${savedTenant.name}'...`);
+          this.logger.log(
+            `[Phase 3] Inviting initial admin user for tenant '${savedTenant.name}'...`,
+          );
           try {
-             await this.invitationService.createInvitation(
-                createTenantDto.admin_email,
-                Role.AdminDirector,
-                savedTenant,
-                createTenantDto.admin_first_name,
-                createTenantDto.admin_last_name
-             );
-             this.logger.log(`[Phase 3] ✅ Admin invitation for '${createTenantDto.admin_email}' sent successfully.`);
+            await this.invitationService.createInvitation(
+              createTenantDto.admin_email,
+              Role.AdminDirector,
+              savedTenant,
+              createTenantDto.admin_first_name,
+              createTenantDto.admin_last_name,
+            );
+            this.logger.log(
+              `[Phase 3] ✅ Admin invitation for '${createTenantDto.admin_email}' sent successfully.`,
+            );
           } catch (userError: any) {
-             this.logger.error(`[Phase 3] ❌ Failed to send admin invitation: ${userError.message}`);
-             // Note: We do NOT rollback schema/tenant here as they are committed. 
-             // The SuperAdmin can manually trigger another invitation later.
+            this.logger.error(
+              `[Phase 3] ❌ Failed to send admin invitation: ${userError.message}`,
+            );
+            // Note: We do NOT rollback schema/tenant here as they are committed.
+            // The SuperAdmin can manually trigger another invitation later.
           }
 
           this.logger.log(
             `[Phase 2] ✅ Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`,
           );
 
-          this.auditService.log(
-            "SYSTEM",
-            "TENANT_CREATED",
-            savedTenant.tenant_id,
-            `Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`,
-            {
-              name: savedTenant.name,
-              schema_name: savedTenant.schema_name,
-              plan: savedTenant.plan,
-              admin_email: createTenantDto.admin_email
-            },
-            "SYSTEM"
-          ).catch(err => this.logger.error(`Failed to log tenant creation success: ${err.message}`));
+          this.auditService
+            .log(
+              "SYSTEM",
+              "TENANT_CREATED",
+              savedTenant.tenant_id,
+              `Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`,
+              {
+                name: savedTenant.name,
+                schema_name: savedTenant.schema_name,
+                plan: savedTenant.plan,
+                admin_email: createTenantDto.admin_email,
+              },
+              "SYSTEM",
+            )
+            .catch((err) =>
+              this.logger.error(
+                `Failed to log tenant creation success: ${err.message}`,
+              ),
+            );
 
           // RETURN the tenant
           return savedTenant;
         } catch (tenantRecordError) {
           await tenantQueryRunner.rollbackTransaction();
           this.logger.error(
-            `[Phase 2] ❌ Failed to save tenant record: ${tenantRecordError instanceof Error ? tenantRecordError.message : "Unknown error"}`
+            `[Phase 2] ❌ Failed to save tenant record: ${tenantRecordError instanceof Error ? tenantRecordError.message : "Unknown error"}`,
           );
           throw tenantRecordError;
         } finally {
@@ -220,7 +247,9 @@ export class TenantService {
 
         try {
           await this.dropTenantSchema(schema_name);
-          this.logger.log(`[Cleanup] ✅ Successfully dropped orphaned schema "${schema_name}".`);
+          this.logger.log(
+            `[Cleanup] ✅ Successfully dropped orphaned schema "${schema_name}".`,
+          );
         } catch (cleanupError) {
           this.logger.error(
             `[Cleanup] ❌ Failed to clean up schema "${schema_name}": ${cleanupError instanceof Error ? cleanupError.message : "Unknown error"}`,
@@ -248,9 +277,7 @@ export class TenantService {
   async findAllTenants(): Promise<TenantEntity[]> {
     this.logger.log("Attempting to find all tenants...");
     const tenants = await this.tenantRepository.find();
-    this.logger.log(
-      `Found ${tenants.length} tenants.`,
-    );
+    this.logger.log(`Found ${tenants.length} tenants.`);
     return tenants;
   }
 
@@ -300,14 +327,18 @@ export class TenantService {
     }
 
     if (Object.keys(changes).length > 0) {
-      this.auditService.log(
-        "SYSTEM",
-        "TENANT_UPDATED",
-        savedTenant.tenant_id,
-        `Tenant '${savedTenant.name}' updated.`,
-        { changes },
-        "SYSTEM"
-      ).catch(err => this.logger.error(`Failed to log tenant update: ${err.message}`));
+      this.auditService
+        .log(
+          "SYSTEM",
+          "TENANT_UPDATED",
+          savedTenant.tenant_id,
+          `Tenant '${savedTenant.name}' updated.`,
+          { changes },
+          "SYSTEM",
+        )
+        .catch((err) =>
+          this.logger.error(`Failed to log tenant update: ${err.message}`),
+        );
     }
 
     return savedTenant;
@@ -326,14 +357,20 @@ export class TenantService {
     this.tenantRepository.merge(tenant, brandingDto);
     const savedTenant = await this.tenantRepository.save(tenant);
 
-    this.auditService.log(
-      "SYSTEM",
-      "TENANT_BRANDING_UPDATED",
-      savedTenant.tenant_id,
-      `Tenant '${savedTenant.name}' branding updated.`,
-      {},
-      "SYSTEM"
-    ).catch(err => this.logger.error(`Failed to log tenant branding update: ${err.message}`));
+    this.auditService
+      .log(
+        "SYSTEM",
+        "TENANT_BRANDING_UPDATED",
+        savedTenant.tenant_id,
+        `Tenant '${savedTenant.name}' branding updated.`,
+        {},
+        "SYSTEM",
+      )
+      .catch((err) =>
+        this.logger.error(
+          `Failed to log tenant branding update: ${err.message}`,
+        ),
+      );
 
     return savedTenant;
   }
@@ -374,14 +411,20 @@ export class TenantService {
     });
 
     if (!tenant) {
-      this.auditService.log(
-        null,
-        "TENANT_DELETION_FAILED",
-        id, // Use the ID passed in, as tenant record not found
-        `Tenant with ID ${id} not found for deletion.`,
-        { reason: `Tenant with ID ${id} not found for deletion.` },
-        "SYSTEM"
-      ).catch(err => this.logger.error(`Failed to log tenant deletion failure (not found): ${err.message}`));
+      this.auditService
+        .log(
+          null,
+          "TENANT_DELETION_FAILED",
+          id, // Use the ID passed in, as tenant record not found
+          `Tenant with ID ${id} not found for deletion.`,
+          { reason: `Tenant with ID ${id} not found for deletion.` },
+          "SYSTEM",
+        )
+        .catch((err) =>
+          this.logger.error(
+            `Failed to log tenant deletion failure (not found): ${err.message}`,
+          ),
+        );
       throw new NotFoundException(`Tenant with ID ${id} not found.`);
     }
 
@@ -390,29 +433,49 @@ export class TenantService {
 
     // 2. Delete the record from the public tenants table
     const result = await this.tenantRepository.delete({ tenant_id: id });
-    
+
     if (result.affected === 0) {
-      this.auditService.log(
-        "SYSTEM",
-        "TENANT_DELETION_FAILED",
-        id,
-        `Failed to delete tenant record for ID ${id} after schema drop.`,
-        { reason: `Failed to delete tenant record for ID ${id} after schema drop.` },
-        "SYSTEM"
-      ).catch(err => this.logger.error(`Failed to log tenant deletion failure (record delete): ${err.message}`));
+      this.auditService
+        .log(
+          "SYSTEM",
+          "TENANT_DELETION_FAILED",
+          id,
+          `Failed to delete tenant record for ID ${id} after schema drop.`,
+          {
+            reason: `Failed to delete tenant record for ID ${id} after schema drop.`,
+          },
+          "SYSTEM",
+        )
+        .catch((err) =>
+          this.logger.error(
+            `Failed to log tenant deletion failure (record delete): ${err.message}`,
+          ),
+        );
       throw new InternalServerErrorException(
         `Failed to delete tenant record for ID ${id}.`,
       );
     }
 
-          this.auditService.log(
-            "SYSTEM",
-            "TENANT_DELETED",
-            id,
-            `Tenant '${tenant.name}' deleted successfully along with schema '${tenant.schema_name}'.`,
-            { name: tenant.name, schema_name: tenant.schema_name, status: 'SCHEMA_DROPPED_AND_RECORD_DELETED' },
-            "SYSTEM"
-          ).catch(err => this.logger.error(`Failed to log tenant deletion success: ${err.message}`));
-    this.logger.log(`Tenant '${tenant.name}' deleted successfully along with schema '${tenant.schema_name}'.`);
+    this.auditService
+      .log(
+        "SYSTEM",
+        "TENANT_DELETED",
+        id,
+        `Tenant '${tenant.name}' deleted successfully along with schema '${tenant.schema_name}'.`,
+        {
+          name: tenant.name,
+          schema_name: tenant.schema_name,
+          status: "SCHEMA_DROPPED_AND_RECORD_DELETED",
+        },
+        "SYSTEM",
+      )
+      .catch((err) =>
+        this.logger.error(
+          `Failed to log tenant deletion success: ${err.message}`,
+        ),
+      );
+    this.logger.log(
+      `Tenant '${tenant.name}' deleted successfully along with schema '${tenant.schema_name}'.`,
+    );
   }
 }

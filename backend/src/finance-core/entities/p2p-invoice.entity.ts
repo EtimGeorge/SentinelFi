@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { P2PPurchaseOrderEntity } from "@src/finance-core/entities/p2p-purchase-order.entity";
 import { CostCenterEntity } from "@src/finance-core/entities/cost-center.entity";
 import { GLAccountEntity } from "@src/finance-core/entities/gl-account.entity";
@@ -8,7 +17,7 @@ export enum InvoiceStatus {
   UNDER_REVIEW = "UNDER_REVIEW",
   APPROVED = "APPROVED",
   PAID = "PAID",
-  REJECTED = "REJECTED"
+  REJECTED = "REJECTED",
 }
 
 @Entity("p2p_invoice")
@@ -26,7 +35,9 @@ export class P2PInvoiceEntity {
   @Column({ type: "uuid", nullable: true })
   purchase_order_id!: string | null;
 
-  @ManyToOne(() => P2PPurchaseOrderEntity, po => po.invoices, { nullable: true })
+  @ManyToOne(() => P2PPurchaseOrderEntity, (po) => po.invoices, {
+    nullable: true,
+  })
   @JoinColumn({ name: "purchase_order_id" })
   purchaseOrder!: P2PPurchaseOrderEntity;
 
@@ -51,7 +62,7 @@ export class P2PInvoiceEntity {
   @Column({ type: "decimal", precision: 19, scale: 4 })
   amount!: number;
 
-  @Column({ type: "varchar", length: 3, default: 'USD' })
+  @Column({ type: "varchar", length: 3, default: "USD" })
   currency!: string;
 
   @Column({ type: "decimal", precision: 19, scale: 6, default: 1.0 })
@@ -66,7 +77,11 @@ export class P2PInvoiceEntity {
   @Column({ type: "date", nullable: true })
   due_date!: Date | null;
 
-  @Column({ type: "enum", enum: InvoiceStatus, default: InvoiceStatus.RECEIVED })
+  @Column({
+    type: "enum",
+    enum: InvoiceStatus,
+    default: InvoiceStatus.RECEIVED,
+  })
   status!: InvoiceStatus;
 
   @Column({ type: "varchar", length: 2048, nullable: true })

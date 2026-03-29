@@ -1,13 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   PaymentProvider,
   PaymentStrategy,
   TransactionRequest,
   TransactionResponse,
-} from './interfaces/payment-strategy.interface';
-import { PaystackProvider } from './providers/paystack.provider';
-import { PaypalProvider } from './providers/paypal.provider';
+} from "./interfaces/payment-strategy.interface";
+import { PaystackProvider } from "./providers/paystack.provider";
+import { PaypalProvider } from "./providers/paypal.provider";
 
 @Injectable()
 export class PaymentService {
@@ -24,26 +24,41 @@ export class PaymentService {
   }
 
   getStrategy(provider?: PaymentProvider): PaymentStrategy {
-    const defaultProvider = this.configService.get<PaymentProvider>('DEFAULT_PAYMENT_PROVIDER', PaymentProvider.PAYSTACK);
+    const defaultProvider = this.configService.get<PaymentProvider>(
+      "DEFAULT_PAYMENT_PROVIDER",
+      PaymentProvider.PAYSTACK,
+    );
     const selectedProvider = provider || defaultProvider;
     const strategy = this.strategies.get(selectedProvider);
 
     if (!strategy) {
-      throw new Error(`Payment strategy not found for provider: ${selectedProvider}`);
+      throw new Error(
+        `Payment strategy not found for provider: ${selectedProvider}`,
+      );
     }
 
     return strategy;
   }
 
-  async initializePayment(request: TransactionRequest, provider?: PaymentProvider): Promise<TransactionResponse> {
+  async initializePayment(
+    request: TransactionRequest,
+    provider?: PaymentProvider,
+  ): Promise<TransactionResponse> {
     const strategy = this.getStrategy(provider);
-    this.logger.log(`Initializing payment via ${strategy.getProviderName()} for ${request.email}`);
+    this.logger.log(
+      `Initializing payment via ${strategy.getProviderName()} for ${request.email}`,
+    );
     return strategy.initializeTransaction(request);
   }
 
-  async verifyPayment(reference: string, provider: PaymentProvider): Promise<boolean> {
+  async verifyPayment(
+    reference: string,
+    provider: PaymentProvider,
+  ): Promise<boolean> {
     const strategy = this.getStrategy(provider);
-    this.logger.log(`Verifying payment ${reference} via ${strategy.getProviderName()}`);
+    this.logger.log(
+      `Verifying payment ${reference} via ${strategy.getProviderName()}`,
+    );
     return strategy.verifyTransaction(reference);
   }
 }

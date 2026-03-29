@@ -1,7 +1,14 @@
-import { Controller, Post, Headers, Req, HttpCode, HttpStatus } from '@nestjs/common';
-import { BillingService } from './billing.service';
-import { Public } from '../common/decorators/public.decorator';
-import { Request } from 'express';
+import {
+  Controller,
+  Post,
+  Headers,
+  Req,
+  HttpCode,
+  HttpStatus,
+} from "@nestjs/common";
+import { BillingService } from "./billing.service";
+import { Public } from "../common/decorators/public.decorator";
+import { Request } from "express";
 
 /**
  * Receives asynchronous payment confirmations from Paystack and PayPal.
@@ -13,7 +20,7 @@ import { Request } from 'express';
  *   Paystack: POST https://api.sentinelfi.com/billing/webhook/paystack
  *   PayPal:   POST https://api.sentinelfi.com/billing/webhook/paypal
  */
-@Controller('billing/webhook')
+@Controller("billing/webhook")
 export class WebhookController {
   constructor(private readonly billingService: BillingService) {}
 
@@ -23,10 +30,10 @@ export class WebhookController {
    * We verify the signature before processing any event.
    */
   @Public()
-  @Post('paystack')
+  @Post("paystack")
   @HttpCode(HttpStatus.OK)
   async paystackWebhook(
-    @Headers('x-paystack-signature') signature: string,
+    @Headers("x-paystack-signature") signature: string,
     @Req() req: Request,
   ) {
     // req.rawBody is populated by the rawBody middleware registered in main.ts
@@ -50,7 +57,7 @@ export class WebhookController {
    * Full IPN signature verification can be added via PayPal SDK if needed.
    */
   @Public()
-  @Post('paypal')
+  @Post("paypal")
   @HttpCode(HttpStatus.OK)
   async paypalWebhook(@Req() req: Request) {
     await this.billingService.handlePaypalWebhook(req.body);

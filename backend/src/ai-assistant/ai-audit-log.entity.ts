@@ -4,51 +4,51 @@ import {
   Column,
   CreateDateColumn,
   Index,
-} from 'typeorm';
+} from "typeorm";
 
 export enum AiInteractionType {
-  CHAT = 'chat',
-  ANALYSIS = 'analysis',
-  FORECAST = 'forecast',
-  REPORT = 'report',
-  FORM_FILL = 'form_fill',
+  CHAT = "chat",
+  ANALYSIS = "analysis",
+  FORECAST = "forecast",
+  REPORT = "report",
+  FORM_FILL = "form_fill",
 }
 
-@Entity({ name: 'ai_audit_logs', schema: 'public' })
+@Entity({ name: "ai_audit_logs", schema: "public" })
 export class AiAuditLogEntity {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id!: string;
 
   @Index()
-  @Column({ type: 'uuid' })
+  @Column({ type: "uuid" })
   tenant_id!: string;
 
   @Index()
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: "uuid", nullable: true })
   user_id!: string;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: AiInteractionType,
   })
   interaction_type!: AiInteractionType;
 
-  @Column({ type: 'text' })
+  @Column({ type: "text" })
   user_message_sanitized!: string;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ type: "text", nullable: true })
   ai_response_sanitized!: string;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: "boolean", default: false })
   was_blocked!: boolean;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: "varchar", nullable: true })
   block_reason!: string;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: "boolean", default: false })
   circuit_tripped!: boolean;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: "int", nullable: true })
   latency_ms!: number;
 
   @CreateDateColumn()

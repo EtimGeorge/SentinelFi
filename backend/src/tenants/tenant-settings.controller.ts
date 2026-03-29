@@ -11,14 +11,21 @@ import {
   UsePipes,
   ValidationPipe,
   ForbiddenException,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from 'shared/types/role.enum';
-import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
-import { TenantSettingsService, SubscriptionMetrics, TenantSettingsResponse } from './tenant-settings.service';
-import { UpdateTenantSettingsDto, TestSmtpDto } from './dto/tenant-settings.dto';
+} from "@nestjs/common";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { Role } from "shared/types/role.enum";
+import { AuthenticatedRequest } from "../common/interfaces/authenticated-request.interface";
+import {
+  TenantSettingsService,
+  SubscriptionMetrics,
+  TenantSettingsResponse,
+} from "./tenant-settings.service";
+import {
+  UpdateTenantSettingsDto,
+  TestSmtpDto,
+} from "./dto/tenant-settings.dto";
 
 /**
  * REST controller for tenant-scoped settings.
@@ -30,7 +37,7 @@ import { UpdateTenantSettingsDto, TestSmtpDto } from './dto/tenant-settings.dto'
  * - Write endpoints are restricted to AdminDirector / TechnicalDirector.
  * - SuperAdmins can act on any tenant in future (extend with @Param if needed).
  */
-@Controller('settings')
+@Controller("settings")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TenantSettingsController {
   constructor(private readonly tenantSettingsService: TenantSettingsService) {}
@@ -38,7 +45,7 @@ export class TenantSettingsController {
   private assertTenantId(req: AuthenticatedRequest): string {
     const tenantId = req.user.tenant_id;
     if (!tenantId) {
-      throw new ForbiddenException('No tenant associated with this account.');
+      throw new ForbiddenException("No tenant associated with this account.");
     }
     return tenantId;
   }
@@ -55,7 +62,9 @@ export class TenantSettingsController {
     Role.CEO,
     Role.CFO,
   )
-  async getSettings(@Req() req: AuthenticatedRequest): Promise<TenantSettingsResponse> {
+  async getSettings(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<TenantSettingsResponse> {
     const tenantId = this.assertTenantId(req);
     return this.tenantSettingsService.getSettings(tenantId);
   }
@@ -73,14 +82,18 @@ export class TenantSettingsController {
     @Body() dto: UpdateTenantSettingsDto,
   ): Promise<TenantSettingsResponse> {
     const tenantId = this.assertTenantId(req);
-    return this.tenantSettingsService.updateSettings(tenantId, dto, req.user.id);
+    return this.tenantSettingsService.updateSettings(
+      tenantId,
+      dto,
+      req.user.id,
+    );
   }
 
   /**
    * GET /api/v1/settings/subscription
    * Returns subscription health metrics (user quota, storage, expiry).
    */
-  @Get('subscription')
+  @Get("subscription")
   @Roles(
     Role.SuperAdmin,
     Role.AdminDirector,
@@ -89,7 +102,9 @@ export class TenantSettingsController {
     Role.CFO,
     Role.FinanceManager,
   )
-  async getSubscriptionMetrics(@Req() req: AuthenticatedRequest): Promise<SubscriptionMetrics> {
+  async getSubscriptionMetrics(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<SubscriptionMetrics> {
     const tenantId = this.assertTenantId(req);
     return this.tenantSettingsService.getSubscriptionMetrics(tenantId);
   }
@@ -98,7 +113,7 @@ export class TenantSettingsController {
    * POST /api/v1/settings/test-smtp
    * Validates the saved SMTP configuration by sending a test email.
    */
-  @Post('test-smtp')
+  @Post("test-smtp")
   @Roles(Role.SuperAdmin, Role.AdminDirector, Role.TechnicalDirector)
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -114,7 +129,7 @@ export class TenantSettingsController {
    * POST /api/v1/settings/test-erp
    * Validates the saved ERP/API configuration by probing the base URL.
    */
-  @Post('test-erp')
+  @Post("test-erp")
   @Roles(Role.SuperAdmin, Role.AdminDirector, Role.TechnicalDirector)
   @HttpCode(HttpStatus.OK)
   async testErp(

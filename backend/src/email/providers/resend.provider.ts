@@ -1,23 +1,26 @@
-import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
-import { EmailOptions, EmailProvider } from '../interfaces/email-provider.interface';
+import { Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Resend } from "resend";
+import {
+  EmailOptions,
+  EmailProvider,
+} from "../interfaces/email-provider.interface";
 
 export class ResendProvider implements EmailProvider {
   private readonly logger = new Logger(ResendProvider.name);
   private readonly resend: Resend;
 
   constructor(private readonly configService: ConfigService) {
-    this.resend = new Resend(this.configService.get<string>('RESEND_API_KEY')!);
+    this.resend = new Resend(this.configService.get<string>("RESEND_API_KEY")!);
   }
 
   getName(): string {
-    return 'Resend';
+    return "Resend";
   }
 
   async sendEmail(options: EmailOptions): Promise<void> {
-    const from = options.from || this.configService.get<string>('EMAIL_FROM')!;
-    
+    const from = options.from || this.configService.get<string>("EMAIL_FROM")!;
+
     const { data, error } = await this.resend.emails.send({
       from,
       to: options.to,

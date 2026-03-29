@@ -1,6 +1,12 @@
-import { IsString, IsEmail, IsEnum, IsNumber, IsOptional } from 'class-validator';
-import { Type } from 'class-transformer';
-import { BillingCycle } from '../entities/subscription.entity';
+import {
+  IsString,
+  IsEmail,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+} from "class-validator";
+import { Type } from "class-transformer";
+import { BillingCycle } from "../entities/subscription.entity";
 
 export class ProvisionOfflineTenantDto {
   @IsString()

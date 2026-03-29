@@ -8,10 +8,10 @@ import { AuthModule } from "../auth/auth.module";
 import { TenantModule } from "../tenants/tenant.module";
 import { UserEntity } from "../auth/user.entity";
 import { AuditModule } from "../audit/audit.module";
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from "@nestjs/jwt";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { EmailModule } from "../email/email.module";
-import * as ms from 'ms';
+import * as ms from "ms";
 
 @Module({
   imports: [
@@ -22,21 +22,21 @@ import * as ms from 'ms';
     ConfigModule,
     EmailModule,
     JwtModule.registerAsync({
-        useFactory: async (configService: ConfigService) => {
-          const expiresInDuration =
-            configService.get<string>('JWT_EXPIRATION_TIME') || '3600s';
+      useFactory: async (configService: ConfigService) => {
+        const expiresInDuration =
+          configService.get<string>("JWT_EXPIRATION_TIME") || "3600s";
 
-          const expiresInMs = (ms as any).default(expiresInDuration);
+        const expiresInMs = (ms as any).default(expiresInDuration);
 
-          return {
-            secret: configService.get<string>('JWT_SECRET_KEY'),
-            signOptions: {
-              expiresIn: expiresInMs / 1000,
-            },
-          };
-        },
-        inject: [ConfigService],
-      }),
+        return {
+          secret: configService.get<string>("JWT_SECRET_KEY"),
+          signOptions: {
+            expiresIn: expiresInMs / 1000,
+          },
+        };
+      },
+      inject: [ConfigService],
+    }),
   ],
   controllers: [SuperAdminController],
   providers: [SuperAdminService],

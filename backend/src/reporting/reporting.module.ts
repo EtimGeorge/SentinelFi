@@ -13,7 +13,10 @@ import { AiAssistantModule } from "../ai-assistant/ai-assistant.module";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([DocumentControlEntity, ReportScheduleEntity], TENANT_DATA_SOURCE),
+    TypeOrmModule.forFeature(
+      [DocumentControlEntity, ReportScheduleEntity],
+      TENANT_DATA_SOURCE,
+    ),
     WbsModule,
     OperationalBudgetsModule,
     ProjectsModule,

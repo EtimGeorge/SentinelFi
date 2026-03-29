@@ -11,11 +11,13 @@ export class NotificationsService {
   ) {}
 
   sendUnreadCountUpdate(count: number, userId?: string) {
-    this.logger.log(`Sending unread count update: ${count} for user: ${userId || "all"}`);
+    this.logger.log(
+      `Sending unread count update: ${count} for user: ${userId || "all"}`,
+    );
     this.notificationsGateway.emitUnreadCountUpdate(count);
   }
 
-  sendVarianceAlert(title: string, message: string, type: string = 'warning') {
+  sendVarianceAlert(title: string, message: string, type: string = "warning") {
     this.logger.log(`Variance alert triggered: ${title} - ${message}`);
     this.notificationsGateway.emitVarianceAlert({ title, message, type });
   }
@@ -32,13 +34,28 @@ export class NotificationsService {
     overrideReason: string;
     expenseId?: string;
   }) {
-    const { authorizer, wbsCode, projectName, amount, varianceFlag, overrideReason } = params;
-    const title = `Budget Override Approved — ${varianceFlag.replace(/_/g, ' ')}`;
-    const message = `${authorizer} authorized a ${varianceFlag === 'CRITICAL_VARIANCE' ? 'CRITICAL' : 'MAJOR'} overrun on WBS ${wbsCode} (${projectName}). Amount: ${amount.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })}. Reason: "${overrideReason}".`;
-    const type = varianceFlag === 'CRITICAL_VARIANCE' ? 'critical_override' : 'major_override';
+    const {
+      authorizer,
+      wbsCode,
+      projectName,
+      amount,
+      varianceFlag,
+      overrideReason,
+    } = params;
+    const title = `Budget Override Approved — ${varianceFlag.replace(/_/g, " ")}`;
+    const message = `${authorizer} authorized a ${varianceFlag === "CRITICAL_VARIANCE" ? "CRITICAL" : "MAJOR"} overrun on WBS ${wbsCode} (${projectName}). Amount: ${amount.toLocaleString("en-NG", { style: "currency", currency: "NGN" })}. Reason: "${overrideReason}".`;
+    const type =
+      varianceFlag === "CRITICAL_VARIANCE"
+        ? "critical_override"
+        : "major_override";
 
     this.logger.warn(`[Override Approved] ${title}: ${message}`);
-    this.notificationsGateway.emitVarianceAlert({ title, message, type, metadata: params });
+    this.notificationsGateway.emitVarianceAlert({
+      title,
+      message,
+      type,
+      metadata: params,
+    });
   }
 
   // ─── Billing / Payment Event Notifications ───────────────────────────────
@@ -52,23 +69,29 @@ export class NotificationsService {
     periodEnd: Date;
   }) {
     const { tenantId, companyName, plan, amountUsd, periodEnd } = params;
-    this.logger.log(`[Billing] Payment success notification → tenant ${tenantId}`);
+    this.logger.log(
+      `[Billing] Payment success notification → tenant ${tenantId}`,
+    );
     this.notificationsGateway.emitVarianceAlert({
-      title: '✅ Payment Confirmed',
+      title: "✅ Payment Confirmed",
       message: `Workspace for ${companyName} activated on the ${plan} plan. Receipt dispatched. Valid until ${periodEnd.toDateString()}.`,
-      type: 'payment_success',
+      type: "payment_success",
       metadata: { tenantId, plan, amountUsd, periodEnd },
     });
   }
 
   /** Broadcasts real-time payment failure alert after a failed webhook. */
-  sendPaymentFailureNotification(params: { email: string; plan: string; reason: string }) {
+  sendPaymentFailureNotification(params: {
+    email: string;
+    plan: string;
+    reason: string;
+  }) {
     const { email, plan, reason } = params;
     this.logger.warn(`[Billing] Payment failure notification → ${email}`);
     this.notificationsGateway.emitVarianceAlert({
-      title: '⚠️ Payment Failed',
+      title: "⚠️ Payment Failed",
       message: `Payment for ${plan} plan (${email}) failed. Reason: ${reason}. Alert email dispatched.`,
-      type: 'payment_failure',
+      type: "payment_failure",
       metadata: { email, plan, reason },
     });
   }
@@ -82,12 +105,14 @@ export class NotificationsService {
     expiryDate: Date;
   }) {
     const { tenantId, companyName, plan, daysRemaining, expiryDate } = params;
-    const urgency = daysRemaining <= 1 ? 'URGENT: ' : '';
-    this.logger.warn(`[Billing] Renewal alert → tenant ${tenantId} (${daysRemaining}d remaining)`);
+    const urgency = daysRemaining <= 1 ? "URGENT: " : "";
+    this.logger.warn(
+      `[Billing] Renewal alert → tenant ${tenantId} (${daysRemaining}d remaining)`,
+    );
     this.notificationsGateway.emitVarianceAlert({
-      title: `${urgency}⏰ Subscription Expiring ${daysRemaining === 1 ? 'Tomorrow' : `in ${daysRemaining} Days`}`,
+      title: `${urgency}⏰ Subscription Expiring ${daysRemaining === 1 ? "Tomorrow" : `in ${daysRemaining} Days`}`,
       message: `${companyName}'s ${plan} subscription expires on ${expiryDate.toDateString()}. Renewal reminder sent.`,
-      type: daysRemaining <= 1 ? 'renewal_urgent' : 'renewal_warning',
+      type: daysRemaining <= 1 ? "renewal_urgent" : "renewal_warning",
       metadata: { tenantId, companyName, plan, daysRemaining, expiryDate },
     });
   }

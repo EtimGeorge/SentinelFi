@@ -13,7 +13,11 @@ export const TenantConnectionProvider: Provider = {
   inject: [ConfigService, ClsService],
   useFactory: async (configService: ConfigService, cls: ClsService) => {
     const entities = DatabaseConfig.getEntities();
-    const options = DatabaseConfig.getTypeOrmConfig(configService, entities, 5) as DataSourceOptions;
+    const options = DatabaseConfig.getTypeOrmConfig(
+      configService,
+      entities,
+      5,
+    ) as DataSourceOptions;
     const dataSource = new TenancyAwareDataSource(options, cls);
     await dataSource.initialize();
     return dataSource;
@@ -28,4 +32,3 @@ export const TenantDataSourceProvider: Provider = {
   provide: getDataSourceToken(TENANT_DATA_SOURCE),
   useExisting: TENANT_DATA_SOURCE,
 };
-

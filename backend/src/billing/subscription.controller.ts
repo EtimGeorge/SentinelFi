@@ -9,17 +9,17 @@ import {
   HttpStatus,
   Param,
   Query,
-} from '@nestjs/common';
-import { BillingService } from './billing.service';
-import { BillingCycle } from './entities/subscription.entity';
-import { PaymentProvider } from '../payment/interfaces/payment-strategy.interface';
-import { Role } from '@shared/types/role.enum';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Public } from '../common/decorators/public.decorator';
+} from "@nestjs/common";
+import { BillingService } from "./billing.service";
+import { BillingCycle } from "./entities/subscription.entity";
+import { PaymentProvider } from "../payment/interfaces/payment-strategy.interface";
+import { Role } from "@shared/types/role.enum";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { Public } from "../common/decorators/public.decorator";
 
-@Controller('billing')
+@Controller("billing")
 export class SubscriptionController {
   constructor(private readonly billingService: BillingService) {}
 
@@ -30,14 +30,17 @@ export class SubscriptionController {
    * Creates tenant immediately and dispatches magic-link.
    */
   @Public()
-  @Post('start-trial')
+  @Post("start-trial")
   @HttpCode(HttpStatus.CREATED)
-  async startTrial(@Body() body: {
-    email: string;
-    companyName: string;
-    firstName: string;
-    lastName: string;
-  }) {
+  async startTrial(
+    @Body()
+    body: {
+      email: string;
+      companyName: string;
+      firstName: string;
+      lastName: string;
+    },
+  ) {
     return this.billingService.startFreeTrial(body);
   }
 
@@ -46,18 +49,21 @@ export class SubscriptionController {
    * Returns a payment gateway URL. Tenant created ONLY after webhook confirms payment.
    */
   @Public()
-  @Post('process-public-subscription')
+  @Post("process-public-subscription")
   @HttpCode(HttpStatus.CREATED)
-  async subscribe(@Body() body: {
-    email: string;
-    companyName: string;
-    firstName: string;
-    lastName: string;
-    plan: string;
-    billingCycle: BillingCycle;
-    gateway: PaymentProvider;
-    baseCurrency?: string;
-  }) {
+  async subscribe(
+    @Body()
+    body: {
+      email: string;
+      companyName: string;
+      firstName: string;
+      lastName: string;
+      plan: string;
+      billingCycle: BillingCycle;
+      gateway: PaymentProvider;
+      baseCurrency?: string;
+    },
+  ) {
     return this.billingService.processPublicSubscription(body);
   }
 
@@ -65,8 +71,8 @@ export class SubscriptionController {
    * Poll subscription status by ID (used by /billing/success page after checkout).
    */
   @Public()
-  @Get('subscription/status')
-  async getSubscriptionStatus(@Query('ref') ref: string) {
+  @Get("subscription/status")
+  async getSubscriptionStatus(@Query("ref") ref: string) {
     return this.billingService.getSubscriptionStatus(ref);
   }
 
@@ -76,7 +82,7 @@ export class SubscriptionController {
    * Get the authenticated user's subscription details.
    * Used by the subscription settings page and SubscriptionBanner component.
    */
-  @Get('my-subscription')
+  @Get("my-subscription")
   @UseGuards(JwtAuthGuard)
   async getMySubscription(@Req() req: any) {
     return this.billingService.getMySubscription(req.user.tenant_id);
@@ -85,13 +91,20 @@ export class SubscriptionController {
   /**
    * Invite a team member to the authenticated user's tenant.
    */
-  @Post('invite')
+  @Post("invite")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.AdminDirector, Role.SuperAdmin)
   async inviteTeamMember(
-    @Body() body: { email: string; role: Role; firstName?: string; lastName?: string },
+    @Body()
+    body: { email: string; role: Role; firstName?: string; lastName?: string },
     @Req() req: any,
   ) {
-    return this.billingService.inviteUser(body.email, body.role, req.user.tenant_id, body.firstName, body.lastName);
+    return this.billingService.inviteUser(
+      body.email,
+      body.role,
+      req.user.tenant_id,
+      body.firstName,
+      body.lastName,
+    );
   }
 }

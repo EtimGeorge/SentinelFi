@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, UpdateDateColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  Index,
+  UpdateDateColumn,
+} from "typeorm";
 import { ReportType } from "./document-control.entity";
 
 export enum ScheduleFrequency {

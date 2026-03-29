@@ -50,18 +50,20 @@ export class ExcelUtility {
       total_budgeted_rollup: number;
       total_paid_rollup: number;
     })[],
-    title: string = "Project Portfolio Report", context?: any,
+    title: string = "Project Portfolio Report",
+    context?: any,
   ): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
-    const sheetTitle = context?.projectName ? context.projectName.substring(0,30).replace(/[^a-zA-Z0-9 ]/g, "") : title.substring(0, 30);
+    const sheetTitle = context?.projectName
+      ? context.projectName.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "")
+      : title.substring(0, 30);
     const worksheet = workbook.addWorksheet(sheetTitle);
-    worksheet.getCell('A1').value = context?.tenantName || "SentinelFi";
-    worksheet.getCell('A1').font = { bold: true, color: { argb: 'FF4A5568' } };
-    worksheet.getCell('A2').value = title;
-    worksheet.getCell('A2').font = { bold: true, size: 14 };
-    worksheet.getCell('A3').value = `Date: ${new Date().toLocaleDateString()}`;
+    worksheet.getCell("A1").value = context?.tenantName || "SentinelFi";
+    worksheet.getCell("A1").font = { bold: true, color: { argb: "FF4A5568" } };
+    worksheet.getCell("A2").value = title;
+    worksheet.getCell("A2").font = { bold: true, size: 14 };
+    worksheet.getCell("A3").value = `Date: ${new Date().toLocaleDateString()}`;
     // Shift rowNum in applyRowStyle later if needed, but here we just added 3 info rows.
-    
 
     // Set columns
     worksheet.columns = [
@@ -88,8 +90,14 @@ export class ExcelUtility {
         rfq_number: project.rfq_number,
         sow_details: project.sow_details,
         status: project.status,
-        total_budgeted: ExcelUtility.formatCurrencyWithContext(project.total_budgeted_rollup, context),
-        total_spent: ExcelUtility.formatCurrencyWithContext(project.total_paid_rollup, context),
+        total_budgeted: ExcelUtility.formatCurrencyWithContext(
+          project.total_budgeted_rollup,
+          context,
+        ),
+        total_spent: ExcelUtility.formatCurrencyWithContext(
+          project.total_paid_rollup,
+          context,
+        ),
         variance_percent: `${variance.toFixed(2)}%`,
       });
       ExcelUtility.applyRowStyle(worksheet, index + 2); // +2 because 1 for header row, +1 for 0-indexed array
@@ -100,17 +108,19 @@ export class ExcelUtility {
 
   static async generateWbsBudgetReport(
     budgets: WbsBudgetEntity[],
-    title: string = "WBS Budget Report", context?: any,
+    title: string = "WBS Budget Report",
+    context?: any,
   ): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
-    const sheetTitle = context?.projectName ? context.projectName.substring(0,30).replace(/[^a-zA-Z0-9 ]/g, "") : title.substring(0, 30);
+    const sheetTitle = context?.projectName
+      ? context.projectName.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "")
+      : title.substring(0, 30);
     const worksheet = workbook.addWorksheet(sheetTitle);
-    worksheet.getCell('A1').value = context?.tenantName || "SentinelFi";
-    worksheet.getCell('A1').font = { bold: true, color: { argb: 'FF4A5568' } };
-    worksheet.getCell('A2').value = title;
-    worksheet.getCell('A2').font = { bold: true, size: 14 };
-    worksheet.getCell('A3').value = `Date: ${new Date().toLocaleDateString()}`;
-    
+    worksheet.getCell("A1").value = context?.tenantName || "SentinelFi";
+    worksheet.getCell("A1").font = { bold: true, color: { argb: "FF4A5568" } };
+    worksheet.getCell("A2").value = title;
+    worksheet.getCell("A2").font = { bold: true, size: 14 };
+    worksheet.getCell("A3").value = `Date: ${new Date().toLocaleDateString()}`;
 
     worksheet.columns = [
       { header: "Project Name", key: "project_name", width: 30 },
@@ -132,9 +142,15 @@ export class ExcelUtility {
         project_name: budget.project?.project_name || "N/A",
         wbs_code: budget.wbs_code,
         description: budget.description,
-        unit_cost_budgeted: ExcelUtility.formatCurrencyWithContext(budget.unit_cost_budgeted, context),
+        unit_cost_budgeted: ExcelUtility.formatCurrencyWithContext(
+          budget.unit_cost_budgeted,
+          context,
+        ),
         quantity_budgeted: budget.quantity_budgeted,
-        total_cost_budgeted: ExcelUtility.formatCurrencyWithContext(budget.total_cost_budgeted, context),
+        total_cost_budgeted: ExcelUtility.formatCurrencyWithContext(
+          budget.total_cost_budgeted,
+          context,
+        ),
         days_budgeted: budget.days_budgeted,
         status: budget.status,
         created_by_email: budget.user?.email || "N/A",
@@ -148,17 +164,19 @@ export class ExcelUtility {
 
   static async generateLiveExpenseReport(
     expenses: LiveExpenseEntity[],
-    title: string = "Live Expense Report", context?: any,
+    title: string = "Live Expense Report",
+    context?: any,
   ): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
-    const sheetTitle = context?.projectName ? context.projectName.substring(0,30).replace(/[^a-zA-Z0-9 ]/g, "") : title.substring(0, 30);
+    const sheetTitle = context?.projectName
+      ? context.projectName.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "")
+      : title.substring(0, 30);
     const worksheet = workbook.addWorksheet(sheetTitle);
-    worksheet.getCell('A1').value = context?.tenantName || "SentinelFi";
-    worksheet.getCell('A1').font = { bold: true, color: { argb: 'FF4A5568' } };
-    worksheet.getCell('A2').value = title;
-    worksheet.getCell('A2').font = { bold: true, size: 14 };
-    worksheet.getCell('A3').value = `Date: ${new Date().toLocaleDateString()}`;
-    
+    worksheet.getCell("A1").value = context?.tenantName || "SentinelFi";
+    worksheet.getCell("A1").font = { bold: true, color: { argb: "FF4A5568" } };
+    worksheet.getCell("A2").value = title;
+    worksheet.getCell("A2").font = { bold: true, size: 14 };
+    worksheet.getCell("A3").value = `Date: ${new Date().toLocaleDateString()}`;
 
     worksheet.columns = [
       { header: "Project Name", key: "project_name", width: 30 },
@@ -188,9 +206,15 @@ export class ExcelUtility {
         wbs_code: expense.wbsBudget?.wbs_code || "N/A",
         description: expense.description,
         expense_date: expense.expense_date.toISOString().split("T")[0],
-        unit_cost: ExcelUtility.formatCurrencyWithContext(expense.unit_cost, context),
+        unit_cost: ExcelUtility.formatCurrencyWithContext(
+          expense.unit_cost,
+          context,
+        ),
         quantity: expense.quantity,
-        commitment_lpo_amount: ExcelUtility.formatCurrencyWithContext(expense.commitment_lpo_amount, context),
+        commitment_lpo_amount: ExcelUtility.formatCurrencyWithContext(
+          expense.commitment_lpo_amount,
+          context,
+        ),
         amount: ExcelUtility.formatCurrencyWithContext(expense.amount, context),
         variance_flag: expense.variance_flag,
         document_reference: expense.document_reference,
@@ -206,17 +230,19 @@ export class ExcelUtility {
 
   static async generateOperationalBudgetReport(
     budgets: OperationalBudgetEntity[],
-    title: string = "Operational Budget Report", context?: any,
+    title: string = "Operational Budget Report",
+    context?: any,
   ): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
-    const sheetTitle = context?.projectName ? context.projectName.substring(0,30).replace(/[^a-zA-Z0-9 ]/g, "") : title.substring(0, 30);
+    const sheetTitle = context?.projectName
+      ? context.projectName.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "")
+      : title.substring(0, 30);
     const worksheet = workbook.addWorksheet(sheetTitle);
-    worksheet.getCell('A1').value = context?.tenantName || "SentinelFi";
-    worksheet.getCell('A1').font = { bold: true, color: { argb: 'FF4A5568' } };
-    worksheet.getCell('A2').value = title;
-    worksheet.getCell('A2').font = { bold: true, size: 14 };
-    worksheet.getCell('A3').value = `Date: ${new Date().toLocaleDateString()}`;
-    
+    worksheet.getCell("A1").value = context?.tenantName || "SentinelFi";
+    worksheet.getCell("A1").font = { bold: true, color: { argb: "FF4A5568" } };
+    worksheet.getCell("A2").value = title;
+    worksheet.getCell("A2").font = { bold: true, size: 14 };
+    worksheet.getCell("A3").value = `Date: ${new Date().toLocaleDateString()}`;
 
     worksheet.columns = [
       { header: "Budget Name", key: "name", width: 30 },
@@ -238,8 +264,14 @@ export class ExcelUtility {
         name: budget.name,
         description: budget.description,
         type: budget.type,
-        budgeted_amount: ExcelUtility.formatCurrencyWithContext(budget.budgeted_amount, context),
-        actual_spent: ExcelUtility.formatCurrencyWithContext(budget.actual_spent, context),
+        budgeted_amount: ExcelUtility.formatCurrencyWithContext(
+          budget.budgeted_amount,
+          context,
+        ),
+        actual_spent: ExcelUtility.formatCurrencyWithContext(
+          budget.actual_spent,
+          context,
+        ),
         start_date: budget.start_date.toISOString().split("T")[0],
         end_date: budget.end_date.toISOString().split("T")[0],
         status: budget.status,
@@ -260,79 +292,125 @@ export class ExcelUtility {
    */
   static async generateOpexRollupReport(
     data: { budgets: any[]; summary: any },
-    title: string = "OPEX Efficiency Intelligence", context?: any,
+    title: string = "OPEX Efficiency Intelligence",
+    context?: any,
   ): Promise<ExcelJS.Buffer> {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'SentinelFi';
+    workbook.creator = "SentinelFi";
     workbook.created = new Date();
 
     // --- Sheet 1: Summary ---
-    const summarySheet = workbook.addWorksheet('Portfolio Summary');
+    const summarySheet = workbook.addWorksheet("Portfolio Summary");
     summarySheet.getColumn(1).width = 30;
     summarySheet.getColumn(2).width = 25;
 
-    summarySheet.getCell('A1').value = context?.tenantName || "SentinelFi";
-    summarySheet.getCell('A1').font = { bold: true, color: { argb: 'FF4A5568' } };
-    summarySheet.addRow([context?.projectName ? `${title} - ${context.projectName}` : title]).font = { bold: true, size: 14 };
-    summarySheet.addRow([`Generated: ${new Date().toLocaleDateString()}`]).font = { italic: true, color: { argb: 'FF888888' } };
+    summarySheet.getCell("A1").value = context?.tenantName || "SentinelFi";
+    summarySheet.getCell("A1").font = {
+      bold: true,
+      color: { argb: "FF4A5568" },
+    };
+    summarySheet.addRow([
+      context?.projectName ? `${title} - ${context.projectName}` : title,
+    ]).font = { bold: true, size: 14 };
+    summarySheet.addRow([
+      `Generated: ${new Date().toLocaleDateString()}`,
+    ]).font = { italic: true, color: { argb: "FF888888" } };
     summarySheet.addRow([]);
 
-    const kpiHeader = summarySheet.addRow(['KPI', 'Value']);
-    kpiHeader.eachCell(cell => {
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A202C' } };
+    const kpiHeader = summarySheet.addRow(["KPI", "Value"]);
+    kpiHeader.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1A202C" },
+      };
     });
 
     if (data.summary) {
       const s = data.summary;
       [
-        ['Total OPEX Budget', ExcelUtility.formatCurrencyWithContext(s.totalBudgeted, context)],
-        ['Total Actual Burn', ExcelUtility.formatCurrencyWithContext(s.totalActual, context)],
-        ['Net Variance', `${s.totalVariance >= 0 ? '+' : ''}${ExcelUtility.formatCurrencyWithContext(s.totalVariance, context)}`],
-        ['Efficiency Score', `${s.efficiencyScore?.toFixed(1)}%`],
+        [
+          "Total OPEX Budget",
+          ExcelUtility.formatCurrencyWithContext(s.totalBudgeted, context),
+        ],
+        [
+          "Total Actual Burn",
+          ExcelUtility.formatCurrencyWithContext(s.totalActual, context),
+        ],
+        [
+          "Net Variance",
+          `${s.totalVariance >= 0 ? "+" : ""}${ExcelUtility.formatCurrencyWithContext(s.totalVariance, context)}`,
+        ],
+        ["Efficiency Score", `${s.efficiencyScore?.toFixed(1)}%`],
       ].forEach(([k, v], i) => {
         const row = summarySheet.addRow([k, v]);
-        row.getCell(2).alignment = { horizontal: 'right' };
-        if (i % 2 === 0) row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } };
+        row.getCell(2).alignment = { horizontal: "right" };
+        if (i % 2 === 0)
+          row.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFF5F7FA" },
+          };
       });
 
       summarySheet.addRow([]);
-      summarySheet.addRow(['Top Burning Categories', 'Burn Rate']).eachCell(cell => {
-        cell.font = { bold: true };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4B5' } };
-      });
+      summarySheet
+        .addRow(["Top Burning Categories", "Burn Rate"])
+        .eachCell((cell) => {
+          cell.font = { bold: true };
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFFFE4B5" },
+          };
+        });
       (s.topBurningCategories || []).forEach((cat: any) => {
-        const row = summarySheet.addRow([cat.name, `${cat.burnRate?.toFixed(1)}%`]);
+        const row = summarySheet.addRow([
+          cat.name,
+          `${cat.burnRate?.toFixed(1)}%`,
+        ]);
         const burnRate = cat.burnRate || 0;
-        if (burnRate > 100) row.getCell(2).font = { color: { argb: 'FFDC2626' }, bold: true };
-        else if (burnRate > 85) row.getCell(2).font = { color: { argb: 'FFD97706' }, bold: true };
-        else row.getCell(2).font = { color: { argb: 'FF059669' }, bold: true };
+        if (burnRate > 100)
+          row.getCell(2).font = { color: { argb: "FFDC2626" }, bold: true };
+        else if (burnRate > 85)
+          row.getCell(2).font = { color: { argb: "FFD97706" }, bold: true };
+        else row.getCell(2).font = { color: { argb: "FF059669" }, bold: true };
       });
     }
 
     // --- Sheet 2: Full Breakdown ---
-    const detailSheet = workbook.addWorksheet('Budget-Category Breakdown');
+    const detailSheet = workbook.addWorksheet("Budget-Category Breakdown");
     detailSheet.columns = [
-      { header: 'Budget / Category', key: 'name', width: 35 },
-      { header: 'Type', key: 'type', width: 18 },
-      { header: 'Status', key: 'status', width: 12 },
-      { header: 'Budgeted', key: 'budgeted', width: 20 },
-      { header: 'Actual Burn', key: 'actual', width: 20 },
-      { header: 'Variance', key: 'variance', width: 20 },
-      { header: 'Burn Rate %', key: 'burnRate', width: 14 },
-      { header: 'Health', key: 'health', width: 12 },
+      { header: "Budget / Category", key: "name", width: 35 },
+      { header: "Type", key: "type", width: 18 },
+      { header: "Status", key: "status", width: 12 },
+      { header: "Budgeted", key: "budgeted", width: 20 },
+      { header: "Actual Burn", key: "actual", width: 20 },
+      { header: "Variance", key: "variance", width: 20 },
+      { header: "Burn Rate %", key: "burnRate", width: 14 },
+      { header: "Health", key: "health", width: 12 },
     ];
 
     // Style header row
-    detailSheet.getRow(1).eachCell(cell => {
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A202C' } };
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    detailSheet.getRow(1).eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1A202C" },
+      };
+      cell.alignment = { vertical: "middle", horizontal: "center" };
     });
 
     let rowNum = 2;
     for (const budget of data.budgets ?? []) {
-      const health = budget.burnRate > 100 ? 'OVERRUN' : budget.burnRate > 85 ? 'AT RISK' : 'HEALTHY';
+      const health =
+        budget.burnRate > 100
+          ? "OVERRUN"
+          : budget.burnRate > 85
+            ? "AT RISK"
+            : "HEALTHY";
       // Budget parent row
       const budgetRow = detailSheet.addRow({
         name: budget.name,
@@ -344,53 +422,70 @@ export class ExcelUtility {
         burnRate: budget.burnRate,
         health,
       });
-      budgetRow.eachCell(cell => {
+      budgetRow.eachCell((cell) => {
         cell.font = { bold: true };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EDF5' } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE8EDF5" },
+        };
       });
-      const healthCell = budgetRow.getCell('health');
-      if (health === 'OVERRUN') healthCell.font = { bold: true, color: { argb: 'FFDC2626' } };
-      else if (health === 'AT RISK') healthCell.font = { bold: true, color: { argb: 'FFD97706' } };
-      else healthCell.font = { bold: true, color: { argb: 'FF059669' } };
+      const healthCell = budgetRow.getCell("health");
+      if (health === "OVERRUN")
+        healthCell.font = { bold: true, color: { argb: "FFDC2626" } };
+      else if (health === "AT RISK")
+        healthCell.font = { bold: true, color: { argb: "FFD97706" } };
+      else healthCell.font = { bold: true, color: { argb: "FF059669" } };
       rowNum++;
 
       // Category child rows
       for (const cat of budget.categories ?? []) {
-        const catHealth = cat.burnRate > 100 ? 'OVERRUN' : cat.burnRate > 85 ? 'AT RISK' : 'HEALTHY';
+        const catHealth =
+          cat.burnRate > 100
+            ? "OVERRUN"
+            : cat.burnRate > 85
+              ? "AT RISK"
+              : "HEALTHY";
         const catRow = detailSheet.addRow({
           name: `    ↳ ${cat.name}`,
-          type: '',
-          status: '',
+          type: "",
+          status: "",
           budgeted: cat.budgeted,
           actual: cat.actual,
           variance: cat.variance,
           burnRate: cat.burnRate,
           health: catHealth,
         });
-        catRow.getCell('health').font = {
-          color: { argb: catHealth === 'OVERRUN' ? 'FFDC2626' : catHealth === 'AT RISK' ? 'FFD97706' : 'FF059669' },
+        catRow.getCell("health").font = {
+          color: {
+            argb:
+              catHealth === "OVERRUN"
+                ? "FFDC2626"
+                : catHealth === "AT RISK"
+                  ? "FFD97706"
+                  : "FF059669",
+          },
           bold: true,
         };
-        catRow.getCell('name').font = { color: { argb: 'FF555555' } };
+        catRow.getCell("name").font = { color: { argb: "FF555555" } };
         // Number formatting
-        ['budgeted', 'actual', 'variance'].forEach(key => {
-          catRow.getCell(key).numFmt = '#,##0.00';
+        ["budgeted", "actual", "variance"].forEach((key) => {
+          catRow.getCell(key).numFmt = "#,##0.00";
         });
-        catRow.getCell('burnRate').numFmt = '0.00"%"';
+        catRow.getCell("burnRate").numFmt = '0.00"%"';
         rowNum++;
       }
     }
 
     // Apply number format to budget rows too
     for (let i = 2; i < rowNum; i++) {
-      ['budgeted', 'actual', 'variance'].forEach(key => {
+      ["budgeted", "actual", "variance"].forEach((key) => {
         const col = detailSheet.getColumn(key);
         const cell = detailSheet.getRow(i).getCell(col.number);
-        if (!cell.numFmt) cell.numFmt = '#,##0.00';
+        if (!cell.numFmt) cell.numFmt = "#,##0.00";
       });
     }
 
     return workbook.xlsx.writeBuffer();
   }
 }
-

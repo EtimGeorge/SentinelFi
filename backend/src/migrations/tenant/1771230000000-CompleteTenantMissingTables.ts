@@ -1,12 +1,11 @@
-
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class CompleteTenantMissingTables1771230000000 implements MigrationInterface {
-    name = 'CompleteTenantMissingTables1771230000000'
+  name = "CompleteTenantMissingTables1771230000000";
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        // --- 1. ENUMS ---
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    // --- 1. ENUMS ---
+    await queryRunner.query(`
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lpo_status_enum') THEN
                     CREATE TYPE "lpo_status_enum" AS ENUM('OPEN', 'PARTIALLY_PAID', 'CLOSED', 'CANCELLED');
@@ -14,10 +13,10 @@ export class CompleteTenantMissingTables1771230000000 implements MigrationInterf
             END $$;
         `);
 
-        // --- 2. MISSING TABLES ---
+    // --- 2. MISSING TABLES ---
 
-        // project_audit
-        await queryRunner.query(`
+    // project_audit
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "project_audit" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid NOT NULL, 
@@ -32,8 +31,8 @@ export class CompleteTenantMissingTables1771230000000 implements MigrationInterf
             )
         `);
 
-        // project_inflow
-        await queryRunner.query(`
+    // project_inflow
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "project_inflow" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid NOT NULL, 
@@ -50,8 +49,8 @@ export class CompleteTenantMissingTables1771230000000 implements MigrationInterf
             )
         `);
 
-        // lpo
-        await queryRunner.query(`
+    // lpo
+    await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "lpo" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid NOT NULL, 
@@ -72,8 +71,8 @@ export class CompleteTenantMissingTables1771230000000 implements MigrationInterf
             )
         `);
 
-        // --- 3. CONSTRAINTS (Missing Foreign Keys) ---
-        await queryRunner.query(`
+    // --- 3. CONSTRAINTS (Missing Foreign Keys) ---
+    await queryRunner.query(`
             DO $$ BEGIN
                 -- project_audit -> project
                 IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_audit_project') THEN
@@ -99,12 +98,12 @@ export class CompleteTenantMissingTables1771230000000 implements MigrationInterf
                 END IF;
             END $$;
         `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE IF EXISTS "lpo"`);
-        await queryRunner.query(`DROP TABLE IF EXISTS "project_inflow"`);
-        await queryRunner.query(`DROP TABLE IF EXISTS "project_audit"`);
-        await queryRunner.query(`DROP TYPE IF EXISTS "lpo_status_enum"`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS "lpo"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "project_inflow"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "project_audit"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "lpo_status_enum"`);
+  }
 }

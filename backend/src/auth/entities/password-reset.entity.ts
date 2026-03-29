@@ -4,16 +4,16 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   Index,
-} from 'typeorm';
+} from "typeorm";
 
 /**
  * Stores hashed password-reset tokens.
  * The plaintext token is emailed to the user; only the SHA-256 hash is persisted
  * so that a database leak cannot be used to reset accounts.
  */
-@Entity('password_reset_tokens')
+@Entity("password_reset_tokens")
 export class PasswordResetEntity {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id!: string;
 
   @Index()

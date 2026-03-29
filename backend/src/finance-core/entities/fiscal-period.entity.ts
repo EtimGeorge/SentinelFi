@@ -1,9 +1,18 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { FiscalYearEntity } from "./fiscal-year.entity";
 
 export enum FiscalPeriodType {
   MONTH = "MONTH",
-  QUARTER = "QUARTER"
+  QUARTER = "QUARTER",
 }
 
 @Entity("fiscal_period")
@@ -19,14 +28,20 @@ export class FiscalPeriodEntity {
   @Column({ type: "uuid" })
   fiscal_year_id!: string;
 
-  @ManyToOne(() => FiscalYearEntity, year => year.periods, { onDelete: "CASCADE" })
+  @ManyToOne(() => FiscalYearEntity, (year) => year.periods, {
+    onDelete: "CASCADE",
+  })
   @JoinColumn({ name: "fiscal_year_id" })
   fiscalYear!: FiscalYearEntity;
 
   @Column({ type: "varchar", length: 50 })
   period_name!: string; // e.g., "Jan", "Q1"
 
-  @Column({ type: "enum", enum: FiscalPeriodType, default: FiscalPeriodType.MONTH })
+  @Column({
+    type: "enum",
+    enum: FiscalPeriodType,
+    default: FiscalPeriodType.MONTH,
+  })
   period_type!: FiscalPeriodType;
 
   @Column({ type: "date" })

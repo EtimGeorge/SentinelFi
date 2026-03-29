@@ -47,7 +47,7 @@ export class OperationalBudgetCategoryEntity {
 
   @OneToMany(
     () => OperationalBudgetPeriodAllocationEntity,
-    (allocation) => allocation.category
+    (allocation) => allocation.category,
   )
   allocations!: OperationalBudgetPeriodAllocationEntity[];
 

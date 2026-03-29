@@ -4,9 +4,9 @@ import {
   ExecutionContext,
   CallHandler,
   Logger,
-} from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+} from "@nestjs/common";
+import { Observable } from "rxjs";
+import { map } from "rxjs/operators";
 
 /**
  * Global interceptor that masks sensitive keys in logs.
@@ -17,16 +17,16 @@ import { map } from 'rxjs/operators';
 export class LogSanitizationInterceptor implements NestInterceptor {
   private readonly logger = new Logger(LogSanitizationInterceptor.name);
   private readonly SENSITIVE_KEYS = [
-    'password',
-    'password_hash',
-    'accessToken',
-    'refreshToken',
-    'authorization',
-    'cookie',
-    'key',
-    'secret',
-    'ssn',
-    'bank_account',
+    "password",
+    "password_hash",
+    "accessToken",
+    "refreshToken",
+    "authorization",
+    "cookie",
+    "key",
+    "secret",
+    "ssn",
+    "bank_account",
   ];
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -35,20 +35,24 @@ export class LogSanitizationInterceptor implements NestInterceptor {
 
     // Log the incoming request (sanitized)
     const sanitizedBody = this.sanitize(body);
-    this.logger.debug(`[REQUEST] ${method} ${url} - Body: ${JSON.stringify(sanitizedBody)}`);
+    this.logger.debug(
+      `[REQUEST] ${method} ${url} - Body: ${JSON.stringify(sanitizedBody)}`,
+    );
 
     return next.handle().pipe(
       map((data) => {
         // Log the outgoing response (sanitized)
         const sanitizedData = this.sanitize(data);
-        this.logger.debug(`[RESPONSE] ${method} ${url} - Data: ${JSON.stringify(sanitizedData)}`);
+        this.logger.debug(
+          `[RESPONSE] ${method} ${url} - Data: ${JSON.stringify(sanitizedData)}`,
+        );
         return data; // Return original data to client, only log the sanitized version
       }),
     );
   }
 
   private sanitize(obj: any): any {
-    if (!obj || typeof obj !== 'object') return obj;
+    if (!obj || typeof obj !== "object") return obj;
 
     if (Array.isArray(obj)) {
       return obj.map((item) => this.sanitize(item));
@@ -57,8 +61,8 @@ export class LogSanitizationInterceptor implements NestInterceptor {
     const sanitized: any = {};
     for (const key in obj) {
       if (this.SENSITIVE_KEYS.some((sk) => key.toLowerCase().includes(sk))) {
-        sanitized[key] = '[MASKED]';
-      } else if (typeof obj[key] === 'object') {
+        sanitized[key] = "[MASKED]";
+      } else if (typeof obj[key] === "object") {
         sanitized[key] = this.sanitize(obj[key]);
       } else {
         sanitized[key] = obj[key];

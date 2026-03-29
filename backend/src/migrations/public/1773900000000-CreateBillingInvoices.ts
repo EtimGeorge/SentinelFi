@@ -1,10 +1,10 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class CreateBillingInvoices1773900000000 implements MigrationInterface {
-    name = 'CreateBillingInvoices1773900000000'
+  name = "CreateBillingInvoices1773900000000";
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             CREATE TABLE "billing_invoices" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
                 "tenant_id" uuid NOT NULL,
@@ -21,16 +21,18 @@ export class CreateBillingInvoices1773900000000 implements MigrationInterface {
                 CONSTRAINT "PK_billing_invoices" PRIMARY KEY ("id")
             )
         `);
-        await queryRunner.query(`
+    await queryRunner.query(`
             ALTER TABLE "billing_invoices" 
             ADD CONSTRAINT "FK_billing_invoices_subscription" 
             FOREIGN KEY ("subscription_id") 
             REFERENCES "subscriptions"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "billing_invoices" DROP CONSTRAINT "FK_billing_invoices_subscription"`);
-        await queryRunner.query(`DROP TABLE "billing_invoices"`);
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "billing_invoices" DROP CONSTRAINT "FK_billing_invoices_subscription"`,
+    );
+    await queryRunner.query(`DROP TABLE "billing_invoices"`);
+  }
 }

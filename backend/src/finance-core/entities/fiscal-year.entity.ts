@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, OneToMany } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  OneToMany,
+} from "typeorm";
 import { FiscalPeriodEntity } from "./fiscal-period.entity";
 
 @Entity("fiscal_year")
@@ -23,7 +31,7 @@ export class FiscalYearEntity {
   @Column({ type: "boolean", default: false })
   is_closed!: boolean;
 
-  @OneToMany(() => FiscalPeriodEntity, period => period.fiscalYear)
+  @OneToMany(() => FiscalPeriodEntity, (period) => period.fiscalYear)
   periods!: FiscalPeriodEntity[];
 
   @CreateDateColumn({ type: "timestamptz" })

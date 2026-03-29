@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsOptional, MinLength } from 'class-validator';
+import { IsEmail, IsString, IsOptional, MinLength } from "class-validator";
 
 export class UpdateSuperAdminProfileDto {
   @IsEmail()

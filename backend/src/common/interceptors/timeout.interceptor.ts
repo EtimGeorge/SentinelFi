@@ -5,9 +5,9 @@ import {
   CallHandler,
   RequestTimeoutException,
   Logger,
-} from '@nestjs/common';
-import { Observable, throwError, TimeoutError } from 'rxjs';
-import { catchError, timeout } from 'rxjs/operators';
+} from "@nestjs/common";
+import { Observable, throwError, TimeoutError } from "rxjs";
+import { catchError, timeout } from "rxjs/operators";
 
 @Injectable()
 export class TimeoutInterceptor implements NestInterceptor {
@@ -25,7 +25,9 @@ export class TimeoutInterceptor implements NestInterceptor {
           this.logger.error(
             `Request timeout after ${requestTimeout}ms for ${request.method} ${request.url}`,
           );
-          return throwError(() => new RequestTimeoutException('Request has timed out'));
+          return throwError(
+            () => new RequestTimeoutException("Request has timed out"),
+          );
         }
         return throwError(() => err);
       }),
@@ -37,13 +39,13 @@ export class TimeoutInterceptor implements NestInterceptor {
    * This allows for longer timeouts for operations like file uploads.
    */
   private getRequestTimeout(request: any): number {
-    if (request.headers['content-type']?.includes('multipart/form-data')) {
+    if (request.headers["content-type"]?.includes("multipart/form-data")) {
       return 60000; // 60 seconds for file uploads
     }
-    if (request.url?.includes('/auth/login')) {
+    if (request.url?.includes("/auth/login")) {
       return 60000; // 60 seconds for login (handling cold DB + bcrypt)
     }
-    if (request.method === 'GET') {
+    if (request.method === "GET") {
       return 20000; // Increased from 8s to 20s for Neon cold starts
     }
     return this.defaultTimeout;

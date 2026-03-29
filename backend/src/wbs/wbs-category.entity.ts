@@ -6,9 +6,9 @@ import {
   Unique,
   ManyToOne,
   JoinColumn,
-} from 'typeorm';
-import { WbsBudgetEntity } from './wbs-budget.entity';
-import { LiveExpenseEntity } from './live-expense.entity';
+} from "typeorm";
+import { WbsBudgetEntity } from "./wbs-budget.entity";
+import { LiveExpenseEntity } from "./live-expense.entity";
 
 /**
  * WBS Category — a tenant-scoped cost-type label.
@@ -17,38 +17,40 @@ import { LiveExpenseEntity } from './live-expense.entity';
  * Categories are reusable across all projects within a tenant.
  * Default categories are seeded on tenant creation.
  */
-@Entity('wbs_category')
-@Unique(['name', 'tenant_id'])
+@Entity("wbs_category")
+@Unique(["name", "tenant_id"])
 export class WbsCategoryEntity {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id!: string;
 
-  @Column({ type: 'varchar', length: 20, nullable: true })
+  @Column({ type: "varchar", length: 20, nullable: true })
   code!: string | null;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: "varchar", length: 255 })
   name!: string;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ type: "text", nullable: true })
   description!: string | null;
 
-  @Column({ type: 'varchar', length: 7, nullable: true })
+  @Column({ type: "varchar", length: 7, nullable: true })
   color!: string | null;
 
-  @Column({ type: 'int', default: 0 })
+  @Column({ type: "int", default: 0 })
   sort_order!: number;
 
-  @Column({ type: 'uuid', nullable: false })
+  @Column({ type: "uuid", nullable: false })
   tenant_id!: string;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: "boolean", default: true })
   is_active!: boolean;
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: "uuid", nullable: true })
   parent_id!: string | null;
 
-  @ManyToOne(() => WbsCategoryEntity, (category) => category.children, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'parent_id' })
+  @ManyToOne(() => WbsCategoryEntity, (category) => category.children, {
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "parent_id" })
   parent!: WbsCategoryEntity | null;
 
   @OneToMany(() => WbsCategoryEntity, (category) => category.parent)
@@ -60,6 +62,6 @@ export class WbsCategoryEntity {
   @OneToMany(() => LiveExpenseEntity, (liveExpense) => liveExpense.category)
   liveExpenses!: LiveExpenseEntity[];
 
-  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: "timestamptz", default: () => "CURRENT_TIMESTAMP" })
   created_at!: Date;
 }

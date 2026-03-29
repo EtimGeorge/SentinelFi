@@ -13,6 +13,7 @@ Welcome to the central technical hub for the SentinelFi Financial Intelligence p
 *   **[ARCH-001: Security & Identity](file:///c:/temp/SentinelFi/docs/ARCH-001-SECURITY.md)**: JWT Strategy, RBAC, Token Blacklisting, and PII Sanitization.
 *   **[ARCH-002: Multi-Tenancy & Database](file:///c:/temp/SentinelFi/docs/ARCH-002-TENANCY.md)**: Schema-per-tenant isolation, Dynamic DataSources, and Migration Orchestration.
 *   **[ARCH-003: Enterprise Resilience](file:///c:/temp/SentinelFi/docs/ARCH-003-RESILIENCE.md)**: Circuit Breakers, Global Error Handling, Soft-Deletes, and Recovery.
+*   **[ARCH-004: Predictive Financial Intelligence](file:///c:/temp/SentinelFi/docs/ARCH-004-FINANCIAL-INTELLIGENCE.md)**: Forensics Engine, Reporting System, and Performance Architecture.
 
 ## 💼 3. Strategic & Business Operations
 *   **[INVESTOR_PITCH_GUIDE.md](file:///c:/temp/SentinelFi/docs/INVESTOR_PITCH_GUIDE.md)**: High-level vision and USPs for investors and marketers.

@@ -122,41 +122,19 @@ export class InitialTenantSchemaSetup1768016698926 implements MigrationInterface
       `ALTER TABLE "live_expense" DROP CONSTRAINT "FK_042e8c47b849de4fe13e5f3a34f"`,
     );
 
-    await queryRunner.query(
-      `DROP INDEX "IDX_1a1f945f2e8583777beda1f59a"`,
-    );
-    await queryRunner.query(
-      `DROP TABLE "operational_budget"`,
-    );
-    await queryRunner.query(
-      `DROP TYPE "operational_budget_status_enum"`,
-    );
-    await queryRunner.query(
-      `DROP TYPE "operational_budget_type_enum"`,
-    );
-    await queryRunner.query(
-      `DROP INDEX "IDX_02d85ba5b35930e2e448d77eb3"`,
-    );
-    await queryRunner.query(
-      `DROP TABLE "operational_budget_category"`,
-    );
-    await queryRunner.query(
-      `DROP INDEX "IDX_0ec3e4d84a24a5d1902cde3173"`,
-    );
-    await queryRunner.query(
-      `DROP TABLE "operational_expense"`,
-    );
-    await queryRunner.query(
-      `DROP TYPE "operational_expense_status_enum"`,
-    );
+    await queryRunner.query(`DROP INDEX "IDX_1a1f945f2e8583777beda1f59a"`);
+    await queryRunner.query(`DROP TABLE "operational_budget"`);
+    await queryRunner.query(`DROP TYPE "operational_budget_status_enum"`);
+    await queryRunner.query(`DROP TYPE "operational_budget_type_enum"`);
+    await queryRunner.query(`DROP INDEX "IDX_02d85ba5b35930e2e448d77eb3"`);
+    await queryRunner.query(`DROP TABLE "operational_budget_category"`);
+    await queryRunner.query(`DROP INDEX "IDX_0ec3e4d84a24a5d1902cde3173"`);
+    await queryRunner.query(`DROP TABLE "operational_expense"`);
+    await queryRunner.query(`DROP TYPE "operational_expense_status_enum"`);
     await queryRunner.query(`DROP TABLE "project"`);
-    await queryRunner.query(
-      `DROP TYPE "project_status_enum"`,
-    );
+    await queryRunner.query(`DROP TYPE "project_status_enum"`);
     await queryRunner.query(`DROP TABLE "wbs_budget"`);
-    await queryRunner.query(
-      `DROP TYPE "wbs_budget_status_enum"`,
-    );
+    await queryRunner.query(`DROP TYPE "wbs_budget_status_enum"`);
     await queryRunner.query(`DROP TABLE "wbs_category"`);
     await queryRunner.query(`DROP TABLE "live_expense"`);
   }

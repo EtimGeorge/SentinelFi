@@ -1,6 +1,6 @@
 export enum PaymentProvider {
-  PAYSTACK = 'paystack',
-  PAYPAL = 'paypal',
+  PAYSTACK = "paystack",
+  PAYPAL = "paypal",
 }
 
 export interface TransactionRequest {
@@ -14,11 +14,13 @@ export interface TransactionRequest {
 export interface TransactionResponse {
   reference: string;
   authorizationUrl?: string;
-  status: 'pending' | 'success' | 'failed';
+  status: "pending" | "success" | "failed";
 }
 
 export interface PaymentStrategy {
-  initializeTransaction(request: TransactionRequest): Promise<TransactionResponse>;
+  initializeTransaction(
+    request: TransactionRequest,
+  ): Promise<TransactionResponse>;
   verifyTransaction(reference: string): Promise<boolean>;
   getProviderName(): PaymentProvider;
 }

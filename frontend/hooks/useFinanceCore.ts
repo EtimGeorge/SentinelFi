@@ -337,6 +337,31 @@ export const useFinanceCore = () => {
         }
     }, []);
 
+    const fetchReportBlob = useCallback(async (endpoint: string) => {
+        setLoading(true);
+        try {
+            const response = await apiClient.getAxiosInstance().get(endpoint, {
+                responseType: 'blob'
+            });
+            return new Blob([response.data], { type: 'application/pdf' });
+        } catch (error) {
+            toast.error('Error generating report');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const downloadBlob = (blob: Blob, filename: string) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    };
+
     return {
         loading,
         fetchFiscalYears,
@@ -363,6 +388,8 @@ export const useFinanceCore = () => {
         fetchOpexDashboard,
         downloadPurchaseOrderPdf,
         downloadInvoicePdf,
+        fetchReportBlob,
+        downloadBlob,
     };
 };
 

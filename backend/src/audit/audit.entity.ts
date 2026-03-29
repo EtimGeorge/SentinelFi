@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { UserEntity } from "../auth/user.entity";
 
 @Entity({ name: "audit_log", schema: "public" }) // Audit log lives in the public schema

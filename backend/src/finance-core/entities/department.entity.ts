@@ -1,4 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn, OneToMany } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+} from "typeorm";
 import { UserEntity } from "../../auth/user.entity";
 import { CostCenterEntity } from "./cost-center.entity";
 
@@ -32,7 +42,7 @@ export class DepartmentEntity {
   @JoinColumn({ name: "parent_department_id" })
   parentDepartment!: DepartmentEntity;
 
-  @OneToMany(() => CostCenterEntity, cc => cc.department)
+  @OneToMany(() => CostCenterEntity, (cc) => cc.department)
   costCenters!: CostCenterEntity[];
 
   @CreateDateColumn({ type: "timestamptz" })

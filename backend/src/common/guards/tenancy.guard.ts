@@ -14,9 +14,12 @@ import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 @Injectable()
 export class TenancyGuard implements CanActivate {
   private readonly logger = new Logger(TenancyGuard.name);
-  
+
   // Simple in-memory cache for schema names to reduce DB hits
-  private static readonly SCHEMA_CACHE = new Map<string, { schema: string, expires: number }>();
+  private static readonly SCHEMA_CACHE = new Map<
+    string,
+    { schema: string; expires: number }
+  >();
   private static readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(
@@ -46,7 +49,7 @@ export class TenancyGuard implements CanActivate {
       // This should theoretically be handled by JwtAuthGuard, but we add a safety check.
       this.logger.warn("No user found on non-public request in TenancyGuard.");
       this.cls.set("SCHEMA_NAME", "public");
-      return true; 
+      return true;
     }
 
     const tenantId = user.tenant_id;
@@ -69,19 +72,21 @@ export class TenancyGuard implements CanActivate {
       if (cached && cached.expires > now) {
         schemaName = cached.schema;
       } else {
-        const tenant = await this.dataSource.getRepository(TenantEntity).findOne({
-          where: { tenant_id: tenantId },
-          select: ["schema_name"],
-        });
+        const tenant = await this.dataSource
+          .getRepository(TenantEntity)
+          .findOne({
+            where: { tenant_id: tenantId },
+            select: ["schema_name"],
+          });
 
         if (!tenant) {
           throw new NotFoundException(`Tenant with ID ${tenantId} not found.`);
         }
-        
+
         schemaName = tenant.schema_name;
         TenancyGuard.SCHEMA_CACHE.set(tenantId, {
           schema: schemaName,
-          expires: now + TenancyGuard.CACHE_TTL
+          expires: now + TenancyGuard.CACHE_TTL,
         });
       }
 
@@ -95,15 +100,17 @@ export class TenancyGuard implements CanActivate {
           `[TenancyGuard] Context set for User ${user.id}. Tenant: ${tenantId}, Schema: ${schemaName}`,
         );
       }
-      
+
       return true;
     } catch (error: unknown) {
-       const message = error instanceof Error ? error.message : String(error);
-       this.logger.error(`[TenancyGuard] ❌ Failed to resolve tenant schema for User ${user.id} (Tenant: ${tenantId}): ${message}`);
-       if (error instanceof Error && error.stack) {
-         this.logger.error(error.stack);
-       }
-       throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[TenancyGuard] ❌ Failed to resolve tenant schema for User ${user.id} (Tenant: ${tenantId}): ${message}`,
+      );
+      if (error instanceof Error && error.stack) {
+        this.logger.error(error.stack);
+      }
+      throw error;
     }
   }
 }

@@ -1,4 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, OneToMany, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  OneToMany,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { ConversationMemberEntity } from "./conversation-member.entity";
 import { MessageEntity } from "./message.entity";
 
@@ -19,10 +29,12 @@ export class ConversationEntity {
   @Column({ type: "varchar", length: 255, nullable: true })
   name?: string;
 
-  @OneToMany(() => ConversationMemberEntity, member => member.conversation, { cascade: ["insert", "update"] })
+  @OneToMany(() => ConversationMemberEntity, (member) => member.conversation, {
+    cascade: ["insert", "update"],
+  })
   members!: ConversationMemberEntity[];
 
-  @OneToMany(() => MessageEntity, message => message.conversation)
+  @OneToMany(() => MessageEntity, (message) => message.conversation)
   messages!: MessageEntity[];
 
   // Used to quickly order the inbox list for users

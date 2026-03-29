@@ -1,25 +1,32 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { ConfigService } from '@nestjs/config';
-import { ClsService } from 'nestjs-cls';
-import { firstValueFrom } from 'rxjs';
-import { timeout, catchError } from 'rxjs/operators';
-import { of } from 'rxjs';
-import { FinancialContextService, FinancialContextSnapshot } from './financial-context.service';
-import { GuardrailsService } from './guardrails.service';
-import { DataSource, Repository } from 'typeorm';
-import { Inject } from '@nestjs/common';
-import { TENANT_DATA_SOURCE } from '../database/constants';
-import { InjectRepository } from '@nestjs/typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
-import { AiAuditLogEntity, AiInteractionType } from './ai-audit-log.entity';
-import { ReportScheduleEntity, ReportFrequency, ReportStatus } from './report-schedule.entity';
+import { Injectable, Logger, HttpException, HttpStatus } from "@nestjs/common";
+import { HttpService } from "@nestjs/axios";
+import { ConfigService } from "@nestjs/config";
+import { ClsService } from "nestjs-cls";
+import { firstValueFrom } from "rxjs";
+import { timeout, catchError } from "rxjs/operators";
+import { of } from "rxjs";
+import {
+  FinancialContextService,
+  FinancialContextSnapshot,
+} from "./financial-context.service";
+import { GuardrailsService } from "./guardrails.service";
+import { DataSource, Repository } from "typeorm";
+import { Inject } from "@nestjs/common";
+import { TENANT_DATA_SOURCE } from "../database/constants";
+import { InjectRepository } from "@nestjs/typeorm";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
+import { AiAuditLogEntity, AiInteractionType } from "./ai-audit-log.entity";
+import {
+  ReportScheduleEntity,
+  ReportFrequency,
+  ReportStatus,
+} from "./report-schedule.entity";
 
 export interface AiChatOptions {
   message: string;
   sessionId: string;
-  history?: { role: 'user' | 'assistant'; content: string }[];
+  history?: { role: "user" | "assistant"; content: string }[];
   projectId?: string;
   currentPage?: string;
   userRole?: string;
@@ -29,7 +36,7 @@ export interface AiChatOptions {
 }
 
 export interface AiAnalysisOptions {
-  scope: 'capex' | 'opex' | 'full';
+  scope: "capex" | "opex" | "full";
   projectId?: string;
   userRole?: string;
   tenantName?: string;
@@ -48,7 +55,7 @@ export class AiAssistantService {
   private readonly logger = new Logger(AiAssistantService.name);
   private readonly AI_AGENT_BASE_URL: string;
   private readonly REQUEST_TIMEOUT_MS = 60000;
-  
+
   // Enterprise Resilience: Simple Circuit Breaker state
   private circuitBreakerFailures = 0;
   private readonly CIRCUIT_BREAKER_THRESHOLD = 3;
@@ -63,12 +70,15 @@ export class AiAssistantService {
     private readonly cls: ClsService,
     @Inject(TENANT_DATA_SOURCE)
     private readonly dataSource: DataSource,
-    @Inject(CACHE_MANAGER) 
+    @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
     @InjectRepository(AiAuditLogEntity)
     private readonly auditLogRepo: Repository<AiAuditLogEntity>,
   ) {
-    this.AI_AGENT_BASE_URL = this.configService.get<string>('AI_AGENT_URL', 'http://localhost:8000');
+    this.AI_AGENT_BASE_URL = this.configService.get<string>(
+      "AI_AGENT_URL",
+      "http://localhost:8000",
+    );
   }
 
   /**
@@ -90,7 +100,9 @@ export class AiAssistantService {
     });
 
     if (!scanResult.safe) {
-      this.logger.warn(`AI chat blocked [${scanResult.type}] for user ${options.userId ?? 'unknown'}`);
+      this.logger.warn(
+        `AI chat blocked [${scanResult.type}] for user ${options.userId ?? "unknown"}`,
+      );
       return {
         response: scanResult.reason!,
         suggestions: [],
@@ -110,7 +122,9 @@ export class AiAssistantService {
         tenantId: options.tenantId,
       });
     } catch (e) {
-      this.logger.error('Failed to build financial context, proceeding without it');
+      this.logger.error(
+        "Failed to build financial context, proceeding without it",
+      );
       financialContext = null!;
     }
 
@@ -155,7 +169,7 @@ export class AiAssistantService {
       });
 
       return {
-        response: data.response ?? 'No response generated.',
+        response: data.response ?? "No response generated.",
         suggestions: data.suggestions ?? [],
         actionHints: data.action_hints ?? [],
         blocked: data.blocked ?? false,
@@ -165,7 +179,8 @@ export class AiAssistantService {
     } catch (error: any) {
       this.logger.error(`AI chat request failed: ${error.message}`);
       const fallback = {
-        response: 'I am temporarily unavailable. Please try again in a moment, or contact your SuperAdmin if the issue persists.',
+        response:
+          "I am temporarily unavailable. Please try again in a moment, or contact your SuperAdmin if the issue persists.",
         suggestions: [],
         actionHints: [],
         blocked: false,
@@ -201,7 +216,9 @@ export class AiAssistantService {
         tenant_id: params.tenantId,
         user_id: params.userId,
         interaction_type: params.type,
-        user_message_sanitized: this.guardrailsService.scan(params.message).safe ? params.message : '[MASKED BY GUARDRAIL]',
+        user_message_sanitized: this.guardrailsService.scan(params.message).safe
+          ? params.message
+          : "[MASKED BY GUARDRAIL]",
         ai_response_sanitized: params.response,
         was_blocked: params.blocked,
         block_reason: params.blockReason,
@@ -222,12 +239,15 @@ export class AiAssistantService {
     scope: string;
     generatedAt: string;
   }> {
-    const cacheKey = `ai:analysis:${options.tenantId}:${options.scope}:${options.projectId || 'all'}`;
+    const cacheKey = `ai:analysis:${options.tenantId}:${options.scope}:${options.projectId || "all"}`;
     const cached = await this.cacheManager.get<any>(cacheKey);
     if (cached) return cached;
 
     if (this.isCircuitOpen()) {
-      throw new HttpException('AI analysis temporarily unavailable (Circuit Open).', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        "AI analysis temporarily unavailable (Circuit Open).",
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
 
     let financialContext: FinancialContextSnapshot;
@@ -238,10 +258,15 @@ export class AiAssistantService {
         tenantId: options.tenantId,
       });
     } catch (e) {
-      throw new HttpException('Could not load financial data for analysis.', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        "Could not load financial data for analysis.",
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
 
-    const safeContext = this.guardrailsService.sanitizeContext(financialContext as any);
+    const safeContext = this.guardrailsService.sanitizeContext(
+      financialContext as any,
+    );
 
     try {
       const startTime = Date.now();
@@ -255,7 +280,7 @@ export class AiAssistantService {
           .pipe(timeout(this.REQUEST_TIMEOUT_MS)),
       );
       const latency = Date.now() - startTime;
-      
+
       const result = {
         narrative: response.data.narrative,
         sections: response.data.sections,
@@ -277,14 +302,20 @@ export class AiAssistantService {
     } catch (error: any) {
       this.handleFailure();
       this.logger.error(`Dashboard analysis failed: ${error.message}`);
-      throw new HttpException('AI analysis temporarily unavailable.', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        "AI analysis temporarily unavailable.",
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
   }
 
   private isCircuitOpen(): boolean {
     if (this.circuitBreakerFailures >= this.CIRCUIT_BREAKER_THRESHOLD) {
       const now = Date.now();
-      if (now - this.circuitBreakerLastFailureTime > this.CIRCUIT_BREAKER_RESET_TIMEOUT) {
+      if (
+        now - this.circuitBreakerLastFailureTime >
+        this.CIRCUIT_BREAKER_RESET_TIMEOUT
+      ) {
         this.resetCircuit(); // Half-open attempt
         return false;
       }
@@ -314,16 +345,27 @@ export class AiAssistantService {
   /**
    * Returns AI-powered budget forecast using the tenant's burn rate history.
    */
-  async forecast(projectId: string | undefined, tenantName: string | undefined, tenantId: string): Promise<any> {
-    const cacheKey = `ai:forecast:${tenantId}:${projectId || 'portfolio'}`;
+  async forecast(
+    projectId: string | undefined,
+    tenantName: string | undefined,
+    tenantId: string,
+  ): Promise<any> {
+    const cacheKey = `ai:forecast:${tenantId}:${projectId || "portfolio"}`;
     const cached = await this.cacheManager.get<any>(cacheKey);
     if (cached) return cached;
 
     if (this.isCircuitOpen()) {
-      throw new HttpException('Forecasting service temporarily unavailable (Circuit Open).', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        "Forecasting service temporarily unavailable (Circuit Open).",
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
 
-    const snapshot = await this.financialContextService.buildSnapshot({ projectId, tenantName, tenantId });
+    const snapshot = await this.financialContextService.buildSnapshot({
+      projectId,
+      tenantName,
+      tenantId,
+    });
     const target = projectId ? snapshot.currentProject : null;
 
     try {
@@ -334,8 +376,8 @@ export class AiAssistantService {
             total_budgeted: target?.budgeted ?? snapshot.totalBudgeted,
             total_actual: target?.actual ?? snapshot.totalActualPaid,
             burn_history_30_days: snapshot.burnHistory30Days,
-            project_name: target?.name ?? tenantName ?? 'Portfolio',
-            currency: target?.currency ?? 'NGN',
+            project_name: target?.name ?? tenantName ?? "Portfolio",
+            currency: target?.currency ?? "NGN",
           })
           .pipe(timeout(this.REQUEST_TIMEOUT_MS)),
       );
@@ -356,7 +398,7 @@ export class AiAssistantService {
     } catch (error: any) {
       this.handleFailure();
       this.logger.error(`Forecast failed: ${error.message}`);
-      
+
       this.logInteraction({
         tenantId,
         type: AiInteractionType.FORECAST,
@@ -364,7 +406,10 @@ export class AiAssistantService {
         circuitTripped: true,
       });
 
-      throw new HttpException('Forecasting service temporarily unavailable.', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        "Forecasting service temporarily unavailable.",
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
   }
 
@@ -372,7 +417,7 @@ export class AiAssistantService {
    * Generates an AI narrative for a report, branded with tenant and project info.
    */
   async generateReportNarrative(params: {
-    reportType: 'variance' | 'capex' | 'opex' | 'executive';
+    reportType: "variance" | "capex" | "opex" | "executive";
     tenantName: string;
     tenantId: string;
     projectName?: string;
@@ -380,16 +425,25 @@ export class AiAssistantService {
     currency?: string;
     financialData?: Record<string, any>;
   }): Promise<{ narrative: string; generatedAt: string }> {
-    const cacheKey = `ai:report:${params.tenantId}:${params.reportType}:${params.projectName || 'all'}`;
+    const cacheKey = `ai:report:${params.tenantId}:${params.reportType}:${params.projectName || "all"}`;
     const cached = await this.cacheManager.get<any>(cacheKey);
     if (cached) return cached;
 
     if (this.isCircuitOpen()) {
-      throw new HttpException('Report generation temporarily unavailable (Circuit Open).', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        "Report generation temporarily unavailable (Circuit Open).",
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
 
-    const snapshot = await this.financialContextService.buildSnapshot({ tenantName: params.tenantName, tenantId: params.tenantId });
-    const baseData = this.guardrailsService.sanitizeContext({ ...snapshot, ...params.financialData });
+    const snapshot = await this.financialContextService.buildSnapshot({
+      tenantName: params.tenantName,
+      tenantId: params.tenantId,
+    });
+    const baseData = this.guardrailsService.sanitizeContext({
+      ...snapshot,
+      ...params.financialData,
+    });
 
     try {
       const startTime = Date.now();
@@ -398,16 +452,19 @@ export class AiAssistantService {
           .post(`${this.AI_AGENT_BASE_URL}/api/v1/ai/generate-report`, {
             report_title: `${params.tenantName} - ${params.reportType.toUpperCase()} Report`,
             data_context: baseData,
-            tone: 'professional',
+            tone: "professional",
             focus_areas: [params.reportType],
-            currency: params.currency ?? 'NGN',
+            currency: params.currency ?? "NGN",
             session_id: `report-${params.tenantId}-${Date.now()}`,
           })
           .pipe(timeout(this.REQUEST_TIMEOUT_MS)),
       );
       const latency = Date.now() - startTime;
-      const result = { narrative: response.data.content, generatedAt: new Date().toISOString() };
-      
+      const result = {
+        narrative: response.data.content,
+        generatedAt: new Date().toISOString(),
+      };
+
       this.logInteraction({
         tenantId: params.tenantId,
         type: AiInteractionType.REPORT,
@@ -422,7 +479,7 @@ export class AiAssistantService {
     } catch (error: any) {
       this.handleFailure();
       this.logger.error(`Report generation failed: ${error.message}`);
-      
+
       this.logInteraction({
         tenantId: params.tenantId,
         type: AiInteractionType.REPORT,
@@ -430,18 +487,25 @@ export class AiAssistantService {
         circuitTripped: true,
       });
 
-      throw new HttpException('Report narrative generation failed.', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        "Report narrative generation failed.",
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
   }
 
   /**
    * Processes a document and extracts financial form data (Requisition, Invoice, etc).
    */
-  async fillForm(file: Express.Multer.File, targetForm: string, projectName: string): Promise<any> {
-    const formData = new (require('form-data'))();
-    formData.append('file', file.buffer, { filename: file.originalname });
-    formData.append('target_form', targetForm);
-    formData.append('project_name', projectName);
+  async fillForm(
+    file: Express.Multer.File,
+    targetForm: string,
+    projectName: string,
+  ): Promise<any> {
+    const formData = new (require("form-data"))();
+    formData.append("file", file.buffer, { filename: file.originalname });
+    formData.append("target_form", targetForm);
+    formData.append("project_name", projectName);
 
     try {
       const response = await firstValueFrom(
@@ -454,15 +518,24 @@ export class AiAssistantService {
       return response.data;
     } catch (error: any) {
       this.logger.error(`Form extraction failed: ${error.message}`);
-      throw new HttpException('AI form extraction failed. Please try again.', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        "AI form extraction failed. Please try again.",
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
   }
 
   /**
    * Explains any SentinelFi section in plain language for the given user role.
    */
-  async explainSection(sectionKey: string, userRole?: string, additionalContext?: string): Promise<string> {
-    const scanResult = this.guardrailsService.scan(sectionKey + (additionalContext ?? ''));
+  async explainSection(
+    sectionKey: string,
+    userRole?: string,
+    additionalContext?: string,
+  ): Promise<string> {
+    const scanResult = this.guardrailsService.scan(
+      sectionKey + (additionalContext ?? ""),
+    );
     if (!scanResult.safe) return scanResult.reason!;
 
     try {
@@ -475,9 +548,9 @@ export class AiAssistantService {
           })
           .pipe(timeout(15000)),
       );
-      return response.data.explanation ?? 'Explanation unavailable.';
+      return response.data.explanation ?? "Explanation unavailable.";
     } catch (error: any) {
-      return 'This feature explanation is temporarily unavailable. Please refer to the user guide or contact your administrator.';
+      return "This feature explanation is temporarily unavailable. Please refer to the user guide or contact your administrator.";
     }
   }
 
@@ -494,10 +567,10 @@ export class AiAssistantService {
           })
           .pipe(timeout(this.REQUEST_TIMEOUT_MS)),
       );
-      return response.data.explanation ?? 'Variance explanation unavailable.';
+      return response.data.explanation ?? "Variance explanation unavailable.";
     } catch (error: any) {
       this.logger.error(`Variance explanation failed: ${error.message}`);
-      return 'The AI engine is currently unable to provide a deep variance explanation due to availability constraints.';
+      return "The AI engine is currently unable to provide a deep variance explanation due to availability constraints.";
     }
   }
 
@@ -531,36 +604,41 @@ export class AiAssistantService {
   async getReportSchedules(tenantId: string): Promise<ReportScheduleEntity[]> {
     return this.dataSource.getRepository(ReportScheduleEntity).find({
       where: { tenant_id: tenantId },
-      order: { created_at: 'DESC' },
+      order: { created_at: "DESC" },
     });
   }
 
   async deleteReportSchedule(id: string, tenantId: string): Promise<void> {
-    await this.dataSource.getRepository(ReportScheduleEntity).delete({ id, tenant_id: tenantId });
+    await this.dataSource
+      .getRepository(ReportScheduleEntity)
+      .delete({ id, tenant_id: tenantId });
   }
 
   private calculateNextRun(frequency: ReportFrequency): Date {
     const now = new Date();
     switch (frequency) {
-      case ReportFrequency.DAILY: return new Date(now.getTime() + 24 * 60 * 60 * 1000);
-      case ReportFrequency.WEEKLY: return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      case ReportFrequency.DAILY:
+        return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      case ReportFrequency.WEEKLY:
+        return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       case ReportFrequency.MONTHLY:
         const next = new Date(now);
         next.setMonth(now.getMonth() + 1);
         return next;
-      default: return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      default:
+        return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     }
   }
 
   private getFallbackResponse(message: string): any {
     return {
       response:
-        'I am having difficulty connecting to my AI service right now. ' +
-        'For immediate assistance, please review your dashboard data directly or contact your financial team.',
+        "I am having difficulty connecting to my AI service right now. " +
+        "For immediate assistance, please review your dashboard data directly or contact your financial team.",
       suggestions: [
-        'View Financial Intelligence Dashboard',
-        'Check Budget Reports',
-        'Contact SuperAdmin if issue persists',
+        "View Financial Intelligence Dashboard",
+        "Check Budget Reports",
+        "Contact SuperAdmin if issue persists",
       ],
       action_hints: [],
       blocked: false,

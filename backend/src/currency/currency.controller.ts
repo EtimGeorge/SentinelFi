@@ -1,10 +1,23 @@
-import { Controller, Get, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
-import { CurrencyService } from './currency.service';
-import { ConvertCurrencyDto, ConvertCurrencyResponseDto, GetExchangeRatesDto, GetSupportedCurrenciesDto } from './dto/currency.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Public } from '../common/decorators/public.decorator';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+} from "@nestjs/common";
+import { CurrencyService } from "./currency.service";
+import {
+  ConvertCurrencyDto,
+  ConvertCurrencyResponseDto,
+  GetExchangeRatesDto,
+  GetSupportedCurrenciesDto,
+} from "./dto/currency.dto";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { Public } from "../common/decorators/public.decorator";
 
-@Controller('currency')
+@Controller("currency")
 export class CurrencyController {
   constructor(private readonly currencyService: CurrencyService) {}
 
@@ -13,7 +26,7 @@ export class CurrencyController {
    * PUBLIC — no auth required (used by public pricing page)
    */
   @Public()
-  @Get('supported')
+  @Get("supported")
   async getSupportedCurrencies(): Promise<GetSupportedCurrenciesDto> {
     const currencies = await this.currencyService.getSupportedCurrencies();
     return { currencies };
@@ -24,7 +37,7 @@ export class CurrencyController {
    * PUBLIC — no auth required (used by public pricing page)
    */
   @Public()
-  @Get('rates')
+  @Get("rates")
   async getExchangeRates(): Promise<GetExchangeRatesDto> {
     return this.currencyService.getExchangeRates();
   }
@@ -32,13 +45,13 @@ export class CurrencyController {
   /**
    * Convert an amount from one currency to another
    */
-  @Post('convert')
+  @Post("convert")
   @HttpCode(HttpStatus.OK)
   async convertCurrency(
     @Body() dto: ConvertCurrencyDto,
   ): Promise<ConvertCurrencyResponseDto> {
     const { amount, fromCurrency, toCurrency } = dto;
-    
+
     const { convertedAmount, rate } = await this.currencyService.convertAmount(
       amount,
       fromCurrency,
@@ -59,10 +72,10 @@ export class CurrencyController {
    * Manually trigger exchange rate update (SuperAdmin only)
    */
   @UseGuards(JwtAuthGuard)
-  @Post('update-rates')
+  @Post("update-rates")
   @HttpCode(HttpStatus.OK)
   async updateRates(): Promise<{ message: string }> {
     await this.currencyService.updateExchangeRates();
-    return { message: 'Exchange rates updated successfully' };
+    return { message: "Exchange rates updated successfully" };
   }
 }

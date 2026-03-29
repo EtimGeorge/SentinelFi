@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, OneToMany } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  OneToMany,
+} from "typeorm";
 import { AccountGroupEntity } from "./account-group.entity";
 
 export enum AccountClassType {
@@ -6,7 +14,7 @@ export enum AccountClassType {
   LIABILITY = "LIABILITY",
   EQUITY = "EQUITY",
   REVENUE = "REVENUE",
-  EXPENSE = "EXPENSE"
+  EXPENSE = "EXPENSE",
 }
 
 @Entity("account_class")
@@ -28,7 +36,7 @@ export class AccountClassEntity {
   @Column({ type: "enum", enum: AccountClassType })
   base_type!: AccountClassType;
 
-  @OneToMany(() => AccountGroupEntity, group => group.accountClass)
+  @OneToMany(() => AccountGroupEntity, (group) => group.accountClass)
   accountGroups!: AccountGroupEntity[];
 
   @CreateDateColumn({ type: "timestamptz" })

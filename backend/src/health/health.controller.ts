@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get } from "@nestjs/common";
 import {
   HealthCheckService,
   HttpHealthIndicator,
@@ -6,12 +6,12 @@ import {
   TypeOrmHealthIndicator,
   MemoryHealthIndicator,
   MicroserviceHealthIndicator,
-} from '@nestjs/terminus';
-import { ConfigService } from '@nestjs/config';
-import { Transport } from '@nestjs/microservices';
-import { AiAssistantService } from '../ai-assistant/ai-assistant.service';
+} from "@nestjs/terminus";
+import { ConfigService } from "@nestjs/config";
+import { Transport } from "@nestjs/microservices";
+import { AiAssistantService } from "../ai-assistant/ai-assistant.service";
 
-@Controller('health')
+@Controller("health")
 export class HealthController {
   constructor(
     private health: HealthCheckService,
@@ -27,26 +27,27 @@ export class HealthController {
   @HealthCheck()
   check() {
     return this.health.check([
-      () => this.db.pingCheck('database', { timeout: 3000 }),
+      () => this.db.pingCheck("database", { timeout: 3000 }),
       () =>
         this.http.pingCheck(
-          'ai-agent',
-          this.configService.get<string>('AI_AGENT_URL') || 'http://localhost:8000',
+          "ai-agent",
+          this.configService.get<string>("AI_AGENT_URL") ||
+            "http://localhost:8000",
         ),
-      () => this.memory.checkHeap('memory_heap', 150 * 1024 * 1024), // 150MB
-      () => this.memory.checkRSS('memory_rss', 300 * 1024 * 1024), // 300MB
+      () => this.memory.checkHeap("memory_heap", 150 * 1024 * 1024), // 150MB
+      () => this.memory.checkRSS("memory_rss", 300 * 1024 * 1024), // 300MB
       () =>
-        this.microservice.pingCheck('redis', {
+        this.microservice.pingCheck("redis", {
           transport: Transport.REDIS,
           options: {
-            host: this.configService.get('REDIS_HOST') || 'localhost',
-            port: this.configService.get('REDIS_PORT') || 6379,
+            host: this.configService.get("REDIS_HOST") || "localhost",
+            port: this.configService.get("REDIS_PORT") || 6379,
           },
         }),
       () =>
         Promise.resolve({
           ai_circuit_breaker: {
-            status: 'up',
+            status: "up",
             ...this.aiAssistantService.getCircuitStatus(),
           },
         }),

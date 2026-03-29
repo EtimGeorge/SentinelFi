@@ -1,12 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from "@nestjs/common";
 
 /**
  * Iron-clad security guardrail service for the NestJS AI proxy layer.
  * This is a defense-in-depth layer BEFORE requests reach the Python AI agent.
- * 
+ *
  * Zero-tolerance policy:
  * - Credential/secret extraction attempts → HARD BLOCK
- * - Cross-tenant data fishing → HARD BLOCK  
+ * - Cross-tenant data fishing → HARD BLOCK
  * - Prompt injection / jailbreak attempts → HARD BLOCK
  * - System maintenance issues → REDIRECT to SuperAdmin
  * - SQL/script injection patterns → HARD BLOCK
@@ -60,35 +60,43 @@ export class GuardrailsService {
    * Scans a message for security violations.
    * Returns: { safe: boolean, reason: string | null, type: BlockType }
    */
-  scan(message: string, context?: { sessionId?: string; userId?: string }): {
+  scan(
+    message: string,
+    context?: { sessionId?: string; userId?: string },
+  ): {
     safe: boolean;
     reason: string | null;
-    type: 'SAFE' | 'HARD_BLOCK' | 'SUPERADMIN_REDIRECT';
+    type: "SAFE" | "HARD_BLOCK" | "SUPERADMIN_REDIRECT";
   } {
-    if (!message || typeof message !== 'string') {
-      return { safe: true, reason: null, type: 'SAFE' };
+    if (!message || typeof message !== "string") {
+      return { safe: true, reason: null, type: "SAFE" };
     }
 
     // Length check
     if (message.length > this.MAX_MESSAGE_LENGTH) {
-      this.logBlock('MESSAGE_TOO_LONG', message.substring(0, 50), context);
+      this.logBlock("MESSAGE_TOO_LONG", message.substring(0, 50), context);
       return {
         safe: false,
-        reason: 'Message is too long. Please be more concise (max 4000 characters).',
-        type: 'HARD_BLOCK',
+        reason:
+          "Message is too long. Please be more concise (max 4000 characters).",
+        type: "HARD_BLOCK",
       };
     }
 
     // Hard block patterns
     for (const pattern of this.HARD_BLOCK_PATTERNS) {
       if (pattern.test(message)) {
-        this.logBlock(`PATTERN_MATCH: ${pattern.source.substring(0, 40)}`, message.substring(0, 50), context);
+        this.logBlock(
+          `PATTERN_MATCH: ${pattern.source.substring(0, 40)}`,
+          message.substring(0, 50),
+          context,
+        );
         return {
           safe: false,
           reason:
-            'I cannot process that request. I am designed exclusively for financial analysis within SentinelFi. ' +
-            'If you believe this is a legitimate request, please contact your system administrator.',
-          type: 'HARD_BLOCK',
+            "I cannot process that request. I am designed exclusively for financial analysis within SentinelFi. " +
+            "If you believe this is a legitimate request, please contact your system administrator.",
+          type: "HARD_BLOCK",
         };
       }
     }
@@ -99,14 +107,14 @@ export class GuardrailsService {
         return {
           safe: false,
           reason:
-            'This appears to be a system maintenance or access issue outside my scope. ' +
-            'Please contact your **SuperAdmin** for assistance, or navigate to **Settings → Support** to raise a ticket.',
-          type: 'SUPERADMIN_REDIRECT',
+            "This appears to be a system maintenance or access issue outside my scope. " +
+            "Please contact your **SuperAdmin** for assistance, or navigate to **Settings → Support** to raise a ticket.",
+          type: "SUPERADMIN_REDIRECT",
         };
       }
     }
 
-    return { safe: true, reason: null, type: 'SAFE' };
+    return { safe: true, reason: null, type: "SAFE" };
   }
 
   /**
@@ -114,19 +122,41 @@ export class GuardrailsService {
    */
   sanitizeContext(obj: Record<string, any>): Record<string, any> {
     const FORBIDDEN_KEYS = new Set([
-      'password', 'secret', 'token', 'api_key', 'apiKey', 'connection_string',
-      'connectionString', 'database_url', 'databaseUrl', 'db_url', 'jwt_secret',
-      'jwtSecret', 'private_key', 'privateKey', 'auth_token', 'authToken',
-      'refresh_token', 'refreshToken', 'access_token', 'accessToken',
+      "password",
+      "secret",
+      "token",
+      "api_key",
+      "apiKey",
+      "connection_string",
+      "connectionString",
+      "database_url",
+      "databaseUrl",
+      "db_url",
+      "jwt_secret",
+      "jwtSecret",
+      "private_key",
+      "privateKey",
+      "auth_token",
+      "authToken",
+      "refresh_token",
+      "refreshToken",
+      "access_token",
+      "accessToken",
     ]);
 
     const sanitize = (value: any): any => {
-      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
         const clean: Record<string, any> = {};
         for (const [k, v] of Object.entries(value)) {
           const lk = k.toLowerCase();
-          const isForbidden = FORBIDDEN_KEYS.has(k) || FORBIDDEN_KEYS.has(lk) ||
-            Array.from(FORBIDDEN_KEYS).some(fk => lk.includes(fk));
+          const isForbidden =
+            FORBIDDEN_KEYS.has(k) ||
+            FORBIDDEN_KEYS.has(lk) ||
+            Array.from(FORBIDDEN_KEYS).some((fk) => lk.includes(fk));
           if (!isForbidden) {
             clean[k] = sanitize(v);
           }
@@ -140,11 +170,15 @@ export class GuardrailsService {
     return sanitize(obj);
   }
 
-  private logBlock(reason: string, snippet: string, context?: { sessionId?: string; userId?: string }) {
+  private logBlock(
+    reason: string,
+    snippet: string,
+    context?: { sessionId?: string; userId?: string },
+  ) {
     this.logger.warn(`[SECURITY_BLOCK] ${reason}`, {
-      userId: context?.userId ?? 'unknown',
-      sessionId: context?.sessionId ?? 'unknown',
-      snippet_hash: Buffer.from(snippet).toString('base64').substring(0, 20),
+      userId: context?.userId ?? "unknown",
+      sessionId: context?.sessionId ?? "unknown",
+      snippet_hash: Buffer.from(snippet).toString("base64").substring(0, 20),
     });
   }
 }

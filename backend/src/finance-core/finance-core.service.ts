@@ -1,34 +1,53 @@
-import { Injectable, Logger, ConflictException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { FiscalYearEntity } from './entities/fiscal-year.entity';
-import { FiscalPeriodEntity, FiscalPeriodType } from './entities/fiscal-period.entity';
-import { DepartmentEntity } from './entities/department.entity';
-import { CostCenterEntity } from './entities/cost-center.entity';
-import { AccountClassEntity } from './entities/account-class.entity';
-import { AccountGroupEntity } from './entities/account-group.entity';
-import { GLAccountEntity } from './entities/gl-account.entity';
-import { P2PRequisitionEntity, DocumentStatus } from './entities/p2p-requisition.entity';
-import { P2PPurchaseOrderEntity, POStatus } from './entities/p2p-purchase-order.entity';
-import { P2PInvoiceEntity, InvoiceStatus } from './entities/p2p-invoice.entity';
-import { BudgetLedgerEntity } from './entities/budget-ledger.entity';
-import { PayrollLineItemEntity } from './entities/payroll-line-item.entity';
-import { PayrollRunStatus } from './entities/payroll-run.entity';
-import { ClsService } from 'nestjs-cls';
-import { DOAService } from '../common/doa.service';
-import { ApprovalLogEntity, ApprovalDocumentType, ApprovalStatus } from '../common/entities/approval-log.entity';
-import { NotificationsService } from '../notifications/notifications.service';
-import { UserEntity } from '../auth/user.entity';
-import { UserPayload } from '@shared/types/user';
-import { TENANT_DATA_SOURCE } from '../database/constants';
-import { GetFinancialDocumentsDto } from './dto/get-financial-documents.dto';
-import { SelectQueryBuilder } from 'typeorm';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as hbs from 'handlebars';
-import { format } from 'date-fns';
-import { PdfGenerationService } from '../common/pdf-generation.service';
-import { TenantService } from '../tenants/tenant.service';
+import {
+  Injectable,
+  Logger,
+  ConflictException,
+  NotFoundException,
+  InternalServerErrorException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, DataSource } from "typeorm";
+import { FiscalYearEntity } from "./entities/fiscal-year.entity";
+import {
+  FiscalPeriodEntity,
+  FiscalPeriodType,
+} from "./entities/fiscal-period.entity";
+import { DepartmentEntity } from "./entities/department.entity";
+import { CostCenterEntity } from "./entities/cost-center.entity";
+import { AccountClassEntity } from "./entities/account-class.entity";
+import { AccountGroupEntity } from "./entities/account-group.entity";
+import { GLAccountEntity } from "./entities/gl-account.entity";
+import {
+  P2PRequisitionEntity,
+  DocumentStatus,
+} from "./entities/p2p-requisition.entity";
+import {
+  P2PPurchaseOrderEntity,
+  POStatus,
+} from "./entities/p2p-purchase-order.entity";
+import { P2PInvoiceEntity, InvoiceStatus } from "./entities/p2p-invoice.entity";
+import { BudgetLedgerEntity } from "./entities/budget-ledger.entity";
+import { PayrollLineItemEntity } from "./entities/payroll-line-item.entity";
+import { PayrollRunStatus } from "./entities/payroll-run.entity";
+import { ClsService } from "nestjs-cls";
+import { DOAService } from "../common/doa.service";
+import {
+  ApprovalLogEntity,
+  ApprovalDocumentType,
+  ApprovalStatus,
+} from "../common/entities/approval-log.entity";
+import { NotificationsService } from "../notifications/notifications.service";
+import { UserEntity } from "../auth/user.entity";
+import { UserPayload } from "@shared/types/user";
+import { TENANT_DATA_SOURCE } from "../database/constants";
+import { GetFinancialDocumentsDto } from "./dto/get-financial-documents.dto";
+import { SelectQueryBuilder } from "typeorm";
+import * as fs from "fs";
+import * as path from "path";
+import * as hbs from "handlebars";
+import { format } from "date-fns";
+import { PdfGenerationService } from "../common/pdf-generation.service";
+import { TenantService } from "../tenants/tenant.service";
 
 @Injectable()
 export class FinanceCoreService {
@@ -37,19 +56,32 @@ export class FinanceCoreService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly cls: ClsService,
-    @InjectRepository(FiscalYearEntity, TENANT_DATA_SOURCE) private fiscalYearRepo: Repository<FiscalYearEntity>,
-    @InjectRepository(FiscalPeriodEntity, TENANT_DATA_SOURCE) private fiscalPeriodRepo: Repository<FiscalPeriodEntity>,
-    @InjectRepository(DepartmentEntity, TENANT_DATA_SOURCE) private departmentRepo: Repository<DepartmentEntity>,
-    @InjectRepository(CostCenterEntity, TENANT_DATA_SOURCE) private costCenterRepo: Repository<CostCenterEntity>,
-    @InjectRepository(AccountClassEntity, TENANT_DATA_SOURCE) private accountClassRepo: Repository<AccountClassEntity>,
-    @InjectRepository(AccountGroupEntity, TENANT_DATA_SOURCE) private accountGroupRepo: Repository<AccountGroupEntity>,
-    @InjectRepository(GLAccountEntity, TENANT_DATA_SOURCE) private glAccountRepo: Repository<GLAccountEntity>,
-    @InjectRepository(P2PRequisitionEntity, TENANT_DATA_SOURCE) private requisitionRepo: Repository<P2PRequisitionEntity>,
-    @InjectRepository(P2PPurchaseOrderEntity, TENANT_DATA_SOURCE) private poRepo: Repository<P2PPurchaseOrderEntity>,
-    @InjectRepository(P2PInvoiceEntity, TENANT_DATA_SOURCE) private invoiceRepo: Repository<P2PInvoiceEntity>,
-    @InjectRepository(BudgetLedgerEntity, TENANT_DATA_SOURCE) private budgetLedgerRepo: Repository<BudgetLedgerEntity>,
-    @InjectRepository(PayrollLineItemEntity, TENANT_DATA_SOURCE) private payrollLineItemRepo: Repository<PayrollLineItemEntity>,
-    @InjectRepository(ApprovalLogEntity, TENANT_DATA_SOURCE) private approvalLogRepo: Repository<ApprovalLogEntity>,
+    @InjectRepository(FiscalYearEntity, TENANT_DATA_SOURCE)
+    private fiscalYearRepo: Repository<FiscalYearEntity>,
+    @InjectRepository(FiscalPeriodEntity, TENANT_DATA_SOURCE)
+    private fiscalPeriodRepo: Repository<FiscalPeriodEntity>,
+    @InjectRepository(DepartmentEntity, TENANT_DATA_SOURCE)
+    private departmentRepo: Repository<DepartmentEntity>,
+    @InjectRepository(CostCenterEntity, TENANT_DATA_SOURCE)
+    private costCenterRepo: Repository<CostCenterEntity>,
+    @InjectRepository(AccountClassEntity, TENANT_DATA_SOURCE)
+    private accountClassRepo: Repository<AccountClassEntity>,
+    @InjectRepository(AccountGroupEntity, TENANT_DATA_SOURCE)
+    private accountGroupRepo: Repository<AccountGroupEntity>,
+    @InjectRepository(GLAccountEntity, TENANT_DATA_SOURCE)
+    private glAccountRepo: Repository<GLAccountEntity>,
+    @InjectRepository(P2PRequisitionEntity, TENANT_DATA_SOURCE)
+    private requisitionRepo: Repository<P2PRequisitionEntity>,
+    @InjectRepository(P2PPurchaseOrderEntity, TENANT_DATA_SOURCE)
+    private poRepo: Repository<P2PPurchaseOrderEntity>,
+    @InjectRepository(P2PInvoiceEntity, TENANT_DATA_SOURCE)
+    private invoiceRepo: Repository<P2PInvoiceEntity>,
+    @InjectRepository(BudgetLedgerEntity, TENANT_DATA_SOURCE)
+    private budgetLedgerRepo: Repository<BudgetLedgerEntity>,
+    @InjectRepository(PayrollLineItemEntity, TENANT_DATA_SOURCE)
+    private payrollLineItemRepo: Repository<PayrollLineItemEntity>,
+    @InjectRepository(ApprovalLogEntity, TENANT_DATA_SOURCE)
+    private approvalLogRepo: Repository<ApprovalLogEntity>,
     private readonly doaService: DOAService,
     private readonly notificationsService: NotificationsService,
     private readonly pdfService: PdfGenerationService,
@@ -57,34 +89,46 @@ export class FinanceCoreService {
   ) {}
 
   private getTenantId(): string {
-    return this.cls.get('tenantId');
+    return this.cls.get("tenantId");
   }
 
   // --- Fiscal Calendar Management ---
 
-  async createFiscalYear(data: { label: string; startDate: Date; endDate: Date }) {
+  async createFiscalYear(data: {
+    label: string;
+    startDate: Date;
+    endDate: Date;
+  }) {
     const tenantId = this.getTenantId();
-    
+
     // 1. Basic validation
     if (new Date(data.startDate) >= new Date(data.endDate)) {
-        throw new ConflictException("Start date must be before end date.");
+      throw new ConflictException("Start date must be before end date.");
     }
 
     // 2. Check for duplicate labels
-    const existingLabel = await this.fiscalYearRepo.findOne({ where: { tenant_id: tenantId, year_label: data.label } });
-    if (existingLabel) throw new ConflictException(`Fiscal Year label '${data.label}' is already in use.`);
+    const existingLabel = await this.fiscalYearRepo.findOne({
+      where: { tenant_id: tenantId, year_label: data.label },
+    });
+    if (existingLabel)
+      throw new ConflictException(
+        `Fiscal Year label '${data.label}' is already in use.`,
+      );
 
     // 3. Check for overlapping date ranges
-    const overlapping = await this.fiscalYearRepo.createQueryBuilder('fy')
-        .where('fy.tenant_id = :tenantId', { tenantId })
-        .andWhere(
-            '(fy.start_date <= :endDate AND fy.end_date >= :startDate)',
-            { startDate: data.startDate, endDate: data.endDate }
-        )
-        .getOne();
-    
+    const overlapping = await this.fiscalYearRepo
+      .createQueryBuilder("fy")
+      .where("fy.tenant_id = :tenantId", { tenantId })
+      .andWhere("(fy.start_date <= :endDate AND fy.end_date >= :startDate)", {
+        startDate: data.startDate,
+        endDate: data.endDate,
+      })
+      .getOne();
+
     if (overlapping) {
-        throw new ConflictException(`This fiscal cycle overlaps with an existing cycle (FY ${overlapping.year_label}).`);
+      throw new ConflictException(
+        `This fiscal cycle overlaps with an existing cycle (FY ${overlapping.year_label}).`,
+      );
     }
 
     return await this.dataSource.transaction(async (manager) => {
@@ -92,26 +136,39 @@ export class FinanceCoreService {
         tenant_id: tenantId,
         year_label: data.label,
         start_date: data.startDate,
-        end_date: data.endDate
+        end_date: data.endDate,
       });
       const savedFy = await manager.save(fy);
 
       // Automatically generate 12 monthly periods starting from the fiscal year start
       const start = new Date(data.startDate);
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      
+      const months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+
       for (let i = 0; i < 12; i++) {
         // Calculate the first day and last day of each subsequent month
         const pStart = new Date(start.getFullYear(), start.getMonth() + i, 1);
         const pEnd = new Date(start.getFullYear(), start.getMonth() + i + 1, 0);
-        
+
         const period = manager.create(FiscalPeriodEntity, {
           tenant_id: tenantId,
           fiscal_year_id: savedFy.id,
           period_name: months[pStart.getMonth()],
           period_type: FiscalPeriodType.MONTH,
           start_date: pStart,
-          end_date: pEnd
+          end_date: pEnd,
         });
         await manager.save(period);
       }
@@ -123,19 +180,23 @@ export class FinanceCoreService {
   async getFiscalYears() {
     return this.fiscalYearRepo.find({
       where: { tenant_id: this.getTenantId() },
-      order: { start_date: 'DESC' },
-      relations: ['periods']
+      order: { start_date: "DESC" },
+      relations: ["periods"],
     });
   }
 
   // --- Organizational Structure ---
 
-  async createDepartment(data: { name: string; code: string; parentId?: string }) {
+  async createDepartment(data: {
+    name: string;
+    code: string;
+    parentId?: string;
+  }) {
     const dept = this.departmentRepo.create({
       tenant_id: this.getTenantId(),
       name: data.name,
       code: data.code,
-      parent_department_id: data.parentId
+      parent_department_id: data.parentId,
     });
     return this.departmentRepo.save(dept);
   }
@@ -143,16 +204,20 @@ export class FinanceCoreService {
   async getDepartments() {
     return this.departmentRepo.find({
       where: { tenant_id: this.getTenantId() },
-      relations: ['costCenters', 'parentDepartment']
+      relations: ["costCenters", "parentDepartment"],
     });
   }
 
-  async createCostCenter(data: { name: string; code: string; departmentId: string }) {
+  async createCostCenter(data: {
+    name: string;
+    code: string;
+    departmentId: string;
+  }) {
     const cc = this.costCenterRepo.create({
       tenant_id: this.getTenantId(),
       name: data.name,
       code: data.code,
-      department_id: data.departmentId
+      department_id: data.departmentId,
     });
     return this.costCenterRepo.save(cc);
   }
@@ -161,17 +226,17 @@ export class FinanceCoreService {
   async getChartOfAccounts() {
     return this.accountClassRepo.find({
       where: { tenant_id: this.getTenantId() },
-      relations: ['accountGroups', 'accountGroups.glAccounts'],
-      order: { code: 'ASC' }
+      relations: ["accountGroups", "accountGroups.glAccounts"],
+      order: { code: "ASC" },
     });
   }
 
   // --- Procure-to-Pay (P2P) Spending Pipeline ---
 
-  async createRequisition(data: { 
-    description: string; 
-    estimatedAmount: number; 
-    costCenterId: string; 
+  async createRequisition(data: {
+    description: string;
+    estimatedAmount: number;
+    costCenterId: string;
     glAccountId: string;
     vendorName?: string;
     requiredByDate?: string;
@@ -179,13 +244,15 @@ export class FinanceCoreService {
     exchangeRate?: number;
   }) {
     const tenantId = this.getTenantId();
-    const userId = this.cls.get('userId');
+    const userId = this.cls.get("userId");
 
     // Generate a unique requisition number (e.g., REQ-2026-XXXX)
-    const count = await this.requisitionRepo.count({ where: { tenant_id: tenantId } });
-    const reqNumber = `REQ-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, '0')}`;
+    const count = await this.requisitionRepo.count({
+      where: { tenant_id: tenantId },
+    });
+    const reqNumber = `REQ-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, "0")}`;
 
-    const currency = data.currency || 'USD';
+    const currency = data.currency || "USD";
     const exchangeRate = data.exchangeRate || 1.0;
     const baseAmount = data.estimatedAmount * exchangeRate;
 
@@ -198,11 +265,13 @@ export class FinanceCoreService {
       cost_center_id: data.costCenterId,
       gl_account_id: data.glAccountId,
       vendor_name: data.vendorName,
-      required_by_date: data.requiredByDate ? new Date(data.requiredByDate) : null,
+      required_by_date: data.requiredByDate
+        ? new Date(data.requiredByDate)
+        : null,
       status: DocumentStatus.PENDING_APPROVAL,
       currency,
       exchange_rate: exchangeRate,
-      base_amount: baseAmount
+      base_amount: baseAmount,
     });
 
     const requisition = await this.requisitionRepo.save(req);
@@ -223,14 +292,27 @@ export class FinanceCoreService {
   }
 
   async getRequisitions(dto: GetFinancialDocumentsDto) {
-    const { page = 1, limit = 10, sortBy = 'created_at', sortOrder = 'DESC' } = dto;
-    const queryBuilder = this.requisitionRepo.createQueryBuilder('requisition')
-      .leftJoinAndSelect('requisition.costCenter', 'costCenter')
-      .leftJoinAndSelect('requisition.glAccount', 'glAccount')
-      .leftJoinAndSelect('requisition.requester', 'requester')
-      .where('requisition.tenant_id = :tenantId', { tenantId: this.getTenantId() });
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = "created_at",
+      sortOrder = "DESC",
+    } = dto;
+    const queryBuilder = this.requisitionRepo
+      .createQueryBuilder("requisition")
+      .leftJoinAndSelect("requisition.costCenter", "costCenter")
+      .leftJoinAndSelect("requisition.glAccount", "glAccount")
+      .leftJoinAndSelect("requisition.requester", "requester")
+      .where("requisition.tenant_id = :tenantId", {
+        tenantId: this.getTenantId(),
+      });
 
-    this._applyFinancialFilters(queryBuilder, dto, 'requisition', 'estimated_amount');
+    this._applyFinancialFilters(
+      queryBuilder,
+      dto,
+      "requisition",
+      "estimated_amount",
+    );
 
     queryBuilder.orderBy(`requisition.${sortBy}`, sortOrder);
     queryBuilder.skip((page - 1) * limit).take(limit);
@@ -239,11 +321,14 @@ export class FinanceCoreService {
     return { data, total };
   }
 
-  async createPurchaseOrder(requisitionId: string, actor: UserPayload | UserEntity) {
+  async createPurchaseOrder(
+    requisitionId: string,
+    actor: UserPayload | UserEntity,
+  ) {
     const tenantId = this.getTenantId();
-    return await this.dataSource.transaction(async manager => {
+    return await this.dataSource.transaction(async (manager) => {
       const requisition = await manager.findOne(P2PRequisitionEntity, {
-        where: { id: requisitionId, tenant_id: tenantId }
+        where: { id: requisitionId, tenant_id: tenantId },
       });
 
       if (!requisition) {
@@ -251,43 +336,54 @@ export class FinanceCoreService {
       }
 
       if (requisition.status !== DocumentStatus.PENDING_APPROVAL) {
-        throw new ConflictException(`Requisition ${requisitionId} is not in PENDING_APPROVAL status.`);
+        throw new ConflictException(
+          `Requisition ${requisitionId} is not in PENDING_APPROVAL status.`,
+        );
       }
 
       // 1. Validate DOA Authority based on base_amount (normalized to USD)
-      await this.doaService.validateAuthority(actor, requisition.estimated_amount, requisition.currency);
+      await this.doaService.validateAuthority(
+        actor,
+        requisition.estimated_amount,
+        requisition.currency,
+      );
 
       // 2. Update requisition status
       requisition.status = DocumentStatus.APPROVED;
       await manager.save(requisition);
 
       // 2. Create Purchase Order
-      const poCount = await manager.count(P2PPurchaseOrderEntity, { where: { tenant_id: tenantId } });
-      const poNumber = `PO-${new Date().getFullYear()}-${(poCount + 1).toString().padStart(4, '0')}`;
+      const poCount = await manager.count(P2PPurchaseOrderEntity, {
+        where: { tenant_id: tenantId },
+      });
+      const poNumber = `PO-${new Date().getFullYear()}-${(poCount + 1).toString().padStart(4, "0")}`;
 
       const po = manager.create(P2PPurchaseOrderEntity, {
         tenant_id: tenantId,
         po_number: poNumber,
         requisition_id: requisitionId,
-        vendor_name: requisition.vendor_name || 'Generic Vendor',
+        vendor_name: requisition.vendor_name || "Generic Vendor",
         committed_amount: requisition.estimated_amount,
         currency: requisition.currency,
         exchange_rate: requisition.exchange_rate,
         committed_base_amount: requisition.base_amount,
-        status: POStatus.ISSUED
+        status: POStatus.ISSUED,
       });
 
       return await manager.save(po);
     });
   }
 
-  async rejectRequisition(requisitionId: string, actor: UserPayload | UserEntity) {
+  async rejectRequisition(
+    requisitionId: string,
+    actor: UserPayload | UserEntity,
+  ) {
     const tenantId = this.getTenantId();
     const userId = (actor as any).id || (actor as any).sub;
 
-    return await this.dataSource.transaction(async manager => {
+    return await this.dataSource.transaction(async (manager) => {
       const requisition = await manager.findOne(P2PRequisitionEntity, {
-        where: { id: requisitionId, tenant_id: tenantId }
+        where: { id: requisitionId, tenant_id: tenantId },
       });
 
       if (!requisition) {
@@ -295,7 +391,9 @@ export class FinanceCoreService {
       }
 
       if (requisition.status !== DocumentStatus.PENDING_APPROVAL) {
-        throw new ConflictException(`Requisition ${requisitionId} is not in PENDING_APPROVAL status.`);
+        throw new ConflictException(
+          `Requisition ${requisitionId} is not in PENDING_APPROVAL status.`,
+        );
       }
 
       // Update requisition status
@@ -319,14 +417,20 @@ export class FinanceCoreService {
   }
 
   async getPurchaseOrders(dto: GetFinancialDocumentsDto) {
-    const { page = 1, limit = 10, sortBy = 'created_at', sortOrder = 'DESC' } = dto;
-    const queryBuilder = this.poRepo.createQueryBuilder('po')
-      .leftJoinAndSelect('po.requisition', 'requisition')
-      .leftJoinAndSelect('requisition.costCenter', 'costCenter')
-      .leftJoinAndSelect('requisition.glAccount', 'glAccount')
-      .where('po.tenant_id = :tenantId', { tenantId: this.getTenantId() });
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = "created_at",
+      sortOrder = "DESC",
+    } = dto;
+    const queryBuilder = this.poRepo
+      .createQueryBuilder("po")
+      .leftJoinAndSelect("po.requisition", "requisition")
+      .leftJoinAndSelect("requisition.costCenter", "costCenter")
+      .leftJoinAndSelect("requisition.glAccount", "glAccount")
+      .where("po.tenant_id = :tenantId", { tenantId: this.getTenantId() });
 
-    this._applyFinancialFilters(queryBuilder, dto, 'po', 'committed_amount');
+    this._applyFinancialFilters(queryBuilder, dto, "po", "committed_amount");
 
     queryBuilder.orderBy(`po.${sortBy}`, sortOrder);
     queryBuilder.skip((page - 1) * limit).take(limit);
@@ -348,7 +452,7 @@ export class FinanceCoreService {
   }) {
     const tenantId = this.getTenantId();
 
-    const currency = data.currency || 'USD';
+    const currency = data.currency || "USD";
     const exchangeRate = data.exchangeRate || 1.0;
     const baseAmount = data.amount * exchangeRate;
 
@@ -364,21 +468,27 @@ export class FinanceCoreService {
       status: InvoiceStatus.RECEIVED,
       currency,
       exchange_rate: exchangeRate,
-      base_amount: baseAmount
+      base_amount: baseAmount,
     });
 
     return this.invoiceRepo.save(invoice);
   }
 
   async getInvoices(dto: GetFinancialDocumentsDto) {
-    const { page = 1, limit = 10, sortBy = 'created_at', sortOrder = 'DESC' } = dto;
-    const queryBuilder = this.invoiceRepo.createQueryBuilder('invoice')
-      .leftJoinAndSelect('invoice.costCenter', 'costCenter')
-      .leftJoinAndSelect('invoice.glAccount', 'glAccount')
-      .leftJoinAndSelect('invoice.purchaseOrder', 'purchaseOrder')
-      .where('invoice.tenant_id = :tenantId', { tenantId: this.getTenantId() });
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = "created_at",
+      sortOrder = "DESC",
+    } = dto;
+    const queryBuilder = this.invoiceRepo
+      .createQueryBuilder("invoice")
+      .leftJoinAndSelect("invoice.costCenter", "costCenter")
+      .leftJoinAndSelect("invoice.glAccount", "glAccount")
+      .leftJoinAndSelect("invoice.purchaseOrder", "purchaseOrder")
+      .where("invoice.tenant_id = :tenantId", { tenantId: this.getTenantId() });
 
-    this._applyFinancialFilters(queryBuilder, dto, 'invoice', 'amount');
+    this._applyFinancialFilters(queryBuilder, dto, "invoice", "amount");
 
     queryBuilder.orderBy(`invoice.${sortBy}`, sortOrder);
     queryBuilder.skip((page - 1) * limit).take(limit);
@@ -391,14 +501,23 @@ export class FinanceCoreService {
     queryBuilder: SelectQueryBuilder<any>,
     dto: GetFinancialDocumentsDto,
     alias: string,
-    amountField: string
+    amountField: string,
   ) {
-    const { search, status, costCenterId, glAccountId, startDate, endDate, minAmount, maxAmount } = dto;
+    const {
+      search,
+      status,
+      costCenterId,
+      glAccountId,
+      startDate,
+      endDate,
+      minAmount,
+      maxAmount,
+    } = dto;
 
     if (search) {
       queryBuilder.andWhere(
         `(${alias}.description ILIKE :search OR ${alias}.vendor_name ILIKE :search OR ${alias}.${alias}_number ILIKE :search)`,
-        { search: `%${search}%` }
+        { search: `%${search}%` },
       );
     }
 
@@ -407,68 +526,106 @@ export class FinanceCoreService {
     }
 
     if (costCenterId) {
-      queryBuilder.andWhere(`${alias}.cost_center_id = :costCenterId`, { costCenterId });
+      queryBuilder.andWhere(`${alias}.cost_center_id = :costCenterId`, {
+        costCenterId,
+      });
     }
 
     if (glAccountId) {
-      queryBuilder.andWhere(`${alias}.gl_account_id = :glAccountId`, { glAccountId });
+      queryBuilder.andWhere(`${alias}.gl_account_id = :glAccountId`, {
+        glAccountId,
+      });
     }
 
     if (startDate) {
-      const field = alias === 'invoice' ? 'invoice_date' : 'created_at';
+      const field = alias === "invoice" ? "invoice_date" : "created_at";
       queryBuilder.andWhere(`${alias}.${field} >= :startDate`, { startDate });
     }
 
     if (endDate) {
-      const field = alias === 'invoice' ? 'invoice_date' : 'created_at';
+      const field = alias === "invoice" ? "invoice_date" : "created_at";
       queryBuilder.andWhere(`${alias}.${field} <= :endDate`, { endDate });
     }
 
     if (minAmount !== undefined) {
-      queryBuilder.andWhere(`${alias}.${amountField} >= :minAmount`, { minAmount });
+      queryBuilder.andWhere(`${alias}.${amountField} >= :minAmount`, {
+        minAmount,
+      });
     }
 
     if (maxAmount !== undefined) {
-      queryBuilder.andWhere(`${alias}.${amountField} <= :maxAmount`, { maxAmount });
+      queryBuilder.andWhere(`${alias}.${amountField} <= :maxAmount`, {
+        maxAmount,
+      });
     }
   }
 
-  async getBudgetConsumption(costCenterId: string, glAccountId: string, fiscalPeriodId: string) {
+  async getBudgetConsumption(
+    costCenterId: string,
+    glAccountId: string,
+    fiscalPeriodId: string,
+  ) {
     const tenantId = this.getTenantId();
 
     // 1. Get Total Allocated Budget from Ledger
     const allocations = await this.budgetLedgerRepo.find({
-      where: { tenant_id: tenantId, cost_center_id: costCenterId, gl_account_id: glAccountId, fiscal_period_id: fiscalPeriodId }
+      where: {
+        tenant_id: tenantId,
+        cost_center_id: costCenterId,
+        gl_account_id: glAccountId,
+        fiscal_period_id: fiscalPeriodId,
+      },
     });
     const allocated = allocations.reduce((sum, a) => sum + Number(a.amount), 0);
 
     // 2. Get Committed Spend (POs that are not yet cancelled)
     const pos = await this.poRepo.find({
-      where: { tenant_id: tenantId, status: POStatus.ISSUED, requisition: { cost_center_id: costCenterId, gl_account_id: glAccountId } },
-      relations: ['requisition']
+      where: {
+        tenant_id: tenantId,
+        status: POStatus.ISSUED,
+        requisition: {
+          cost_center_id: costCenterId,
+          gl_account_id: glAccountId,
+        },
+      },
+      relations: ["requisition"],
     });
-    const committed = pos.reduce((sum, p) => sum + Number(p.committed_base_amount || p.committed_amount), 0);
+    const committed = pos.reduce(
+      (sum, p) => sum + Number(p.committed_base_amount || p.committed_amount),
+      0,
+    );
 
     // 3. Get Actual Spend (Approved/Paid Invoices)
     const invoices = await this.invoiceRepo.find({
-      where: { tenant_id: tenantId, cost_center_id: costCenterId, gl_account_id: glAccountId, status: InvoiceStatus.PAID }
+      where: {
+        tenant_id: tenantId,
+        cost_center_id: costCenterId,
+        gl_account_id: glAccountId,
+        status: InvoiceStatus.PAID,
+      },
     });
-    const invoiceActual = invoices.reduce((sum, i) => sum + Number(i.base_amount || i.amount), 0);
+    const invoiceActual = invoices.reduce(
+      (sum, i) => sum + Number(i.base_amount || i.amount),
+      0,
+    );
 
     // 4. Get Payroll Actual Spend (Posted Payroll Runs)
     const payrollItems = await this.payrollLineItemRepo.find({
-      where: { 
-        tenant_id: tenantId, 
-        cost_center_id: costCenterId, 
+      where: {
+        tenant_id: tenantId,
+        cost_center_id: costCenterId,
         gl_account_id: glAccountId,
-        payrollRun: { 
+        payrollRun: {
           status: PayrollRunStatus.POSTED,
-          fiscal_period_id: fiscalPeriodId
-        }
+          fiscal_period_id: fiscalPeriodId,
+        },
       },
-      relations: ['payrollRun']
+      relations: ["payrollRun"],
     });
-    const payrollActual = payrollItems.reduce((sum, p) => sum + Number(p.amount), 0);
+    const payrollActual = payrollItems.reduce(
+      (sum, p) => sum + Number(p.amount),
+      0,
+    );
 
     const totalActual = invoiceActual + payrollActual;
 
@@ -476,80 +633,124 @@ export class FinanceCoreService {
       allocated,
       committed,
       actual: totalActual,
-      remaining: allocated - committed - totalActual
+      remaining: allocated - committed - totalActual,
     };
   }
 
   async getEmployees() {
     const tenantId = this.getTenantId();
-    // We use a raw query or a dedicated repository if available, 
+    // We use a raw query or a dedicated repository if available,
     // but since UserEntity is in the 'public' schema and doesn't have a repo in FinanceCoreModule yet,
     // we'll use the dataSource to fetch users for this tenant.
     return this.dataSource.getRepository(UserEntity).find({
-        where: { tenant_id: tenantId, is_active: true },
-        select: ['id', 'email', 'first_name', 'last_name']
+      where: { tenant_id: tenantId, is_active: true },
+      select: ["id", "email", "first_name", "last_name"],
     });
   }
 
   async getOperationalAnalytics(fiscalYearId: string, costCenterId?: string) {
     const tenantId = this.getTenantId();
-    
+
     // 1. Fetch all periods for this year
     const periods = await this.fiscalPeriodRepo.find({
       where: { tenant_id: tenantId, fiscal_year_id: fiscalYearId },
-      order: { start_date: 'ASC' }
+      order: { start_date: "ASC" },
     });
 
-    const results = await Promise.all(periods.map(async (period) => {
-      // Re-use consumption logic but at a broader scale if costCenterId is missing
-      
-      // Allocations
-      const allocQuery = this.budgetLedgerRepo.createQueryBuilder('ledger')
-        .where('ledger.tenant_id = :tenantId', { tenantId })
-        .andWhere('ledger.fiscal_period_id = :periodId', { periodId: period.id });
-      if (costCenterId) allocQuery.andWhere('ledger.cost_center_id = :ccId', { ccId: costCenterId });
-      const { allocated } = await allocQuery.select('SUM(ledger.amount)', 'allocated').getRawOne();
+    const results = await Promise.all(
+      periods.map(async (period) => {
+        // Re-use consumption logic but at a broader scale if costCenterId is missing
 
-      // Committed (POs)
-      const poQuery = this.poRepo.createQueryBuilder('po')
-        .leftJoin('po.requisition', 'req')
-        .where('po.tenant_id = :tenantId', { tenantId })
-        .andWhere('po.status = :status', { status: POStatus.ISSUED });
-        // Note: Requisitions don't have fiscal_period_id yet, so we'll approximate by PO date 
-        // In a real system, POs would be linked to a budget cycle. 
+        // Allocations
+        const allocQuery = this.budgetLedgerRepo
+          .createQueryBuilder("ledger")
+          .where("ledger.tenant_id = :tenantId", { tenantId })
+          .andWhere("ledger.fiscal_period_id = :periodId", {
+            periodId: period.id,
+          });
+        if (costCenterId)
+          allocQuery.andWhere("ledger.cost_center_id = :ccId", {
+            ccId: costCenterId,
+          });
+        const { allocated } = await allocQuery
+          .select("SUM(ledger.amount)", "allocated")
+          .getRawOne();
+
+        // Committed (POs)
+        const poQuery = this.poRepo
+          .createQueryBuilder("po")
+          .leftJoin("po.requisition", "req")
+          .where("po.tenant_id = :tenantId", { tenantId })
+          .andWhere("po.status = :status", { status: POStatus.ISSUED });
+        // Note: Requisitions don't have fiscal_period_id yet, so we'll approximate by PO date
+        // In a real system, POs would be linked to a budget cycle.
         // For now, we'll filter by PO date inside the period.
-        poQuery.andWhere('po.created_at BETWEEN :start AND :end', { start: period.start_date, end: period.end_date });
-      if (costCenterId) poQuery.andWhere('req.cost_center_id = :ccId', { ccId: costCenterId });
-      const { committed } = await poQuery.select('SUM(COALESCE(po.committed_base_amount, po.committed_amount))', 'committed').getRawOne();
+        poQuery.andWhere("po.created_at BETWEEN :start AND :end", {
+          start: period.start_date,
+          end: period.end_date,
+        });
+        if (costCenterId)
+          poQuery.andWhere("req.cost_center_id = :ccId", {
+            ccId: costCenterId,
+          });
+        const { committed } = await poQuery
+          .select(
+            "SUM(COALESCE(po.committed_base_amount, po.committed_amount))",
+            "committed",
+          )
+          .getRawOne();
 
-      // Actual (Invoices)
-      const invQuery = this.invoiceRepo.createQueryBuilder('inv')
-        .where('inv.tenant_id = :tenantId', { tenantId })
-        .andWhere('inv.status = :status', { status: InvoiceStatus.PAID })
-        .andWhere('inv.invoice_date BETWEEN :start AND :end', { start: period.start_date, end: period.end_date });
-      if (costCenterId) invQuery.andWhere('inv.cost_center_id = :ccId', { ccId: costCenterId });
-      const { actualInvoices } = await invQuery.select('SUM(COALESCE(inv.base_amount, inv.amount))', 'actualInvoices').getRawOne();
+        // Actual (Invoices)
+        const invQuery = this.invoiceRepo
+          .createQueryBuilder("inv")
+          .where("inv.tenant_id = :tenantId", { tenantId })
+          .andWhere("inv.status = :status", { status: InvoiceStatus.PAID })
+          .andWhere("inv.invoice_date BETWEEN :start AND :end", {
+            start: period.start_date,
+            end: period.end_date,
+          });
+        if (costCenterId)
+          invQuery.andWhere("inv.cost_center_id = :ccId", {
+            ccId: costCenterId,
+          });
+        const { actualInvoices } = await invQuery
+          .select(
+            "SUM(COALESCE(inv.base_amount, inv.amount))",
+            "actualInvoices",
+          )
+          .getRawOne();
 
-      // Actual (Payroll)
-      const payQuery = this.payrollLineItemRepo.createQueryBuilder('pli')
-        .leftJoin('pli.payrollRun', 'run')
-        .where('pli.tenant_id = :tenantId', { tenantId })
-        .andWhere('run.status = :status', { status: PayrollRunStatus.POSTED })
-        .andWhere('run.fiscal_period_id = :periodId', { periodId: period.id });
-      if (costCenterId) payQuery.andWhere('pli.cost_center_id = :ccId', { ccId: costCenterId });
-      const { actualPayroll } = await payQuery.select('SUM(pli.amount)', 'actualPayroll').getRawOne();
+        // Actual (Payroll)
+        const payQuery = this.payrollLineItemRepo
+          .createQueryBuilder("pli")
+          .leftJoin("pli.payrollRun", "run")
+          .where("pli.tenant_id = :tenantId", { tenantId })
+          .andWhere("run.status = :status", { status: PayrollRunStatus.POSTED })
+          .andWhere("run.fiscal_period_id = :periodId", {
+            periodId: period.id,
+          });
+        if (costCenterId)
+          payQuery.andWhere("pli.cost_center_id = :ccId", {
+            ccId: costCenterId,
+          });
+        const { actualPayroll } = await payQuery
+          .select("SUM(pli.amount)", "actualPayroll")
+          .getRawOne();
 
-      const totalActual = (Number(actualInvoices) || 0) + (Number(actualPayroll) || 0);
+        const totalActual =
+          (Number(actualInvoices) || 0) + (Number(actualPayroll) || 0);
 
-      return {
-        periodId: period.id,
-        periodName: period.period_name,
-        allocated: Number(allocated) || 0,
-        committed: Number(committed) || 0,
-        actual: totalActual,
-        variance: (Number(allocated) || 0) - (Number(committed) || 0) - totalActual
-      };
-    }));
+        return {
+          periodId: period.id,
+          periodName: period.period_name,
+          allocated: Number(allocated) || 0,
+          committed: Number(committed) || 0,
+          actual: totalActual,
+          variance:
+            (Number(allocated) || 0) - (Number(committed) || 0) - totalActual,
+        };
+      }),
+    );
 
     return {
       yearId: fiscalYearId,
@@ -559,7 +760,7 @@ export class FinanceCoreService {
         committed: results.reduce((sum, r) => sum + r.committed, 0),
         actual: results.reduce((sum, r) => sum + r.actual, 0),
         variance: results.reduce((sum, r) => sum + r.variance, 0),
-      }
+      },
     };
   }
 
@@ -569,14 +770,16 @@ export class FinanceCoreService {
    */
   async getOpexIntelligence(fiscalYearId?: string): Promise<any> {
     const tenantId = this.getTenantId();
-    this.logger.log(`Fetching OPEX Intelligence for tenant ${tenantId}, year ${fiscalYearId ?? 'latest'}`);
+    this.logger.log(
+      `Fetching OPEX Intelligence for tenant ${tenantId}, year ${fiscalYearId ?? "latest"}`,
+    );
 
     // Resolve fiscal year
     let resolvedYearId = fiscalYearId;
     if (!resolvedYearId) {
       const latest = await this.fiscalYearRepo.findOne({
         where: { tenant_id: tenantId },
-        order: { start_date: 'DESC' },
+        order: { start_date: "DESC" },
       });
       resolvedYearId = latest?.id;
     }
@@ -627,7 +830,9 @@ export class FinanceCoreService {
       this.requisitionRepo.count({ where: { tenant_id: tenantId } }),
       this.poRepo.count({ where: { tenant_id: tenantId } }),
       this.invoiceRepo.count({ where: { tenant_id: tenantId } }),
-      this.invoiceRepo.count({ where: { tenant_id: tenantId, status: 'PAID' as any } }),
+      this.invoiceRepo.count({
+        where: { tenant_id: tenantId, status: "PAID" as any },
+      }),
     ]);
 
     // Budget runway: total allocated vs total spent YTD
@@ -645,7 +850,8 @@ export class FinanceCoreService {
 
     const totalAllocated = Number(budgetTotals[0]?.total_allocated || 0);
     const totalSpent = Number(budgetTotals[0]?.total_spent || 0);
-    const utilizationPct = totalAllocated > 0 ? Math.round((totalSpent / totalAllocated) * 100) : 0;
+    const utilizationPct =
+      totalAllocated > 0 ? Math.round((totalSpent / totalAllocated) * 100) : 0;
 
     // Payroll KPIs from payroll_line_item
     const payrollKpis: any[] = await this.dataSource.query(
@@ -670,130 +876,184 @@ export class FinanceCoreService {
       departmentExpenditure: deptExpenditureRaw,
       payrollDecomposition,
       rollingBurnRate,
-      procurementFunnel: { requisitions: reqCount, purchaseOrders: poCount, invoices: invCount, paid: paidCount },
-      budgetRunway: { totalAllocated, totalSpent, utilizationPct, remainingBudget: totalAllocated - totalSpent },
+      procurementFunnel: {
+        requisitions: reqCount,
+        purchaseOrders: poCount,
+        invoices: invCount,
+        paid: paidCount,
+      },
+      budgetRunway: {
+        totalAllocated,
+        totalSpent,
+        utilizationPct,
+        remainingBudget: totalAllocated - totalSpent,
+      },
     };
   }
 
   // --- PDF GENERATION ENGINE ---
 
-  private formatCurrency(amount: number, currency: string = 'USD'): string {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
+  private formatCurrency(amount: number, currency: string = "USD"): string {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
       currency: currency,
     }).format(amount);
   }
 
-  async generatePurchaseOrderPdf(poId: string, tenantId: string): Promise<Buffer> {
+  async generatePurchaseOrderPdf(
+    poId: string,
+    tenantId: string,
+  ): Promise<Buffer> {
     const po = await this.poRepo.findOne({
       where: { id: poId, tenant_id: tenantId },
-      relations: ['requisition', 'requisition.requester', 'requisition.costCenter'],
+      relations: [
+        "requisition",
+        "requisition.requester",
+        "requisition.costCenter",
+      ],
     });
 
     if (!po) throw new NotFoundException(`Purchase Order ${poId} not found.`);
 
     const tenant = await this.tenantService.findOneTenant(tenantId);
-    
+
     // Compile HBS
-    const templatePath = path.join(__dirname, '..', 'common', 'templates', 'purchase-order.hbs');
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "common",
+      "templates",
+      "purchase-order.hbs",
+    );
     if (!fs.existsSync(templatePath)) {
       this.logger.error(`Template not found at ${templatePath}`);
-      throw new InternalServerErrorException('PDF Template not found.');
+      throw new InternalServerErrorException("PDF Template not found.");
     }
-    const templateSource = fs.readFileSync(templatePath, 'utf8');
+    const templateSource = fs.readFileSync(templatePath, "utf8");
     const template = hbs.compile(templateSource);
 
     const data = {
       poNumber: po.po_number,
-      brandPrimaryColorHex: tenant.brandPrimaryColorHex || '#0f172a',
+      brandPrimaryColorHex: tenant.brandPrimaryColorHex || "#0f172a",
       brandLogoBase64: tenant.brandLogoBase64,
       tenantName: tenant.name,
-      companyAddress: tenant.companyAddress || 'SentinelFi Platform',
-      poDate: format(po.created_at, 'MMM dd, yyyy'),
-      paymentTerms: 'Net 30', // Default
-      projectName: 'Main Operations',
+      companyAddress: tenant.companyAddress || "SentinelFi Platform",
+      poDate: format(po.created_at, "MMM dd, yyyy"),
+      paymentTerms: "Net 30", // Default
+      projectName: "Main Operations",
       vendorName: po.vendor_name,
-      vendorAddress: 'Registered Vendor Address', // Placeholder
-      vendorContact: 'Vendor Representative',
-      vendorEmail: 'vendor@example.com',
-      deliveryAddress: tenant.companyAddress || 'Main Office',
+      vendorAddress: "Registered Vendor Address", // Placeholder
+      vendorContact: "Vendor Representative",
+      vendorEmail: "vendor@example.com",
+      deliveryAddress: tenant.companyAddress || "Main Office",
       requesterName: `${po.requisition.requester.first_name} ${po.requisition.requester.last_name}`,
       lineItems: [
         {
           description: po.requisition.description,
-          wbsCode: po.requisition.costCenter?.code || 'N/A',
+          wbsCode: po.requisition.costCenter?.code || "N/A",
           quantity: 1,
-          formattedUnitPrice: this.formatCurrency(po.committed_amount, po.currency),
+          formattedUnitPrice: this.formatCurrency(
+            po.committed_amount,
+            po.currency,
+          ),
           formattedTotal: this.formatCurrency(po.committed_amount, po.currency),
-        }
+        },
       ],
       formattedSubtotal: this.formatCurrency(po.committed_amount, po.currency),
       formattedTax: this.formatCurrency(0, po.currency),
-      formattedGrandTotal: this.formatCurrency(po.committed_amount, po.currency),
+      formattedGrandTotal: this.formatCurrency(
+        po.committed_amount,
+        po.currency,
+      ),
       currencyCode: po.currency,
-      termsAndConditions: 'Standard SentinelFi P2P Terms Apply.',
+      termsAndConditions: "Standard SentinelFi P2P Terms Apply.",
       isApproved: po.status === POStatus.ISSUED,
-      approvalSignature: 'DIGITALLY SIGNED',
-      approvalDate: format(po.updated_at, 'MMM dd, yyyy'),
-      generationDate: format(new Date(), 'MMM dd, yyyy HH:mm'),
+      approvalSignature: "DIGITALLY SIGNED",
+      approvalDate: format(po.updated_at, "MMM dd, yyyy"),
+      generationDate: format(new Date(), "MMM dd, yyyy HH:mm"),
       poStatus: po.status,
-      statusColor: po.status === POStatus.ISSUED ? '#10b981' : '#64748b'
+      statusColor: po.status === POStatus.ISSUED ? "#10b981" : "#64748b",
     };
 
     const html = template(data);
     return this.pdfService.generatePdfFromHtml(html);
   }
 
-  async generateInvoicePdf(invoiceId: string, tenantId: string): Promise<Buffer> {
+  async generateInvoicePdf(
+    invoiceId: string,
+    tenantId: string,
+  ): Promise<Buffer> {
     const invoice = await this.invoiceRepo.findOne({
       where: { id: invoiceId, tenant_id: tenantId },
-      relations: ['costCenter', 'purchaseOrder'],
+      relations: ["costCenter", "purchaseOrder"],
     });
 
-    if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found.`);
+    if (!invoice)
+      throw new NotFoundException(`Invoice ${invoiceId} not found.`);
 
     const tenant = await this.tenantService.findOneTenant(tenantId);
 
-    const templatePath = path.join(__dirname, '..', 'common', 'templates', 'invoice.hbs');
-    const templateSource = fs.readFileSync(templatePath, 'utf8');
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "common",
+      "templates",
+      "invoice.hbs",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
     const template = hbs.compile(templateSource);
 
     const data = {
       invoiceNumber: invoice.invoice_number,
-      brandPrimaryColorHex: tenant.brandPrimaryColorHex || '#0f172a',
+      brandPrimaryColorHex: tenant.brandPrimaryColorHex || "#0f172a",
       brandLogoBase64: tenant.brandLogoBase64,
       tenantName: tenant.name,
-      companyAddress: tenant.companyAddress || 'SentinelFi Platform',
-      issueDate: format(invoice.invoice_date, 'MMM dd, yyyy'),
-      dueDate: invoice.due_date ? format(invoice.due_date, 'MMM dd, yyyy') : 'Upon Receipt',
-      poNumber: invoice.purchaseOrder?.po_number || 'N/A',
+      companyAddress: tenant.companyAddress || "SentinelFi Platform",
+      issueDate: format(invoice.invoice_date, "MMM dd, yyyy"),
+      dueDate: invoice.due_date
+        ? format(invoice.due_date, "MMM dd, yyyy")
+        : "Upon Receipt",
+      poNumber: invoice.purchaseOrder?.po_number || "N/A",
       clientName: tenant.name,
       clientAddress: tenant.companyAddress,
-      clientContact: 'Finance Department',
-      clientEmail: 'finance@sentinelfi.com',
+      clientContact: "Finance Department",
+      clientEmail: "finance@sentinelfi.com",
       lineItems: [
         {
           description: `Services rendered for cost center ${invoice.costCenter.name}`,
           quantity: 1,
           formattedRate: this.formatCurrency(invoice.amount, invoice.currency),
-          formattedAmount: this.formatCurrency(invoice.amount, invoice.currency),
-        }
+          formattedAmount: this.formatCurrency(
+            invoice.amount,
+            invoice.currency,
+          ),
+        },
       ],
       formattedSubtotal: this.formatCurrency(invoice.amount, invoice.currency),
       formattedTax: this.formatCurrency(0, invoice.currency),
       formattedDiscount: this.formatCurrency(0, invoice.currency),
-      formattedGrandTotal: this.formatCurrency(invoice.amount, invoice.currency),
-      formattedAmountPaid: invoice.status === InvoiceStatus.PAID ? this.formatCurrency(invoice.amount, invoice.currency) : this.formatCurrency(0, invoice.currency),
-      formattedAmountDue: invoice.status === InvoiceStatus.PAID ? this.formatCurrency(0, invoice.currency) : this.formatCurrency(invoice.amount, invoice.currency),
+      formattedGrandTotal: this.formatCurrency(
+        invoice.amount,
+        invoice.currency,
+      ),
+      formattedAmountPaid:
+        invoice.status === InvoiceStatus.PAID
+          ? this.formatCurrency(invoice.amount, invoice.currency)
+          : this.formatCurrency(0, invoice.currency),
+      formattedAmountDue:
+        invoice.status === InvoiceStatus.PAID
+          ? this.formatCurrency(0, invoice.currency)
+          : this.formatCurrency(invoice.amount, invoice.currency),
       currencyCode: invoice.currency,
-      paymentInstructions: 'Please wire to the account specified in your contract.',
-      generationDate: format(new Date(), 'MMM dd, yyyy HH:mm'),
+      paymentInstructions:
+        "Please wire to the account specified in your contract.",
+      generationDate: format(new Date(), "MMM dd, yyyy HH:mm"),
       invoiceStatus: invoice.status,
-      statusColor: invoice.status === InvoiceStatus.PAID ? '#10b981' : '#f59e0b'
+      statusColor:
+        invoice.status === InvoiceStatus.PAID ? "#10b981" : "#f59e0b",
     };
 
     const html = template(data);
     return this.pdfService.generatePdfFromHtml(html);
   }
 }
-

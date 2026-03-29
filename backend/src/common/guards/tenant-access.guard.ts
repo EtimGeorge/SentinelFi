@@ -39,34 +39,52 @@ export class TenantAccessGuard implements CanActivate {
     const requestPath = req.path;
 
     if (!user) {
-      this.logger.error(`[TenantAccessGuard] Unauthenticated access to protected route: ${requestPath}`);
+      this.logger.error(
+        `[TenantAccessGuard] Unauthenticated access to protected route: ${requestPath}`,
+      );
       throw new UnauthorizedException("Authentication required.");
     }
 
-    const isSuperAdmin = user.roles.some(role => role.name === Role.SuperAdmin);
+    const isSuperAdmin = user.roles.some(
+      (role) => role.name === Role.SuperAdmin,
+    );
 
     if (isSuperAdmin) {
-      this.logger.verbose(`[TenantAccessGuard] SuperAdmin '${user.email}' granted full access to: ${requestPath}`);
+      this.logger.verbose(
+        `[TenantAccessGuard] SuperAdmin '${user.email}' granted full access to: ${requestPath}`,
+      );
       return true;
     }
 
     if (!user.tenant_id || !schemaName) {
-      this.logger.warn(`[TenantAccessGuard] Access DENIED for '${user.email}': Tenant context not fully established for: ${requestPath}. Tenant ID: ${user.tenant_id}, Schema Name: ${schemaName}`);
-      throw new BadRequestException("Tenant context not established. Please ensure you are logged in correctly.");
+      this.logger.warn(
+        `[TenantAccessGuard] Access DENIED for '${user.email}': Tenant context not fully established for: ${requestPath}. Tenant ID: ${user.tenant_id}, Schema Name: ${schemaName}`,
+      );
+      throw new BadRequestException(
+        "Tenant context not established. Please ensure you are logged in correctly.",
+      );
     }
 
     const paramTenantId = req.params?.tenantId;
 
     if (paramTenantId) {
       if (paramTenantId !== user.tenant_id) {
-        this.logger.warn(`[TenantAccessGuard] Access DENIED for '${user.email}': Attempted cross-tenant access. User Tenant ID: '${user.tenant_id}', Requested Tenant ID: '${paramTenantId}' for: ${requestPath}`);
-        throw new ForbiddenException("You do not have permission to access resources for the requested tenant.");
+        this.logger.warn(
+          `[TenantAccessGuard] Access DENIED for '${user.email}': Attempted cross-tenant access. User Tenant ID: '${user.tenant_id}', Requested Tenant ID: '${paramTenantId}' for: ${requestPath}`,
+        );
+        throw new ForbiddenException(
+          "You do not have permission to access resources for the requested tenant.",
+        );
       }
-      this.logger.verbose(`[TenantAccessGuard] Tenant param '${paramTenantId}' matches user tenant '${user.tenant_id}' for: ${requestPath}`);
+      this.logger.verbose(
+        `[TenantAccessGuard] Tenant param '${paramTenantId}' matches user tenant '${user.tenant_id}' for: ${requestPath}`,
+      );
     }
 
-    const userRoleNames = user.roles.map(r => r.name).join(', ');
-    this.logger.log(`[TenantAccessGuard] Access GRANTED for tenant user '${user.email}' (Roles: ${userRoleNames}, Tenant: '${user.tenant_id}') to: ${requestPath}`);
+    const userRoleNames = user.roles.map((r) => r.name).join(", ");
+    this.logger.log(
+      `[TenantAccessGuard] Access GRANTED for tenant user '${user.email}' (Roles: ${userRoleNames}, Tenant: '${user.tenant_id}') to: ${requestPath}`,
+    );
     return true;
   }
 }

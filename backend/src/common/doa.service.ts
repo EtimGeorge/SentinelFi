@@ -1,4 +1,10 @@
-import { Injectable, ForbiddenException, NotFoundException, Inject, forwardRef } from "@nestjs/common";
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  Inject,
+  forwardRef,
+} from "@nestjs/common";
 import { Role } from "@shared/types/role.enum";
 import { UserEntity } from "../auth/user.entity";
 import { UserPayload } from "@shared/types/user";
@@ -17,16 +23,16 @@ export class DOAService {
    * Thresholds for approval authority
    */
   private readonly THRESHOLDS: Record<string, number> = {
-    [Role.FinanceOfficer]: 0,           // Can only prepare/submit
+    [Role.FinanceOfficer]: 0, // Can only prepare/submit
     [Role.AdminOfficer]: 0,
-    [Role.ProjectManager]: 20000,       // Up to $20k
+    [Role.ProjectManager]: 20000, // Up to $20k
     [Role.FinanceManager]: 20000,
     [Role.AdminManager]: 20000,
-    [Role.CFO]: 100000,                // Up to $100k
+    [Role.CFO]: 100000, // Up to $100k
     [Role.AdminDirector]: 100000,
     [Role.OperationalDirector]: 100000,
-    [Role.TechnicalDirector]: 100000,  // Added TechnicalDirector
-    [Role.CEO]: Infinity,              // Unlimited
+    [Role.TechnicalDirector]: 100000, // Added TechnicalDirector
+    [Role.CEO]: Infinity, // Unlimited
     [Role.SuperAdmin]: Infinity,
   };
 
@@ -44,38 +50,52 @@ export class DOAService {
   /**
    * Check if a user has sufficient authority for a given amount
    */
-  async canApprove(user: UserPayload | UserEntity, amount: number, currency: string = 'USD'): Promise<boolean> {
-    const amountInUSD = (await this.currencyService.convertAmount(amount, currency, 'USD')).convertedAmount;
-    
-    const roles = 'roles' in user ? user.roles : [];
+  async canApprove(
+    user: UserPayload | UserEntity,
+    amount: number,
+    currency: string = "USD",
+  ): Promise<boolean> {
+    const amountInUSD = (
+      await this.currencyService.convertAmount(amount, currency, "USD")
+    ).convertedAmount;
+
+    const roles = "roles" in user ? user.roles : [];
     if (!roles || !Array.isArray(roles) || roles.length === 0) return false;
 
     // Get the highest limit among all assigned roles
-    const roleNames = roles.map(r => {
-      if (!r) return '';
-      return typeof r === 'string' ? r : r.name;
-    }).filter(name => !!name);
-    
+    const roleNames = roles
+      .map((r) => {
+        if (!r) return "";
+        return typeof r === "string" ? r : r.name;
+      })
+      .filter((name) => !!name);
+
     if (roleNames.length === 0) return false;
-    const limits = roleNames.map(name => this.THRESHOLDS[name] ?? 0);
+    const limits = roleNames.map((name) => this.THRESHOLDS[name] ?? 0);
     const maxLimit = Math.max(...limits);
-    
+
     return maxLimit >= amountInUSD;
   }
 
   /**
    * Validate approval authority or throw
    */
-  async validateAuthority(user: UserPayload | UserEntity, amount: number, currency: string = 'USD') {
-    const { convertedAmount: amountInUSD } = await this.currencyService.convertAmount(amount, currency, 'USD');
-    
+  async validateAuthority(
+    user: UserPayload | UserEntity,
+    amount: number,
+    currency: string = "USD",
+  ) {
+    const { convertedAmount: amountInUSD } =
+      await this.currencyService.convertAmount(amount, currency, "USD");
+
     const hasAuthority = await this.canApprove(user, amount, currency);
     if (!hasAuthority) {
       const required = this.getRequiredTier(amountInUSD);
-      const currencySymbol = currency === 'NGN' ? '₦' : (currency === 'USD' ? '$' : currency);
-      
+      const currencySymbol =
+        currency === "NGN" ? "₦" : currency === "USD" ? "$" : currency;
+
       throw new ForbiddenException(
-        `Insufficient authority. Amount ${currencySymbol}${amount.toLocaleString()} (approx. $${Math.round(amountInUSD).toLocaleString()} USD) requires ${DOATier[required]} or higher.`
+        `Insufficient authority. Amount ${currencySymbol}${amount.toLocaleString()} (approx. $${Math.round(amountInUSD).toLocaleString()} USD) requires ${DOATier[required]} or higher.`,
       );
     }
   }
@@ -85,7 +105,14 @@ export class DOAService {
    */
   getTargetRoles(amount: number): Role[] {
     if (amount <= 20000) {
-      return [Role.FinanceManager, Role.AdminManager, Role.ProjectManager, Role.CFO, Role.AdminDirector, Role.CEO];
+      return [
+        Role.FinanceManager,
+        Role.AdminManager,
+        Role.ProjectManager,
+        Role.CFO,
+        Role.AdminDirector,
+        Role.CEO,
+      ];
     }
     if (amount <= 100000) {
       return [Role.CFO, Role.AdminDirector, Role.CEO];

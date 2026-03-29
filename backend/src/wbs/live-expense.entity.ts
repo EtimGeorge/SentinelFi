@@ -49,8 +49,12 @@ export class LiveExpenseEntity {
   @Column({ type: "date", default: () => "CURRENT_DATE" })
   expense_date!: Date;
 
-  @Column({ type: "text" })
-  description!: string;
+  @Column({ type: "text", nullable: true })
+  description!: string | null;
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  vendor_name!: string | null;
+
 
   // Financial Fields (ADDED ! to all)
   @Column({ type: "numeric", precision: 19, scale: 4 })

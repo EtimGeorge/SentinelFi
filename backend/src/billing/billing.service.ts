@@ -5,34 +5,38 @@ import {
   BadRequestException,
   ForbiddenException,
   InternalServerErrorException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, LessThan } from 'typeorm';
-import { SubscriptionEntity, SubscriptionStatus, BillingCycle } from './entities/subscription.entity';
-import { TenantEntity } from '../tenants/tenant.entity';
-import { BillingInvoiceEntity } from './entities/billing-invoice.entity';
-import { BillingOverviewDto } from './dto/billing-overview.dto';
-import { ProvisionOfflineTenantDto } from './dto/provision-tenant.dto';
-import { InvoiceDto, InvoiceStatus } from './dto/invoice.dto';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { PaymentService } from '../payment/payment.service';
-import { TenantService } from '../tenants/tenant.service';
-import { InvitationService } from '../auth/invitation.service';
-import { CurrencyService } from '../currency/currency.service';
-import { PaymentProvider } from '../payment/interfaces/payment-strategy.interface';
-import { Role } from '@shared/types/role.enum';
-import { EmailService } from '../email/email.service';
-import { WebhookService } from './webhook.service';
-import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
-import * as path from 'path';
-import { isCorporateEmail } from '@shared/utils/validation';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, DataSource, LessThan } from "typeorm";
+import {
+  SubscriptionEntity,
+  SubscriptionStatus,
+  BillingCycle,
+} from "./entities/subscription.entity";
+import { TenantEntity } from "../tenants/tenant.entity";
+import { BillingInvoiceEntity } from "./entities/billing-invoice.entity";
+import { BillingOverviewDto } from "./dto/billing-overview.dto";
+import { ProvisionOfflineTenantDto } from "./dto/provision-tenant.dto";
+import { InvoiceDto, InvoiceStatus } from "./dto/invoice.dto";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PaymentService } from "../payment/payment.service";
+import { TenantService } from "../tenants/tenant.service";
+import { InvitationService } from "../auth/invitation.service";
+import { CurrencyService } from "../currency/currency.service";
+import { PaymentProvider } from "../payment/interfaces/payment-strategy.interface";
+import { Role } from "@shared/types/role.enum";
+import { EmailService } from "../email/email.service";
+import { WebhookService } from "./webhook.service";
+import { ConfigService } from "@nestjs/config";
+import * as crypto from "crypto";
+import * as path from "path";
+import { isCorporateEmail } from "@shared/utils/validation";
 
 // ─── Pricing Constants ───────────────────────────────────────────────────────
 export const PLAN_PRICING = {
-  trial: { amount_usd: 0, days: 14, label: 'Free Trial' },
-  professional: { amount_usd: 1500, label: 'Professional' },
-  enterprise: { amount_usd: 0, label: 'Enterprise (Contact Sales)' }, // Custom
+  trial: { amount_usd: 0, days: 14, label: "Free Trial" },
+  professional: { amount_usd: 1500, label: "Professional" },
+  enterprise: { amount_usd: 0, label: "Enterprise (Contact Sales)" }, // Custom
 };
 
 const ANNUAL_DISCOUNT = 0.15; // 15% off annual
@@ -73,7 +77,9 @@ export class BillingService {
     this.logger.log(`Starting free trial for ${data.email}`);
 
     if (!isCorporateEmail(data.email)) {
-      throw new BadRequestException('A corporate email address is required for provisioning.');
+      throw new BadRequestException(
+        "A corporate email address is required for provisioning.",
+      );
     }
 
     // Prevent duplicate trial attempts
@@ -82,7 +88,7 @@ export class BillingService {
     });
     if (existingSub) {
       throw new BadRequestException(
-        'An account with this email already exists. Please sign in or contact support.',
+        "An account with this email already exists. Please sign in or contact support.",
       );
     }
 
@@ -91,7 +97,7 @@ export class BillingService {
 
     const schemaName = data.companyName
       .toLowerCase()
-      .replace(/[^a-z0-9_]/gi, '_')
+      .replace(/[^a-z0-9_]/gi, "_")
       .slice(0, 63);
 
     // Use transaction to keep tenant + subscription atomic
@@ -104,32 +110,36 @@ export class BillingService {
         name: data.companyName,
         schema_name: schemaName,
         admin_email: data.email,
-        plan: 'trial',
+        plan: "trial",
         admin_first_name: data.firstName,
         admin_last_name: data.lastName,
-        default_currency_code: 'USD',
+        default_currency_code: "USD",
       });
 
       // Update tenant expires_at
-      await queryRunner.manager.update('tenants', { tenant_id: tenant.tenant_id }, {
-        expires_at: trialEndsAt,
-        is_active: true,
-        plan: 'trial',
-      });
+      await queryRunner.manager.update(
+        "tenants",
+        { tenant_id: tenant.tenant_id },
+        {
+          expires_at: trialEndsAt,
+          is_active: true,
+          plan: "trial",
+        },
+      );
 
       // 2. Create Subscription
       const subscription = this.subscriptionRepository.create({
         tenant_id: tenant.tenant_id,
-        plan: 'trial',
+        plan: "trial",
         status: SubscriptionStatus.TRIALING,
         billing_cycle: BillingCycle.TRIAL,
         amount_usd: 0,
-        gateway: 'trial',
+        gateway: "trial",
         admin_email: data.email,
         company_name: data.companyName,
         admin_first_name: data.firstName,
         admin_last_name: data.lastName,
-        base_currency: 'USD',
+        base_currency: "USD",
         trial_ends_at: trialEndsAt,
         current_period_start: new Date(),
         current_period_end: trialEndsAt,
@@ -140,19 +150,30 @@ export class BillingService {
 
       // 3. Dispatch magic-link invitation happens automatically in TenantService phase 3
       // 4. Send trial activation confirmation email
-      const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://sentinelfi.com');
-      this.emailService.sendTrialActivationEmail(data.email, {
-        firstName: data.firstName,
-        companyName: data.companyName,
-        adminEmail: data.email,
-        trialStartDate: new Date().toDateString(),
-        trialEndDate: trialEndsAt.toDateString(),
-        pricingUrl: `${frontendUrl}/landing/pricing`,
-      }).catch((err: Error) => this.logger.error(`[BILLING] Trial activation email failed: ${err.message}`));
+      const frontendUrl = this.configService.get<string>(
+        "FRONTEND_URL",
+        "https://sentinelfi.com",
+      );
+      this.emailService
+        .sendTrialActivationEmail(data.email, {
+          firstName: data.firstName,
+          companyName: data.companyName,
+          adminEmail: data.email,
+          trialStartDate: new Date().toDateString(),
+          trialEndDate: trialEndsAt.toDateString(),
+          pricingUrl: `${frontendUrl}/landing/pricing`,
+        })
+        .catch((err: Error) =>
+          this.logger.error(
+            `[BILLING] Trial activation email failed: ${err.message}`,
+          ),
+        );
 
-      this.logger.log(`Trial provisioned for ${data.email}. Emails dispatching.`);
+      this.logger.log(
+        `Trial provisioned for ${data.email}. Emails dispatching.`,
+      );
       return {
-        message: 'Trial provisioned. Check your email for access.',
+        message: "Trial provisioned. Check your email for access.",
         trialEndsAt,
       };
     } catch (err) {
@@ -181,10 +202,14 @@ export class BillingService {
     gateway: PaymentProvider;
     baseCurrency?: string;
   }) {
-    this.logger.log(`Processing public subscription for ${data.email} (${data.plan})`);
+    this.logger.log(
+      `Processing public subscription for ${data.email} (${data.plan})`,
+    );
 
     if (!isCorporateEmail(data.email)) {
-      throw new BadRequestException('A corporate email address is required for provisioning.');
+      throw new BadRequestException(
+        "A corporate email address is required for provisioning.",
+      );
     }
 
     const planConfig = PLAN_PRICING[data.plan as keyof typeof PLAN_PRICING];
@@ -198,7 +223,7 @@ export class BillingService {
         ? baseAmountUSD * 12 * (1 - ANNUAL_DISCOUNT)
         : baseAmountUSD;
 
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const frontendUrl = this.configService.get<string>("FRONTEND_URL");
 
     // Determine gateway amount — Paystack requires NGN Kobo, PayPal accepts USD cents
     let gatewayAmount: number;
@@ -208,15 +233,15 @@ export class BillingService {
       // Convert USD → NGN using live rate, then × 100 for Kobo
       const { convertedAmount } = await this.currencyService.convertAmount(
         finalAmountUSD,
-        'USD',
-        'NGN',
+        "USD",
+        "NGN",
       );
       gatewayAmount = Math.round(convertedAmount * 100); // Kobo
-      gatewayCurrency = 'NGN';
+      gatewayCurrency = "NGN";
     } else {
       // PayPal: USD in cents
       gatewayAmount = Math.round(finalAmountUSD * 100);
-      gatewayCurrency = 'USD';
+      gatewayCurrency = "USD";
     }
 
     // Create PENDING subscription BEFORE calling gateway
@@ -230,7 +255,7 @@ export class BillingService {
       company_name: data.companyName,
       admin_first_name: data.firstName,
       admin_last_name: data.lastName,
-      base_currency: data.baseCurrency || 'USD',
+      base_currency: data.baseCurrency || "USD",
     });
     const savedSub = await this.subscriptionRepository.save(pendingSub);
 
@@ -257,7 +282,7 @@ export class BillingService {
     });
 
     return {
-      message: 'Payment initialized.',
+      message: "Payment initialized.",
       authorization_url: paymentResponse.authorizationUrl,
       reference: paymentResponse.reference,
       subscription_id: savedSub.id,
@@ -270,18 +295,23 @@ export class BillingService {
    * Handles verified Paystack charge.success webhook.
    * Leverages WebhookService for signature verification and idempotency.
    */
-  async handlePaystackWebhook(rawBody: string, signature: string): Promise<void> {
+  async handlePaystackWebhook(
+    rawBody: string,
+    signature: string,
+  ): Promise<void> {
     const isNew = await this.webhookService.verifyPaystack(rawBody, signature);
     if (!isNew) return; // Already processed
 
     const event = JSON.parse(rawBody);
-    if (event.event !== 'charge.success') return;
+    if (event.event !== "charge.success") return;
 
     const metadata = event.data?.metadata || {};
     const subscriptionId = metadata.subscription_id;
 
     if (!subscriptionId) {
-      this.logger.warn('[BILLING] Paystack webhook: no subscription_id in metadata');
+      this.logger.warn(
+        "[BILLING] Paystack webhook: no subscription_id in metadata",
+      );
       return;
     }
 
@@ -295,13 +325,15 @@ export class BillingService {
     const isNew = await this.webhookService.verifyPaypal(body);
     if (!isNew) return;
 
-    if (body.event_type !== 'PAYMENT.CAPTURE.COMPLETED') return;
+    if (body.event_type !== "PAYMENT.CAPTURE.COMPLETED") return;
 
     const subscriptionId =
       body.resource?.custom_id || body.resource?.purchase_units?.[0]?.custom_id;
 
     if (!subscriptionId) {
-      this.logger.warn('[BILLING] PayPal webhook: no subscription_id in payload');
+      this.logger.warn(
+        "[BILLING] PayPal webhook: no subscription_id in payload",
+      );
       return;
     }
 
@@ -312,7 +344,10 @@ export class BillingService {
    * Core activation logic — called by both webhook handlers.
    * Activates subscription, creates tenant, dispatches magic-link.
    */
-  private async activateSubscription(subscriptionId: string, gatewayRef?: string): Promise<void> {
+  private async activateSubscription(
+    subscriptionId: string,
+    gatewayRef?: string,
+  ): Promise<void> {
     const sub = await this.subscriptionRepository.findOne({
       where: { id: subscriptionId },
     });
@@ -323,7 +358,9 @@ export class BillingService {
     }
 
     if (sub.status === SubscriptionStatus.ACTIVE) {
-      this.logger.warn(`Webhook: subscription ${subscriptionId} already active — ignoring duplicate`);
+      this.logger.warn(
+        `Webhook: subscription ${subscriptionId} already active — ignoring duplicate`,
+      );
       return; // Idempotent
     }
 
@@ -335,9 +372,9 @@ export class BillingService {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
     }
 
-    const schemaName = sub.company_name!
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/gi, '_')
+    const schemaName = sub
+      .company_name!.toLowerCase()
+      .replace(/[^a-z0-9_]/gi, "_")
       .slice(0, 63);
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -357,33 +394,49 @@ export class BillingService {
       });
 
       // 2. Set tenant expiry from subscription period end
-      await queryRunner.manager.update('tenants', { tenant_id: tenant.tenant_id }, {
-        expires_at: periodEnd,
-        is_active: true,
-        plan: sub.plan,
-      });
+      await queryRunner.manager.update(
+        "tenants",
+        { tenant_id: tenant.tenant_id },
+        {
+          expires_at: periodEnd,
+          is_active: true,
+          plan: sub.plan,
+        },
+      );
 
       // 3. Activate subscription
-      await queryRunner.manager.update(SubscriptionEntity, { id: sub.id }, {
-        status: SubscriptionStatus.ACTIVE,
-        tenant_id: tenant.tenant_id,
-        gateway_reference: gatewayRef || sub.gateway_reference,
-        current_period_start: now,
-        current_period_end: periodEnd,
-      });
+      await queryRunner.manager.update(
+        SubscriptionEntity,
+        { id: sub.id },
+        {
+          status: SubscriptionStatus.ACTIVE,
+          tenant_id: tenant.tenant_id,
+          gateway_reference: gatewayRef || sub.gateway_reference,
+          current_period_start: now,
+          current_period_end: periodEnd,
+        },
+      );
 
       await queryRunner.commitTransaction();
 
       // 4. Dispatch magic-link happens automatically inside TenantService
       // 5. Send subscription success + receipt email with PDF invoice
-      this.dispatchActivationEmails(sub, now, periodEnd, gatewayRef).catch((err: Error) =>
-        this.logger.error(`[BILLING] Post-activation emails failed for ${sub.admin_email}: ${err.message}`),
+      this.dispatchActivationEmails(sub, now, periodEnd, gatewayRef).catch(
+        (err: Error) =>
+          this.logger.error(
+            `[BILLING] Post-activation emails failed for ${sub.admin_email}: ${err.message}`,
+          ),
       );
 
-      this.logger.log(`Subscription ${subscriptionId} activated for ${sub.admin_email}. Emails dispatching.`);
+      this.logger.log(
+        `Subscription ${subscriptionId} activated for ${sub.admin_email}. Emails dispatching.`,
+      );
     } catch (err) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`Failed to activate subscription ${subscriptionId}`, err);
+      this.logger.error(
+        `Failed to activate subscription ${subscriptionId}`,
+        err,
+      );
       throw err;
     } finally {
       await queryRunner.release();
@@ -400,25 +453,31 @@ export class BillingService {
     periodEnd: Date,
     gatewayRef?: string,
   ): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://sentinelfi.com');
-    const invoiceNumber = `RCP-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    const frontendUrl = this.configService.get<string>(
+      "FRONTEND_URL",
+      "https://sentinelfi.com",
+    );
+    const invoiceNumber = `RCP-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
     const amountFormatted = Number(sub.amount_usd).toFixed(2);
     const toEmail = sub.admin_email!;
-    const firstName = sub.admin_first_name || sub.company_name || 'Valued Client';
+    const firstName =
+      sub.admin_first_name || sub.company_name || "Valued Client";
 
     // Generate PDF invoice for attachment
     let pdfBuffer: Buffer | undefined;
     try {
       const invoiceEntity = await this.invoiceRepository.findOne({
         where: { tenant_id: sub.tenant_id! },
-        order: { created_at: 'DESC' },
-        relations: ['subscription'],
+        order: { created_at: "DESC" },
+        relations: ["subscription"],
       });
       if (invoiceEntity) {
         pdfBuffer = await this.downloadInvoice(invoiceEntity.id);
       }
     } catch {
-      this.logger.warn('[BILLING] Could not generate PDF for receipt email — sending without attachment.');
+      this.logger.warn(
+        "[BILLING] Could not generate PDF for receipt email — sending without attachment.",
+      );
     }
 
     // Send payment receipt with PDF attachment
@@ -431,8 +490,8 @@ export class BillingService {
         invoiceNumber,
         plan: sub.plan,
         billingCycle: sub.billing_cycle,
-        gateway: sub.gateway || 'online',
-        gatewayReference: gatewayRef || sub.gateway_reference || 'N/A',
+        gateway: sub.gateway || "online",
+        gatewayReference: gatewayRef || sub.gateway_reference || "N/A",
         amountFormatted,
         periodStart: activatedAt.toDateString(),
         periodEnd: periodEnd.toDateString(),
@@ -465,7 +524,10 @@ export class BillingService {
     reference: string;
     reason: string;
   }): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://sentinelfi.com');
+    const frontendUrl = this.configService.get<string>(
+      "FRONTEND_URL",
+      "https://sentinelfi.com",
+    );
     try {
       await this.emailService.sendPaymentFailureEmail(data.email, {
         firstName: data.firstName,
@@ -480,7 +542,10 @@ export class BillingService {
       });
       this.logger.log(`[BILLING] Payment failure alert sent to ${data.email}`);
     } catch (err) {
-      this.logger.error(`[BILLING] Failed to send payment failure email to ${data.email}:`, err);
+      this.logger.error(
+        `[BILLING] Failed to send payment failure email to ${data.email}:`,
+        err,
+      );
     }
   }
 
@@ -502,7 +567,7 @@ export class BillingService {
 
     const schemaName = data.companyName
       .toLowerCase()
-      .replace(/[^a-z0-9_]/gi, '_')
+      .replace(/[^a-z0-9_]/gi, "_")
       .slice(0, 63);
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -516,22 +581,32 @@ export class BillingService {
       });
 
       if (tenant) {
-        this.logger.log(`Existing tenant found for ${data.adminEmail}. Processing as RENEWAL.`);
-        
+        this.logger.log(
+          `Existing tenant found for ${data.adminEmail}. Processing as RENEWAL.`,
+        );
+
         // Calculate new expiry: max(now, current_expiry) + months
-        const currentExpiry = tenant.expires_at ? new Date(tenant.expires_at) : now;
+        const currentExpiry = tenant.expires_at
+          ? new Date(tenant.expires_at)
+          : now;
         const baseDate = currentExpiry > now ? currentExpiry : now;
         periodEnd.setTime(baseDate.getTime());
         periodEnd.setMonth(periodEnd.getMonth() + data.months);
 
         // Update tenant plan and expiry
-        await queryRunner.manager.update('tenants', { tenant_id: tenant.tenant_id }, {
-          expires_at: periodEnd,
-          is_active: true,
-          plan: data.plan,
-        });
+        await queryRunner.manager.update(
+          "tenants",
+          { tenant_id: tenant.tenant_id },
+          {
+            expires_at: periodEnd,
+            is_active: true,
+            plan: data.plan,
+          },
+        );
       } else {
-        this.logger.log(`No existing tenant found. Creating new tenant: ${data.companyName}`);
+        this.logger.log(
+          `No existing tenant found. Creating new tenant: ${data.companyName}`,
+        );
         tenant = await this.tenantService.createTenant({
           name: data.companyName,
           schema_name: schemaName,
@@ -539,11 +614,15 @@ export class BillingService {
           plan: data.plan,
         });
 
-        await queryRunner.manager.update('tenants', { tenant_id: tenant.tenant_id }, {
-          expires_at: periodEnd,
-          is_active: true,
-          plan: data.plan,
-        });
+        await queryRunner.manager.update(
+          "tenants",
+          { tenant_id: tenant.tenant_id },
+          {
+            expires_at: periodEnd,
+            is_active: true,
+            plan: data.plan,
+          },
+        );
       }
 
       const subscription = this.subscriptionRepository.create({
@@ -552,14 +631,16 @@ export class BillingService {
         status: SubscriptionStatus.ACTIVE,
         billing_cycle: data.billingCycle,
         amount_usd: data.amountUsd,
-        gateway: 'superadmin',
+        gateway: "superadmin",
         admin_email: data.adminEmail,
         company_name: data.companyName,
         current_period_start: now,
         current_period_end: periodEnd,
         payment_proof_text: data.paymentProofText || null,
         offline_bank_reference: data.offlineBankReference || null,
-        payment_proof_url: file ? `/uploads/billing-receipts/${file.filename}` : null,
+        payment_proof_url: file
+          ? `/uploads/billing-receipts/${file.filename}`
+          : null,
       });
 
       await queryRunner.manager.save(SubscriptionEntity, subscription);
@@ -567,7 +648,7 @@ export class BillingService {
       const invoice = new BillingInvoiceEntity();
       invoice.tenant_id = tenant.tenant_id;
       invoice.subscription_id = subscription.id;
-      invoice.invoice_number = `INV-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+      invoice.invoice_number = `INV-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
       invoice.amount_usd = subscription.amount_usd;
       invoice.status = InvoiceStatus.Paid;
       invoice.due_date = now;
@@ -578,15 +659,25 @@ export class BillingService {
 
       // Magic link happens automatically inside tenant service.
       // Send offline provisioning receipt email with PDF
-      const feUrl = this.configService.get<string>('FRONTEND_URL', 'https://sentinelfi.com');
-      this.generateAndSendOfflineReceipt(subscription, invoice, tenant, feUrl).catch((err: Error) =>
-        this.logger.error(`[BILLING] Offline receipt email failed: ${err.message}`),
+      const feUrl = this.configService.get<string>(
+        "FRONTEND_URL",
+        "https://sentinelfi.com",
+      );
+      this.generateAndSendOfflineReceipt(
+        subscription,
+        invoice,
+        tenant,
+        feUrl,
+      ).catch((err: Error) =>
+        this.logger.error(
+          `[BILLING] Offline receipt email failed: ${err.message}`,
+        ),
       );
 
       return {
         tenant_id: tenant.tenant_id,
         companyName: tenant.name,
-        message: `Tenant ${tenant.name} ${tenant.expires_at ? 'extended' : 'provisioned'} for ${data.months} month(s). New expiry: ${periodEnd.toISOString()}`,
+        message: `Tenant ${tenant.name} ${tenant.expires_at ? "extended" : "provisioned"} for ${data.months} month(s). New expiry: ${periodEnd.toISOString()}`,
         periodEnd,
       };
     } catch (err) {
@@ -602,14 +693,18 @@ export class BillingService {
   async getMySubscription(tenantId: string) {
     const sub = await this.subscriptionRepository.findOne({
       where: { tenant_id: tenantId },
-      order: { created_at: 'DESC' },
+      order: { created_at: "DESC" },
     });
 
     if (!sub) {
-      this.logger.warn(`[BillingService] No subscription found for tenant: ${tenantId}`);
-      throw new NotFoundException('No subscription found for this tenant.');
+      this.logger.warn(
+        `[BillingService] No subscription found for tenant: ${tenantId}`,
+      );
+      throw new NotFoundException("No subscription found for this tenant.");
     }
-    this.logger.debug(`[BillingService] Found subscription for tenant: ${tenantId}, Plan: ${sub.plan}`);
+    this.logger.debug(
+      `[BillingService] Found subscription for tenant: ${tenantId}, Plan: ${sub.plan}`,
+    );
 
     const now = new Date();
     const periodEnd = sub.trial_ends_at || sub.current_period_end;
@@ -633,8 +728,10 @@ export class BillingService {
   }
 
   async getSubscriptionStatus(subscriptionId: string) {
-    const sub = await this.subscriptionRepository.findOne({ where: { id: subscriptionId } });
-    if (!sub) throw new NotFoundException('Subscription not found.');
+    const sub = await this.subscriptionRepository.findOne({
+      where: { id: subscriptionId },
+    });
+    if (!sub) throw new NotFoundException("Subscription not found.");
     return { status: sub.status, tenant_id: sub.tenant_id };
   }
 
@@ -642,19 +739,33 @@ export class BillingService {
 
   async getAllTenantSubscriptions() {
     const subscriptions = await this.subscriptionRepository.find({
-      order: { created_at: 'DESC' },
+      order: { created_at: "DESC" },
     });
 
     const summary = {
       total: subscriptions.length,
-      active: subscriptions.filter(s => s.status === SubscriptionStatus.ACTIVE).length,
-      trialing: subscriptions.filter(s => s.status === SubscriptionStatus.TRIALING).length,
-      expired: subscriptions.filter(s => s.status === SubscriptionStatus.EXPIRED).length,
+      active: subscriptions.filter(
+        (s) => s.status === SubscriptionStatus.ACTIVE,
+      ).length,
+      trialing: subscriptions.filter(
+        (s) => s.status === SubscriptionStatus.TRIALING,
+      ).length,
+      expired: subscriptions.filter(
+        (s) => s.status === SubscriptionStatus.EXPIRED,
+      ).length,
       mrr_usd: subscriptions
-        .filter(s => s.status === SubscriptionStatus.ACTIVE && s.billing_cycle === BillingCycle.MONTHLY)
+        .filter(
+          (s) =>
+            s.status === SubscriptionStatus.ACTIVE &&
+            s.billing_cycle === BillingCycle.MONTHLY,
+        )
         .reduce((acc, s) => acc + Number(s.amount_usd), 0),
       arr_usd: subscriptions
-        .filter(s => s.status === SubscriptionStatus.ACTIVE && s.billing_cycle === BillingCycle.ANNUAL)
+        .filter(
+          (s) =>
+            s.status === SubscriptionStatus.ACTIVE &&
+            s.billing_cycle === BillingCycle.ANNUAL,
+        )
         .reduce((acc, s) => acc + Number(s.amount_usd), 0),
     };
 
@@ -665,23 +776,35 @@ export class BillingService {
 
   async getBillingOverview(): Promise<BillingOverviewDto> {
     const { summary } = await this.getAllTenantSubscriptions();
-    
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const pastSubscriptions = await this.subscriptionRepository.find({
-      where: { 
+      where: {
         created_at: LessThan(thirtyDaysAgo),
-      }
+      },
     });
 
-    const pastActive = pastSubscriptions.filter(s => s.status === SubscriptionStatus.ACTIVE);
+    const pastActive = pastSubscriptions.filter(
+      (s) => s.status === SubscriptionStatus.ACTIVE,
+    );
     const pastMrr = pastActive
-      .filter(s => s.billing_cycle === BillingCycle.MONTHLY)
+      .filter((s) => s.billing_cycle === BillingCycle.MONTHLY)
       .reduce((acc, s) => acc + Number(s.amount_usd), 0);
-    
-    const mrrGrowthPercentage = pastMrr === 0 ? (summary.mrr_usd > 0 ? 100 : 0) : ((summary.mrr_usd - pastMrr) / pastMrr) * 100;
-    const subGrowthPercentage = pastActive.length === 0 ? (summary.active > 0 ? 100 : 0) : ((summary.active - pastActive.length) / pastActive.length) * 100;
+
+    const mrrGrowthPercentage =
+      pastMrr === 0
+        ? summary.mrr_usd > 0
+          ? 100
+          : 0
+        : ((summary.mrr_usd - pastMrr) / pastMrr) * 100;
+    const subGrowthPercentage =
+      pastActive.length === 0
+        ? summary.active > 0
+          ? 100
+          : 0
+        : ((summary.active - pastActive.length) / pastActive.length) * 100;
 
     return {
       totalMrr: summary.mrr_usd,
@@ -694,14 +817,14 @@ export class BillingService {
 
   async getRecentInvoices(): Promise<InvoiceDto[]> {
     const invoices = await this.invoiceRepository.find({
-      relations: ['subscription'],
-      order: { created_at: 'DESC' },
+      relations: ["subscription"],
+      order: { created_at: "DESC" },
       take: 20,
     });
 
-    return invoices.map(i => ({
+    return invoices.map((i) => ({
       id: i.id,
-      tenantName: i.subscription?.company_name || 'N/A',
+      tenantName: i.subscription?.company_name || "N/A",
       amount: Number(i.amount_usd),
       date: i.created_at,
       status: i.status as InvoiceStatus,
@@ -709,11 +832,11 @@ export class BillingService {
   }
 
   async downloadInvoice(invoiceId: string): Promise<Buffer> {
-    const invoice = await this.invoiceRepository.findOne({ 
+    const invoice = await this.invoiceRepository.findOne({
       where: { id: invoiceId },
-      relations: ['subscription'] 
+      relations: ["subscription"],
     });
-    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (!invoice) throw new NotFoundException("Invoice not found");
 
     const sub = invoice.subscription;
     const pdfDoc = await PDFDocument.create();
@@ -723,72 +846,191 @@ export class BillingService {
     const bodyFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const lightFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-    const teal  = rgb(0.00, 0.64, 0.71);  // #00A3B5
-    const dark  = rgb(0.10, 0.10, 0.15);
-    const gray  = rgb(0.44, 0.50, 0.56);
+    const teal = rgb(0.0, 0.64, 0.71); // #00A3B5
+    const dark = rgb(0.1, 0.1, 0.15);
+    const gray = rgb(0.44, 0.5, 0.56);
     const green = rgb(0.13, 0.55, 0.13);
-    const white = rgb(1.00, 1.00, 1.00);
+    const white = rgb(1.0, 1.0, 1.0);
 
     // ── Header banner ───────────────────────────────────────────────────
-    page.drawRectangle({ x: 0, y: height - 110, width: 595, height: 110, color: rgb(0.00, 0.05, 0.09) });
-    page.drawText('SENTINELFI', { x: 50, y: height - 55, font, size: 26, color: teal });
-    page.drawText('\u00ae', { x: 185, y: height - 42, font, size: 11, color: teal });
-    page.drawText('Financial Intelligence Platform', { x: 50, y: height - 76, font: bodyFont, size: 10, color: white });
-    page.drawText('TAX INVOICE', { x: 400, y: height - 50, font, size: 18, color: white });
-    page.drawText(invoice.invoice_number, { x: 400, y: height - 72, font: bodyFont, size: 10, color: rgb(0.6,0.8,0.85) });
+    page.drawRectangle({
+      x: 0,
+      y: height - 110,
+      width: 595,
+      height: 110,
+      color: rgb(0.0, 0.05, 0.09),
+    });
+    page.drawText("SENTINELFI", {
+      x: 50,
+      y: height - 55,
+      font,
+      size: 26,
+      color: teal,
+    });
+    page.drawText("\u00ae", {
+      x: 185,
+      y: height - 42,
+      font,
+      size: 11,
+      color: teal,
+    });
+    page.drawText("Financial Intelligence Platform", {
+      x: 50,
+      y: height - 76,
+      font: bodyFont,
+      size: 10,
+      color: white,
+    });
+    page.drawText("TAX INVOICE", {
+      x: 400,
+      y: height - 50,
+      font,
+      size: 18,
+      color: white,
+    });
+    page.drawText(invoice.invoice_number, {
+      x: 400,
+      y: height - 72,
+      font: bodyFont,
+      size: 10,
+      color: rgb(0.6, 0.8, 0.85),
+    });
 
     // ── Issuer block ────────────────────────────────────────────────────
     let y = height - 145;
-    page.drawText('Issued By:', { x: 50, y, font, size: 9, color: gray });
+    page.drawText("Issued By:", { x: 50, y, font, size: 9, color: gray });
     y -= 14;
-    page.drawText('Seancrystal Global Services Limited', { x: 50, y, font, size: 11, color: dark });
+    page.drawText("Seancrystal Global Services Limited", {
+      x: 50,
+      y,
+      font,
+      size: 11,
+      color: dark,
+    });
     y -= 14;
-    page.drawText('Owner & Operator of SentinelFi\u00ae', { x: 50, y, font: lightFont, size: 9, color: gray });
+    page.drawText("Owner & Operator of SentinelFi\u00ae", {
+      x: 50,
+      y,
+      font: lightFont,
+      size: 9,
+      color: gray,
+    });
     y -= 12;
-    page.drawText('Funded by: Solution Energy and Engineering Services Limited', { x: 50, y, font: lightFont, size: 9, color: gray });
+    page.drawText(
+      "Funded by: Solution Energy and Engineering Services Limited",
+      { x: 50, y, font: lightFont, size: 9, color: gray },
+    );
 
     // ── Separator ───────────────────────────────────────────────────────
     y -= 18;
-    page.drawLine({ start: { x: 50, y }, end: { x: 545, y }, thickness: 0.5, color: teal });
+    page.drawLine({
+      start: { x: 50, y },
+      end: { x: 545, y },
+      thickness: 0.5,
+      color: teal,
+    });
     y -= 20;
 
     // ── Invoice details table ────────────────────────────────────────────
     const rows: [string, string][] = [
-      ['Invoice Number:', invoice.invoice_number],
-      ['Date Issued:', invoice.paid_at?.toDateString() || new Date().toDateString()],
-      ['Billed To (Company):', sub?.company_name || 'N/A'],
-      ['Admin Email:', sub?.admin_email || 'N/A'],
-      ['Plan:', (sub?.plan || 'N/A').toUpperCase()],
-      ['Billing Cycle:', sub?.billing_cycle || 'N/A'],
-      ['Subscription Period:', `${sub?.current_period_start?.toDateString() || 'N/A'} \u2192 ${sub?.current_period_end?.toDateString() || 'N/A'}`],
-      ['Payment Gateway:', sub?.gateway || 'N/A'],
-      ['Amount (USD):', `$${Number(invoice.amount_usd).toFixed(2)}`],
-      ['Status:', invoice.status.toUpperCase()],
+      ["Invoice Number:", invoice.invoice_number],
+      [
+        "Date Issued:",
+        invoice.paid_at?.toDateString() || new Date().toDateString(),
+      ],
+      ["Billed To (Company):", sub?.company_name || "N/A"],
+      ["Admin Email:", sub?.admin_email || "N/A"],
+      ["Plan:", (sub?.plan || "N/A").toUpperCase()],
+      ["Billing Cycle:", sub?.billing_cycle || "N/A"],
+      [
+        "Subscription Period:",
+        `${sub?.current_period_start?.toDateString() || "N/A"} \u2192 ${sub?.current_period_end?.toDateString() || "N/A"}`,
+      ],
+      ["Payment Gateway:", sub?.gateway || "N/A"],
+      ["Amount (USD):", `$${Number(invoice.amount_usd).toFixed(2)}`],
+      ["Status:", invoice.status.toUpperCase()],
     ];
 
     rows.forEach(([label, value]) => {
       page.drawText(label, { x: 50, y, font, size: 10, color: gray });
-      page.drawText(value, { x: 230, y, font: bodyFont, size: 10, color: dark });
+      page.drawText(value, {
+        x: 230,
+        y,
+        font: bodyFont,
+        size: 10,
+        color: dark,
+      });
       y -= 22;
     });
 
     // ── Amount highlight box ─────────────────────────────────────────────
     y -= 12;
-    page.drawRectangle({ x: 50, y: y - 10, width: 495, height: 44, color: rgb(0.93, 0.99, 0.99) });
-    page.drawText('TOTAL AMOUNT DUE (USD)', { x: 58, y: y + 18, font, size: 9, color: gray });
-    page.drawText(`$${Number(invoice.amount_usd).toFixed(2)}`, { x: 390, y: y + 12, font, size: 18, color: teal });
+    page.drawRectangle({
+      x: 50,
+      y: y - 10,
+      width: 495,
+      height: 44,
+      color: rgb(0.93, 0.99, 0.99),
+    });
+    page.drawText("TOTAL AMOUNT DUE (USD)", {
+      x: 58,
+      y: y + 18,
+      font,
+      size: 9,
+      color: gray,
+    });
+    page.drawText(`$${Number(invoice.amount_usd).toFixed(2)}`, {
+      x: 390,
+      y: y + 12,
+      font,
+      size: 18,
+      color: teal,
+    });
 
     // ── PAID stamp (if paid) ─────────────────────────────────────────────
     if (invoice.status === InvoiceStatus.Paid) {
-      page.drawRectangle({ x: 390, y: height - 195, width: 85, height: 30, color: rgb(0.13, 0.55, 0.13), borderColor: green, borderWidth: 1 });
-      page.drawText('\u2714  PAID', { x: 397, y: height - 185, font, size: 12, color: white });
+      page.drawRectangle({
+        x: 390,
+        y: height - 195,
+        width: 85,
+        height: 30,
+        color: rgb(0.13, 0.55, 0.13),
+        borderColor: green,
+        borderWidth: 1,
+      });
+      page.drawText("\u2714  PAID", {
+        x: 397,
+        y: height - 185,
+        font,
+        size: 12,
+        color: white,
+      });
     }
 
     // ── Footer ───────────────────────────────────────────────────────────
-    page.drawLine({ start: { x: 50, y: 80 }, end: { x: 545, y: 80 }, thickness: 0.5, color: teal });
-    page.drawText('\u00a9 ' + new Date().getFullYear() + ' Seancrystal Global Services Limited. All rights reserved.', { x: 50, y: 62, font: bodyFont, size: 8, color: gray });
-    page.drawText('SentinelFi\u00ae is a product of Seancrystal Global Services Limited. Funded by Solution Energy and Engineering Services Limited.', { x: 50, y: 48, font: lightFont, size: 7.5, color: gray });
-    page.drawText('For queries: support@sentinelfi.com', { x: 50, y: 34, font: bodyFont, size: 8, color: teal });
+    page.drawLine({
+      start: { x: 50, y: 80 },
+      end: { x: 545, y: 80 },
+      thickness: 0.5,
+      color: teal,
+    });
+    page.drawText(
+      "\u00a9 " +
+        new Date().getFullYear() +
+        " Seancrystal Global Services Limited. All rights reserved.",
+      { x: 50, y: 62, font: bodyFont, size: 8, color: gray },
+    );
+    page.drawText(
+      "SentinelFi\u00ae is a product of Seancrystal Global Services Limited. Funded by Solution Energy and Engineering Services Limited.",
+      { x: 50, y: 48, font: lightFont, size: 7.5, color: gray },
+    );
+    page.drawText("For queries: support@sentinelfi.com", {
+      x: 50,
+      y: 34,
+      font: bodyFont,
+      size: 8,
+      color: teal,
+    });
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
@@ -804,7 +1046,11 @@ export class BillingService {
     frontendUrl: string,
   ): Promise<void> {
     let pdfBuffer: Buffer | undefined;
-    try { pdfBuffer = await this.downloadInvoice(invoice.id); } catch { /* non-blocking */ }
+    try {
+      pdfBuffer = await this.downloadInvoice(invoice.id);
+    } catch {
+      /* non-blocking */
+    }
 
     await this.emailService.sendPaymentReceiptEmail(
       subscription.admin_email!,
@@ -815,11 +1061,14 @@ export class BillingService {
         invoiceNumber: invoice.invoice_number,
         plan: subscription.plan,
         billingCycle: subscription.billing_cycle,
-        gateway: 'Offline / Bank Transfer',
-        gatewayReference: subscription.offline_bank_reference || subscription.gateway_reference || 'N/A',
+        gateway: "Offline / Bank Transfer",
+        gatewayReference:
+          subscription.offline_bank_reference ||
+          subscription.gateway_reference ||
+          "N/A",
         amountFormatted: Number(subscription.amount_usd).toFixed(2),
-        periodStart: subscription.current_period_start?.toDateString() || 'N/A',
-        periodEnd: subscription.current_period_end?.toDateString() || 'N/A',
+        periodStart: subscription.current_period_start?.toDateString() || "N/A",
+        periodEnd: subscription.current_period_end?.toDateString() || "N/A",
         dashboardUrl: `${frontendUrl}/dashboard`,
       },
       pdfBuffer,
@@ -829,12 +1078,18 @@ export class BillingService {
   // ─── OFFLINE AUDIT PROOFS ────────────────────────────────────────────────────
 
   async getPaymentProofPath(subscriptionId: string): Promise<string> {
-    const sub = await this.subscriptionRepository.findOne({ where: { id: subscriptionId } });
+    const sub = await this.subscriptionRepository.findOne({
+      where: { id: subscriptionId },
+    });
     if (!sub || !sub.payment_proof_url) {
-      this.logger.warn(`No payment proof found for subscription ${subscriptionId}`);
-      throw new NotFoundException('No payment proof file associated with this subscription.');
+      this.logger.warn(
+        `No payment proof found for subscription ${subscriptionId}`,
+      );
+      throw new NotFoundException(
+        "No payment proof file associated with this subscription.",
+      );
     }
-    
+
     // Convert relative URL stored in DB to an absolute file system path
     const absolutePath = path.join(process.cwd(), sub.payment_proof_url);
     return absolutePath;
@@ -842,13 +1097,27 @@ export class BillingService {
 
   // ─── TEAM INVITATION ─────────────────────────────────────────────────────────
 
-  async inviteUser(email: string, role: Role, tenantId: string, firstName?: string, lastName?: string) {
+  async inviteUser(
+    email: string,
+    role: Role,
+    tenantId: string,
+    firstName?: string,
+    lastName?: string,
+  ) {
     if (!isCorporateEmail(email)) {
-      throw new BadRequestException('A corporate email address is required for invitations.');
+      throw new BadRequestException(
+        "A corporate email address is required for invitations.",
+      );
     }
     const tenant = await this.tenantService.findOneTenant(tenantId);
-    if (!tenant) throw new NotFoundException('Tenant not found');
+    if (!tenant) throw new NotFoundException("Tenant not found");
 
-    return this.invitationService.createInvitation(email, role, tenant, firstName, lastName);
+    return this.invitationService.createInvitation(
+      email,
+      role,
+      tenant,
+      firstName,
+      lastName,
+    );
   }
 }

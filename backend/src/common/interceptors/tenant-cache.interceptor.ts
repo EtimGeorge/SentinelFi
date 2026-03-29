@@ -1,7 +1,5 @@
-import {
-  CacheInterceptor,
-} from '@nestjs/cache-manager';
-import { ExecutionContext, Injectable } from '@nestjs/common';
+import { CacheInterceptor } from "@nestjs/cache-manager";
+import { ExecutionContext, Injectable } from "@nestjs/common";
 
 /**
  * Custom Cache Interceptor that includes the tenant_id in the cache key.
@@ -13,17 +11,14 @@ export class TenantCacheInterceptor extends CacheInterceptor {
     const request = context.switchToHttp().getRequest();
     const { httpAdapter } = this.httpAdapterHost;
     const isHttpApp = !!httpAdapter && !!httpAdapter.getRequestMethod;
-    const cacheMetadata = this.reflector.get(
-      'cacheKey',
-      context.getHandler(),
-    );
+    const cacheMetadata = this.reflector.get("cacheKey", context.getHandler());
 
     if (!isHttpApp || cacheMetadata) {
       return cacheMetadata;
     }
 
     const requestMethod = httpAdapter.getRequestMethod(request);
-    if (requestMethod !== 'GET') {
+    if (requestMethod !== "GET") {
       return undefined;
     }
 

@@ -1,4 +1,11 @@
-import { IsString, IsOptional, Length, MaxLength, IsUUID, IsBoolean } from "class-validator";
+import {
+  IsString,
+  IsOptional,
+  Length,
+  MaxLength,
+  IsUUID,
+  IsBoolean,
+} from "class-validator";
 import { Transform } from "class-transformer";
 
 /**
@@ -25,7 +32,9 @@ export class UpdateWbsCategoryDto {
   color?: string;
 
   @IsOptional()
-  @Transform(({ value }) => (value && typeof value === 'string' && value.trim() ? value : null))
+  @Transform(({ value }) =>
+    value && typeof value === "string" && value.trim() ? value : null,
+  )
   @IsUUID()
   parent_id?: string | null;
 

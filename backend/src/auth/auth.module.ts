@@ -22,7 +22,13 @@ import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
 @Module({
   imports: [
     TenantRepositoriesModule,
-    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity, InvitationEntity, PasswordResetEntity]),
+    TypeOrmModule.forFeature([
+      UserEntity,
+      RoleEntity,
+      PermissionEntity,
+      InvitationEntity,
+      PasswordResetEntity,
+    ]),
     EmailModule,
     JwtModule.registerAsync({
       useFactory: async (configService: ConfigService) => {
@@ -52,10 +58,14 @@ import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
     {
       provide: "IAuthCache",
       useFactory: (configService: ConfigService, cacheManager: any) => {
-        const useRedis = configService.get("NODE_ENV") === "production" || configService.get("USE_REDIS") === "true";
-        return useRedis ? new RedisAuthCache(cacheManager) : new InMemoryAuthCache();
+        const useRedis =
+          configService.get("NODE_ENV") === "production" ||
+          configService.get("USE_REDIS") === "true";
+        return useRedis
+          ? new RedisAuthCache(cacheManager)
+          : new InMemoryAuthCache();
       },
-      inject: [ConfigService, 'CACHE_MANAGER'],
+      inject: [ConfigService, "CACHE_MANAGER"],
     },
     {
       provide: "APP_PIPE",
@@ -63,6 +73,13 @@ import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
     },
     Logger,
   ],
-  exports: [TypeOrmModule, JwtModule, AuthService, InvitationService, TokenBlacklistService, "IAuthCache"],
+  exports: [
+    TypeOrmModule,
+    JwtModule,
+    AuthService,
+    InvitationService,
+    TokenBlacklistService,
+    "IAuthCache",
+  ],
 })
 export class AuthModule {}

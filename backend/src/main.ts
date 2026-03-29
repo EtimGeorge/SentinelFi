@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe, Logger } from "@nestjs/common";
@@ -7,7 +7,7 @@ import { ConfigService } from "@nestjs/config";
 import { Request, Response, NextFunction } from "express";
 import { DataSource } from "typeorm";
 import { DatabaseConfig } from "./common/config/database.config";
-import { RedisIoAdapter } from './messaging/adapters/redis-io.adapter';
+import { RedisIoAdapter } from "./messaging/adapters/redis-io.adapter";
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
 
@@ -38,7 +38,7 @@ async function bootstrap() {
     app.setGlobalPrefix("api/v1");
     // Register the Socket.io adapter (with optional Redis for scaling)
     const redisIoAdapter = new RedisIoAdapter(app);
-    const redisUrl = configService.get<string>('REDIS_URL');
+    const redisUrl = configService.get<string>("REDIS_URL");
     await redisIoAdapter.connectToRedis(redisUrl);
     app.useWebSocketAdapter(redisIoAdapter);
 
@@ -52,7 +52,8 @@ async function bootstrap() {
       }),
     );
 
-    const { AllExceptionsFilter } = await import('./common/filters/all-exceptions.filter');
+    const { AllExceptionsFilter } =
+      await import("./common/filters/all-exceptions.filter");
     app.useGlobalFilters(new AllExceptionsFilter());
 
     if (nodeEnv === "development") {
@@ -62,60 +63,61 @@ async function bootstrap() {
       });
       logger.log("Development request logging is enabled.");
     }
-    
+
     // --- SENIOR DEV ENHANCEMENTS ---
 
     // 1. Get DataSource for health monitoring and shutdown
     const dataSource = app.get(DataSource);
-    
+
     // 2. Initialize database health monitoring
     DatabaseConfig.initializeHealthMonitoring(dataSource);
 
     // 3. Graceful shutdown handlers
     const gracefulShutdown = async (signal: string) => {
       logger.log(`${signal} received, starting graceful shutdown...`);
-      
+
       try {
         // Stop accepting new requests
         await app.close();
-        
+
         // Shutdown database connections
         await DatabaseConfig.shutdown(dataSource);
-        
-        logger.log('✓ Graceful shutdown completed');
+
+        logger.log("✓ Graceful shutdown completed");
         process.exit(0);
       } catch (error) {
-        logger.error('Error during graceful shutdown:', error);
+        logger.error("Error during graceful shutdown:", error);
         process.exit(1);
       }
     };
 
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
     // 4. Uncaught exception handler
-    process.on('uncaughtException', (error) => {
-      logger.error('Uncaught Exception:', error);
+    process.on("uncaughtException", (error) => {
+      logger.error("Uncaught Exception:", error);
       // It's often recommended to exit on uncaught exceptions
-      gracefulShutdown('UNCAUGHT_EXCEPTION').finally(() => process.exit(1));
+      gracefulShutdown("UNCAUGHT_EXCEPTION").finally(() => process.exit(1));
     });
 
     // 5. Unhandled promise rejection handler
-    process.on('unhandledRejection', (reason, promise) => {
-      logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    process.on("unhandledRejection", (reason, promise) => {
+      logger.error("Unhandled Rejection at:", promise, "reason:", reason);
     });
-    
+
     // --- END SENIOR DEV ENHANCEMENTS ---
 
     await app.listen(port, "0.0.0.0");
 
-    logger.log(`🚀 SentinelFi API is running on: http://localhost:${port}/api/v1`);
+    logger.log(
+      `🚀 SentinelFi API is running on: http://localhost:${port}/api/v1`,
+    );
     logger.log(`📡 CORS enabled for: ${frontendUrl}`);
     logger.log(`🍪 Cookie-based authentication active`);
     logger.log(`📊 Health monitoring active`);
-
   } catch (error) {
-    logger.error('Failed to start application:', error);
+    logger.error("Failed to start application:", error);
     process.exit(1);
   }
 }

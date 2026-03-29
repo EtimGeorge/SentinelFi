@@ -1,11 +1,11 @@
-import { MigrationInterface, QueryRunner } from 'typeorm';
+import { MigrationInterface, QueryRunner } from "typeorm";
 
 /**
  * Creates the `tenant_settings` table in the public schema.
  * One row per tenant, auto-created when a tenant is provisioned.
  */
 export class CreateTenantSettings1773400000000 implements MigrationInterface {
-  name = 'CreateTenantSettings1773400000000';
+  name = "CreateTenantSettings1773400000000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
@@ -58,6 +58,8 @@ export class CreateTenantSettings1773400000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP TABLE IF EXISTS public.tenant_settings CASCADE`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS public.tenant_settings CASCADE`,
+    );
   }
 }

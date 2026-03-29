@@ -1,1 +1,1 @@
-export { InvoiceDto, InvoiceStatus } from 'shared/types/billing';
+export { InvoiceDto, InvoiceStatus } from "shared/types/billing";

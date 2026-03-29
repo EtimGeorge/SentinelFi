@@ -1,8 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  Index,
+} from "typeorm";
 
-@Entity('processed_webhooks')
+@Entity("processed_webhooks")
 export class ProcessedWebhookEntity {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id!: string;
 
   @Index({ unique: true })
@@ -15,6 +21,6 @@ export class ProcessedWebhookEntity {
   @CreateDateColumn()
   processed_at!: Date;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: "jsonb", nullable: true })
   payload!: any;
 }

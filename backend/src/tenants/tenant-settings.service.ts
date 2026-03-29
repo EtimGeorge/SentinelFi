@@ -4,15 +4,15 @@ import {
   NotFoundException,
   InternalServerErrorException,
   ForbiddenException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { TenantSettingsEntity } from './tenant-settings.entity';
-import { TenantEntity } from './tenant.entity';
-import { UserEntity } from '../auth/user.entity';
-import { UpdateTenantSettingsDto } from './dto/tenant-settings.dto';
-import { AuditService } from '../audit/audit.service';
-import * as nodemailer from 'nodemailer';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { TenantSettingsEntity } from "./tenant-settings.entity";
+import { TenantEntity } from "./tenant.entity";
+import { UserEntity } from "../auth/user.entity";
+import { UpdateTenantSettingsDto } from "./dto/tenant-settings.dto";
+import { AuditService } from "../audit/audit.service";
+import * as nodemailer from "nodemailer";
 
 export interface SubscriptionMetrics {
   plan: string;
@@ -30,7 +30,10 @@ export interface SubscriptionMetrics {
   isApiEnabled: boolean;
 }
 
-export interface TenantSettingsResponse extends Omit<TenantSettingsEntity, 'smtpConfig' | 'erpConfig' | 'sendgridApiKey'> {
+export interface TenantSettingsResponse extends Omit<
+  TenantSettingsEntity,
+  "smtpConfig" | "erpConfig" | "sendgridApiKey"
+> {
   // Mask secrets in API response
   smtpConfigured: boolean;
   erpConfigured: boolean;
@@ -73,7 +76,8 @@ export class TenantSettingsService {
     const settings = await this.getOrCreateSettings(tenantId);
 
     // Build a safe response without raw secrets
-    const { smtpConfig, erpConfig, sendgridApiKey, ...safeFields } = settings as any;
+    const { smtpConfig, erpConfig, sendgridApiKey, ...safeFields } =
+      settings as any;
     return {
       ...safeFields,
       smtpConfigured: !!smtpConfig && !!smtpConfig.server,
@@ -99,14 +103,16 @@ export class TenantSettingsService {
     Object.assign(settings, dto);
     const saved = await this.settingsRepo.save(settings);
 
-    this.auditService.log(
-      actorUserId,
-      'TENANT_SETTINGS_UPDATED',
-      tenantId,
-      'Tenant settings were updated.',
-      { changes: Object.keys(dto) },
-      tenantId,
-    ).catch((e: Error) => this.logger.error(`Audit log failed: ${e.message}`));
+    this.auditService
+      .log(
+        actorUserId,
+        "TENANT_SETTINGS_UPDATED",
+        tenantId,
+        "Tenant settings were updated.",
+        { changes: Object.keys(dto) },
+        tenantId,
+      )
+      .catch((e: Error) => this.logger.error(`Audit log failed: ${e.message}`));
 
     return this.getSettings(tenantId);
   }
@@ -116,7 +122,9 @@ export class TenantSettingsService {
    * Returns user quota usage, storage quota usage, and subscription expiry details.
    */
   async getSubscriptionMetrics(tenantId: string): Promise<SubscriptionMetrics> {
-    const tenant = await this.tenantRepo.findOne({ where: { tenant_id: tenantId } });
+    const tenant = await this.tenantRepo.findOne({
+      where: { tenant_id: tenantId },
+    });
     if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
 
     const settings = await this.getOrCreateSettings(tenantId);
@@ -136,15 +144,20 @@ export class TenantSettingsService {
       isExpired = daysUntilExpiry < 0;
     }
 
-    const userConsumptionPct = tenant.max_users > 0
-      ? Math.min(Math.round((activeUsers / tenant.max_users) * 100), 100)
-      : 0;
+    const userConsumptionPct =
+      tenant.max_users > 0
+        ? Math.min(Math.round((activeUsers / tenant.max_users) * 100), 100)
+        : 0;
 
     // Storage: placeholder until actual file tracking is wired in
     const storageUsedGb = 0;
-    const storageConsumptionPct = tenant.max_storage_gb > 0
-      ? Math.min(Math.round((storageUsedGb / tenant.max_storage_gb) * 100), 100)
-      : 0;
+    const storageConsumptionPct =
+      tenant.max_storage_gb > 0
+        ? Math.min(
+            Math.round((storageUsedGb / tenant.max_storage_gb) * 100),
+            100,
+          )
+        : 0;
 
     return {
       plan: tenant.plan,
@@ -166,21 +179,28 @@ export class TenantSettingsService {
    * Validates SMTP connection using the tenant's saved config or a provided one.
    * Sends a test email to the specified recipient.
    */
-  async testSmtpConnection(tenantId: string, toEmail: string): Promise<{ success: boolean; message: string }> {
+  async testSmtpConnection(
+    tenantId: string,
+    toEmail: string,
+  ): Promise<{ success: boolean; message: string }> {
     // Load SMTP config with select: true override
     const settings = await this.settingsRepo
-      .createQueryBuilder('ts')
-      .addSelect('ts.smtp_config')
-      .addSelect('ts.sendgrid_api_key')
-      .where('ts.tenant_id = :tenantId', { tenantId })
+      .createQueryBuilder("ts")
+      .addSelect("ts.smtp_config")
+      .addSelect("ts.sendgrid_api_key")
+      .where("ts.tenant_id = :tenantId", { tenantId })
       .getOne();
 
     if (!settings?.smtpConfig?.server) {
-      throw new ForbiddenException('No SMTP configuration found. Please save SMTP settings first.');
+      throw new ForbiddenException(
+        "No SMTP configuration found. Please save SMTP settings first.",
+      );
     }
 
     const { smtpConfig } = settings;
-    this.logger.log(`Testing SMTP connection for tenant ${tenantId} to ${toEmail}`);
+    this.logger.log(
+      `Testing SMTP connection for tenant ${tenantId} to ${toEmail}`,
+    );
 
     try {
       const transporter = nodemailer.createTransport({
@@ -195,7 +215,7 @@ export class TenantSettingsService {
       await transporter.sendMail({
         from: smtpConfig.from,
         to: toEmail,
-        subject: 'SentinelFi — SMTP Connection Test',
+        subject: "SentinelFi — SMTP Connection Test",
         html: `
           <h2>SMTP is configured correctly ✅</h2>
           <p>This test email was sent from your SentinelFi tenant settings.</p>
@@ -203,10 +223,15 @@ export class TenantSettingsService {
         `,
       });
 
-      this.logger.log(`SMTP test to ${toEmail} succeeded for tenant ${tenantId}`);
-      return { success: true, message: `Test email sent successfully to ${toEmail}.` };
+      this.logger.log(
+        `SMTP test to ${toEmail} succeeded for tenant ${tenantId}`,
+      );
+      return {
+        success: true,
+        message: `Test email sent successfully to ${toEmail}.`,
+      };
     } catch (err: any) {
-      const msg = err?.message ?? 'Unknown SMTP error';
+      const msg = err?.message ?? "Unknown SMTP error";
       this.logger.error(`SMTP test failed for tenant ${tenantId}: ${msg}`);
       return { success: false, message: `Connection failed: ${msg}` };
     }
@@ -215,25 +240,31 @@ export class TenantSettingsService {
   /**
    * Validates an ERP/API endpoint by issuing an authenticated HEAD/GET request.
    */
-  async testErpConnection(tenantId: string): Promise<{ success: boolean; message: string; statusCode?: number }> {
+  async testErpConnection(
+    tenantId: string,
+  ): Promise<{ success: boolean; message: string; statusCode?: number }> {
     const settings = await this.settingsRepo
-      .createQueryBuilder('ts')
-      .addSelect('ts.erp_config')
-      .where('ts.tenant_id = :tenantId', { tenantId })
+      .createQueryBuilder("ts")
+      .addSelect("ts.erp_config")
+      .where("ts.tenant_id = :tenantId", { tenantId })
       .getOne();
 
     if (!settings?.erpConfig?.baseUrl) {
-      throw new ForbiddenException('No ERP configuration found. Please save ERP settings first.');
+      throw new ForbiddenException(
+        "No ERP configuration found. Please save ERP settings first.",
+      );
     }
 
     const { erpConfig } = settings;
-    this.logger.log(`Testing ERP connection for tenant ${tenantId} → ${erpConfig.baseUrl}`);
+    this.logger.log(
+      `Testing ERP connection for tenant ${tenantId} → ${erpConfig.baseUrl}`,
+    );
 
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
       const resp = await fetch(erpConfig.baseUrl, {
-        method: 'HEAD',
+        method: "HEAD",
         headers: { Authorization: `Bearer ${erpConfig.apiKey}` },
         signal: controller.signal,
       });
@@ -248,7 +279,10 @@ export class TenantSettingsService {
           : `ERP endpoint returned error ${resp.status}.`,
       };
     } catch (err: any) {
-      const msg = err?.code === 20 ? 'Connection timed out after 8 seconds.' : (err?.message ?? 'Unknown error');
+      const msg =
+        err?.code === 20
+          ? "Connection timed out after 8 seconds."
+          : (err?.message ?? "Unknown error");
       this.logger.error(`ERP test failed for tenant ${tenantId}: ${msg}`);
       return { success: false, message: msg };
     }

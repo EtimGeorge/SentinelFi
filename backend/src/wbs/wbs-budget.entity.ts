@@ -15,7 +15,7 @@ import { WbsCategoryEntity } from "./wbs-category.entity";
 import { WbsBudgetStatus } from "../../../shared/types/wbs-budget-status.enum";
 
 @Entity({ name: "wbs_budget" })
-@Unique(['wbs_code', 'project_id']) // Composite unique: same code allowed in different projects
+@Unique(["wbs_code", "project_id"]) // Composite unique: same code allowed in different projects
 @Index(["tenant_id", "project_id"])
 export class WbsBudgetEntity {
   @PrimaryGeneratedColumn("uuid")
@@ -91,7 +91,7 @@ export class WbsBudgetEntity {
     default: WbsBudgetStatus.DRAFT,
   })
   status!: WbsBudgetStatus;
-  
+
   @Column({ type: "int", default: 0 })
   sort_order!: number;
 
@@ -107,7 +107,7 @@ export class WbsBudgetEntity {
   @DeleteDateColumn({ type: "timestamptz", nullable: true })
   deleted_at?: Date;
 
-  @ManyToOne('UserEntity')
+  @ManyToOne("UserEntity")
   @JoinColumn({ name: "user_id", referencedColumnName: "id" })
   user!: UserEntity;
 }

@@ -26,8 +26,8 @@ export class TenancyAwareDataSource extends DataSource {
 
     // Override the connect method of the QueryRunner
     queryRunner.connect = async () => {
-      let correlationId = 'N/A';
-      let schemaName = 'public';
+      let correlationId = "N/A";
+      let schemaName = "public";
 
       try {
         const cls = ClsServiceManager.getClsService();
@@ -47,11 +47,14 @@ export class TenancyAwareDataSource extends DataSource {
         try {
           const sanitizedSchema = schemaName.replace(/[^a-z0-9_]/gi, "");
           const setSearchPath = async () => {
-            if (this.driver && typeof (this.driver as any).query === 'function') {
+            if (
+              this.driver &&
+              typeof (this.driver as any).query === "function"
+            ) {
               await (this.driver as any).query(
                 `SET search_path TO ${sanitizedSchema}, public`,
                 undefined,
-                queryRunner
+                queryRunner,
               );
             } else {
               await queryRunner.query(
@@ -65,10 +68,12 @@ export class TenancyAwareDataSource extends DataSource {
           } catch (firstErr: any) {
             // If a previous query left the connection in a broken transaction state,
             // issue ROLLBACK to clean it up and retry the search_path switch.
-            if (firstErr?.message?.includes('current transaction is aborted')) {
-              console.warn(`[TenancyAwareDataSource][CID: ${correlationId}] Recovering from aborted transaction, issuing ROLLBACK and retrying...`);
+            if (firstErr?.message?.includes("current transaction is aborted")) {
+              console.warn(
+                `[TenancyAwareDataSource][CID: ${correlationId}] Recovering from aborted transaction, issuing ROLLBACK and retrying...`,
+              );
               try {
-                await queryRunner.query('ROLLBACK');
+                await queryRunner.query("ROLLBACK");
               } catch (_rollbackErr) {
                 // ROLLBACK itself might fail if no transaction is active, that's OK
               }
@@ -78,7 +83,10 @@ export class TenancyAwareDataSource extends DataSource {
             }
           }
         } catch (err) {
-          console.error(`[TenancyAwareDataSource][CID: ${correlationId}] Connection/Schema switch failed:`, err);
+          console.error(
+            `[TenancyAwareDataSource][CID: ${correlationId}] Connection/Schema switch failed:`,
+            err,
+          );
           throw err;
         } finally {
           isSwitching = false;

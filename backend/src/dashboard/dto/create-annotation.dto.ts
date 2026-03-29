@@ -1,5 +1,5 @@
-import { IsEnum, IsNotEmpty, IsString, IsUUID } from 'class-validator';
-import { AnnotationTargetType } from '../annotation.entity';
+import { IsEnum, IsNotEmpty, IsString, IsUUID } from "class-validator";
+import { AnnotationTargetType } from "../annotation.entity";
 
 export class CreateAnnotationDto {
   @IsEnum(AnnotationTargetType)
@@ -14,4 +14,3 @@ export class CreateAnnotationDto {
   @IsNotEmpty()
   content!: string;
 }
- 

@@ -8,27 +8,27 @@ export class WbsUtils {
    */
   static sortHierarchically<T extends { wbs_code: string }>(items: T[]): T[] {
     return [...items].sort((a, b) => {
-      const aParts = a.wbs_code.split('.').map(Number);
-      const bParts = b.wbs_code.split('.').map(Number);
-      
+      const aParts = a.wbs_code.split(".").map(Number);
+      const bParts = b.wbs_code.split(".").map(Number);
+
       const maxLength = Math.max(aParts.length, bParts.length);
-      
+
       for (let i = 0; i < maxLength; i++) {
         const aVal = aParts[i] || 0;
         const bVal = bParts[i] || 0;
-        
+
         if (aVal !== bVal) {
           return aVal - bVal;
         }
       }
-      
+
       return 0;
     });
   }
 
   /**
    * Groups items into a tree structure based on WBS codes.
-   * Useful for internal processing if needed, though most reports 
+   * Useful for internal processing if needed, though most reports
    * expect a flattened but sorted list.
    */
   static toTree<T extends { wbs_code: string }>(items: T[]): any[] {

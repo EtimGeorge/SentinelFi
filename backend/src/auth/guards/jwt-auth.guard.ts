@@ -1,4 +1,10 @@
-import { ExecutionContext, Injectable, ForbiddenException, HttpException, HttpStatus } from "@nestjs/common";
+import {
+  ExecutionContext,
+  Injectable,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuthGuard } from "@nestjs/passport";
 import { Observable } from "rxjs";
@@ -15,9 +21,7 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
     super();
   }
 
-  async canActivate(
-    context: ExecutionContext,
-  ): Promise<boolean> {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     // Step 1: Check @Public() decorator
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -43,30 +47,31 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
       const tenantRepository = this.dataSource.getRepository(TenantEntity);
       const tenant = await tenantRepository.findOne({
         where: { tenant_id: user.tenant_id },
-        select: ['tenant_id', 'is_active', 'expires_at'],
+        select: ["tenant_id", "is_active", "expires_at"],
       });
 
       if (!tenant) {
-        throw new ForbiddenException('TENANT_NOT_FOUND');
+        throw new ForbiddenException("TENANT_NOT_FOUND");
       }
 
       if (!tenant.is_active) {
-        throw new ForbiddenException('TENANT_SUSPENDED');
+        throw new ForbiddenException("TENANT_SUSPENDED");
       }
 
       if (tenant.expires_at && new Date() > tenant.expires_at) {
         throw new HttpException(
           {
-            code: 'SUBSCRIPTION_EXPIRED',
-            message: 'Your subscription has expired. Please renew to continue.',
-            renewUrl: '/settings/subscription',
+            code: "SUBSCRIPTION_EXPIRED",
+            message: "Your subscription has expired. Please renew to continue.",
+            renewUrl: "/settings/subscription",
           },
           HttpStatus.PAYMENT_REQUIRED, // 402
         );
       }
     } catch (err) {
       // Re-throw known HTTP exceptions (ForbiddenException, HttpException)
-      if (err instanceof HttpException || err instanceof ForbiddenException) throw err;
+      if (err instanceof HttpException || err instanceof ForbiddenException)
+        throw err;
       // Log and allow through on DB errors — don't lock out users due to infrastructure issues
     }
 

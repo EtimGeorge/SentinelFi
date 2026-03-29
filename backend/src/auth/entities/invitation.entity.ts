@@ -1,10 +1,17 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { TenantEntity } from '../../tenants/tenant.entity';
-import { Role } from '@shared/types/role.enum';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { TenantEntity } from "../../tenants/tenant.entity";
+import { Role } from "@shared/types/role.enum";
 
-@Entity('invitations')
+@Entity("invitations")
 export class InvitationEntity {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id!: string;
 
   @Column({ unique: true })
@@ -20,7 +27,7 @@ export class InvitationEntity {
   last_name!: string;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: Role,
     default: Role.AssignedProjectUser,
   })
@@ -30,7 +37,7 @@ export class InvitationEntity {
   tenant_id!: string;
 
   @ManyToOne(() => TenantEntity)
-  @JoinColumn({ name: 'tenant_id' })
+  @JoinColumn({ name: "tenant_id" })
   tenant!: TenantEntity;
 
   @Column({ default: false })

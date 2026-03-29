@@ -4,7 +4,7 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
-  OneToMany, 
+  OneToMany,
   Index,
   DeleteDateColumn,
 } from "typeorm";
@@ -70,7 +70,7 @@ export class OperationalBudgetEntity {
   @Column({ type: "uuid" })
   created_by_user_id!: string;
 
-  @ManyToOne('UserEntity') // Reference UserEntity by string name
+  @ManyToOne("UserEntity") // Reference UserEntity by string name
   @JoinColumn({ name: "created_by_user_id", referencedColumnName: "id" }) // Explicitly define referencedColumnName
   createdBy!: UserEntity;
 
@@ -80,10 +80,7 @@ export class OperationalBudgetEntity {
   )
   categories!: OperationalBudgetCategoryEntity[];
 
-  @OneToMany(
-    () => PayrollEntryEntity,
-    (payroll) => payroll.operationalBudget,
-  )
+  @OneToMany(() => PayrollEntryEntity, (payroll) => payroll.operationalBudget)
   payrollEntries!: PayrollEntryEntity[];
 
   // Future integration: Link to specific department or cost center if needed

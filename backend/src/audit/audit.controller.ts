@@ -8,16 +8,16 @@ import {
   UsePipes,
   ValidationPipe,
   Req,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '@shared/types/role.enum';
-import { AuditService } from './audit.service';
-import { GetAuditLogsDto } from './dto/get-audit-logs.dto';
-import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
+} from "@nestjs/common";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { Role } from "@shared/types/role.enum";
+import { AuditService } from "./audit.service";
+import { GetAuditLogsDto } from "./dto/get-audit-logs.dto";
+import { AuthenticatedRequest } from "../common/interfaces/authenticated-request.interface";
 
-@Controller('admin/audit-logs')
+@Controller("admin/audit-logs")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
@@ -27,7 +27,7 @@ export class AuditController {
    * System-wide audit logs for SuperAdmins.
    */
   @Get()
-  @Roles('SuperAdmin')
+  @Roles("SuperAdmin")
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ transform: true }))
   async findAll(@Query() options: GetAuditLogsDto) {
@@ -38,7 +38,7 @@ export class AuditController {
    * GET /api/v1/admin/audit-logs/tenant
    * Filtered audit logs for Tenant Admins (Only their own tenant).
    */
-  @Get('tenant')
+  @Get("tenant")
   @Roles(Role.AdminDirector, Role.CEO)
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ transform: true }))

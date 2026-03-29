@@ -62,12 +62,12 @@ import { MessagingModule } from "./messaging/messaging.module";
 import { AiAssistantModule } from "./ai-assistant/ai-assistant.module";
 import { ReportScheduleEntity } from "./ai-assistant/report-schedule.entity";
 import { MarketingModule } from "./marketing/marketing.module";
-import { CacheModule } from '@nestjs/cache-manager';
-import { redisStore } from 'cache-manager-redis-yet';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { LogSanitizationInterceptor } from './common/interceptors/log-sanitization.interceptor';
-import { HealthModule } from './health/health.module';
-import { envValidationSchema } from './common/config/env-validation.schema';
+import { CacheModule } from "@nestjs/cache-manager";
+import { redisStore } from "cache-manager-redis-yet";
+import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { LogSanitizationInterceptor } from "./common/interceptors/log-sanitization.interceptor";
+import { HealthModule } from "./health/health.module";
+import { envValidationSchema } from "./common/config/env-validation.schema";
 
 @Module({
   imports: [
@@ -81,17 +81,19 @@ import { envValidationSchema } from './common/config/env-validation.schema';
         abortEarly: true,
       },
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 10,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         store: await redisStore({
-          url: `redis://${configService.get('REDIS_HOST') || 'localhost'}:${configService.get('REDIS_PORT') || 6379}`,
+          url: `redis://${configService.get("REDIS_HOST") || "localhost"}:${configService.get("REDIS_PORT") || 6379}`,
           ttl: 600, // 10 minutes default
         }),
       }),
@@ -111,11 +113,13 @@ import { envValidationSchema } from './common/config/env-validation.schema';
       },
       dataSourceFactory: async (options) => {
         if (!options) {
-          throw new Error('DataSource options are undefined');
+          throw new Error("DataSource options are undefined");
         }
-        const dataSource = new TenancyAwareDataSource(options as DataSourceOptions);
+        const dataSource = new TenancyAwareDataSource(
+          options as DataSourceOptions,
+        );
         return dataSource;
-      }
+      },
     }),
     TenantDatabaseModule, // Add the TenantDatabaseModule here
     TenantMigrationModule, // NEW: Add TenantMigrationModule

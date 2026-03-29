@@ -1,16 +1,17 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { MarketingService } from './marketing.service';
-import { Public } from '../common/decorators/public.decorator';
+import { Controller, Post, Body, HttpCode, HttpStatus } from "@nestjs/common";
+import { MarketingService } from "./marketing.service";
+import { Public } from "../common/decorators/public.decorator";
 
-@Controller('marketing')
+@Controller("marketing")
 export class MarketingController {
   constructor(private readonly marketingService: MarketingService) {}
 
   @Public()
-  @Post('contact')
+  @Post("contact")
   @HttpCode(HttpStatus.OK)
   async handleContactRequest(
-    @Body() data: {
+    @Body()
+    data: {
       name: string;
       email: string;
       company: string;

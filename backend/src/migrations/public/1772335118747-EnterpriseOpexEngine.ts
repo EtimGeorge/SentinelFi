@@ -1,258 +1,679 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class EnterpriseOpexEngine1772335118747 implements MigrationInterface {
-    name = 'EnterpriseOpexEngine1772335118747'
+  name = "EnterpriseOpexEngine1772335118747";
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TYPE "public"."wbs_template_industry_enum" AS ENUM('IT', 'CONSTRUCTION', 'OIL_GAS', 'GENERAL')`);
-        await queryRunner.query(`CREATE TABLE "public"."wbs_template" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying(100) NOT NULL, "industry" "public"."wbs_template_industry_enum" NOT NULL DEFAULT 'GENERAL', "structure" jsonb NOT NULL, "tenant_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "PK_3d1c387b27ddc51ca8dcfcb4b09" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "public"."clients" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying NOT NULL, "email" character varying, "phone" character varying, "address" text, "industry" character varying, "is_active" boolean NOT NULL DEFAULT true, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP, CONSTRAINT "unique_client_name_per_tenant" UNIQUE ("tenant_id", "name"), CONSTRAINT "PK_f1ab7cf3a5714dbc6bb4e1c28a4" PRIMARY KEY ("id")); COMMENT ON COLUMN "public"."clients"."deleted_at" IS 'Soft delete timestamp for audit trail'`);
-        await queryRunner.query(`CREATE INDEX "IDX_e7d8b637725986e7b5fa774a3f" ON "public"."clients" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."project_status_enum" AS ENUM('active', 'archived', 'completed', 'on_hold')`);
-        await queryRunner.query(`CREATE TABLE "public"."project" ("project_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "project_name" character varying(255) NOT NULL, "rfq_number" text, "sow_details" text, "notes" text, "status" "public"."project_status_enum" NOT NULL DEFAULT 'active', "currency" character varying(10) NOT NULL DEFAULT 'NGN', "contract_value" numeric(19,4) NOT NULL DEFAULT '0', "contingency_percent" numeric(5,2) NOT NULL DEFAULT '0', "vat_rate" numeric(5,2) NOT NULL DEFAULT '7.5', "wht_rate" numeric(5,2) NOT NULL DEFAULT '5', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE, "tenant_id" uuid NOT NULL, "client_id" uuid, "created_by_user_id" uuid NOT NULL, CONSTRAINT "PK_1a480c5734c5aacb9cef7b1499d" PRIMARY KEY ("project_id"))`);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_d8c27af391f272c95fe9efe512" ON "public"."project" ("project_name", "tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."wbs_budget_status_enum" AS ENUM('pending', 'approved', 'rejected', 'draft')`);
-        await queryRunner.query(`CREATE TABLE "public"."wbs_budget" ("wbs_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "project_id" uuid NOT NULL, "parent_wbs_id" uuid, "category_id" uuid, "wbs_code" character varying(50) NOT NULL, "description" text NOT NULL, "unit_cost_budgeted" numeric(19,4) NOT NULL DEFAULT '0', "quantity_budgeted" numeric(19,4) NOT NULL DEFAULT '0', "days_budgeted" integer, "uom" character varying(50), "custom_metadata" jsonb, "total_cost_budgeted" numeric(19,4) NOT NULL, "total_cost_actual" numeric(19,4) NOT NULL DEFAULT '0', "status" "public"."wbs_budget_status_enum" NOT NULL DEFAULT 'draft', "sort_order" integer NOT NULL DEFAULT '0', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE, "tenant_id" uuid NOT NULL, "user_id" uuid, CONSTRAINT "UQ_16c330b9775752f649d28d8a63a" UNIQUE ("wbs_code", "project_id"), CONSTRAINT "PK_5b0a844da38bcd3e566b601bf43" PRIMARY KEY ("wbs_id"))`);
-        await queryRunner.query(`CREATE TABLE "public"."live_expense" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "project_id" uuid, "wbs_id" uuid NOT NULL, "category_id" uuid, "updated_at" TIMESTAMP WITH TIME ZONE, "user_id" uuid NOT NULL, "expense_date" date NOT NULL DEFAULT ('now'::text)::date, "description" text NOT NULL, "unit_cost" numeric(19,4) NOT NULL, "quantity" numeric(19,4) NOT NULL, "commitment_lpo_amount" numeric(19,4) NOT NULL DEFAULT '0', "amount" numeric(19,4) NOT NULL, "vat_amount" numeric(19,4) NOT NULL DEFAULT '0', "wht_amount" numeric(19,4) NOT NULL DEFAULT '0', "document_reference" character varying(255), "notes_justification" text, "variance_flag" character varying(50) NOT NULL DEFAULT 'NO_VARIANCE', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_63ca1ecf90dfa34da4087e9fcd4" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "public"."wbs_category" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "code" character varying(20), "name" character varying(255) NOT NULL, "description" text, "color" character varying(7), "sort_order" integer NOT NULL DEFAULT '0', "tenant_id" uuid NOT NULL, "is_active" boolean NOT NULL DEFAULT true, "parent_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_73c7c495009c60748399c9cf90a" UNIQUE ("name", "tenant_id"), CONSTRAINT "PK_5df28f7dc4baaa36d9db6cca9da" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "public"."project_inflow" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "project_id" uuid NOT NULL, "milestone_name" character varying(100) NOT NULL, "description" text, "amount_received" numeric(19,4) NOT NULL, "receipt_date" date NOT NULL, "bank_reference" character varying(255), "received_by_user_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_7a74fa2f3c9773221c5c0b6e8fd" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_4c7279644b6ed957453aa8ca33" ON "public"."project_inflow" ("tenant_id") `);
-        await queryRunner.query(`CREATE TABLE "public"."project_audit" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "project_id" uuid NOT NULL, "change_type" character varying(100) NOT NULL, "old_value" numeric(19,4), "new_value" numeric(19,4), "description" text NOT NULL, "performed_by_user_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_c27bdcc0080d0b2ea44f68d0e52" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_f2daa2ca3c296a84ff0e8ba58e" ON "public"."project_audit" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."lpo_status_enum" AS ENUM('OPEN', 'PARTIALLY_PAID', 'CLOSED', 'CANCELLED')`);
-        await queryRunner.query(`CREATE TABLE "public"."lpo" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "lpo_number" character varying(100) NOT NULL, "project_id" uuid NOT NULL, "wbs_id" uuid NOT NULL, "vendor_name" character varying(255) NOT NULL, "description" text NOT NULL, "amount_committed" numeric(19,4) NOT NULL, "amount_paid" numeric(19,4) NOT NULL DEFAULT '0', "status" "public"."lpo_status_enum" NOT NULL DEFAULT 'OPEN', "expected_delivery_date" date, "created_by_user_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_c0e44e2b7f9b67efb18f934e2a7" UNIQUE ("lpo_number"), CONSTRAINT "PK_2ef66e0daed35ac686f997f3331" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_3510976724f58f0bc7af9b2b63" ON "public"."lpo" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."operational_expense_status_enum" AS ENUM('PENDING', 'APPROVED', 'REJECTED')`);
-        await queryRunner.query(`CREATE TABLE "public"."operational_expense" ("operational_expense_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "operational_budget_category_id" uuid NOT NULL, "item_description" character varying(255) NOT NULL, "amount" numeric(10,2) NOT NULL, "expense_date" TIMESTAMP NOT NULL, "vendor" character varying(255), "receipt_url" character varying(255), "status" "public"."operational_expense_status_enum" NOT NULL DEFAULT 'PENDING', "logged_by_user_id" uuid NOT NULL, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_dffb1a026b254442c6d74273a1f" PRIMARY KEY ("operational_expense_id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_0ec3e4d84a24a5d1902cde3173" ON "public"."operational_expense" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."operational_budget_period_allocation_period_type_enum" AS ENUM('MONTHLY', 'WEEKLY', 'DAILY', 'CUSTOM')`);
-        await queryRunner.query(`CREATE TABLE "public"."operational_budget_period_allocation" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "operational_budget_category_id" uuid NOT NULL, "period_date" date NOT NULL, "period_type" "public"."operational_budget_period_allocation_period_type_enum" NOT NULL DEFAULT 'MONTHLY', "planned_amount" numeric(19,4) NOT NULL DEFAULT '0', "actual_amount" numeric(19,4) NOT NULL DEFAULT '0', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_878848f068bb1a54477e56b92ab" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_8db201c90d6b5a4956da53ecac" ON "public"."operational_budget_period_allocation" ("operational_budget_category_id", "period_date") `);
-        await queryRunner.query(`CREATE TABLE "public"."operational_budget_category" ("operational_budget_category_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "operational_budget_id" uuid NOT NULL, "name" character varying(255) NOT NULL, "budgeted_amount" numeric(10,2) NOT NULL DEFAULT '0', "actual_spent" numeric(10,2) NOT NULL DEFAULT '0', "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_3e38ea5566ccffb3b40ac725b20" PRIMARY KEY ("operational_budget_category_id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_02d85ba5b35930e2e448d77eb3" ON "public"."operational_budget_category" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."operational_budget_type_enum" AS ENUM('departmental', 'company-wide', 'recurring')`);
-        await queryRunner.query(`CREATE TYPE "public"."operational_budget_status_enum" AS ENUM('active', 'closed', 'archived')`);
-        await queryRunner.query(`CREATE TABLE "public"."operational_budget" ("operational_budget_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(255) NOT NULL, "description" text, "type" "public"."operational_budget_type_enum" NOT NULL DEFAULT 'company-wide', "budgeted_amount" numeric(19,4) NOT NULL, "actual_spent" numeric(19,4) NOT NULL DEFAULT '0', "start_date" date NOT NULL, "end_date" date NOT NULL, "status" "public"."operational_budget_status_enum" NOT NULL DEFAULT 'active', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE, "created_by_user_id" uuid NOT NULL, "department_id" uuid, CONSTRAINT "PK_c6b0943065b23247de33900f849" PRIMARY KEY ("operational_budget_id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_1a1f945f2e8583777beda1f59a" ON "public"."operational_budget" ("tenant_id") `);
-        await queryRunner.query(`CREATE TABLE "public"."payroll_entry" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "operational_budget_id" uuid NOT NULL, "employee_name" character varying(255) NOT NULL, "employee_id" character varying(100), "base_salary" numeric(19,4) NOT NULL, "bonus" numeric(19,4) NOT NULL DEFAULT '0', "overtime" numeric(19,4) NOT NULL DEFAULT '0', "other_allowances" numeric(19,4) NOT NULL DEFAULT '0', "pension_deduction" numeric(19,4) NOT NULL DEFAULT '0', "tax_deduction" numeric(19,4) NOT NULL DEFAULT '0', "net_pay" numeric(19,4) NOT NULL, "pay_period_start" date NOT NULL, "pay_period_end" date NOT NULL, "payment_date" date NOT NULL, "status" character varying(50) NOT NULL DEFAULT 'PAID', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "processed_by_user_id" uuid NOT NULL, CONSTRAINT "PK_3329186685dcfe2e5a2c6d5e3e9" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."budget_category_type_enum" AS ENUM('CAPEX', 'OPEX')`);
-        await queryRunner.query(`CREATE TABLE "public"."budget_category" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid, "name" character varying(255) NOT NULL, "description" text, "type" "public"."budget_category_type_enum" NOT NULL DEFAULT 'OPEX', "is_system_default" boolean NOT NULL DEFAULT false, "is_active" boolean NOT NULL DEFAULT true, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_af6f95ccfa1f460edca6b488803" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_bb70ecb18a4e9dd18e5631cc31" ON "public"."budget_category" ("tenant_id", "name") `);
-        await queryRunner.query(`CREATE TABLE "public"."fiscal_year" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "year_label" character varying(50) NOT NULL, "start_date" date NOT NULL, "end_date" date NOT NULL, "is_closed" boolean NOT NULL DEFAULT false, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_72fa5ea3e6b0ec7542c23bf0389" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_39b016f877ed3121e88fae9cc5" ON "public"."fiscal_year" ("tenant_id") `);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_9335a47b19a0b2d31cb3442bf1" ON "public"."fiscal_year" ("tenant_id", "year_label") `);
-        await queryRunner.query(`CREATE TYPE "public"."fiscal_period_period_type_enum" AS ENUM('MONTH', 'QUARTER')`);
-        await queryRunner.query(`CREATE TABLE "public"."fiscal_period" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "fiscal_year_id" uuid NOT NULL, "period_name" character varying(50) NOT NULL, "period_type" "public"."fiscal_period_period_type_enum" NOT NULL DEFAULT 'MONTH', "start_date" date NOT NULL, "end_date" date NOT NULL, "is_closed" boolean NOT NULL DEFAULT false, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_ebe5522f2f528f88972c93fb675" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_2cea17854a5889b066dc46d149" ON "public"."fiscal_period" ("tenant_id") `);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_14795ae2ed9475afe5b2b4d001" ON "public"."fiscal_period" ("tenant_id", "fiscal_year_id", "period_name") `);
-        await queryRunner.query(`CREATE TABLE "public"."department" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(100) NOT NULL, "code" character varying(50) NOT NULL, "manager_id" uuid, "parent_department_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_9a2213262c1593bffb581e382f5" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_1300ffe8179790edd2efcd3209" ON "public"."department" ("tenant_id") `);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_dc577480370d9a523c1473108b" ON "public"."department" ("tenant_id", "code") `);
-        await queryRunner.query(`CREATE TABLE "public"."cost_center" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(100) NOT NULL, "code" character varying(50) NOT NULL, "department_id" uuid NOT NULL, "owner_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_814d737123e3a42d0a37e97b393" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_57900dd9d556c37de9aec26565" ON "public"."cost_center" ("tenant_id") `);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_08191711a3f81d1a638e3d7c16" ON "public"."cost_center" ("tenant_id", "code") `);
-        await queryRunner.query(`CREATE TYPE "public"."account_class_base_type_enum" AS ENUM('ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE')`);
-        await queryRunner.query(`CREATE TABLE "public"."account_class" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(100) NOT NULL, "code" character varying(20) NOT NULL, "base_type" "public"."account_class_base_type_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_cff395fc8a1a8c9316e98078fa9" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_6ee3f6991c5ab972fd9e17d2b6" ON "public"."account_class" ("tenant_id") `);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_1329c08e6b47ba44a7c5bd1e81" ON "public"."account_class" ("tenant_id", "code") `);
-        await queryRunner.query(`CREATE TABLE "public"."account_group" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(100) NOT NULL, "code" character varying(20) NOT NULL, "account_class_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_26903426dfff4c2d0ad461ed19b" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_c6e63551c372d106beb62014a3" ON "public"."account_group" ("tenant_id") `);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_57170cf4c4fff05c29a2078e6f" ON "public"."account_group" ("tenant_id", "code") `);
-        await queryRunner.query(`CREATE TABLE "public"."gl_account" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(150) NOT NULL, "code" character varying(20) NOT NULL, "description" text, "is_active" boolean NOT NULL DEFAULT true, "account_group_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_d9b20bd909d62227a43f5aa40cf" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_ddffe65ebd0cb45088ef22d457" ON "public"."gl_account" ("tenant_id") `);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_2d6d496da459af35d738ff4e2b" ON "public"."gl_account" ("tenant_id", "code") `);
-        await queryRunner.query(`CREATE TYPE "public"."payroll_line_item_item_type_enum" AS ENUM('BASE_SALARY', 'BONUS', 'COMMISSION', 'EMPLOYER_TAX', 'EMPLOYER_BENEFIT')`);
-        await queryRunner.query(`CREATE TABLE "public"."payroll_line_item" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "payroll_run_id" uuid NOT NULL, "employee_id" uuid NOT NULL, "cost_center_id" uuid NOT NULL, "gl_account_id" uuid NOT NULL, "item_type" "public"."payroll_line_item_item_type_enum" NOT NULL, "amount" numeric(19,4) NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_6ee218272e4d04e8e53cc2ce1ff" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_52213ca1d2c3a34246fdd15841" ON "public"."payroll_line_item" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."payroll_run_status_enum" AS ENUM('DRAFT', 'REVIEW', 'APPROVED', 'POSTED')`);
-        await queryRunner.query(`CREATE TABLE "public"."payroll_run" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "run_identifier" character varying(150) NOT NULL, "fiscal_period_id" uuid NOT NULL, "run_date" date NOT NULL, "total_gross_pay" numeric(19,4) NOT NULL DEFAULT '0', "total_taxes_employer" numeric(19,4) NOT NULL DEFAULT '0', "total_benefits_employer" numeric(19,4) NOT NULL DEFAULT '0', "status" "public"."payroll_run_status_enum" NOT NULL DEFAULT 'DRAFT', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_12ecdd28188d0d7b14895be861a" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_b0031181658d37c5f34cdbc1d2" ON "public"."payroll_run" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."p2p_invoice_status_enum" AS ENUM('RECEIVED', 'UNDER_REVIEW', 'APPROVED', 'PAID', 'REJECTED')`);
-        await queryRunner.query(`CREATE TABLE "public"."p2p_invoice" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "invoice_number" character varying(100) NOT NULL, "purchase_order_id" uuid, "cost_center_id" uuid NOT NULL, "gl_account_id" uuid NOT NULL, "vendor_name" character varying(255) NOT NULL, "amount" numeric(19,4) NOT NULL, "invoice_date" date NOT NULL, "due_date" date, "status" "public"."p2p_invoice_status_enum" NOT NULL DEFAULT 'RECEIVED', "receipt_url" character varying(2048), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_995b22663e490566d0ee9286a74" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_33fdaf2df7058fef325a775e0f" ON "public"."p2p_invoice" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."p2p_purchase_order_status_enum" AS ENUM('ISSUED', 'PARTIALLY_FULFILLED', 'FULFILLED', 'CANCELLED')`);
-        await queryRunner.query(`CREATE TABLE "public"."p2p_purchase_order" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "po_number" character varying(50) NOT NULL, "requisition_id" uuid NOT NULL, "vendor_name" character varying(255) NOT NULL, "committed_amount" numeric(19,4) NOT NULL, "status" "public"."p2p_purchase_order_status_enum" NOT NULL DEFAULT 'ISSUED', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_ac76440c6fbc6ad03ac18e53ebb" UNIQUE ("po_number"), CONSTRAINT "PK_5e1eb4053d5862127947a8f74f6" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_20aab50358e6af8f68c4d93d7d" ON "public"."p2p_purchase_order" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."p2p_requisition_status_enum" AS ENUM('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED')`);
-        await queryRunner.query(`CREATE TABLE "public"."p2p_requisition" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "requisition_number" character varying(50) NOT NULL, "requester_id" uuid NOT NULL, "cost_center_id" uuid NOT NULL, "gl_account_id" uuid NOT NULL, "description" text NOT NULL, "vendor_name" character varying(255), "estimated_amount" numeric(19,4) NOT NULL, "required_by_date" date, "status" "public"."p2p_requisition_status_enum" NOT NULL DEFAULT 'DRAFT', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_8e425034e239770a6cb766d0c3d" UNIQUE ("requisition_number"), CONSTRAINT "PK_6b9d6eb71f34144a5ef3191af70" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_be0d94c1d6bbaccf576a85fca7" ON "public"."p2p_requisition" ("tenant_id") `);
-        await queryRunner.query(`CREATE TYPE "public"."budget_ledger_budget_type_enum" AS ENUM('PRIMARY_ALLOCATION', 'SUPPLEMENT', 'TRANSFER_IN', 'TRANSFER_OUT')`);
-        await queryRunner.query(`CREATE TABLE "public"."budget_ledger" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "fiscal_period_id" uuid NOT NULL, "cost_center_id" uuid NOT NULL, "gl_account_id" uuid NOT NULL, "budget_type" "public"."budget_ledger_budget_type_enum" NOT NULL, "amount" numeric(19,4) NOT NULL, "reference_note" character varying(255), "created_by_user_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_014a19f86cec669d0bfc5c4b6a4" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_9cb14608cee751b9679f73070f" ON "public"."budget_ledger" ("tenant_id") `);
-        await queryRunner.query(`CREATE TABLE "public"."ceo_annotation" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "target_type" "public"."ceo_annotation_target_type_enum" NOT NULL, "target_id" uuid NOT NULL, "content" text NOT NULL, "author_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_9e43c71bfb975d4a59b69ad158a" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE INDEX "IDX_8630b2549c6aeef0a611039221" ON "public"."ceo_annotation" ("tenant_id", "target_type", "target_id") `);
-        await queryRunner.query(`ALTER TABLE "public"."clients" ADD CONSTRAINT "FK_e7d8b637725986e7b5fa774a3fd" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("tenant_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."project" ADD CONSTRAINT "FK_c72d76e480d7334858782543610" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."project" ADD CONSTRAINT "FK_3a12db4eff19efee3d056a5e665" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_budget" ADD CONSTRAINT "FK_f0d1d068032b7cba4c31f4cc469" FOREIGN KEY ("project_id") REFERENCES "public"."project"("project_id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_budget" ADD CONSTRAINT "FK_9ee635d5455ae8d76ff250a91e1" FOREIGN KEY ("parent_wbs_id") REFERENCES "public"."wbs_budget"("wbs_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_budget" ADD CONSTRAINT "FK_49d6f917dacfd0b762dfac5117f" FOREIGN KEY ("category_id") REFERENCES "public"."wbs_category"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_budget" ADD CONSTRAINT "FK_d012c91b9b1ee791bcf10783712" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."live_expense" ADD CONSTRAINT "FK_042e8c47b849de4fe13e5f3a34f" FOREIGN KEY ("wbs_id") REFERENCES "public"."wbs_budget"("wbs_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."live_expense" ADD CONSTRAINT "FK_000bafb36cabbe367711de78051" FOREIGN KEY ("category_id") REFERENCES "public"."wbs_category"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_category" ADD CONSTRAINT "FK_4f68ecfb3b88411a7907fcfacfe" FOREIGN KEY ("parent_id") REFERENCES "public"."wbs_category"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."project_inflow" ADD CONSTRAINT "FK_5bb846d8998501d61b4d03102d5" FOREIGN KEY ("project_id") REFERENCES "public"."project"("project_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."project_inflow" ADD CONSTRAINT "FK_ff9a8acc12a306491a2e68ffde9" FOREIGN KEY ("received_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."project_audit" ADD CONSTRAINT "FK_8621cfa8010257f3cb17f730dff" FOREIGN KEY ("project_id") REFERENCES "public"."project"("project_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."project_audit" ADD CONSTRAINT "FK_07a101eb62ca0e20269b4eb338f" FOREIGN KEY ("performed_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."lpo" ADD CONSTRAINT "FK_8b20d6ab5a308ae969716de9280" FOREIGN KEY ("project_id") REFERENCES "public"."project"("project_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."lpo" ADD CONSTRAINT "FK_cd7c77679c19877f77b22d433f3" FOREIGN KEY ("wbs_id") REFERENCES "public"."wbs_budget"("wbs_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."lpo" ADD CONSTRAINT "FK_d303c886165202b23a4a55b4eb2" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."operational_expense" ADD CONSTRAINT "FK_824e9f75611b5c39b7eba8c1a50" FOREIGN KEY ("operational_budget_category_id") REFERENCES "public"."operational_budget_category"("operational_budget_category_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."operational_budget_period_allocation" ADD CONSTRAINT "FK_cc263ff85608e7b23b07b8679ff" FOREIGN KEY ("operational_budget_category_id") REFERENCES "public"."operational_budget_category"("operational_budget_category_id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."operational_budget_category" ADD CONSTRAINT "FK_ac963ad15d212a782b1989f41af" FOREIGN KEY ("operational_budget_id") REFERENCES "public"."operational_budget"("operational_budget_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."operational_budget" ADD CONSTRAINT "FK_61fdf2278ad28f4509d6064c0a7" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_entry" ADD CONSTRAINT "FK_d7fc1d2b36c496da7d2df943e73" FOREIGN KEY ("operational_budget_id") REFERENCES "public"."operational_budget"("operational_budget_id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_entry" ADD CONSTRAINT "FK_cdf0ff76929b82f8fc1535f2866" FOREIGN KEY ("processed_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."fiscal_period" ADD CONSTRAINT "FK_bf6d01e13a94ec58875ecd8536e" FOREIGN KEY ("fiscal_year_id") REFERENCES "public"."fiscal_year"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."department" ADD CONSTRAINT "FK_4ca0fbc25538965a90575dc4a81" FOREIGN KEY ("manager_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."department" ADD CONSTRAINT "FK_03ef296dd53d939a99286ebeca6" FOREIGN KEY ("parent_department_id") REFERENCES "public"."department"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."cost_center" ADD CONSTRAINT "FK_222b6422c01c4293e7cc3509a55" FOREIGN KEY ("department_id") REFERENCES "public"."department"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."cost_center" ADD CONSTRAINT "FK_77ed2e532d440a9e70ed796af10" FOREIGN KEY ("owner_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."account_group" ADD CONSTRAINT "FK_23cc12fe4a90c7e95a555ec9b8e" FOREIGN KEY ("account_class_id") REFERENCES "public"."account_class"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."gl_account" ADD CONSTRAINT "FK_649680070f7e6176df378939fdf" FOREIGN KEY ("account_group_id") REFERENCES "public"."account_group"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_line_item" ADD CONSTRAINT "FK_55ad3677fe323ab43823553ac04" FOREIGN KEY ("payroll_run_id") REFERENCES "public"."payroll_run"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_line_item" ADD CONSTRAINT "FK_a0a6bb994907b9cec9ce559949c" FOREIGN KEY ("employee_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_line_item" ADD CONSTRAINT "FK_de0a4b3f04b0a5365313ed076ed" FOREIGN KEY ("cost_center_id") REFERENCES "public"."cost_center"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_line_item" ADD CONSTRAINT "FK_28d64edb5b4bd2427b91662c1de" FOREIGN KEY ("gl_account_id") REFERENCES "public"."gl_account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_run" ADD CONSTRAINT "FK_ff40151aaf189be109b9457cbd1" FOREIGN KEY ("fiscal_period_id") REFERENCES "public"."fiscal_period"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_invoice" ADD CONSTRAINT "FK_cee2103349d46650bb7ca3f6ba5" FOREIGN KEY ("purchase_order_id") REFERENCES "public"."p2p_purchase_order"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_invoice" ADD CONSTRAINT "FK_99b94383497c2514c529f442296" FOREIGN KEY ("cost_center_id") REFERENCES "public"."cost_center"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_invoice" ADD CONSTRAINT "FK_7c83b799a5a7352f2b6ddbf065d" FOREIGN KEY ("gl_account_id") REFERENCES "public"."gl_account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_purchase_order" ADD CONSTRAINT "FK_2f712b0bf30975d223b6ad47ab0" FOREIGN KEY ("requisition_id") REFERENCES "public"."p2p_requisition"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_requisition" ADD CONSTRAINT "FK_7bffa39f138b9476cbf97767a29" FOREIGN KEY ("requester_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_requisition" ADD CONSTRAINT "FK_f672fc631252ba0ca8fa955dc23" FOREIGN KEY ("cost_center_id") REFERENCES "public"."cost_center"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_requisition" ADD CONSTRAINT "FK_454478b7dd726c2f962e30c8926" FOREIGN KEY ("gl_account_id") REFERENCES "public"."gl_account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."budget_ledger" ADD CONSTRAINT "FK_4dbc94750c70f5c81ba86ceee15" FOREIGN KEY ("fiscal_period_id") REFERENCES "public"."fiscal_period"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."budget_ledger" ADD CONSTRAINT "FK_641b6cbd26ac6fb4615688d83ac" FOREIGN KEY ("cost_center_id") REFERENCES "public"."cost_center"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."budget_ledger" ADD CONSTRAINT "FK_a9b007b1423571488e4f44b4991" FOREIGN KEY ("gl_account_id") REFERENCES "public"."gl_account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "public"."ceo_annotation" ADD CONSTRAINT "FK_5495d6b142309d12f2a08f9935c" FOREIGN KEY ("author_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TYPE "public"."wbs_template_industry_enum" AS ENUM('IT', 'CONSTRUCTION', 'OIL_GAS', 'GENERAL')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."wbs_template" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying(100) NOT NULL, "industry" "public"."wbs_template_industry_enum" NOT NULL DEFAULT 'GENERAL', "structure" jsonb NOT NULL, "tenant_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE, CONSTRAINT "PK_3d1c387b27ddc51ca8dcfcb4b09" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."clients" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying NOT NULL, "email" character varying, "phone" character varying, "address" text, "industry" character varying, "is_active" boolean NOT NULL DEFAULT true, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), "deleted_at" TIMESTAMP, CONSTRAINT "unique_client_name_per_tenant" UNIQUE ("tenant_id", "name"), CONSTRAINT "PK_f1ab7cf3a5714dbc6bb4e1c28a4" PRIMARY KEY ("id")); COMMENT ON COLUMN "public"."clients"."deleted_at" IS 'Soft delete timestamp for audit trail'`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_e7d8b637725986e7b5fa774a3f" ON "public"."clients" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."project_status_enum" AS ENUM('active', 'archived', 'completed', 'on_hold')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."project" ("project_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "project_name" character varying(255) NOT NULL, "rfq_number" text, "sow_details" text, "notes" text, "status" "public"."project_status_enum" NOT NULL DEFAULT 'active', "currency" character varying(10) NOT NULL DEFAULT 'NGN', "contract_value" numeric(19,4) NOT NULL DEFAULT '0', "contingency_percent" numeric(5,2) NOT NULL DEFAULT '0', "vat_rate" numeric(5,2) NOT NULL DEFAULT '7.5', "wht_rate" numeric(5,2) NOT NULL DEFAULT '5', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE, "tenant_id" uuid NOT NULL, "client_id" uuid, "created_by_user_id" uuid NOT NULL, CONSTRAINT "PK_1a480c5734c5aacb9cef7b1499d" PRIMARY KEY ("project_id"))`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_d8c27af391f272c95fe9efe512" ON "public"."project" ("project_name", "tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."wbs_budget_status_enum" AS ENUM('pending', 'approved', 'rejected', 'draft')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."wbs_budget" ("wbs_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "project_id" uuid NOT NULL, "parent_wbs_id" uuid, "category_id" uuid, "wbs_code" character varying(50) NOT NULL, "description" text NOT NULL, "unit_cost_budgeted" numeric(19,4) NOT NULL DEFAULT '0', "quantity_budgeted" numeric(19,4) NOT NULL DEFAULT '0', "days_budgeted" integer, "uom" character varying(50), "custom_metadata" jsonb, "total_cost_budgeted" numeric(19,4) NOT NULL, "total_cost_actual" numeric(19,4) NOT NULL DEFAULT '0', "status" "public"."wbs_budget_status_enum" NOT NULL DEFAULT 'draft', "sort_order" integer NOT NULL DEFAULT '0', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE, "tenant_id" uuid NOT NULL, "user_id" uuid, CONSTRAINT "UQ_16c330b9775752f649d28d8a63a" UNIQUE ("wbs_code", "project_id"), CONSTRAINT "PK_5b0a844da38bcd3e566b601bf43" PRIMARY KEY ("wbs_id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."live_expense" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "project_id" uuid, "wbs_id" uuid NOT NULL, "category_id" uuid, "updated_at" TIMESTAMP WITH TIME ZONE, "user_id" uuid NOT NULL, "expense_date" date NOT NULL DEFAULT ('now'::text)::date, "description" text NOT NULL, "unit_cost" numeric(19,4) NOT NULL, "quantity" numeric(19,4) NOT NULL, "commitment_lpo_amount" numeric(19,4) NOT NULL DEFAULT '0', "amount" numeric(19,4) NOT NULL, "vat_amount" numeric(19,4) NOT NULL DEFAULT '0', "wht_amount" numeric(19,4) NOT NULL DEFAULT '0', "document_reference" character varying(255), "notes_justification" text, "variance_flag" character varying(50) NOT NULL DEFAULT 'NO_VARIANCE', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_63ca1ecf90dfa34da4087e9fcd4" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."wbs_category" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "code" character varying(20), "name" character varying(255) NOT NULL, "description" text, "color" character varying(7), "sort_order" integer NOT NULL DEFAULT '0', "tenant_id" uuid NOT NULL, "is_active" boolean NOT NULL DEFAULT true, "parent_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_73c7c495009c60748399c9cf90a" UNIQUE ("name", "tenant_id"), CONSTRAINT "PK_5df28f7dc4baaa36d9db6cca9da" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."project_inflow" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "project_id" uuid NOT NULL, "milestone_name" character varying(100) NOT NULL, "description" text, "amount_received" numeric(19,4) NOT NULL, "receipt_date" date NOT NULL, "bank_reference" character varying(255), "received_by_user_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_7a74fa2f3c9773221c5c0b6e8fd" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_4c7279644b6ed957453aa8ca33" ON "public"."project_inflow" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."project_audit" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "project_id" uuid NOT NULL, "change_type" character varying(100) NOT NULL, "old_value" numeric(19,4), "new_value" numeric(19,4), "description" text NOT NULL, "performed_by_user_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_c27bdcc0080d0b2ea44f68d0e52" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_f2daa2ca3c296a84ff0e8ba58e" ON "public"."project_audit" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."lpo_status_enum" AS ENUM('OPEN', 'PARTIALLY_PAID', 'CLOSED', 'CANCELLED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."lpo" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "lpo_number" character varying(100) NOT NULL, "project_id" uuid NOT NULL, "wbs_id" uuid NOT NULL, "vendor_name" character varying(255) NOT NULL, "description" text NOT NULL, "amount_committed" numeric(19,4) NOT NULL, "amount_paid" numeric(19,4) NOT NULL DEFAULT '0', "status" "public"."lpo_status_enum" NOT NULL DEFAULT 'OPEN', "expected_delivery_date" date, "created_by_user_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_c0e44e2b7f9b67efb18f934e2a7" UNIQUE ("lpo_number"), CONSTRAINT "PK_2ef66e0daed35ac686f997f3331" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_3510976724f58f0bc7af9b2b63" ON "public"."lpo" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."operational_expense_status_enum" AS ENUM('PENDING', 'APPROVED', 'REJECTED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."operational_expense" ("operational_expense_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "operational_budget_category_id" uuid NOT NULL, "item_description" character varying(255) NOT NULL, "amount" numeric(10,2) NOT NULL, "expense_date" TIMESTAMP NOT NULL, "vendor" character varying(255), "receipt_url" character varying(255), "status" "public"."operational_expense_status_enum" NOT NULL DEFAULT 'PENDING', "logged_by_user_id" uuid NOT NULL, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_dffb1a026b254442c6d74273a1f" PRIMARY KEY ("operational_expense_id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_0ec3e4d84a24a5d1902cde3173" ON "public"."operational_expense" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."operational_budget_period_allocation_period_type_enum" AS ENUM('MONTHLY', 'WEEKLY', 'DAILY', 'CUSTOM')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."operational_budget_period_allocation" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "operational_budget_category_id" uuid NOT NULL, "period_date" date NOT NULL, "period_type" "public"."operational_budget_period_allocation_period_type_enum" NOT NULL DEFAULT 'MONTHLY', "planned_amount" numeric(19,4) NOT NULL DEFAULT '0', "actual_amount" numeric(19,4) NOT NULL DEFAULT '0', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_878848f068bb1a54477e56b92ab" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_8db201c90d6b5a4956da53ecac" ON "public"."operational_budget_period_allocation" ("operational_budget_category_id", "period_date") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."operational_budget_category" ("operational_budget_category_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "operational_budget_id" uuid NOT NULL, "name" character varying(255) NOT NULL, "budgeted_amount" numeric(10,2) NOT NULL DEFAULT '0', "actual_spent" numeric(10,2) NOT NULL DEFAULT '0', "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_3e38ea5566ccffb3b40ac725b20" PRIMARY KEY ("operational_budget_category_id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_02d85ba5b35930e2e448d77eb3" ON "public"."operational_budget_category" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."operational_budget_type_enum" AS ENUM('departmental', 'company-wide', 'recurring')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."operational_budget_status_enum" AS ENUM('active', 'closed', 'archived')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."operational_budget" ("operational_budget_id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(255) NOT NULL, "description" text, "type" "public"."operational_budget_type_enum" NOT NULL DEFAULT 'company-wide', "budgeted_amount" numeric(19,4) NOT NULL, "actual_spent" numeric(19,4) NOT NULL DEFAULT '0', "start_date" date NOT NULL, "end_date" date NOT NULL, "status" "public"."operational_budget_status_enum" NOT NULL DEFAULT 'active', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE, "created_by_user_id" uuid NOT NULL, "department_id" uuid, CONSTRAINT "PK_c6b0943065b23247de33900f849" PRIMARY KEY ("operational_budget_id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_1a1f945f2e8583777beda1f59a" ON "public"."operational_budget" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."payroll_entry" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "operational_budget_id" uuid NOT NULL, "employee_name" character varying(255) NOT NULL, "employee_id" character varying(100), "base_salary" numeric(19,4) NOT NULL, "bonus" numeric(19,4) NOT NULL DEFAULT '0', "overtime" numeric(19,4) NOT NULL DEFAULT '0', "other_allowances" numeric(19,4) NOT NULL DEFAULT '0', "pension_deduction" numeric(19,4) NOT NULL DEFAULT '0', "tax_deduction" numeric(19,4) NOT NULL DEFAULT '0', "net_pay" numeric(19,4) NOT NULL, "pay_period_start" date NOT NULL, "pay_period_end" date NOT NULL, "payment_date" date NOT NULL, "status" character varying(50) NOT NULL DEFAULT 'PAID', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "processed_by_user_id" uuid NOT NULL, CONSTRAINT "PK_3329186685dcfe2e5a2c6d5e3e9" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."budget_category_type_enum" AS ENUM('CAPEX', 'OPEX')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."budget_category" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid, "name" character varying(255) NOT NULL, "description" text, "type" "public"."budget_category_type_enum" NOT NULL DEFAULT 'OPEX', "is_system_default" boolean NOT NULL DEFAULT false, "is_active" boolean NOT NULL DEFAULT true, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_af6f95ccfa1f460edca6b488803" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_bb70ecb18a4e9dd18e5631cc31" ON "public"."budget_category" ("tenant_id", "name") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."fiscal_year" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "year_label" character varying(50) NOT NULL, "start_date" date NOT NULL, "end_date" date NOT NULL, "is_closed" boolean NOT NULL DEFAULT false, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_72fa5ea3e6b0ec7542c23bf0389" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_39b016f877ed3121e88fae9cc5" ON "public"."fiscal_year" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_9335a47b19a0b2d31cb3442bf1" ON "public"."fiscal_year" ("tenant_id", "year_label") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."fiscal_period_period_type_enum" AS ENUM('MONTH', 'QUARTER')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."fiscal_period" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "fiscal_year_id" uuid NOT NULL, "period_name" character varying(50) NOT NULL, "period_type" "public"."fiscal_period_period_type_enum" NOT NULL DEFAULT 'MONTH', "start_date" date NOT NULL, "end_date" date NOT NULL, "is_closed" boolean NOT NULL DEFAULT false, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_ebe5522f2f528f88972c93fb675" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_2cea17854a5889b066dc46d149" ON "public"."fiscal_period" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_14795ae2ed9475afe5b2b4d001" ON "public"."fiscal_period" ("tenant_id", "fiscal_year_id", "period_name") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."department" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(100) NOT NULL, "code" character varying(50) NOT NULL, "manager_id" uuid, "parent_department_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_9a2213262c1593bffb581e382f5" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_1300ffe8179790edd2efcd3209" ON "public"."department" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_dc577480370d9a523c1473108b" ON "public"."department" ("tenant_id", "code") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."cost_center" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(100) NOT NULL, "code" character varying(50) NOT NULL, "department_id" uuid NOT NULL, "owner_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_814d737123e3a42d0a37e97b393" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_57900dd9d556c37de9aec26565" ON "public"."cost_center" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_08191711a3f81d1a638e3d7c16" ON "public"."cost_center" ("tenant_id", "code") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."account_class_base_type_enum" AS ENUM('ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."account_class" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(100) NOT NULL, "code" character varying(20) NOT NULL, "base_type" "public"."account_class_base_type_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_cff395fc8a1a8c9316e98078fa9" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_6ee3f6991c5ab972fd9e17d2b6" ON "public"."account_class" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_1329c08e6b47ba44a7c5bd1e81" ON "public"."account_class" ("tenant_id", "code") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."account_group" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(100) NOT NULL, "code" character varying(20) NOT NULL, "account_class_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_26903426dfff4c2d0ad461ed19b" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_c6e63551c372d106beb62014a3" ON "public"."account_group" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_57170cf4c4fff05c29a2078e6f" ON "public"."account_group" ("tenant_id", "code") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."gl_account" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "name" character varying(150) NOT NULL, "code" character varying(20) NOT NULL, "description" text, "is_active" boolean NOT NULL DEFAULT true, "account_group_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_d9b20bd909d62227a43f5aa40cf" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_ddffe65ebd0cb45088ef22d457" ON "public"."gl_account" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_2d6d496da459af35d738ff4e2b" ON "public"."gl_account" ("tenant_id", "code") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."payroll_line_item_item_type_enum" AS ENUM('BASE_SALARY', 'BONUS', 'COMMISSION', 'EMPLOYER_TAX', 'EMPLOYER_BENEFIT')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."payroll_line_item" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "payroll_run_id" uuid NOT NULL, "employee_id" uuid NOT NULL, "cost_center_id" uuid NOT NULL, "gl_account_id" uuid NOT NULL, "item_type" "public"."payroll_line_item_item_type_enum" NOT NULL, "amount" numeric(19,4) NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_6ee218272e4d04e8e53cc2ce1ff" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_52213ca1d2c3a34246fdd15841" ON "public"."payroll_line_item" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."payroll_run_status_enum" AS ENUM('DRAFT', 'REVIEW', 'APPROVED', 'POSTED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."payroll_run" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "run_identifier" character varying(150) NOT NULL, "fiscal_period_id" uuid NOT NULL, "run_date" date NOT NULL, "total_gross_pay" numeric(19,4) NOT NULL DEFAULT '0', "total_taxes_employer" numeric(19,4) NOT NULL DEFAULT '0', "total_benefits_employer" numeric(19,4) NOT NULL DEFAULT '0', "status" "public"."payroll_run_status_enum" NOT NULL DEFAULT 'DRAFT', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_12ecdd28188d0d7b14895be861a" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_b0031181658d37c5f34cdbc1d2" ON "public"."payroll_run" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."p2p_invoice_status_enum" AS ENUM('RECEIVED', 'UNDER_REVIEW', 'APPROVED', 'PAID', 'REJECTED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."p2p_invoice" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "invoice_number" character varying(100) NOT NULL, "purchase_order_id" uuid, "cost_center_id" uuid NOT NULL, "gl_account_id" uuid NOT NULL, "vendor_name" character varying(255) NOT NULL, "amount" numeric(19,4) NOT NULL, "invoice_date" date NOT NULL, "due_date" date, "status" "public"."p2p_invoice_status_enum" NOT NULL DEFAULT 'RECEIVED', "receipt_url" character varying(2048), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_995b22663e490566d0ee9286a74" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_33fdaf2df7058fef325a775e0f" ON "public"."p2p_invoice" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."p2p_purchase_order_status_enum" AS ENUM('ISSUED', 'PARTIALLY_FULFILLED', 'FULFILLED', 'CANCELLED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."p2p_purchase_order" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "po_number" character varying(50) NOT NULL, "requisition_id" uuid NOT NULL, "vendor_name" character varying(255) NOT NULL, "committed_amount" numeric(19,4) NOT NULL, "status" "public"."p2p_purchase_order_status_enum" NOT NULL DEFAULT 'ISSUED', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_ac76440c6fbc6ad03ac18e53ebb" UNIQUE ("po_number"), CONSTRAINT "PK_5e1eb4053d5862127947a8f74f6" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_20aab50358e6af8f68c4d93d7d" ON "public"."p2p_purchase_order" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."p2p_requisition_status_enum" AS ENUM('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."p2p_requisition" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "requisition_number" character varying(50) NOT NULL, "requester_id" uuid NOT NULL, "cost_center_id" uuid NOT NULL, "gl_account_id" uuid NOT NULL, "description" text NOT NULL, "vendor_name" character varying(255), "estimated_amount" numeric(19,4) NOT NULL, "required_by_date" date, "status" "public"."p2p_requisition_status_enum" NOT NULL DEFAULT 'DRAFT', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_8e425034e239770a6cb766d0c3d" UNIQUE ("requisition_number"), CONSTRAINT "PK_6b9d6eb71f34144a5ef3191af70" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_be0d94c1d6bbaccf576a85fca7" ON "public"."p2p_requisition" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."budget_ledger_budget_type_enum" AS ENUM('PRIMARY_ALLOCATION', 'SUPPLEMENT', 'TRANSFER_IN', 'TRANSFER_OUT')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."budget_ledger" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "fiscal_period_id" uuid NOT NULL, "cost_center_id" uuid NOT NULL, "gl_account_id" uuid NOT NULL, "budget_type" "public"."budget_ledger_budget_type_enum" NOT NULL, "amount" numeric(19,4) NOT NULL, "reference_note" character varying(255), "created_by_user_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_014a19f86cec669d0bfc5c4b6a4" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_9cb14608cee751b9679f73070f" ON "public"."budget_ledger" ("tenant_id") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "public"."ceo_annotation" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "tenant_id" uuid NOT NULL, "target_type" "public"."ceo_annotation_target_type_enum" NOT NULL, "target_id" uuid NOT NULL, "content" text NOT NULL, "author_id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_9e43c71bfb975d4a59b69ad158a" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_8630b2549c6aeef0a611039221" ON "public"."ceo_annotation" ("tenant_id", "target_type", "target_id") `,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."clients" ADD CONSTRAINT "FK_e7d8b637725986e7b5fa774a3fd" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("tenant_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project" ADD CONSTRAINT "FK_c72d76e480d7334858782543610" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project" ADD CONSTRAINT "FK_3a12db4eff19efee3d056a5e665" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_budget" ADD CONSTRAINT "FK_f0d1d068032b7cba4c31f4cc469" FOREIGN KEY ("project_id") REFERENCES "public"."project"("project_id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_budget" ADD CONSTRAINT "FK_9ee635d5455ae8d76ff250a91e1" FOREIGN KEY ("parent_wbs_id") REFERENCES "public"."wbs_budget"("wbs_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_budget" ADD CONSTRAINT "FK_49d6f917dacfd0b762dfac5117f" FOREIGN KEY ("category_id") REFERENCES "public"."wbs_category"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_budget" ADD CONSTRAINT "FK_d012c91b9b1ee791bcf10783712" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."live_expense" ADD CONSTRAINT "FK_042e8c47b849de4fe13e5f3a34f" FOREIGN KEY ("wbs_id") REFERENCES "public"."wbs_budget"("wbs_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."live_expense" ADD CONSTRAINT "FK_000bafb36cabbe367711de78051" FOREIGN KEY ("category_id") REFERENCES "public"."wbs_category"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_category" ADD CONSTRAINT "FK_4f68ecfb3b88411a7907fcfacfe" FOREIGN KEY ("parent_id") REFERENCES "public"."wbs_category"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project_inflow" ADD CONSTRAINT "FK_5bb846d8998501d61b4d03102d5" FOREIGN KEY ("project_id") REFERENCES "public"."project"("project_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project_inflow" ADD CONSTRAINT "FK_ff9a8acc12a306491a2e68ffde9" FOREIGN KEY ("received_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project_audit" ADD CONSTRAINT "FK_8621cfa8010257f3cb17f730dff" FOREIGN KEY ("project_id") REFERENCES "public"."project"("project_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project_audit" ADD CONSTRAINT "FK_07a101eb62ca0e20269b4eb338f" FOREIGN KEY ("performed_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."lpo" ADD CONSTRAINT "FK_8b20d6ab5a308ae969716de9280" FOREIGN KEY ("project_id") REFERENCES "public"."project"("project_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."lpo" ADD CONSTRAINT "FK_cd7c77679c19877f77b22d433f3" FOREIGN KEY ("wbs_id") REFERENCES "public"."wbs_budget"("wbs_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."lpo" ADD CONSTRAINT "FK_d303c886165202b23a4a55b4eb2" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."operational_expense" ADD CONSTRAINT "FK_824e9f75611b5c39b7eba8c1a50" FOREIGN KEY ("operational_budget_category_id") REFERENCES "public"."operational_budget_category"("operational_budget_category_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."operational_budget_period_allocation" ADD CONSTRAINT "FK_cc263ff85608e7b23b07b8679ff" FOREIGN KEY ("operational_budget_category_id") REFERENCES "public"."operational_budget_category"("operational_budget_category_id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."operational_budget_category" ADD CONSTRAINT "FK_ac963ad15d212a782b1989f41af" FOREIGN KEY ("operational_budget_id") REFERENCES "public"."operational_budget"("operational_budget_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."operational_budget" ADD CONSTRAINT "FK_61fdf2278ad28f4509d6064c0a7" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_entry" ADD CONSTRAINT "FK_d7fc1d2b36c496da7d2df943e73" FOREIGN KEY ("operational_budget_id") REFERENCES "public"."operational_budget"("operational_budget_id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_entry" ADD CONSTRAINT "FK_cdf0ff76929b82f8fc1535f2866" FOREIGN KEY ("processed_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."fiscal_period" ADD CONSTRAINT "FK_bf6d01e13a94ec58875ecd8536e" FOREIGN KEY ("fiscal_year_id") REFERENCES "public"."fiscal_year"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."department" ADD CONSTRAINT "FK_4ca0fbc25538965a90575dc4a81" FOREIGN KEY ("manager_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."department" ADD CONSTRAINT "FK_03ef296dd53d939a99286ebeca6" FOREIGN KEY ("parent_department_id") REFERENCES "public"."department"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."cost_center" ADD CONSTRAINT "FK_222b6422c01c4293e7cc3509a55" FOREIGN KEY ("department_id") REFERENCES "public"."department"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."cost_center" ADD CONSTRAINT "FK_77ed2e532d440a9e70ed796af10" FOREIGN KEY ("owner_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."account_group" ADD CONSTRAINT "FK_23cc12fe4a90c7e95a555ec9b8e" FOREIGN KEY ("account_class_id") REFERENCES "public"."account_class"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."gl_account" ADD CONSTRAINT "FK_649680070f7e6176df378939fdf" FOREIGN KEY ("account_group_id") REFERENCES "public"."account_group"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_line_item" ADD CONSTRAINT "FK_55ad3677fe323ab43823553ac04" FOREIGN KEY ("payroll_run_id") REFERENCES "public"."payroll_run"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_line_item" ADD CONSTRAINT "FK_a0a6bb994907b9cec9ce559949c" FOREIGN KEY ("employee_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_line_item" ADD CONSTRAINT "FK_de0a4b3f04b0a5365313ed076ed" FOREIGN KEY ("cost_center_id") REFERENCES "public"."cost_center"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_line_item" ADD CONSTRAINT "FK_28d64edb5b4bd2427b91662c1de" FOREIGN KEY ("gl_account_id") REFERENCES "public"."gl_account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_run" ADD CONSTRAINT "FK_ff40151aaf189be109b9457cbd1" FOREIGN KEY ("fiscal_period_id") REFERENCES "public"."fiscal_period"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_invoice" ADD CONSTRAINT "FK_cee2103349d46650bb7ca3f6ba5" FOREIGN KEY ("purchase_order_id") REFERENCES "public"."p2p_purchase_order"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_invoice" ADD CONSTRAINT "FK_99b94383497c2514c529f442296" FOREIGN KEY ("cost_center_id") REFERENCES "public"."cost_center"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_invoice" ADD CONSTRAINT "FK_7c83b799a5a7352f2b6ddbf065d" FOREIGN KEY ("gl_account_id") REFERENCES "public"."gl_account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_purchase_order" ADD CONSTRAINT "FK_2f712b0bf30975d223b6ad47ab0" FOREIGN KEY ("requisition_id") REFERENCES "public"."p2p_requisition"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_requisition" ADD CONSTRAINT "FK_7bffa39f138b9476cbf97767a29" FOREIGN KEY ("requester_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_requisition" ADD CONSTRAINT "FK_f672fc631252ba0ca8fa955dc23" FOREIGN KEY ("cost_center_id") REFERENCES "public"."cost_center"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_requisition" ADD CONSTRAINT "FK_454478b7dd726c2f962e30c8926" FOREIGN KEY ("gl_account_id") REFERENCES "public"."gl_account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."budget_ledger" ADD CONSTRAINT "FK_4dbc94750c70f5c81ba86ceee15" FOREIGN KEY ("fiscal_period_id") REFERENCES "public"."fiscal_period"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."budget_ledger" ADD CONSTRAINT "FK_641b6cbd26ac6fb4615688d83ac" FOREIGN KEY ("cost_center_id") REFERENCES "public"."cost_center"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."budget_ledger" ADD CONSTRAINT "FK_a9b007b1423571488e4f44b4991" FOREIGN KEY ("gl_account_id") REFERENCES "public"."gl_account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."ceo_annotation" ADD CONSTRAINT "FK_5495d6b142309d12f2a08f9935c" FOREIGN KEY ("author_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "public"."ceo_annotation" DROP CONSTRAINT "FK_5495d6b142309d12f2a08f9935c"`);
-        await queryRunner.query(`ALTER TABLE "public"."budget_ledger" DROP CONSTRAINT "FK_a9b007b1423571488e4f44b4991"`);
-        await queryRunner.query(`ALTER TABLE "public"."budget_ledger" DROP CONSTRAINT "FK_641b6cbd26ac6fb4615688d83ac"`);
-        await queryRunner.query(`ALTER TABLE "public"."budget_ledger" DROP CONSTRAINT "FK_4dbc94750c70f5c81ba86ceee15"`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_requisition" DROP CONSTRAINT "FK_454478b7dd726c2f962e30c8926"`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_requisition" DROP CONSTRAINT "FK_f672fc631252ba0ca8fa955dc23"`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_requisition" DROP CONSTRAINT "FK_7bffa39f138b9476cbf97767a29"`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_purchase_order" DROP CONSTRAINT "FK_2f712b0bf30975d223b6ad47ab0"`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_invoice" DROP CONSTRAINT "FK_7c83b799a5a7352f2b6ddbf065d"`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_invoice" DROP CONSTRAINT "FK_99b94383497c2514c529f442296"`);
-        await queryRunner.query(`ALTER TABLE "public"."p2p_invoice" DROP CONSTRAINT "FK_cee2103349d46650bb7ca3f6ba5"`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_run" DROP CONSTRAINT "FK_ff40151aaf189be109b9457cbd1"`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_line_item" DROP CONSTRAINT "FK_28d64edb5b4bd2427b91662c1de"`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_line_item" DROP CONSTRAINT "FK_de0a4b3f04b0a5365313ed076ed"`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_line_item" DROP CONSTRAINT "FK_a0a6bb994907b9cec9ce559949c"`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_line_item" DROP CONSTRAINT "FK_55ad3677fe323ab43823553ac04"`);
-        await queryRunner.query(`ALTER TABLE "public"."gl_account" DROP CONSTRAINT "FK_649680070f7e6176df378939fdf"`);
-        await queryRunner.query(`ALTER TABLE "public"."account_group" DROP CONSTRAINT "FK_23cc12fe4a90c7e95a555ec9b8e"`);
-        await queryRunner.query(`ALTER TABLE "public"."cost_center" DROP CONSTRAINT "FK_77ed2e532d440a9e70ed796af10"`);
-        await queryRunner.query(`ALTER TABLE "public"."cost_center" DROP CONSTRAINT "FK_222b6422c01c4293e7cc3509a55"`);
-        await queryRunner.query(`ALTER TABLE "public"."department" DROP CONSTRAINT "FK_03ef296dd53d939a99286ebeca6"`);
-        await queryRunner.query(`ALTER TABLE "public"."department" DROP CONSTRAINT "FK_4ca0fbc25538965a90575dc4a81"`);
-        await queryRunner.query(`ALTER TABLE "public"."fiscal_period" DROP CONSTRAINT "FK_bf6d01e13a94ec58875ecd8536e"`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_entry" DROP CONSTRAINT "FK_cdf0ff76929b82f8fc1535f2866"`);
-        await queryRunner.query(`ALTER TABLE "public"."payroll_entry" DROP CONSTRAINT "FK_d7fc1d2b36c496da7d2df943e73"`);
-        await queryRunner.query(`ALTER TABLE "public"."operational_budget" DROP CONSTRAINT "FK_61fdf2278ad28f4509d6064c0a7"`);
-        await queryRunner.query(`ALTER TABLE "public"."operational_budget_category" DROP CONSTRAINT "FK_ac963ad15d212a782b1989f41af"`);
-        await queryRunner.query(`ALTER TABLE "public"."operational_budget_period_allocation" DROP CONSTRAINT "FK_cc263ff85608e7b23b07b8679ff"`);
-        await queryRunner.query(`ALTER TABLE "public"."operational_expense" DROP CONSTRAINT "FK_824e9f75611b5c39b7eba8c1a50"`);
-        await queryRunner.query(`ALTER TABLE "public"."lpo" DROP CONSTRAINT "FK_d303c886165202b23a4a55b4eb2"`);
-        await queryRunner.query(`ALTER TABLE "public"."lpo" DROP CONSTRAINT "FK_cd7c77679c19877f77b22d433f3"`);
-        await queryRunner.query(`ALTER TABLE "public"."lpo" DROP CONSTRAINT "FK_8b20d6ab5a308ae969716de9280"`);
-        await queryRunner.query(`ALTER TABLE "public"."project_audit" DROP CONSTRAINT "FK_07a101eb62ca0e20269b4eb338f"`);
-        await queryRunner.query(`ALTER TABLE "public"."project_audit" DROP CONSTRAINT "FK_8621cfa8010257f3cb17f730dff"`);
-        await queryRunner.query(`ALTER TABLE "public"."project_inflow" DROP CONSTRAINT "FK_ff9a8acc12a306491a2e68ffde9"`);
-        await queryRunner.query(`ALTER TABLE "public"."project_inflow" DROP CONSTRAINT "FK_5bb846d8998501d61b4d03102d5"`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_category" DROP CONSTRAINT "FK_4f68ecfb3b88411a7907fcfacfe"`);
-        await queryRunner.query(`ALTER TABLE "public"."live_expense" DROP CONSTRAINT "FK_000bafb36cabbe367711de78051"`);
-        await queryRunner.query(`ALTER TABLE "public"."live_expense" DROP CONSTRAINT "FK_042e8c47b849de4fe13e5f3a34f"`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_budget" DROP CONSTRAINT "FK_d012c91b9b1ee791bcf10783712"`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_budget" DROP CONSTRAINT "FK_49d6f917dacfd0b762dfac5117f"`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_budget" DROP CONSTRAINT "FK_9ee635d5455ae8d76ff250a91e1"`);
-        await queryRunner.query(`ALTER TABLE "public"."wbs_budget" DROP CONSTRAINT "FK_f0d1d068032b7cba4c31f4cc469"`);
-        await queryRunner.query(`ALTER TABLE "public"."project" DROP CONSTRAINT "FK_3a12db4eff19efee3d056a5e665"`);
-        await queryRunner.query(`ALTER TABLE "public"."project" DROP CONSTRAINT "FK_c72d76e480d7334858782543610"`);
-        await queryRunner.query(`ALTER TABLE "public"."clients" DROP CONSTRAINT "FK_e7d8b637725986e7b5fa774a3fd"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_8630b2549c6aeef0a611039221"`);
-        await queryRunner.query(`DROP TABLE "public"."ceo_annotation"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_9cb14608cee751b9679f73070f"`);
-        await queryRunner.query(`DROP TABLE "public"."budget_ledger"`);
-        await queryRunner.query(`DROP TYPE "public"."budget_ledger_budget_type_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_be0d94c1d6bbaccf576a85fca7"`);
-        await queryRunner.query(`DROP TABLE "public"."p2p_requisition"`);
-        await queryRunner.query(`DROP TYPE "public"."p2p_requisition_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_20aab50358e6af8f68c4d93d7d"`);
-        await queryRunner.query(`DROP TABLE "public"."p2p_purchase_order"`);
-        await queryRunner.query(`DROP TYPE "public"."p2p_purchase_order_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_33fdaf2df7058fef325a775e0f"`);
-        await queryRunner.query(`DROP TABLE "public"."p2p_invoice"`);
-        await queryRunner.query(`DROP TYPE "public"."p2p_invoice_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_b0031181658d37c5f34cdbc1d2"`);
-        await queryRunner.query(`DROP TABLE "public"."payroll_run"`);
-        await queryRunner.query(`DROP TYPE "public"."payroll_run_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_52213ca1d2c3a34246fdd15841"`);
-        await queryRunner.query(`DROP TABLE "public"."payroll_line_item"`);
-        await queryRunner.query(`DROP TYPE "public"."payroll_line_item_item_type_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_2d6d496da459af35d738ff4e2b"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_ddffe65ebd0cb45088ef22d457"`);
-        await queryRunner.query(`DROP TABLE "public"."gl_account"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_57170cf4c4fff05c29a2078e6f"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_c6e63551c372d106beb62014a3"`);
-        await queryRunner.query(`DROP TABLE "public"."account_group"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_1329c08e6b47ba44a7c5bd1e81"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_6ee3f6991c5ab972fd9e17d2b6"`);
-        await queryRunner.query(`DROP TABLE "public"."account_class"`);
-        await queryRunner.query(`DROP TYPE "public"."account_class_base_type_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_08191711a3f81d1a638e3d7c16"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_57900dd9d556c37de9aec26565"`);
-        await queryRunner.query(`DROP TABLE "public"."cost_center"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_dc577480370d9a523c1473108b"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_1300ffe8179790edd2efcd3209"`);
-        await queryRunner.query(`DROP TABLE "public"."department"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_14795ae2ed9475afe5b2b4d001"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_2cea17854a5889b066dc46d149"`);
-        await queryRunner.query(`DROP TABLE "public"."fiscal_period"`);
-        await queryRunner.query(`DROP TYPE "public"."fiscal_period_period_type_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_9335a47b19a0b2d31cb3442bf1"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_39b016f877ed3121e88fae9cc5"`);
-        await queryRunner.query(`DROP TABLE "public"."fiscal_year"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_bb70ecb18a4e9dd18e5631cc31"`);
-        await queryRunner.query(`DROP TABLE "public"."budget_category"`);
-        await queryRunner.query(`DROP TYPE "public"."budget_category_type_enum"`);
-        await queryRunner.query(`DROP TABLE "public"."payroll_entry"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_1a1f945f2e8583777beda1f59a"`);
-        await queryRunner.query(`DROP TABLE "public"."operational_budget"`);
-        await queryRunner.query(`DROP TYPE "public"."operational_budget_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."operational_budget_type_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_02d85ba5b35930e2e448d77eb3"`);
-        await queryRunner.query(`DROP TABLE "public"."operational_budget_category"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_8db201c90d6b5a4956da53ecac"`);
-        await queryRunner.query(`DROP TABLE "public"."operational_budget_period_allocation"`);
-        await queryRunner.query(`DROP TYPE "public"."operational_budget_period_allocation_period_type_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_0ec3e4d84a24a5d1902cde3173"`);
-        await queryRunner.query(`DROP TABLE "public"."operational_expense"`);
-        await queryRunner.query(`DROP TYPE "public"."operational_expense_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_3510976724f58f0bc7af9b2b63"`);
-        await queryRunner.query(`DROP TABLE "public"."lpo"`);
-        await queryRunner.query(`DROP TYPE "public"."lpo_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_f2daa2ca3c296a84ff0e8ba58e"`);
-        await queryRunner.query(`DROP TABLE "public"."project_audit"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_4c7279644b6ed957453aa8ca33"`);
-        await queryRunner.query(`DROP TABLE "public"."project_inflow"`);
-        await queryRunner.query(`DROP TABLE "public"."wbs_category"`);
-        await queryRunner.query(`DROP TABLE "public"."live_expense"`);
-        await queryRunner.query(`DROP TABLE "public"."wbs_budget"`);
-        await queryRunner.query(`DROP TYPE "public"."wbs_budget_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_d8c27af391f272c95fe9efe512"`);
-        await queryRunner.query(`DROP TABLE "public"."project"`);
-        await queryRunner.query(`DROP TYPE "public"."project_status_enum"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_e7d8b637725986e7b5fa774a3f"`);
-        await queryRunner.query(`DROP TABLE "public"."clients"`);
-        await queryRunner.query(`DROP TABLE "public"."wbs_template"`);
-        await queryRunner.query(`DROP TYPE "public"."wbs_template_industry_enum"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "public"."ceo_annotation" DROP CONSTRAINT "FK_5495d6b142309d12f2a08f9935c"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."budget_ledger" DROP CONSTRAINT "FK_a9b007b1423571488e4f44b4991"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."budget_ledger" DROP CONSTRAINT "FK_641b6cbd26ac6fb4615688d83ac"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."budget_ledger" DROP CONSTRAINT "FK_4dbc94750c70f5c81ba86ceee15"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_requisition" DROP CONSTRAINT "FK_454478b7dd726c2f962e30c8926"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_requisition" DROP CONSTRAINT "FK_f672fc631252ba0ca8fa955dc23"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_requisition" DROP CONSTRAINT "FK_7bffa39f138b9476cbf97767a29"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_purchase_order" DROP CONSTRAINT "FK_2f712b0bf30975d223b6ad47ab0"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_invoice" DROP CONSTRAINT "FK_7c83b799a5a7352f2b6ddbf065d"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_invoice" DROP CONSTRAINT "FK_99b94383497c2514c529f442296"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."p2p_invoice" DROP CONSTRAINT "FK_cee2103349d46650bb7ca3f6ba5"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_run" DROP CONSTRAINT "FK_ff40151aaf189be109b9457cbd1"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_line_item" DROP CONSTRAINT "FK_28d64edb5b4bd2427b91662c1de"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_line_item" DROP CONSTRAINT "FK_de0a4b3f04b0a5365313ed076ed"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_line_item" DROP CONSTRAINT "FK_a0a6bb994907b9cec9ce559949c"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_line_item" DROP CONSTRAINT "FK_55ad3677fe323ab43823553ac04"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."gl_account" DROP CONSTRAINT "FK_649680070f7e6176df378939fdf"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."account_group" DROP CONSTRAINT "FK_23cc12fe4a90c7e95a555ec9b8e"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."cost_center" DROP CONSTRAINT "FK_77ed2e532d440a9e70ed796af10"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."cost_center" DROP CONSTRAINT "FK_222b6422c01c4293e7cc3509a55"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."department" DROP CONSTRAINT "FK_03ef296dd53d939a99286ebeca6"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."department" DROP CONSTRAINT "FK_4ca0fbc25538965a90575dc4a81"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."fiscal_period" DROP CONSTRAINT "FK_bf6d01e13a94ec58875ecd8536e"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_entry" DROP CONSTRAINT "FK_cdf0ff76929b82f8fc1535f2866"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."payroll_entry" DROP CONSTRAINT "FK_d7fc1d2b36c496da7d2df943e73"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."operational_budget" DROP CONSTRAINT "FK_61fdf2278ad28f4509d6064c0a7"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."operational_budget_category" DROP CONSTRAINT "FK_ac963ad15d212a782b1989f41af"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."operational_budget_period_allocation" DROP CONSTRAINT "FK_cc263ff85608e7b23b07b8679ff"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."operational_expense" DROP CONSTRAINT "FK_824e9f75611b5c39b7eba8c1a50"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."lpo" DROP CONSTRAINT "FK_d303c886165202b23a4a55b4eb2"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."lpo" DROP CONSTRAINT "FK_cd7c77679c19877f77b22d433f3"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."lpo" DROP CONSTRAINT "FK_8b20d6ab5a308ae969716de9280"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project_audit" DROP CONSTRAINT "FK_07a101eb62ca0e20269b4eb338f"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project_audit" DROP CONSTRAINT "FK_8621cfa8010257f3cb17f730dff"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project_inflow" DROP CONSTRAINT "FK_ff9a8acc12a306491a2e68ffde9"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project_inflow" DROP CONSTRAINT "FK_5bb846d8998501d61b4d03102d5"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_category" DROP CONSTRAINT "FK_4f68ecfb3b88411a7907fcfacfe"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."live_expense" DROP CONSTRAINT "FK_000bafb36cabbe367711de78051"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."live_expense" DROP CONSTRAINT "FK_042e8c47b849de4fe13e5f3a34f"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_budget" DROP CONSTRAINT "FK_d012c91b9b1ee791bcf10783712"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_budget" DROP CONSTRAINT "FK_49d6f917dacfd0b762dfac5117f"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_budget" DROP CONSTRAINT "FK_9ee635d5455ae8d76ff250a91e1"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."wbs_budget" DROP CONSTRAINT "FK_f0d1d068032b7cba4c31f4cc469"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project" DROP CONSTRAINT "FK_3a12db4eff19efee3d056a5e665"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."project" DROP CONSTRAINT "FK_c72d76e480d7334858782543610"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "public"."clients" DROP CONSTRAINT "FK_e7d8b637725986e7b5fa774a3fd"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_8630b2549c6aeef0a611039221"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."ceo_annotation"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_9cb14608cee751b9679f73070f"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."budget_ledger"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."budget_ledger_budget_type_enum"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_be0d94c1d6bbaccf576a85fca7"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."p2p_requisition"`);
+    await queryRunner.query(`DROP TYPE "public"."p2p_requisition_status_enum"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_20aab50358e6af8f68c4d93d7d"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."p2p_purchase_order"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."p2p_purchase_order_status_enum"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_33fdaf2df7058fef325a775e0f"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."p2p_invoice"`);
+    await queryRunner.query(`DROP TYPE "public"."p2p_invoice_status_enum"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_b0031181658d37c5f34cdbc1d2"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."payroll_run"`);
+    await queryRunner.query(`DROP TYPE "public"."payroll_run_status_enum"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_52213ca1d2c3a34246fdd15841"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."payroll_line_item"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."payroll_line_item_item_type_enum"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_2d6d496da459af35d738ff4e2b"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_ddffe65ebd0cb45088ef22d457"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."gl_account"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_57170cf4c4fff05c29a2078e6f"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_c6e63551c372d106beb62014a3"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."account_group"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_1329c08e6b47ba44a7c5bd1e81"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_6ee3f6991c5ab972fd9e17d2b6"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."account_class"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."account_class_base_type_enum"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_08191711a3f81d1a638e3d7c16"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_57900dd9d556c37de9aec26565"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."cost_center"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_dc577480370d9a523c1473108b"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_1300ffe8179790edd2efcd3209"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."department"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_14795ae2ed9475afe5b2b4d001"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_2cea17854a5889b066dc46d149"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."fiscal_period"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."fiscal_period_period_type_enum"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_9335a47b19a0b2d31cb3442bf1"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_39b016f877ed3121e88fae9cc5"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."fiscal_year"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_bb70ecb18a4e9dd18e5631cc31"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."budget_category"`);
+    await queryRunner.query(`DROP TYPE "public"."budget_category_type_enum"`);
+    await queryRunner.query(`DROP TABLE "public"."payroll_entry"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_1a1f945f2e8583777beda1f59a"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."operational_budget"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."operational_budget_status_enum"`,
+    );
+    await queryRunner.query(
+      `DROP TYPE "public"."operational_budget_type_enum"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_02d85ba5b35930e2e448d77eb3"`,
+    );
+    await queryRunner.query(
+      `DROP TABLE "public"."operational_budget_category"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_8db201c90d6b5a4956da53ecac"`,
+    );
+    await queryRunner.query(
+      `DROP TABLE "public"."operational_budget_period_allocation"`,
+    );
+    await queryRunner.query(
+      `DROP TYPE "public"."operational_budget_period_allocation_period_type_enum"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_0ec3e4d84a24a5d1902cde3173"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."operational_expense"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."operational_expense_status_enum"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_3510976724f58f0bc7af9b2b63"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."lpo"`);
+    await queryRunner.query(`DROP TYPE "public"."lpo_status_enum"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_f2daa2ca3c296a84ff0e8ba58e"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."project_audit"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_4c7279644b6ed957453aa8ca33"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."project_inflow"`);
+    await queryRunner.query(`DROP TABLE "public"."wbs_category"`);
+    await queryRunner.query(`DROP TABLE "public"."live_expense"`);
+    await queryRunner.query(`DROP TABLE "public"."wbs_budget"`);
+    await queryRunner.query(`DROP TYPE "public"."wbs_budget_status_enum"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_d8c27af391f272c95fe9efe512"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."project"`);
+    await queryRunner.query(`DROP TYPE "public"."project_status_enum"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_e7d8b637725986e7b5fa774a3f"`,
+    );
+    await queryRunner.query(`DROP TABLE "public"."clients"`);
+    await queryRunner.query(`DROP TABLE "public"."wbs_template"`);
+    await queryRunner.query(`DROP TYPE "public"."wbs_template_industry_enum"`);
+  }
 }

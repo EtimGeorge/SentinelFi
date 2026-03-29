@@ -7,18 +7,18 @@
 //   Execute:            ts-node -r tsconfig-paths/register src/database/seeds/migrate-legacy-roles.ts --execute
 // ============================================================
 
-import { DataSource } from 'typeorm';
-import { Logger } from '@nestjs/common';
-import AppDataSource from '../../../ormconfig';
-import * as fs from 'fs';
-import * as path from 'path';
+import { DataSource } from "typeorm";
+import { Logger } from "@nestjs/common";
+import AppDataSource from "../../../ormconfig";
+import * as fs from "fs";
+import * as path from "path";
 
 // ── Role Mapping ──────────────────────────────────────────
 // Legacy Role Name (string in DB) → New Role Name (string in DB)
 const ROLE_MIGRATION_MAP: Record<string, string> = {
-  'Admin': 'Admin Director',
-  'Finance': 'Finance Manager',
-  'IT Head': 'Technical Director',
+  Admin: "Admin Director",
+  Finance: "Finance Manager",
+  "IT Head": "Technical Director",
 };
 
 interface MigrationAction {
@@ -32,13 +32,15 @@ interface MigrationAction {
 }
 
 async function migrate() {
-  const logger = new Logger('MigrateLegacyRoles');
-  const isExecute = process.argv.includes('--execute');
+  const logger = new Logger("MigrateLegacyRoles");
+  const isExecute = process.argv.includes("--execute");
 
-  logger.log('═══════════════════════════════════════════════════════');
-  logger.log('  ROLE MIGRATION: Legacy → Enterprise Hierarchy');
-  logger.log(`  Mode: ${isExecute ? '🔴 EXECUTE (changes WILL be applied)' : '🟢 DRY-RUN (no changes will be made)'}`);
-  logger.log('═══════════════════════════════════════════════════════');
+  logger.log("═══════════════════════════════════════════════════════");
+  logger.log("  ROLE MIGRATION: Legacy → Enterprise Hierarchy");
+  logger.log(
+    `  Mode: ${isExecute ? "🔴 EXECUTE (changes WILL be applied)" : "🟢 DRY-RUN (no changes will be made)"}`,
+  );
+  logger.log("═══════════════════════════════════════════════════════");
 
   // ── 1. Initialize DataSource ────────────────────────────
   if (!AppDataSource.isInitialized) {
@@ -48,44 +50,55 @@ async function migrate() {
 
   try {
     // ── 2. Pre-flight: Verify new roles exist ──────────────
-    logger.log('\n[Pre-flight] Verifying new Enterprise roles exist in the database...');
-
-    const newRoleNames = Object.values(ROLE_MIGRATION_MAP);
-    const existingNewRoles: { id: string; name: string }[] = await dataSource.query(
-      `SELECT id, name FROM public.roles WHERE name = ANY($1)`,
-      [newRoleNames]
+    logger.log(
+      "\n[Pre-flight] Verifying new Enterprise roles exist in the database...",
     );
 
+    const newRoleNames = Object.values(ROLE_MIGRATION_MAP);
+    const existingNewRoles: { id: string; name: string }[] =
+      await dataSource.query(
+        `SELECT id, name FROM public.roles WHERE name = ANY($1)`,
+        [newRoleNames],
+      );
+
     const missingRoles = newRoleNames.filter(
-      name => !existingNewRoles.some(r => r.name === name)
+      (name) => !existingNewRoles.some((r) => r.name === name),
     );
 
     if (missingRoles.length > 0) {
-      logger.error(`❌ Missing Enterprise roles in DB: ${missingRoles.join(', ')}`);
-      logger.error('   Please run the role seeder first:');
-      logger.error('   ts-node -r tsconfig-paths/register src/database/seeds/seed-roles-permissions.ts');
+      logger.error(
+        `❌ Missing Enterprise roles in DB: ${missingRoles.join(", ")}`,
+      );
+      logger.error("   Please run the role seeder first:");
+      logger.error(
+        "   ts-node -r tsconfig-paths/register src/database/seeds/seed-roles-permissions.ts",
+      );
       process.exit(1);
     }
 
     logger.log(`✅ All ${existingNewRoles.length} target roles verified.`);
 
     // Build lookup maps
-    const newRoleMap = new Map(existingNewRoles.map(r => [r.name, r.id]));
+    const newRoleMap = new Map(existingNewRoles.map((r) => [r.name, r.id]));
 
     // ── 3. Fetch legacy roles ──────────────────────────────
     const legacyRoleNames = Object.keys(ROLE_MIGRATION_MAP);
     const legacyRoles: { id: string; name: string }[] = await dataSource.query(
       `SELECT id, name FROM public.roles WHERE name = ANY($1)`,
-      [legacyRoleNames]
+      [legacyRoleNames],
     );
 
     if (legacyRoles.length === 0) {
-      logger.log('ℹ️  No legacy roles found in the database. Nothing to migrate.');
+      logger.log(
+        "ℹ️  No legacy roles found in the database. Nothing to migrate.",
+      );
       return;
     }
 
-    const legacyRoleMap = new Map(legacyRoles.map(r => [r.name, r.id]));
-    logger.log(`Found ${legacyRoles.length} legacy roles: ${legacyRoles.map(r => r.name).join(', ')}`);
+    const legacyRoleMap = new Map(legacyRoles.map((r) => [r.name, r.id]));
+    logger.log(
+      `Found ${legacyRoles.length} legacy roles: ${legacyRoles.map((r) => r.name).join(", ")}`,
+    );
 
     // ── 4. Find all users with legacy roles ────────────────
     const usersWithLegacyRoles: {
@@ -94,7 +107,8 @@ async function migrate() {
       tenant_id: string | null;
       role_id: string;
       role_name: string;
-    }[] = await dataSource.query(`
+    }[] = await dataSource.query(
+      `
       SELECT 
         u.id as user_id,
         u.email,
@@ -106,18 +120,23 @@ async function migrate() {
       INNER JOIN public.roles r ON r.id = ur.role_id
       WHERE r.name = ANY($1)
       ORDER BY u.tenant_id, u.created_at ASC
-    `, [legacyRoleNames]);
+    `,
+      [legacyRoleNames],
+    );
 
     if (usersWithLegacyRoles.length === 0) {
-      logger.log('ℹ️  No users with legacy roles found. Nothing to migrate.');
+      logger.log("ℹ️  No users with legacy roles found. Nothing to migrate.");
       return;
     }
 
-    logger.log(`\nFound ${usersWithLegacyRoles.length} user-role assignments to migrate:\n`);
+    logger.log(
+      `\nFound ${usersWithLegacyRoles.length} user-role assignments to migrate:\n`,
+    );
 
     // ── 5. Plan migration actions ──────────────────────────
     const actions: MigrationAction[] = [];
-    const skipped: { userEmail: string; roleName: string; reason: string }[] = [];
+    const skipped: { userEmail: string; roleName: string; reason: string }[] =
+      [];
 
     for (const userRole of usersWithLegacyRoles) {
       const newRoleName = ROLE_MIGRATION_MAP[userRole.role_name];
@@ -125,7 +144,7 @@ async function migrate() {
         skipped.push({
           userEmail: userRole.email,
           roleName: userRole.role_name,
-          reason: 'No mapping defined',
+          reason: "No mapping defined",
         });
         continue;
       }
@@ -143,7 +162,7 @@ async function migrate() {
       // Check if user already has the new role
       const existingAssignment = await dataSource.query(
         `SELECT 1 FROM public.user_roles WHERE user_id = $1 AND role_id = $2`,
-        [userRole.user_id, newRoleId]
+        [userRole.user_id, newRoleId],
       );
 
       if (existingAssignment.length > 0) {
@@ -167,14 +186,20 @@ async function migrate() {
     }
 
     // ── 6. Display planned changes ─────────────────────────
-    logger.log('┌──────────────────────────────────────────────────────────────┐');
-    logger.log('│                    MIGRATION PLAN                            │');
-    logger.log('├──────────────────────────────────────────────────────────────┤');
+    logger.log(
+      "┌──────────────────────────────────────────────────────────────┐",
+    );
+    logger.log(
+      "│                    MIGRATION PLAN                            │",
+    );
+    logger.log(
+      "├──────────────────────────────────────────────────────────────┤",
+    );
 
     // Group by tenant for clean display
     const byTenant = new Map<string, MigrationAction[]>();
     for (const action of actions) {
-      const key = action.tenantId || 'NO_TENANT (Platform User)';
+      const key = action.tenantId || "NO_TENANT (Platform User)";
       if (!byTenant.has(key)) byTenant.set(key, []);
       byTenant.get(key)!.push(action);
     }
@@ -182,30 +207,38 @@ async function migrate() {
     for (const [tenantId, tenantActions] of byTenant) {
       logger.log(`│  Tenant: ${tenantId}`);
       for (const a of tenantActions) {
-        logger.log(`│    ${a.userEmail}: "${a.legacyRoleName}" → "${a.newRoleName}"`);
+        logger.log(
+          `│    ${a.userEmail}: "${a.legacyRoleName}" → "${a.newRoleName}"`,
+        );
       }
-      logger.log('│');
+      logger.log("│");
     }
 
     if (skipped.length > 0) {
-      logger.log('│  ── Skipped ──');
+      logger.log("│  ── Skipped ──");
       for (const s of skipped) {
         logger.log(`│    ${s.userEmail}: "${s.roleName}" — ${s.reason}`);
       }
     }
 
-    logger.log('├──────────────────────────────────────────────────────────────┤');
+    logger.log(
+      "├──────────────────────────────────────────────────────────────┤",
+    );
     logger.log(`│  Total to migrate: ${actions.length}`);
     logger.log(`│  Skipped: ${skipped.length}`);
-    logger.log('└──────────────────────────────────────────────────────────────┘');
+    logger.log(
+      "└──────────────────────────────────────────────────────────────┘",
+    );
 
     if (actions.length === 0) {
-      logger.log('\n✅ All users already have their Enterprise roles. Nothing to do.');
+      logger.log(
+        "\n✅ All users already have their Enterprise roles. Nothing to do.",
+      );
       return;
     }
 
     // ── 7. Generate Rollback SQL ───────────────────────────
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const rollbackFileName = `rollback-roles-${timestamp}.sql`;
     const rollbackPath = path.join(__dirname, rollbackFileName);
 
@@ -221,17 +254,17 @@ async function migrate() {
     rollbackSql += `COMMIT;\n`;
     rollbackSql += `-- End of rollback script\n`;
 
-    fs.writeFileSync(rollbackPath, rollbackSql, 'utf8');
+    fs.writeFileSync(rollbackPath, rollbackSql, "utf8");
     logger.log(`\n📄 Rollback script generated: ${rollbackPath}`);
 
     // ── 8. Execute (if --execute flag passed) ──────────────
     if (!isExecute) {
-      logger.log('\n🟢 DRY-RUN complete. No changes were made.');
-      logger.log('   To apply changes, re-run with: --execute');
+      logger.log("\n🟢 DRY-RUN complete. No changes were made.");
+      logger.log("   To apply changes, re-run with: --execute");
       return;
     }
 
-    logger.log('\n🔴 EXECUTING migration...');
+    logger.log("\n🔴 EXECUTING migration...");
 
     const queryRunner = dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -242,17 +275,20 @@ async function migrate() {
       for (const action of actions) {
         await queryRunner.query(
           `INSERT INTO public.user_roles (user_id, role_id) VALUES ($1, $2)`,
-          [action.userId, action.newRoleId]
+          [action.userId, action.newRoleId],
         );
         migrated++;
         logger.log(`  ✅ ${action.userEmail}: Added "${action.newRoleName}"`);
       }
 
       await queryRunner.commitTransaction();
-      logger.log(`\n🎉 Migration complete! ${migrated} role assignments added.`);
-      logger.log('   Legacy roles are still in place (additive migration).');
-      logger.log('   Users now have BOTH legacy and new roles for backward compatibility.');
-
+      logger.log(
+        `\n🎉 Migration complete! ${migrated} role assignments added.`,
+      );
+      logger.log("   Legacy roles are still in place (additive migration).");
+      logger.log(
+        "   Users now have BOTH legacy and new roles for backward compatibility.",
+      );
     } catch (error: any) {
       await queryRunner.rollbackTransaction();
       logger.error(`\n❌ Migration failed! Transaction rolled back.`);
@@ -264,9 +300,10 @@ async function migrate() {
     }
 
     // ── 9. Post-migration report ───────────────────────────
-    logger.log('\n── Post-Migration Report ──');
+    logger.log("\n── Post-Migration Report ──");
 
-    const roleDistribution: { role_name: string; user_count: string }[] = await dataSource.query(`
+    const roleDistribution: { role_name: string; user_count: string }[] =
+      await dataSource.query(`
       SELECT r.name as role_name, COUNT(ur.user_id)::text as user_count
       FROM public.roles r
       LEFT JOIN public.user_roles ur ON ur.role_id = r.id
@@ -274,25 +311,24 @@ async function migrate() {
       ORDER BY COUNT(ur.user_id) DESC
     `);
 
-    logger.log('Role Distribution:');
+    logger.log("Role Distribution:");
     for (const row of roleDistribution) {
       const count = parseInt(row.user_count, 10);
       if (count > 0) {
         logger.log(`  ${row.role_name}: ${count} user(s)`);
       }
     }
-
   } finally {
     if (dataSource.isInitialized) {
       await dataSource.destroy();
-      logger.log('\nDataSource destroyed. Done.');
+      logger.log("\nDataSource destroyed. Done.");
     }
   }
 }
 
 // ── Entry Point ─────────────────────────────────────────────
-migrate().catch(error => {
-  const logger = new Logger('MigrateLegacyRoles');
-  logger.error('❌ Migration script failed', error);
+migrate().catch((error) => {
+  const logger = new Logger("MigrateLegacyRoles");
+  logger.error("❌ Migration script failed", error);
   process.exit(1);
 });

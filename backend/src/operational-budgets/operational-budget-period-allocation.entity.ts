@@ -29,7 +29,7 @@ export class OperationalBudgetPeriodAllocationEntity {
   @ManyToOne(
     () => OperationalBudgetCategoryEntity,
     (category) => category.allocations,
-    { onDelete: "CASCADE" }
+    { onDelete: "CASCADE" },
   )
   @JoinColumn({ name: "operational_budget_category_id" })
   category!: OperationalBudgetCategoryEntity;

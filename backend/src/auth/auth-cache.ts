@@ -24,7 +24,7 @@ export class InMemoryAuthCache implements IAuthCache {
   async get(key: string): Promise<UserPayload | null> {
     const entry = this.cache.get(key);
     if (!entry) return null;
-    
+
     if (Date.now() > entry.expires) {
       this.cache.delete(key);
       return null;
@@ -32,10 +32,14 @@ export class InMemoryAuthCache implements IAuthCache {
     return entry.data;
   }
 
-  async set(key: string, value: UserPayload, ttlSeconds: number): Promise<void> {
+  async set(
+    key: string,
+    value: UserPayload,
+    ttlSeconds: number,
+  ): Promise<void> {
     this.cache.set(key, {
       data: value,
-      expires: Date.now() + (ttlSeconds * 1000),
+      expires: Date.now() + ttlSeconds * 1000,
     });
   }
 
@@ -57,7 +61,11 @@ export class RedisAuthCache implements IAuthCache {
     return result || null;
   }
 
-  async set(key: string, value: UserPayload, ttlSeconds: number): Promise<void> {
+  async set(
+    key: string,
+    value: UserPayload,
+    ttlSeconds: number,
+  ): Promise<void> {
     // TTL is in seconds for redis-store
     await this.cacheManager.set(key, value, ttlSeconds);
   }

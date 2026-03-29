@@ -9,7 +9,7 @@
  * The JTI (JWT ID) claim uniquely identifies each token. We store it until
  * the token's natural expiry time, after which it is automatically evicted.
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from "@nestjs/common";
 
 interface BlacklistEntry {
   expiresAt: number; // Unix timestamp ms
@@ -33,7 +33,9 @@ export class TokenBlacklistService {
   blacklist(jti: string, exp: number): void {
     const expiresAt = exp * 1000; // Convert to ms
     this.store.set(jti, { expiresAt });
-    this.logger.debug(`[Blacklist] Token ${jti} blacklisted until ${new Date(expiresAt).toISOString()}`);
+    this.logger.debug(
+      `[Blacklist] Token ${jti} blacklisted until ${new Date(expiresAt).toISOString()}`,
+    );
   }
 
   /**

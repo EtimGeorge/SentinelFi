@@ -1,7 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { UserEntity } from "../../auth/user.entity";
 import { ConversationEntity } from "./conversation.entity";
-
 
 @Entity("message")
 export class MessageEntity {
@@ -36,9 +43,9 @@ export class MessageEntity {
 
   @Column({ type: "jsonb", nullable: true })
   metadata?: {
-      type?: "USER_CHAT" | "SYSTEM_ALERT" | "AI_GUIDANCE";
-      related_document_id?: string;
-      action_url?: string;
+    type?: "USER_CHAT" | "SYSTEM_ALERT" | "AI_GUIDANCE";
+    related_document_id?: string;
+    action_url?: string;
   };
 
   @CreateDateColumn({ type: "timestamptz" })
