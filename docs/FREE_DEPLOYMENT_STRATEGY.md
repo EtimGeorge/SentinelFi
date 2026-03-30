@@ -24,40 +24,58 @@ This guide provides a granular, standalone roadmap to deploying the entire Senti
 
 ---
 
-## 🚀 Phase 2: Deploying the Backend API (Koyeb)
+> [!IMPORTANT]
+> **Why we can't use Render or Koyeb without a card:**
+> As of 2025/2026, most major cloud providers (Render, Koyeb, Fly.io, Oracle) require a credit card as a "Human Identity Gate." This is an anti-abuse measure to prevent botnets and crypto-miners from saturating their free resources. Even though they won't charge you, the card is mandatory for verification.
 
-We will use [Koyeb](https://koyeb.com) for the NestJS backend and Python AI agent because of their excellent monorepo support.
+## 🚀 Phase 2: Deploying the Backend & AI Agent (Card-Free)
 
-### **Step 3: NestJS Backend Deployment**
-1.  Sign up at [Koyeb.com](https://koyeb.com) and connect your GitHub repository.
-2.  Click **Create Service**.
-3.  Choose **GitHub** as the source and select your `SentinelFi` repository.
-4.  **Configure Service**:
-    *   **Service Name**: `sentinelfi-api`
-    *   **Branch**: `main` (or your preferred branch).
-    *   **Base Directory**: `/backend` (CRITICAL for monorepos).
-    *   **Run Command**: `npm run start:prod` (or `node dist/main`).
-5.  **Environment Variables**: Click "Add Variable" for each:
-    - `DATABASE_URL`: (Your Neon string from Step 1)
-    - `REDIS_URL`: (Your Upstash string from Step 2)
-    - `JWT_SECRET_KEY`: Create a long random string (e.g., `super-secret-123-abc-!!!`).
-    - `NODE_ENV`: `production`
-    - `PORT`: `8080` (Koyeb default).
-6.  **Deploy**: Click "Deploy." Copy the provided URL (e.g., `sentinelfi-api-user.koyeb.app`).
-    *   *Save this as `BACKEND_URL`.*
+For a **permanent** zero-card experience (avoiding Railway's 30-day limit), we will split the backend services between **Back4App** (Node.js) and **Hugging Face** (Python).
 
-### **Step 4: Python AI Agent Deployment**
-1.  Click **Create Service** again in Koyeb.
-2.  Select the same GitHub repository.
-3.  **Configure Service**:
-    *   **Service Name**: `sentinelfi-ai`
-    *   **Base Directory**: `/ai-agent`
-    *   **Run Command**: `uvicorn main:app --host 0.0.0.0 --port 8000`
-4.  **Environment Variables**:
-    - `GOOGLE_API_KEY`: Your Gemini API key.
-    - `PORT`: `8000`
-5.  **Deploy**: Copy the provided URL (e.g., `sentinelfi-ai-user.koyeb.app`).
-    *   *Save this as `AI_AGENT_URL`.*
+### **Step 3: NestJS Backend Deployment (Back4App)**
+
+> [!CAUTION]
+> **The Critical Monorepo Setting (this caused your build failure):**
+> This app is a monorepo. Back4App must build from the repository **root**, not `/backend`.
+
+1.  Sign up at [Back4App.com](https://www.back4app.com) – **No credit card required.**
+2.  Go to **Web Apps** -> **New App** -> **GitHub**.
+3.  Select your `SentinelFi` repository.
+4.  **Configure Service (⚠️ Critical Settings)**:
+    *   **Root Directory**: `/` ← Leave this as root (NOT `/backend`)
+    *   **Dockerfile Path**: `backend/Dockerfile` ← Point here explicitly
+    *   **Health Check Path**: `/api/v1/health`
+    *   **Port**: `3001`
+    *   **Environment Variables** (add each one):
+        - `DATABASE_URL`: (Your Neon string from Step 1)
+        - `REDIS_URL`: (Your Upstash string from Step 2)
+        - `JWT_SECRET_KEY`: (Any random 32+ character string)
+        - `NODE_ENV`: `production`
+        - `FRONTEND_URL`: (Your Vercel URL from Step 5, e.g. `https://sentinelfi-web.vercel.app`)
+5.  **Click "Deploy"**. Copy the provided URL — save as `BACKEND_URL`.
+
+**Why does this work?** The `backend/Dockerfile` uses `COPY shared ./shared` — this path only exists if the build context is the repo root. Setting root to `/backend` caused Back4App to give the builder a context where `shared/` doesn't exist, producing the `no source files specified` error.
+
+
+### **Step 4: Python AI Agent Deployment (Hugging Face)**
+1.  Sign up at [Hugging Face](https://huggingface.co) – **No credit card required.**
+2.  Create a new **Space**.
+3.  **Space Name**: `sentinelfi-ai` / **SDK**: `Docker`.
+4.  **Upload/Sync**: Connect your GitHub and point it to the `/ai-agent` directory. Hugging Face provides a permanent free CPU tier without restricted trials.
+5.  **Variables (Settings)**: Add `GOOGLE_API_KEY` in the "Secrets" section.
+
+---
+
+## 🏥 Health Check Configuration
+
+When setting up these services, you may be asked for a **Health Check Path**. This allows the platform to know if the app is "Up."
+
+- **Backend (NestJS)**: `/api/v1/health`
+- **AI Agent (Python)**: `/`
+- **Frontend (Vercel)**: Automatic.
+
+
+
 
 ---
 
