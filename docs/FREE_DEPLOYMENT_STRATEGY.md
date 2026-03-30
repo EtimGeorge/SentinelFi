@@ -57,12 +57,52 @@ For a **permanent** zero-card experience (avoiding Railway's 30-day limit), we w
 **Why does this work?** The `backend/Dockerfile` uses `COPY shared ./shared` — this path only exists if the build context is the repo root. Setting root to `/backend` caused Back4App to give the builder a context where `shared/` doesn't exist, producing the `no source files specified` error.
 
 
-### **Step 4: Python AI Agent Deployment (Hugging Face)**
-1.  Sign up at [Hugging Face](https://huggingface.co) – **No credit card required.**
-2.  Create a new **Space**.
-3.  **Space Name**: `sentinelfi-ai` / **SDK**: `Docker`.
-4.  **Upload/Sync**: Connect your GitHub and point it to the `/ai-agent` directory. Hugging Face provides a permanent free CPU tier without restricted trials.
-5.  **Variables (Settings)**: Add `GOOGLE_API_KEY` in the "Secrets" section.
+### **Step 4: Python AI Agent Deployment (Hugging Face Spaces)**
+
+> [!NOTE]
+> Hugging Face Spaces does **not** have a "Connect GitHub" UI button. The correct method is to push your `ai-agent/` code directly as a Git repository to your HF Space, or use the GitHub Actions workflow we've already set up at `.github/workflows/sync-ai-agent-to-hf.yml`.
+
+#### Part A: Create the Space (Do this once, manually)
+
+1.  Sign up at [huggingface.co](https://huggingface.co) – **No credit card required.**
+2.  Click your profile icon -> **"New Space"**.
+3.  **Space Name**: `sentinelfi-ai`
+4.  **License**: `MIT` / **SDK**: `Docker` / **Hardware**: `CPU Basic` (free).
+5.  Click **"Create Space"**. *(It will show a basic template — don't configure files here.)*
+
+#### Part B: Add the Secret (API Key)
+
+1.  On your Space page, click **"Settings"** (top-right tab).
+2.  Scroll to **"Variables and secrets"** -> click **"New secret"**.
+3.  **Name**: `GOOGLE_API_KEY` / **Value**: your Gemini API key.
+4.  Click **"Save"**. ✅ (This is injected at runtime as an env variable.)
+
+#### Part C: Configure GitHub Actions for Auto-Sync
+
+We've already created `.github/workflows/sync-ai-agent-to-hf.yml` in your repo. You need to activate it:
+
+1.  Go to your **GitHub repository** -> **Settings** -> **Secrets and variables** -> **Actions**.
+2.  Click **"New repository secret"**.
+3.  **Name**: `HF_TOKEN` / **Value**: your HF access token (find it at `huggingface.co/settings/tokens` — create a **Write** token).
+4.  **Edit the workflow file** and replace `HF_USERNAME` with your actual HF username:
+    ```
+    c:\temp\SentinelFi\.github\workflows\sync-ai-agent-to-hf.yml
+    ```
+5.  Commit and push to `main`. GitHub Actions will automatically push the `ai-agent/` directory to your HF Space. 🚀
+
+#### Part D: First Manual Push (Before Actions Are Active)
+
+If you want to deploy immediately without waiting for a GitHub push:
+```bash
+# Run from the SentinelFi root
+cd ai-agent
+git init
+git remote add space https://YOUR_HF_USERNAME:YOUR_HF_TOKEN@huggingface.co/spaces/YOUR_HF_USERNAME/sentinelfi-ai
+git add -A
+git commit -m "Initial deployment"
+git push space HEAD:main --force
+```
+
 
 ---
 

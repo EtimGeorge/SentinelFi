@@ -1,3 +1,30 @@
+---
+title: SentinelFi AI Orchestration Engine
+emoji: 🛡️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
+# SentinelFi AI Orchestration Engine v2.1.0
+
+A world-class, multi-capability AI agent for financial intelligence, document processing, forecasting, and workflow automation.
+
+## Endpoints
+
+- `GET /` — Health check
+- `POST /api/v1/ai/chat` — Interactive financial AI chat
+- `POST /api/v1/ai/analyze-dashboard` — Dashboard intelligence
+- `POST /api/v1/ai/forecast` — Budget exhaustion forecasting
+- `POST /api/v1/ai/fill-form` — Document-to-form extraction
+
+## Security
+
+This agent is hardened against prompt injection, cross-tenant data leakage, and credential exposure.
+
+
 # SentinelFi: Financial Intelligence AI Agent
 
 The SentinelFi AI Agent is a high-performance Python application built with FastAPI and LangChain. It acts as the "brain" of the platform, transforming raw financial data into executive-grade insights.
