@@ -23,8 +23,10 @@ Welcome to the central technical hub for the SentinelFi Financial Intelligence p
 ## 💼 3. Strategic & Business Operations
 *   **[INVESTOR_PITCH_GUIDE.md](file:///c:/temp/SentinelFi/docs/INVESTOR_PITCH_GUIDE.md)**: High-level vision and USPs for investors and marketers.
 *   **[FREE_DEPLOYMENT_STRATEGY.md](file:///c:/temp/SentinelFi/docs/FREE_DEPLOYMENT_STRATEGY.md)**: Zero-cost deployment roadmap for MVP and pitching.
-*   **[User Interface Guide](file:///c:/temp/SentinelFi/docs/USER_INTERFACE_GUIDE.md)**: Granular walkthrough of all UI modules and navigation.
+*   **[User Process Guide (ToC)](file:///c:/temp/SentinelFi/docs/USER_PROCESS_GUIDE.md)**: Encyclopedic, step-by-step guide to every feature.
+*   **[User Interface Guide](file:///c:/temp/SentinelFi/docs/USER_INTERFACE_GUIDE.md)**: High-level walkthrough of UI modules and navigation.
 *   **[Scaling & Performance](file:///c:/temp/SentinelFi/docs/ENTERPRISE_DEPLOYMENT.md)**: Infrastructure strategy for 10,000+ concurrent users.
+
 *   **[Payment Gateway Guide](file:///c:/temp/SentinelFi/docs/PAYMENT_SYSTEM_GUIDE.md)**: Integration logic for Ivorypay and Paystack.
 *   **[AI Agent Extended Guide](file:///c:/temp/SentinelFi/docs/PRD_MULTI_TENANCY_AND_ONBOARDING.md)**: Prompting, Financial Context Injection, and Guardrails.
 
