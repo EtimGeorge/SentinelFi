@@ -21,8 +21,11 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           cd ai-agent
+          # Ensure local venv/cache directories are removed before pushing to HF
+          rm -rf venv __pycache__ .ruff_cache
           git init
           # Explicitly set user config for the commit to prevent Git errors
+
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git remote add space https://Saencrystal:$HF_TOKEN@huggingface.co/spaces/Saencrystal/sentinelfi_ai
