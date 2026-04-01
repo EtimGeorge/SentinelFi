@@ -21,11 +21,12 @@ The **Work Breakdown Structure (WBS)** is where you turn a flat "Project Budget"
 1. **Path**: Click **"Project Financials -> WBS Designer"**.
 2. **Select Project**: Choose your project from the top dropdown.
 3. **Action**: Click the `+` icon on any row to open the **"Add Child Category"** modal.
-4. **Fields**:
-   - **Name**: e.g., *"Plumbing Fixtures"*.
-   - **Target Budget**: Enter the amount for this specific task.
-   - **Cost Center ID**: (Optional) For mapping to external ERP systems.
+4. **Fields (What to Type)**:
+   - **Name**: e.g., `Structural Steel Reinforcement`.
+   - **Target Budget**: Enter the decimal amount, e.g., `450,000`.
+   - **Cost Center ID**: e.g., `CC-LAG-STR-001` (Internal tracking code).
 5. **Click "Save Category"**.
+
 
 ---
 

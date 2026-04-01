@@ -10,15 +10,19 @@ Logging Expenses is how you record the "Actual" cash outflow from your organizat
 - **Where to start**: Navigate to **"Expenses -> Log Expense"** in the sidebar.
 - **Action**: Click the **"+ New Expense"** button.
 
-### 2. Filling the Fields (Step-by-Step)
+### 2. Filling the Fields (What to Type)
 - **Expenditure Type**: 
-  - **CAPEX (Project-based)**: Use this for long-term project investments.
-  - **OPEX (Operational)**: Use this for recurring departmental costs.
-- **Category Mapper**: Select the specific **WBS Category** (if CAPEX) or **OPEX Category** (if OPEX).
-- **Amount**: The total invoice value being paid.
-- **Vendor Details**: Select the vendor from your approved list.
-- **Reference/Invoice #**: Provide the external invoice number for audit trail matching.
-- **Attachment**: Upload a digital copy (PDF/Image) of the receipt.
+  - *Select*: `CAPEX` for Project work, `OPEX` for daily operations.
+- **Category Mapper**: 
+  - *Select*: e.g., `Structural Steel Reinforcement` (CAPEX) or `Office Internet` (OPEX).
+- **Amount**: The total invoice value.
+  - *Example*: `1,250.75`
+- **Vendor Details**: Select from dropdown.
+  - *Example*: `General Supplies Ltd`.
+- **Reference/Invoice #**: Mandatory for audit.
+  - *Example*: `INV-2026-0045`.
+- **Attachment**: Click the "Upload" zone to attach the PDF receipt.
+
 
 ---
 

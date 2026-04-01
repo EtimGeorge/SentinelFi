@@ -10,14 +10,19 @@ The Project Portfolio is the organizational hub for all your **Capital Expenditu
 - **Path**: Click **"Project Portfolio"** in the sidebar.
 - **Action**: Click the **"+ New Project"** button at the top-right.
 
-### 2. Mandatory Fields
-- **Project Name**: Give your project a recognizable title (e.g., *"Lagos Branch Renovation"*).
-- **Initial Overall Budget**: The total financial ceiling for this project.
-- **Reporting Currency**: Select the primary currency (USD/NGN).
+### 2. Mandatory Fields (Step-by-Step)
+- **Project Name**: Give your project a recognizable title.
+  - *Example*: `Lagos HQ Renovation - Phase 2`
+- **Initial Overall Budget**: The total financial ceiling.
+  - *Example*: `2,500,000` (Note: Only enter numbers; the system handles the currency formatting).
+- **Reporting Currency**: Select your primary base (USD or NGN).
 
-### 3. Advanced Settings (Pro-Tip)
-- **Project Type**: Categorize as "Construction", "IT Infrastructure", etc.
-- **Timeline**: Set the expected Start and End dates to enable accurate **Time-Variance** tracking.
+### 3. Advanced Settings (The "Pro-Tip" Details)
+- **Project Type**: Select from the dropdown. 
+  - *Use*: `Infrastructure` for physical builds, `Software` for digital.
+- **Timeline**: Set the Start and End dates. 
+  - *Example*: `2026-04-01` to `2027-03-31`.
+
 
 ---
 

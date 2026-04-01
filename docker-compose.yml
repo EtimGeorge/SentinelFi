@@ -51,7 +51,7 @@ services:
       # Explicitly set the internal rewrite target for Next.js
       BACKEND_INTERNAL_URL: http://backend:3001
     ports:
-      - "3001:3000"
+      - "3001:3001"
 
     develop:
       watch:

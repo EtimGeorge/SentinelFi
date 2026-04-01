@@ -6,15 +6,18 @@ The SentinelFi AI Assistant is more than a chatbot—it’s an integrated member
 
 ## 🧠 The AI Financial Assistant
 
-### 1. Interacting with the Bot
+### 1. Interacting with the Bot (Step-by-Step)
 - **Access**: Click the **"SentinelFi AI"** floating bubble at the bottom-right of any page.
-- **The Prompt**: You can ask questions in natural language, such as:
-  - *"Which project is most likely to go over budget this month?"*
-  - *"Summarize the burn-rate for the Lagos Branch project."*
-  - *"What was our total spending on office rent in Q1?"*
+- **The Process (What to Type)**: 
+  1. Open the chat window.
+  2. Type a specific query and hit `Enter`. 
+  - *Example*: `Summarize the variance for "Lagos HQ Renovation" for March.`
+  - *Example*: `Who approved the "General Supplies" requisition for $25,000?`
+  - *Example*: `Generate a 3-point risk analysis based on our current burn-rate.`
 
-### 2. Context Injection
-- **The Feature**: The AI Assistant is **context-aware**. If you are currently on the **[WBS Designer](file:///c:/temp/SentinelFi/docs/user-guides/07-WBS-DESIGNER.md)** page, the bot automatically knows which project you are looking at and provides insights specifically for that data.
+### 2. Context Injection (How it Works)
+- **The Behavior**: The bot analyzes the current URL. If you are on the **[WBS Designer](file:///c:/temp/SentinelFi/docs/user-guides/07-WBS-DESIGNER.md)**, it pulls the data for that specific project ID from the database into its reasoning window automatically.
+
 
 ---
 
