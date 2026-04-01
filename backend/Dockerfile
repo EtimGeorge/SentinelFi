@@ -31,8 +31,12 @@ WORKDIR /app
 # Copy built assets from the builder
 COPY --from=builder /app/backend/dist ./backend/dist
 COPY --from=builder /app/shared ./shared
+# Root node_modules (hoisted monorepo deps)
 COPY --from=builder /app/node_modules ./node_modules
+# Backend-specific node_modules (NestJS workspace deps not hoisted to root)
+COPY --from=builder /app/backend/node_modules ./backend/node_modules
 COPY --from=builder /app/backend/package*.json ./backend/
+
 
 ENV NODE_ENV=production
 
