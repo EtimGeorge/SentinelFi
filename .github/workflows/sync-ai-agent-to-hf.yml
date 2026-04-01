@@ -24,7 +24,7 @@ jobs:
           # Replace sentinelfi-ai with your actual Space name
           cd ai-agent
           git init
-          git remote add space https://HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/HF_USERNAME/sentinelfi-ai
+          git remote add space https://HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/Saencrystal/sentinelfi_ai
           git add -A
           git commit -m "Sync from GitHub: ${{ github.sha }}"
           git push space HEAD:main --force

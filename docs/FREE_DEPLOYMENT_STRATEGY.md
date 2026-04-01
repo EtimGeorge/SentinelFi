@@ -77,18 +77,50 @@ For a **permanent** zero-card experience (avoiding Railway's 30-day limit), we w
 3.  **Name**: `GOOGLE_API_KEY` / **Value**: your Gemini API key.
 4.  Click **"Save"**. ✅ (This is injected at runtime as an env variable.)
 
-#### Part C: Configure GitHub Actions for Auto-Sync
+#### Part C: Create Your Hugging Face Write Token & Add to GitHub
 
-We've already created `.github/workflows/sync-ai-agent-to-hf.yml` in your repo. You need to activate it:
+**Step C-1: Create the HF Write Token (do this on HuggingFace.co)**
 
-1.  Go to your **GitHub repository** -> **Settings** -> **Secrets and variables** -> **Actions**.
-2.  Click **"New repository secret"**.
-3.  **Name**: `HF_TOKEN` / **Value**: your HF access token (find it at `huggingface.co/settings/tokens` — create a **Write** token).
-4.  **Edit the workflow file** and replace `HF_USERNAME` with your actual HF username:
+1.  Open your browser and go to: **[https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)**
+    *(You must be logged in to your HF account.)*
+2.  Click the **"New token"** button (top-right of the page).
+3.  Fill in the form:
+    - **Name**: `sentinelfi-github-actions` *(any descriptive name)*
+    - **Role**: Select **"Write"** ← *This is critical.* Read-only tokens cannot push to Spaces.
+4.  Click **"Generate a token"**.
+5.  A token string starting with `hf_` will appear — for example: `hf_aBcDeFgHiJkLmNoPqRsTuVwXyZ`
+6.  **⚠️ Copy it immediately.** HF only shows it once. If you lose it, delete it and generate a new one.
+
+**Step C-2: Add the Token to Your GitHub Repository Secrets**
+
+1.  Go to your **GitHub repository** page (e.g. `github.com/EtimGeorge/SentinelFi`).
+2.  Click **"Settings"** tab (top of the repo page, not your profile settings).
+3.  In the left sidebar, click **"Secrets and variables"** → **"Actions"**.
+4.  Click the green **"New repository secret"** button.
+5.  Fill in:
+    - **Name**: `HF_TOKEN` *(must be exactly this — the workflow file uses this name)*
+    - **Secret**: Paste the `hf_...` token you copied in Step C-1.
+6.  Click **"Add secret"**. ✅
+
+**Step C-3: Update the Workflow File with Your HF Username**
+
+1.  Open this file in your editor:
     ```
     c:\temp\SentinelFi\.github\workflows\sync-ai-agent-to-hf.yml
     ```
-5.  Commit and push to `main`. GitHub Actions will automatically push the `ai-agent/` directory to your HF Space. 🚀
+2.  Find the two lines that say `HF_USERNAME` and replace both with your actual HF username.
+    - Your HF username is shown at the top-left of any HF page when logged in, or at `huggingface.co/settings/account`.
+    - Example: if your username is `john_doe`, the line becomes:
+    ```yaml
+    run: git push https://john_doe:$HF_TOKEN@huggingface.co/spaces/john_doe/sentinelfi-ai main
+    ```
+3.  Save the file, commit it, and push to `main`:
+    ```powershell
+    git add .github/workflows/sync-ai-agent-to-hf.yml
+    git commit -m "chore: configure HF username in sync workflow"
+    git push
+    ```
+4.  Go to your GitHub repo → **"Actions"** tab — you should see the workflow run and push to HF. 🚀
 
 #### Part D: First Manual Push (Before Actions Are Active)
 
@@ -97,7 +129,7 @@ If you want to deploy immediately without waiting for a GitHub push:
 # Run from the SentinelFi root
 cd ai-agent
 git init
-git remote add space https://YOUR_HF_USERNAME:YOUR_HF_TOKEN@huggingface.co/spaces/YOUR_HF_USERNAME/sentinelfi-ai
+git remote add space https://YOUR_HF_USERNAME:YOUR_HF_TOKEN@huggingface.co/spaces/Saencrystal/sentinelfi_ai
 git add -A
 git commit -m "Initial deployment"
 git push space HEAD:main --force
