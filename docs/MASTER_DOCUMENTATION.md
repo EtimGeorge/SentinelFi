@@ -14,13 +14,22 @@ Welcome to the central technical hub for the SentinelFi Financial Intelligence p
 *   **[ARCH-002: Multi-Tenancy & Database](file:///c:/temp/SentinelFi/docs/ARCH-002-TENANCY.md)**: Schema-per-tenant isolation, Dynamic DataSources, and Migration Orchestration.
 *   **[ARCH-003: Enterprise Resilience](file:///c:/temp/SentinelFi/docs/ARCH-003-RESILIENCE.md)**: Circuit Breakers, Global Error Handling, Soft-Deletes, and Recovery.
 *   **[ARCH-004: Predictive Financial Intelligence](file:///c:/temp/SentinelFi/docs/ARCH-004-FINANCIAL-INTELLIGENCE.md)**: Forensics Engine, Reporting System, and Performance Architecture.
+*   **[ARCH-005: Governance & Budget Controls](file:///c:/temp/SentinelFi/docs/ARCH-005-GOVERNANCE.md)**: DOA Thresholds, Approval Flows, and Variance Guardrails.
+*   **[ARCH-006: Notifications & Real-Time Sync](file:///c:/temp/SentinelFi/docs/ARCH-006-NOTIFICATIONS.md)**: raw WebSocket architecture and event-driven alert dispatching.
+*   **[ARCH-007: Enterprise Audit Strategy](file:///c:/temp/SentinelFi/docs/ARCH-007-AUDIT.md)**: Fire-and-forget logging, context capture, and traceability.
+*   **[ARCH-008: Operational Budgeting (OPEX) Engine](file:///c:/temp/SentinelFi/docs/ARCH-008-OPEX-ENGINE.md)**: Period-based allocations, Departmental variance, and Payroll sync.
+
 
 ## 💼 3. Strategic & Business Operations
 *   **[INVESTOR_PITCH_GUIDE.md](file:///c:/temp/SentinelFi/docs/INVESTOR_PITCH_GUIDE.md)**: High-level vision and USPs for investors and marketers.
 *   **[FREE_DEPLOYMENT_STRATEGY.md](file:///c:/temp/SentinelFi/docs/FREE_DEPLOYMENT_STRATEGY.md)**: Zero-cost deployment roadmap for MVP and pitching.
+*   **[User Process Guide (ToC)](file:///c:/temp/SentinelFi/docs/USER_PROCESS_GUIDE.md)**: Encyclopedic, step-by-step guide to every feature.
+*   **[User Interface Guide](file:///c:/temp/SentinelFi/docs/USER_INTERFACE_GUIDE.md)**: High-level walkthrough of UI modules and navigation.
 *   **[Scaling & Performance](file:///c:/temp/SentinelFi/docs/ENTERPRISE_DEPLOYMENT.md)**: Infrastructure strategy for 10,000+ concurrent users.
+
 *   **[Payment Gateway Guide](file:///c:/temp/SentinelFi/docs/PAYMENT_SYSTEM_GUIDE.md)**: Integration logic for Ivorypay and Paystack.
 *   **[AI Agent Extended Guide](file:///c:/temp/SentinelFi/docs/PRD_MULTI_TENANCY_AND_ONBOARDING.md)**: Prompting, Financial Context Injection, and Guardrails.
+
 
 ---
 

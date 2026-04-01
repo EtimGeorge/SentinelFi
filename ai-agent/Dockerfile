@@ -31,8 +31,13 @@ COPY . .
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8000
+# Hugging Face Spaces requires port 7860
+ENV PORT=7860
 
-EXPOSE 8000
+# HF Spaces runs as UID 1000 (non-root) — required
+RUN useradd -m -u 1000 user
+USER user
 
-CMD ["python", "main.py"]
+EXPOSE 7860
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]

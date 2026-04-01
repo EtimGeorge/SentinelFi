@@ -1,0 +1,30 @@
+name: Sync AI Agent to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ai-agent/**'
+
+jobs:
+  sync-to-hf:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push ai-agent to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Replace HF_USERNAME with your actual Hugging Face username
+          # Replace sentinelfi-ai with your actual Space name
+          cd ai-agent
+          git init
+          git remote add space https://HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/Saencrystal/sentinelfi_ai
+          git add -A
+          git commit -m "Sync from GitHub: ${{ github.sha }}"
+          git push space HEAD:main --force

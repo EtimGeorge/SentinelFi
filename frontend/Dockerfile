@@ -17,7 +17,13 @@ COPY frontend ./frontend
 
 # Build shared first, then frontend
 RUN npm run build -w shared
+
+# ✅ Inject the backend URL at build-time so Next.js rewrites can resolve it correctly
+# This must be an ARG (not ENV) for build-time config evaluation in next.config.js
+ARG BACKEND_INTERNAL_URL=http://backend:3001
+ENV BACKEND_INTERNAL_URL=$BACKEND_INTERNAL_URL
 RUN npm run build -w frontend
+
 
 # Production Stage
 FROM node:20-alpine

@@ -24,40 +24,130 @@ This guide provides a granular, standalone roadmap to deploying the entire Senti
 
 ---
 
-## 🚀 Phase 2: Deploying the Backend API (Koyeb)
+> [!IMPORTANT]
+> **Why we can't use Render or Koyeb without a card:**
+> As of 2025/2026, most major cloud providers (Render, Koyeb, Fly.io, Oracle) require a credit card as a "Human Identity Gate." This is an anti-abuse measure to prevent botnets and crypto-miners from saturating their free resources. Even though they won't charge you, the card is mandatory for verification.
 
-We will use [Koyeb](https://koyeb.com) for the NestJS backend and Python AI agent because of their excellent monorepo support.
+## 🚀 Phase 2: Deploying the Backend & AI Agent (Card-Free)
 
-### **Step 3: NestJS Backend Deployment**
-1.  Sign up at [Koyeb.com](https://koyeb.com) and connect your GitHub repository.
-2.  Click **Create Service**.
-3.  Choose **GitHub** as the source and select your `SentinelFi` repository.
-4.  **Configure Service**:
-    *   **Service Name**: `sentinelfi-api`
-    *   **Branch**: `main` (or your preferred branch).
-    *   **Base Directory**: `/backend` (CRITICAL for monorepos).
-    *   **Run Command**: `npm run start:prod` (or `node dist/main`).
-5.  **Environment Variables**: Click "Add Variable" for each:
-    - `DATABASE_URL`: (Your Neon string from Step 1)
-    - `REDIS_URL`: (Your Upstash string from Step 2)
-    - `JWT_SECRET_KEY`: Create a long random string (e.g., `super-secret-123-abc-!!!`).
-    - `NODE_ENV`: `production`
-    - `PORT`: `8080` (Koyeb default).
-6.  **Deploy**: Click "Deploy." Copy the provided URL (e.g., `sentinelfi-api-user.koyeb.app`).
-    *   *Save this as `BACKEND_URL`.*
+For a **permanent** zero-card experience (avoiding Railway's 30-day limit), we will split the backend services between **Back4App** (Node.js) and **Hugging Face** (Python).
 
-### **Step 4: Python AI Agent Deployment**
-1.  Click **Create Service** again in Koyeb.
-2.  Select the same GitHub repository.
-3.  **Configure Service**:
-    *   **Service Name**: `sentinelfi-ai`
-    *   **Base Directory**: `/ai-agent`
-    *   **Run Command**: `uvicorn main:app --host 0.0.0.0 --port 8000`
-4.  **Environment Variables**:
-    - `GOOGLE_API_KEY`: Your Gemini API key.
-    - `PORT`: `8000`
-5.  **Deploy**: Copy the provided URL (e.g., `sentinelfi-ai-user.koyeb.app`).
-    *   *Save this as `AI_AGENT_URL`.*
+### **Step 3: NestJS Backend Deployment (Back4App)**
+
+> [!CAUTION]
+> **The Critical Monorepo Setting (this caused your build failure):**
+> This app is a monorepo. Back4App must build from the repository **root**, not `/backend`.
+
+1.  Sign up at [Back4App.com](https://www.back4app.com) – **No credit card required.**
+2.  Go to **Web Apps** -> **New App** -> **GitHub**.
+3.  Select your `SentinelFi` repository.
+4.  **Configure Service (⚠️ Critical Settings)**:
+    *   **Root Directory**: `/` ← Leave this as root (NOT `/backend`)
+    *   **Dockerfile Path**: `backend/Dockerfile` ← Point here explicitly
+    *   **Health Check Path**: `/api/v1/health`
+    *   **Port**: `3001`
+    *   **Environment Variables** (add each one):
+        - `DATABASE_URL`: (Your Neon string from Step 1)
+        - `REDIS_URL`: (Your Upstash string from Step 2)
+        - `JWT_SECRET_KEY`: (Any random 32+ character string)
+        - `NODE_ENV`: `production`
+        - `FRONTEND_URL`: (Your Vercel URL from Step 5, e.g. `https://sentinelfi-web.vercel.app`)
+5.  **Click "Deploy"**. Copy the provided URL — save as `BACKEND_URL`.
+
+**Why does this work?** The `backend/Dockerfile` uses `COPY shared ./shared` — this path only exists if the build context is the repo root. Setting root to `/backend` caused Back4App to give the builder a context where `shared/` doesn't exist, producing the `no source files specified` error.
+
+
+### **Step 4: Python AI Agent Deployment (Hugging Face Spaces)**
+
+> [!NOTE]
+> Hugging Face Spaces does **not** have a "Connect GitHub" UI button. The correct method is to push your `ai-agent/` code directly as a Git repository to your HF Space, or use the GitHub Actions workflow we've already set up at `.github/workflows/sync-ai-agent-to-hf.yml`.
+
+#### Part A: Create the Space (Do this once, manually)
+
+1.  Sign up at [huggingface.co](https://huggingface.co) – **No credit card required.**
+2.  Click your profile icon -> **"New Space"**.
+3.  **Space Name**: `sentinelfi-ai`
+4.  **License**: `MIT` / **SDK**: `Docker` / **Hardware**: `CPU Basic` (free).
+5.  Click **"Create Space"**. *(It will show a basic template — don't configure files here.)*
+
+#### Part B: Add the Secret (API Key)
+
+1.  On your Space page, click **"Settings"** (top-right tab).
+2.  Scroll to **"Variables and secrets"** -> click **"New secret"**.
+3.  **Name**: `GOOGLE_API_KEY` / **Value**: your Gemini API key.
+4.  Click **"Save"**. ✅ (This is injected at runtime as an env variable.)
+
+#### Part C: Create Your Hugging Face Write Token & Add to GitHub
+
+**Step C-1: Create the HF Write Token (do this on HuggingFace.co)**
+
+1.  Open your browser and go to: **[https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)**
+    *(You must be logged in to your HF account.)*
+2.  Click the **"New token"** button (top-right of the page).
+3.  Fill in the form:
+    - **Name**: `sentinelfi-github-actions` *(any descriptive name)*
+    - **Role**: Select **"Write"** ← *This is critical.* Read-only tokens cannot push to Spaces.
+4.  Click **"Generate a token"**.
+5.  A token string starting with `hf_` will appear — for example: `hf_aBcDeFgHiJkLmNoPqRsTuVwXyZ`
+6.  **⚠️ Copy it immediately.** HF only shows it once. If you lose it, delete it and generate a new one.
+
+**Step C-2: Add the Token to Your GitHub Repository Secrets**
+
+1.  Go to your **GitHub repository** page (e.g. `github.com/EtimGeorge/SentinelFi`).
+2.  Click **"Settings"** tab (top of the repo page, not your profile settings).
+3.  In the left sidebar, click **"Secrets and variables"** → **"Actions"**.
+4.  Click the green **"New repository secret"** button.
+5.  Fill in:
+    - **Name**: `HF_TOKEN` *(must be exactly this — the workflow file uses this name)*
+    - **Secret**: Paste the `hf_...` token you copied in Step C-1.
+6.  Click **"Add secret"**. ✅
+
+**Step C-3: Update the Workflow File with Your HF Username**
+
+1.  Open this file in your editor:
+    ```
+    c:\temp\SentinelFi\.github\workflows\sync-ai-agent-to-hf.yml
+    ```
+2.  Find the two lines that say `HF_USERNAME` and replace both with your actual HF username.
+    - Your HF username is shown at the top-left of any HF page when logged in, or at `huggingface.co/settings/account`.
+    - Example: if your username is `john_doe`, the line becomes:
+    ```yaml
+    run: git push https://john_doe:$HF_TOKEN@huggingface.co/spaces/john_doe/sentinelfi-ai main
+    ```
+3.  Save the file, commit it, and push to `main`:
+    ```powershell
+    git add .github/workflows/sync-ai-agent-to-hf.yml
+    git commit -m "chore: configure HF username in sync workflow"
+    git push
+    ```
+4.  Go to your GitHub repo → **"Actions"** tab — you should see the workflow run and push to HF. 🚀
+
+#### Part D: First Manual Push (Before Actions Are Active)
+
+If you want to deploy immediately without waiting for a GitHub push:
+```bash
+# Run from the SentinelFi root
+cd ai-agent
+git init
+git remote add space https://YOUR_HF_USERNAME:YOUR_HF_TOKEN@huggingface.co/spaces/Saencrystal/sentinelfi_ai
+git add -A
+git commit -m "Initial deployment"
+git push space HEAD:main --force
+```
+
+
+---
+
+## 🏥 Health Check Configuration
+
+When setting up these services, you may be asked for a **Health Check Path**. This allows the platform to know if the app is "Up."
+
+- **Backend (NestJS)**: `/api/v1/health`
+- **AI Agent (Python)**: `/`
+- **Frontend (Vercel)**: Automatic.
+
+
+
 
 ---
 
