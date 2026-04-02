@@ -93,7 +93,7 @@ import { envValidationSchema } from "./common/config/env-validation.schema";
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         store: await redisStore({
-          url: `redis://${configService.get("REDIS_HOST") || "localhost"}:${configService.get("REDIS_PORT") || 6379}`,
+          url: configService.get("REDIS_URL") || `redis://${configService.get("REDIS_HOST") || "localhost"}:${configService.get("REDIS_PORT") || 6379}`,
           ttl: 600, // 10 minutes default
         }),
       }),

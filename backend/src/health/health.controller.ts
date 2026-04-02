@@ -39,10 +39,12 @@ export class HealthController {
       () =>
         this.microservice.pingCheck("redis", {
           transport: Transport.REDIS,
-          options: {
-            host: this.configService.get("REDIS_HOST") || "localhost",
-            port: this.configService.get("REDIS_PORT") || 6379,
-          },
+          options: this.configService.get("REDIS_URL") 
+            ? { url: this.configService.get("REDIS_URL") }
+            : {
+                host: this.configService.get("REDIS_HOST") || "localhost",
+                port: this.configService.get("REDIS_PORT") || 6379,
+              },
         }),
       () =>
         Promise.resolve({
