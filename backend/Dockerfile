@@ -34,7 +34,8 @@ COPY --from=builder /app/shared ./shared
 # Root node_modules (hoisted monorepo deps)
 COPY --from=builder /app/node_modules ./node_modules
 # Backend-specific node_modules (NestJS workspace deps not hoisted to root)
-COPY --from=builder /app/backend/node_modules ./backend/node_modules
+# Uses glob pattern [s] so it gracefully skips if the folder wasn't created
+COPY --from=builder /app/backend/node_module[s] ./backend/node_modules
 COPY --from=builder /app/backend/package*.json ./backend/
 
 
