@@ -15,7 +15,7 @@ This guide provides a granular, standalone roadmap to deploying the entire Senti
     *   *Save this as `DATABASE_URL`.*
 
 ### **Step 2: Redis Cache (Upstash)**
-1.  Sign up at [Upstash.com](https://upstash.com).
+1.  Go directly to the console at [console.upstash.com](https://console.upstash.com) (the main homepage is sometimes blocked by local ISPs).
 2.  Create a new **Redis** database named `sentinelfi-cache`.
 3.  Select the **Free Tier (Global)**.
 4.  In the Dashboard, find the **Node.js** tab under "Details."
