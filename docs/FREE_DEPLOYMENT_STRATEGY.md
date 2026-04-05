@@ -34,16 +34,16 @@ For a **permanent** zero-card experience (avoiding Railway's 30-day limit), we w
 
 ### **Step 3: NestJS Backend Deployment (Back4App)**
 
-> [!CAUTION]
-> **The Critical Monorepo Setting (this caused your build failure):**
-> This app is a monorepo. Back4App must build from the repository **root**, not `/backend`.
+> [!TIP]
+> **Monorepo Build Context:**
+> We have provided a `Dockerfile` at the root of the repository. Back4App and Render will automatically detect this file and use the repository root `/` as the build context.
 
 1.  Sign up at [Back4App.com](https://www.back4app.com) – **No credit card required.**
 2.  Go to **Web Apps** -> **New App** -> **GitHub**.
 3.  Select your `SentinelFi` repository.
-4.  **Configure Service (⚠️ Critical Settings)**:
-    *   **Root Directory**: `/` ← Leave this as root (NOT `/backend`)
-    *   **Dockerfile Path**: `backend/Dockerfile` ← Point here explicitly
+4.  **Configure Service**:
+    *   **Root Directory**: Leave empty or set to `/` (default).
+    *   **Dockerfile Path**: Leave blank or set to `Dockerfile` (it is auto-detected at the root).
     *   **Health Check Path**: `/api/v1/health`
     *   **Port**: `3001`
     *   **Environment Variables** (add each one):
@@ -54,7 +54,8 @@ For a **permanent** zero-card experience (avoiding Railway's 30-day limit), we w
         - `FRONTEND_URL`: (Your Vercel URL from Step 5, e.g. `https://sentinelfi-web.vercel.app`)
 5.  **Click "Deploy"**. Copy the provided URL — save as `BACKEND_URL`.
 
-**Why does this work?** The `backend/Dockerfile` uses `COPY shared ./shared` — this path only exists if the build context is the repo root. Setting root to `/backend` caused Back4App to give the builder a context where `shared/` doesn't exist, producing the `no source files specified` error.
+**Why does this work so easily?** We placed the `Dockerfile` at the root directory of the codebase. Cloud platforms automatically detect root Dockerfiles, and starting the build from the root ensures monorepo folders like `shared/` are accessible during the build.
+
 
 
 ### **Step 4: Python AI Agent Deployment (Hugging Face Spaces)**
