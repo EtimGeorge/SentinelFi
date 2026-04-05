@@ -162,7 +162,7 @@ When setting up these services, you may be asked for a **Health Check Path**. Th
     *   **Framework Preset**: `Next.js`
     *   **Root Directory**: `frontend` (NOT /frontend, just click "edit" and select the folder).
 4.  **Environment Variables**:
-    - `NEXT_PUBLIC_API_URL`: (Your Koyeb Backend URL from Step 3).
+    - `NEXT_PUBLIC_API_URL`: (Your Back4App Backend URL from Step 3).
     - `NEXT_PUBLIC_APP_URL`: Your Vercel domain (it will be `sentinelfi-web.vercel.app` by default).
 5.  **Deploy**: Click "Deploy."
 
@@ -171,14 +171,14 @@ When setting up these services, you may be asked for a **Health Check Path**. Th
 ## 🏁 Phase 4: Final Verification & "Cold Start" Management
 
 ### **Step 6: Linking the Whole Circuit**
-1.  Go back to your **Koyeb Backend Service Settings**.
+1.  Go back to your **Back4App Environment Variables** settings.
 2.  Add a new Environment Variable:
     - `FRONTEND_URL`: `https://sentinelfi-web.vercel.app` (Your Vercel URL).
-    - `AI_AGENT_URL`: `https://sentinelfi-ai-user.koyeb.app` (Your Koyeb AI URL).
-3.  Redeploy the backend.
+    - `AI_AGENT_URL`: `https://USERNAME-sentinelfi-ai.hf.space` (Your Hugging Face Space URL. Replace USERNAME with your HF username).
+3.  Save and redeploy the backend.
 
 ### **Step 7: The "Pitch Minute" (Important!)**
-Because these are **Free Tiers**, Koyeb and Neon will "sleep" after 1 hour of inactivity.
+Because these are **Free Tiers**, Back4App and Neon will "sleep" after 1 hour of inactivity.
 1.  **60 Seconds before your pitch**: Open your Vercel URL.
 2.  Login immediately. This will trigger the "wake-up" call to the backend and database.
 3.  Wait about 10-20 seconds for the first request to complete.
