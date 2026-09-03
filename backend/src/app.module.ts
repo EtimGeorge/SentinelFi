@@ -92,12 +92,24 @@ import { envValidationSchema } from "./common/config/env-validation.schema";
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        store: await redisStore({
-          url: configService.get("REDIS_URL") || `redis://${configService.get("REDIS_HOST") || "localhost"}:${configService.get("REDIS_PORT") || 6379}`,
-          ttl: 600, // 10 minutes default
-        }),
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const ttl = 600; // 10 minutes default
+        const redisUrl =
+          configService.get("REDIS_URL") ||
+          `redis://${configService.get("REDIS_HOST") || "localhost"}:${configService.get("REDIS_PORT") || 6379}`;
+        try {
+          const store = await redisStore({ url: redisUrl, ttl });
+          return { store, ttl };
+        } catch (error) {
+          // Graceful fallback: do not fail closed when Redis is unreachable (SEC-P1-01).
+          Logger.warn(
+            `Redis unavailable — falling back to in-memory cache: ${error instanceof Error ? error.message : String(error)}`,
+            "CacheModule",
+          );
+          const { createCache } = await import("cache-manager");
+          return { store: createCache(), ttl };
+        }
+      },
     }),
     ClsModule.forRoot({
       global: true,
