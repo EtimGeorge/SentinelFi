@@ -3,6 +3,8 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe, Logger } from "@nestjs/common";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import hpp from "hpp";
 import { ConfigService } from "@nestjs/config";
 import { Request, Response, NextFunction } from "express";
 import { DataSource } from "typeorm";
@@ -30,11 +32,19 @@ async function bootstrap() {
       origin: frontendUrl,
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-      exposedHeaders: ["Set-Cookie"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Correlation-ID", "X-Request-ID"],
+      exposedHeaders: ["Set-Cookie", "X-Correlation-ID", "X-Request-ID"],
     });
 
     app.use(cookieParser());
+
+    // Security middleware: helmet (HSTS, CSP, X-Frame-Options, etc.) + hpp (HTTP parameter pollution)
+    app.use(helmet({
+      contentSecurityPolicy: false, // Disable CSP in dev; enable per-route in production
+      crossOriginEmbedderPolicy: false,
+    }));
+    app.use(hpp());
+
     app.setGlobalPrefix("api/v1");
     // Register the Socket.io adapter (with optional Redis for scaling)
     const redisIoAdapter = new RedisIoAdapter(app);

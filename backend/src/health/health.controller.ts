@@ -34,12 +34,46 @@ export class HealthController {
           this.configService.get<string>("AI_AGENT_URL") ||
             "http://localhost:8000",
         ),
-      () => this.memory.checkHeap("memory_heap", 150 * 1024 * 1024), // 150MB
-      () => this.memory.checkRSS("memory_rss", 300 * 1024 * 1024), // 300MB
+      () => this.memory.checkHeap("memory_heap", 150 * 1024 * 1024),
+      () => this.memory.checkRSS("memory_rss", 300 * 1024 * 1024),
       () =>
         this.microservice.pingCheck("redis", {
           transport: Transport.REDIS,
-          options: this.configService.get("REDIS_URL") 
+          options: this.configService.get("REDIS_URL")
+            ? { url: this.configService.get("REDIS_URL") }
+            : {
+                host: this.configService.get("REDIS_HOST") || "localhost",
+                port: this.configService.get("REDIS_PORT") || 6379,
+              },
+        }),
+      () =>
+        Promise.resolve({
+          ai_circuit_breaker: {
+            status: "up",
+            ...this.aiAssistantService.getCircuitStatus(),
+          },
+        }),
+    ]);
+  }
+
+  @Get('live')
+  @HealthCheck()
+  live() {
+    return this.health.check([
+      () => this.memory.checkHeap("memory_heap", 150 * 1024 * 1024),
+      () => this.memory.checkRSS("memory_rss", 300 * 1024 * 1024),
+    ]);
+  }
+
+  @Get('ready')
+  @HealthCheck()
+  ready() {
+    return this.health.check([
+      () => this.db.pingCheck("database", { timeout: 3000 }),
+      () =>
+        this.microservice.pingCheck("redis", {
+          transport: Transport.REDIS,
+          options: this.configService.get("REDIS_URL")
             ? { url: this.configService.get("REDIS_URL") }
             : {
                 host: this.configService.get("REDIS_HOST") || "localhost",

@@ -201,25 +201,28 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
         return;
       }
 
-      // 3. Role-Based Access Control (Synchronous)
+      // 3. Role-Based Access Control (Synchronous) — FIX P0-01: enforce tenant vs super boundaries
       const getRoleName = (r: any): string | undefined => {
         return typeof r === 'string' ? r : r?.name;
       };
 
       const hasSuperAdminRole = user.roles.some(r => getRoleName(r) === 'SuperAdmin');
+      const isAdminDirector = user.roles.some(r => getRoleName(r) === Role.AdminDirector);
 
-      // Allow access to all routes for SuperAdmin (or restrict if needed)
-      setAuthorized(true);
-      return;
-
-      // Non-SuperAdmin Logic
+      // SuperAdmin-only routes
       if (currentPath.startsWith('/super')) {
-        AuthLogger.warn(`[RouteGuard] Non-SuperAdmin attempts to access ${currentPath}`);
-        await router.replace(getDefaultRoute());
+        if (!hasSuperAdminRole) {
+          AuthLogger.warn(`[RouteGuard] Non-SuperAdmin blocked from ${currentPath}`);
+          await router.replace(getDefaultRoute());
+          return;
+        }
+        setAuthorized(true);
         return;
       }
 
-      if (currentPath.startsWith('/admin') && !user.roles.some(r => getRoleName(r) === Role.AdminDirector)) {
+      // Tenant-admin routes
+      if (currentPath.startsWith('/admin') && !hasSuperAdminRole && !isAdminDirector) {
+        AuthLogger.warn(`[RouteGuard] Non-AdminDirector blocked from ${currentPath}`);
         await router.replace(getDefaultRoute());
         return;
       }

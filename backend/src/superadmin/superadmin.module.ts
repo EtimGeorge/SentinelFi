@@ -29,7 +29,9 @@ import * as ms from "ms";
         const expiresInMs = (ms as any).default(expiresInDuration);
 
         return {
-          secret: configService.get<string>("JWT_SECRET_KEY"),
+          secret:
+            configService.get<string>("JWT_SECRET") ??
+            configService.get<string>("JWT_SECRET_KEY"),
           signOptions: {
             expiresIn: expiresInMs / 1000,
           },

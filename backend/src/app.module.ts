@@ -6,6 +6,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { TenancyGuard } from "./common/guards/tenancy.guard";
+import { MaintenanceGuard } from "./common/guards/maintenance.guard";
 import { TenantAccessGuard } from "./common/guards/tenant-access.guard"; // Import TenantAccessGuard
 import { ClsModule, ClsService } from "nestjs-cls";
 import { TypeOrmModule } from "@nestjs/typeorm";
@@ -148,6 +149,10 @@ import { envValidationSchema } from "./common/config/env-validation.schema";
   ],
   controllers: [],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: MaintenanceGuard, // Runs first: short-circuits if platform under maintenance
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: CorrelationInterceptor,

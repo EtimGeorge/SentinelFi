@@ -56,9 +56,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       JwtStrategy.name + ":Constructor",
     );
 
-    const secret = configService.get<string>("JWT_SECRET_KEY");
+    const secret = configService.get<string>("JWT_SECRET") ?? configService.get<string>("JWT_SECRET_KEY");
     if (!secret) {
-      const errorMessage = "CRITICAL: JWT_SECRET_KEY is not configured!";
+      const errorMessage = "CRITICAL: JWT_SECRET is not configured! Set JWT_SECRET (64+ chars in production).";
       constructorLogger.error(errorMessage);
       throw new Error(errorMessage);
     }
@@ -128,7 +128,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         const queryStartTime = Date.now();
         const user = await this.usersRepository.findOne({
           where: { id: userId, is_active: true },
-          relations: ["roles", "tenant"],
+          relations: ["roles", "roles.permissions", "tenant"],
         });
 
         if (!user) {
@@ -145,12 +145,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           name: r.name as Role,
           description: r.description,
         }));
+        // P0 fix: do not trust stale JWT permissions — recompute from DB
+        const freshPermissions = [
+          ...new Set(
+            user.roles.flatMap((r: any) => (r.permissions ?? []).map((p: any) => p.name)),
+          ),
+        ];
 
         const userPayloadToReturn: UserPayload = {
           id: user.id,
           email: user.email,
           roles: simpleRoles,
-          permissions: payload.permissions,
+          permissions: freshPermissions,
           tenant_id: user.tenant_id,
           first_name: user.first_name,
           last_name: user.last_name,

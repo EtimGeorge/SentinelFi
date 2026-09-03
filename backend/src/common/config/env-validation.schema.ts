@@ -11,12 +11,17 @@ export const envValidationSchema = Joi.object({
     .required()
     .description("Connection string for PostgreSQL"),
 
-  // Redis (Cashing & Scalability)
-  REDIS_HOST: Joi.string().required().default("localhost"),
-  REDIS_PORT: Joi.number().default(6379),
+  // Redis (Caching & Scalability) — REDIS_URL preferred; HOST/PORT fallback for local dev
+  REDIS_URL: Joi.string().uri().optional(),
+  REDIS_HOST: Joi.string().optional().default("localhost"),
+  REDIS_PORT: Joi.number().optional().default(6379),
 
-  // Security
-  JWT_SECRET: Joi.string().required(),
+  // Security — single canonical secret (64+ chars in production)
+  JWT_SECRET: Joi.string().min(16).required().messages({
+    'string.min': 'JWT_SECRET must be at least 16 chars (64+ in production)',
+  }),
+  // Back-compat alias: accept JWT_SECRET_KEY but prefer JWT_SECRET
+  JWT_SECRET_KEY: Joi.string().optional(),
   FRONTEND_URL: Joi.string().uri().required(),
 
   // AI Agent (Resilience)

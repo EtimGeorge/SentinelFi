@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
+import { getCorrelationId } from "../interceptors/correlation.interceptor";
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -22,7 +23,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const correlationId = uuidv4();
+    const correlationId = (request as any).correlationId ?? getCorrelationId() ?? uuidv4();
     const message =
       exception instanceof HttpException
         ? exception.getResponse()

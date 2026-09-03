@@ -9,5 +9,6 @@ import { EmailModule } from "../email/email.module";
   imports: [TypeOrmModule.forFeature([SettingsEntity]), EmailModule],
   controllers: [SettingsController],
   providers: [SettingsService],
+  exports: [SettingsService],
 })
 export class SettingsModule {}
