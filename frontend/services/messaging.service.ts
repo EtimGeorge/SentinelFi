@@ -153,9 +153,32 @@ export const useMessaging = () => {
     }, [socket, isConnected]);
 
     const createConversation = async (userIds: string[], name?: string) => {
+        // Resolve any email/username identifiers to UUIDs via tenant directory (defensive – backend also resolves)
+        const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+        let resolvedIds = userIds;
+        const hasEmail = userIds.some(id => id.includes('@'));
+        const hasUsername = userIds.some(id => id.includes('\\') || id.includes('/'));
+        if (hasEmail) {
+          try {
+            const dir = await api.get('/tenant/users');
+            const emailMap = new Map<string,string>((dir.data || []).map((u:any)=>[u.email?.toLowerCase(), u.id]));
+            const usernameMap = new Map<string,string>((dir.data || []).map((u:any)=>[(u as any).username?.toLowerCase(), u.id]));
+            resolvedIds = userIds.map(id => {
+              if (id.includes('@')) return emailMap.get(id.toLowerCase()) || id;
+              if ((id.includes('\\') || id.includes('/')) || (id as string).includes('@')) return usernameMap.get(id.toLowerCase()) || id;
+              return id;
+            });
+          } catch (_) { /* backend will attempt lookup */ }
+        }
+        // Filter synthetic SYSTEM and non-UUID/non-email that would 400
+        resolvedIds = resolvedIds.filter(id => id !== 'SYSTEM' && (isUuid(id) || id.includes('@')));
+        if (resolvedIds.length === 0 && userIds.length > 0) {
+          console.warn('[Messaging] All userIds filtered as synthetic – aborting createConversation');
+          throw new Error('No valid user identifiers');
+        }
         try {
-            const response = await api.post('/messaging/conversations', { userIds, name });
-            const newConv = response.data;
+            const response = await api.post('/messaging/conversations', { userIds: resolvedIds, name });
+            const newConv = (response as any).data ?? response;
             
             setConversations(prev => [newConv, ...prev.filter(c => c.id !== newConv.id)]);
             
@@ -165,8 +188,16 @@ export const useMessaging = () => {
             }
             
             return newConv;
-        } catch (error) {
-            console.error('Failed to create conversation', error);
+        } catch (error: any) {
+            const status = error?.response?.status;
+            const msg = error?.response?.data?.message;
+            if (status === 400) {
+              console.warn('[Messaging] Validation failed:', msg);
+            } else if (status === 403) {
+              console.warn('[Messaging] Forbidden — cross-tenant or not allowed:', msg);
+            } else {
+              console.error('Failed to create conversation', error);
+            }
             throw error;
         }
     };

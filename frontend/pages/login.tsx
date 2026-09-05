@@ -179,8 +179,8 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
       // Convert loginMode to Role
       const role = loginMode === LoginMode.SUPER_ADMIN ? Role.SuperAdmin : Role.AdminDirector;
 
-      // FIXED: Call login with individual parameters, not an object
-      await login(formData.email.trim(), formData.password, role);
+      // FIXED: Call login with individual parameters, including tenantId for tenant portal (prevents silent cross-tenant login)
+      await login(formData.email.trim(), formData.password, role, formData.tenantId);
 
       // Success case: AuthContext handles navigation automatically after state update.
       // No explicit router.push here.
@@ -299,27 +299,85 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
 
         </div>
 
+        {/* Portal purpose hint — clarifies which tab to use */}
+        <div className="px-4 pb-3 bg-gray-700">
+          <div className="flex items-start gap-2 rounded-md bg-gray-800/60 border border-gray-600/50 px-3 py-2.5">
+            {loginMode === LoginMode.SUPER_ADMIN ? (
+              <ShieldCheck className="w-4 h-4 mt-0.5 text-orange-400 flex-shrink-0" />
+            ) : (
+              <Shield className="w-4 h-4 mt-0.5 text-brand-primary flex-shrink-0" />
+            )}
+            <p className="text-xs leading-relaxed text-gray-300">
+              {loginMode === LoginMode.SUPER_ADMIN ? (
+                <>
+                  <span className="font-semibold text-white">Platform administrators only.</span>{' '}
+                  Super Admin accounts have no Tenant ID and manage the whole platform. If you belong to an organization, use <span className="font-semibold text-white">Tenant Login</span>.
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold text-white">Organization members.</span>{' '}
+                  Requires your <span className="font-semibold text-white">Tenant ID</span> and an organization email. Platform admins must use <span className="font-semibold text-white">Super Admin</span> instead.
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
 
 
         {/* Form */}
 
         <form onSubmit={handleSubmit} className="p-8">
 
-          {error && (
+          {error && (() => {
+            const isSuperAdminInTenantError = error.includes('SuperAdmin accounts must log in through the SuperAdmin portal');
+            const isTenantInSuperError = error.includes('do not have SuperAdmin privileges');
+            const isNoTenantError = error.includes('not associated with a tenant');
+            const showSuperHint = isSuperAdminInTenantError || isNoTenantError;
+            const showTenantHint = isTenantInSuperError;
 
-            <div className="bg-red-900 bg-opacity-30 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative mb-6 flex items-start space-x-3">
-
-              <svg className="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-
-              </svg>
-
-              <p className="text-sm font-medium flex-1">{error}</p>
-
-            </div>
-
-          )}
+            return (
+              <div className="bg-red-900 bg-opacity-30 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative mb-6">
+                <div className="flex items-start space-x-3">
+                  <svg className="h-5 w-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <p className="text-sm font-medium flex-1">{error}</p>
+                </div>
+                {(showSuperHint || showTenantHint) && (
+                  <div className="mt-3 ml-8 rounded-md bg-red-950/40 border border-red-800/60 px-3 py-2.5">
+                    <p className="text-xs leading-relaxed text-red-200">
+                      {showSuperHint && !showTenantHint && (
+                        <>
+                          This is a <span className="font-semibold text-white">platform admin</span> account — it has no Tenant ID. Use the <span className="font-semibold text-white">Super Admin</span> tab above.
+                        </>
+                      )}
+                      {showTenantHint && (
+                        <>
+                          This account is an <span className="font-semibold text-white">organization member</span> — it is not a platform admin. Use the <span className="font-semibold text-white">Tenant Login</span> tab above.
+                        </>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleModeSwitch(showSuperHint ? LoginMode.SUPER_ADMIN : LoginMode.TENANT)}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 border border-red-700/50 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                    >
+                      {showSuperHint ? (
+                        <>
+                          <ShieldCheck className="w-3.5 h-3.5" /> Switch to Super Admin
+                        </>
+                      ) : (
+                        <>
+                          <Shield className="w-3.5 h-3.5" /> Switch to Tenant Login
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
 
 

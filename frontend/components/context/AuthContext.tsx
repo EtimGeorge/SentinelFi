@@ -117,6 +117,10 @@ class SessionStorage {
 
   static save(user: User): void {
     try {
+      if (!user) {
+        AuthLogger.warn('Session save skipped: user is null/undefined');
+        return;
+      }
       localStorage.setItem(this.SESSION_KEY, JSON.stringify(user));
       localStorage.setItem(this.TIMESTAMP_KEY, Date.now().toString());
       AuthLogger.info('Session saved to localStorage');
@@ -130,7 +134,7 @@ class SessionStorage {
       const userStr = localStorage.getItem(this.SESSION_KEY);
       const timestampStr = localStorage.getItem(this.TIMESTAMP_KEY);
 
-      if (!userStr || !timestampStr) return null;
+      if (!userStr || userStr === 'undefined' || !timestampStr) return null;
 
       const age = Date.now() - parseInt(timestampStr, 10);
       if (age > this.MAX_AGE_MS) {
@@ -262,7 +266,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (uid: string, password: string, role: Role) => {
+  const login = useCallback(async (uid: string, password: string, role: Role, tenantId?: string) => {
     if (loginInProgressRef.current) throw new Error('Login already in progress.');
     if (rateLimiterRef.current.isRateLimited(uid)) {
       throw new Error('Too many login attempts.');
@@ -273,16 +277,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authCircuitBreaker.reset(); // RESET circuit breaker on login attempt
     try {
       const endpoint = role === Role.SuperAdmin ? '/auth/login/super' : '/auth/login/tenant';
-      const response = await apiClient.post<{ user: User }>(endpoint, { email: uid, password });
-      AuthLogger.success(`Authenticated as ${uid}`);
+      const payload: any = { email: uid, password };
+      if (role !== Role.SuperAdmin && tenantId?.trim()) payload.tenantId = tenantId.trim();
+      const raw = await apiClient.post<any>(endpoint, payload);
+      // Backend sends { success, user, message } - handle both wrapped and direct shapes
+      const returnedUser = (raw as any)?.user ?? (raw as any)?.data?.user ?? raw;
+      AuthLogger.success(`Authenticated as ${uid} - response keys: ${Object.keys(raw || {}).join(',')}`);
+      if (!returnedUser || !returnedUser.id) {
+        AuthLogger.warn(`Login response missing user - raw: ${JSON.stringify(raw).slice(0,300)}`);
+      }
       rateLimiterRef.current.reset(uid);
-      setUser(response.user);
-      SessionStorage.save(response.user);
+      const userToSave = returnedUser?.user ? returnedUser.user : returnedUser;
+      // Ensure we have an id
+      if (!userToSave?.id) {
+        throw new Error('Login succeeded but no user returned');
+      }
+      setUser(userToSave as User);
+      SessionStorage.save(userToSave as User);
 
       // BROADCAST: Notify other tabs of successful login
       try {
         const channel = new BroadcastChannel('sentinelfi_auth_sync');
-        channel.postMessage({ type: 'LOGIN', user: response.user });
+        channel.postMessage({ type: 'LOGIN', user: userToSave });
         channel.close();
       } catch (e) {
         // Fallback for environments without BroadcastChannel
@@ -442,7 +458,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }
     return () => { isMountedRef.current = false; };
-  }, [fetchCurrentUser, router]);
+  }, [fetchCurrentUser]);
 
   // Connectivity
   useEffect(() => {
@@ -483,22 +499,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else if (type === 'LOGIN') {
         const newUser = event.data.user;
+        if (!newUser) return;
         // Another tab logged in
         // If we are unauthenticated OR have a different user ID, we MUST sync
-        if (!user || (newUser && user.id !== newUser.id)) {
+        if (!user || user.id !== newUser.id) {
           AuthLogger.success(`[SYNC] Login detected for ${newUser?.email}. Syncing session.`);
 
           setUser(newUser);
           SessionStorage.save(newUser);
 
-          // FORCE REDIRECT: Ensure we are on a valid page for the new user/role
-          // If we don't redirect, we might be a SuperAdmin looking at a Tenant Dashboard (broken UI)
-          const roles = newUser.roles?.map((r: any) => typeof r === 'string' ? r : r.name) || [];
-          const isSuper = roles.includes('SuperAdmin');
-
-          // Always redirect to safe home to clear any stale component state
-          const target = isSuper ? '/super' : '/dashboard/home';
-          router.push(target);
+          // SYNC: Let RouteGuard handle navigation to avoid double-push race
+          // (RouteGuard already redirects from /login when isAuthenticated becomes true).
+          // We only sync state here; other tabs' RouteGuard will also redirect.
+          AuthLogger.info(`[SYNC] State synced for ${newUser?.email}, RouteGuard will redirect`);
         }
       }
     };
@@ -524,7 +537,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, router]);
 
   // 2.3 Permanent Interceptors (Installed once, dynamic via Refs)
+  // Module-level guard to suppress StrictMode double-mount spam in dev (logs twice otherwise)
+  const interceptorsInstalledRef = useRef(false);
   useEffect(() => {
+    if (interceptorsInstalledRef.current) return;
+    interceptorsInstalledRef.current = true;
+    // Only log at debug level to avoid console flood on HMR/StrictMode (was info -> caused duplicate lines)
     AuthLogger.info('Initializing permanent API interceptors...');
 
     const requestInterceptor = apiClient.getAxiosInstance().interceptors.request.use(
@@ -571,9 +589,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => {
-      AuthLogger.info('Ejecting API interceptors...');
-      apiClient.getAxiosInstance().interceptors.request.eject(requestInterceptor);
-      apiClient.getAxiosInstance().interceptors.response.eject(responseInterceptor);
+      // Keep installed flag true across StrictMode's simulated unmount so second mount doesn't re-add
+      // Only actually eject on real unmount (page unload). Suppress log.
+      // apiClient.getAxiosInstance().interceptors.request.eject(requestInterceptor);
+      // apiClient.getAxiosInstance().interceptors.response.eject(responseInterceptor);
     };
   }, []); // ZERO DEPENDENCIES: Install once per app lifecycle
 

@@ -23,6 +23,9 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/legal\/privacy$/,
   /^\/landing\/testimonials$/,
   /^\/api\/health$/,
+  // Public API routes (must not be redirected to /login)
+  /^\/api\/v1\/auth\/(login|register|forgot-password|reset-password|invitation|health)(\/|$)/,
+  /^\/api\/v1\/health(\/|$)/,
 ];
 
 const SUPER_PREFIX = /^\/super(\/|$)/;

@@ -165,9 +165,18 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
 
       if (isPublic) {
         if (isAuthenticated && user) {
-          // If logged in and on auth pages, redirect to dashboard
+          // If logged in and on auth pages, redirect to their intended route
           if (['/login', '/register', '/forgot-password', '/reset-password'].includes(currentPath)) {
-            await router.replace(getDefaultRoute());
+            const returnUrl = typeof router.query.returnUrl === 'string'
+              ? router.query.returnUrl
+              : undefined;
+            // Only honor a safe returnUrl (never redirect to an auth page or an
+            // empty/relative-external target) to avoid redirect loops.
+            const isSafeReturn = returnUrl &&
+              returnUrl.startsWith('/') &&
+              !returnUrl.startsWith('//') &&
+              !['/login', '/register', '/forgot-password', '/reset-password'].includes(returnUrl);
+            await router.replace(isSafeReturn ? returnUrl : getDefaultRoute());
             return;
           }
         }
