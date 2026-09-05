@@ -15,7 +15,7 @@ import { JwtService } from "@nestjs/jwt";
 @WebSocketGateway({
   path: "/ws-messaging", // We'll keep this path for backward compatibility with frontend proxy
   cors: {
-    origin: "*",
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     credentials: true,
   },
 })

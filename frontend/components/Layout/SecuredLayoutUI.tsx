@@ -7,7 +7,6 @@ import SessionTimeoutWarning from "../auth/SessionTimeoutWarning";
 import Breadcrumbs from "../common/Breadcrumbs";
 import ChatWidget from "../messaging/ChatWidget";
 import { useAuth } from "../context/AuthContext";
-import { TourProvider } from "../../contexts/TourContext";
 import { TourOverlay } from "../tutorial/TourOverlay";
 import { TutorialFab } from "../tutorial/TutorialFab";
 import Head from "next/head";
@@ -40,7 +39,7 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children, t
   const isTutorialPage = router.pathname.startsWith('/tutorial');
 
   return (
-    <TourProvider>
+    <>
       {title && (
         <Head>
           <title>{title}</title>
@@ -74,13 +73,13 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children, t
         </div>
 
         <SessionTimeoutWarning />
-        <ChatWidget initialRecipientId="SYSTEM" initialRecipientName="SentinelFi Assistant" />
+        <ChatWidget />
 
         {/* ── Tutorial System ───────────────────────────────────────── */}
         <TourOverlay />
         {!isTutorialPage && <TutorialFab pageKey={pageKey} />}
       </div>
-    </TourProvider>
+    </>
   );
 };
 

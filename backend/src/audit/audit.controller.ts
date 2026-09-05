@@ -29,7 +29,7 @@ export class AuditController {
   @Get()
   @Roles("SuperAdmin")
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async findAll(@Query() options: GetAuditLogsDto) {
     return this.auditService.findAuditLogs(options);
   }
@@ -41,7 +41,7 @@ export class AuditController {
   @Get("tenant")
   @Roles(Role.AdminDirector, Role.CEO)
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async findTenantLogs(
     @Query() options: GetAuditLogsDto,
     @Req() req: AuthenticatedRequest,

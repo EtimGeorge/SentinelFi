@@ -50,6 +50,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setViewMode('CHAT');
       setIsOpen(true);
     } else if (initialRecipientId) {
+      // Guard: ignore synthetic SYSTEM identifier and non-UUID values that would 400
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(initialRecipientId);
+      const isEmail = initialRecipientId.includes('@');
+      if (initialRecipientId === 'SYSTEM' || (!isUuid && !isEmail)) {
+        console.debug('[ChatWidget] Skipping direct chat start for non-resolvable id:', initialRecipientId);
+        return;
+      }
       handleDirectChatStart(initialRecipientId);
       setIsOpen(true);
     }
@@ -76,13 +83,30 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   };
 
   const handleDirectChatStart = async (targetUserId: string) => {
+    // Resolve email/usernames to UUID via directory cache if needed
+    let resolvedId = targetUserId;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetUserId);
+    if (!isUuid && targetUserId.includes('@')) {
+      try {
+        // Attempt to resolve email to UUID via tenant users endpoint
+        const res = await api.get(`/tenant/users`);
+        const match = (res.data || []).find((u: any) => u.email?.toLowerCase() === targetUserId.toLowerCase());
+        if (match?.id) resolvedId = match.id;
+      } catch (_) { /* fallback to raw value, backend will resolve */ }
+    }
+    if (resolvedId === 'SYSTEM') return;
     try {
-      const conv = await createConversation([targetUserId]);
+      const conv = await createConversation([resolvedId]);
       setActiveConversationId(conv.id);
       fetchHistory(conv.id);
       setViewMode('CHAT');
-    } catch (err) {
-      console.error('Failed to start direct chat', err);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 400 || status === 403) {
+        console.warn('[ChatWidget] Cannot start chat:', err?.response?.data?.message || err.message);
+      } else {
+        console.error('Failed to start direct chat', err);
+      }
     }
   };
 

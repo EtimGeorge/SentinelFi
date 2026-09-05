@@ -15,7 +15,9 @@ import {
   UnauthorizedException,
   Req,
   Delete,
+  Res,
 } from "@nestjs/common";
+import { Response } from "express";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -40,14 +42,14 @@ export class SuperAdminController {
   @Post("tenants")
   @Roles("SuperAdmin")
   @HttpCode(HttpStatus.CREATED)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createTenant(@Body() createTenantDto: CreateTenantDto) {
     return this.superAdminService.createTenant(createTenantDto);
   }
 
   @Get("tenants")
   @Roles("SuperAdmin")
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async findAllTenants(@Query() getTenantsDto: GetTenantsDto) {
     try {
       return await this.superAdminService.findAllTenants(getTenantsDto);
@@ -59,7 +61,7 @@ export class SuperAdminController {
 
   @Patch("tenants/:id")
   @Roles("SuperAdmin")
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateTenant(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() updateTenantDto: UpdateTenantDto,
@@ -152,10 +154,11 @@ export class SuperAdminController {
   @Post("impersonate") // Changed path
   @Roles("SuperAdmin")
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ transform: true })) // Add validation pipe for DTO
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async impersonateUser(
     @Body() impersonateUserDto: ImpersonateUserDto, // Changed from Param to Body with DTO
     @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: Response,
   ) {
     if (!req.user || !req.user.id) {
       throw new UnauthorizedException(
@@ -167,6 +170,15 @@ export class SuperAdminController {
       impersonateUserDto.userId,
       req.user.id,
     );
+    // Set httpOnly cookie (secure) so frontend does not need js-cookie (XSS mitigation)
+    const isProduction = process.env.NODE_ENV === "production";
+    res.cookie("access_token", impersonationToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 4 * 60 * 60 * 1000, // 4 hours — matches token exp
+    });
     return { access_token: impersonationToken };
   }
 
@@ -176,6 +188,7 @@ export class SuperAdminController {
   async impersonateTenant(
     @Param("tenantId", new ParseUUIDPipe()) tenantId: string,
     @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: Response,
   ) {
     if (!req.user || !req.user.id) {
       throw new UnauthorizedException(
@@ -186,6 +199,14 @@ export class SuperAdminController {
       tenantId,
       req.user.id,
     );
+    const isProduction = process.env.NODE_ENV === "production";
+    res.cookie("access_token", impersonationToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 4 * 60 * 60 * 1000,
+    });
     return { access_token: impersonationToken };
   }
 

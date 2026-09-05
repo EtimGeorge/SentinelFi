@@ -18,6 +18,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { Public } from "../common/decorators/public.decorator";
+import { Throttle } from "@nestjs/throttler";
 
 @Controller("billing")
 export class SubscriptionController {
@@ -30,6 +31,7 @@ export class SubscriptionController {
    * Creates tenant immediately and dispatches magic-link.
    */
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post("start-trial")
   @HttpCode(HttpStatus.CREATED)
   async startTrial(
@@ -49,6 +51,7 @@ export class SubscriptionController {
    * Returns a payment gateway URL. Tenant created ONLY after webhook confirms payment.
    */
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post("process-public-subscription")
   @HttpCode(HttpStatus.CREATED)
   async subscribe(
@@ -71,6 +74,7 @@ export class SubscriptionController {
    * Poll subscription status by ID (used by /billing/success page after checkout).
    */
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Get("subscription/status")
   async getSubscriptionStatus(@Query("ref") ref: string) {
     return this.billingService.getSubscriptionStatus(ref);

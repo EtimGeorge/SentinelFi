@@ -9,11 +9,37 @@ import {
   Req,
   Patch,
   BadRequestException,
+  UsePipes,
+  ValidationPipe,
 } from "@nestjs/common";
+import { IsArray, ArrayMinSize, IsUUID, IsOptional, IsString, MaxLength } from "class-validator";
 import { MessagingService } from "./messaging.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { MessageEntity } from "./entities/message.entity";
 import { ConversationEntity } from "./entities/conversation.entity";
+
+class CreateConversationDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  @MaxLength(255, { each: true })
+  userIds!: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  name?: string;
+}
+
+class SupportDispatchDto {
+  @IsString()
+  @MaxLength(255)
+  subject!: string;
+
+  @IsString()
+  @MaxLength(5000)
+  description!: string;
+}
 
 @Controller("messaging")
 @UseGuards(JwtAuthGuard)
@@ -31,15 +57,13 @@ export class MessagingController {
   }
 
   @Post("conversations")
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createConversation(
     @Req() req: any,
-    @Body() body: { userIds: string[]; name?: string },
+    @Body() body: CreateConversationDto,
   ): Promise<ConversationEntity> {
     const userId = req.user.id;
     const tenantId = req.user.tenant_id;
-    if (!body.userIds || !body.userIds.length) {
-      throw new BadRequestException("userIds array is required");
-    }
     return await this.messagingService.createConversation(
       userId,
       body.userIds,
@@ -49,17 +73,13 @@ export class MessagingController {
   }
 
   @Post("support")
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async dispatchSupport(
     @Req() req: any,
-    @Body() body: { subject: string; description: string },
+    @Body() body: SupportDispatchDto,
   ): Promise<ConversationEntity> {
     const userId = req.user.id;
     const tenantId = req.user.tenant_id;
-    if (!body.subject || !body.description) {
-      throw new BadRequestException(
-        "Subject and description are required for priority dispatch",
-      );
-    }
     return await this.messagingService.createSupportConversation(
       userId,
       tenantId,

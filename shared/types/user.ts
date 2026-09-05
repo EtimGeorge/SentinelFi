@@ -19,6 +19,7 @@ export interface JwtPayload {
   tenant_id: string | null;
   iat?: number;
   exp?: number;
+  jti?: string; // JWT ID — unique per token for revocation/blacklist
   impersonator_id?: string; // ID of the SuperAdmin who is impersonating
 }
 

@@ -320,9 +320,20 @@ export class BillingService {
 
   /**
    * Handles verified PayPal PAYMENT.CAPTURE.COMPLETED webhook.
+   * When PayPal credentials are configured, fully verifies via PayPal API; otherwise requires transmission headers.
    */
-  async handlePaypalWebhook(body: any): Promise<void> {
-    const isNew = await this.webhookService.verifyPaypal(body);
+  async handlePaypalWebhook(
+    body: any,
+    headers?: {
+      transmissionId?: string;
+      transmissionTime?: string;
+      certUrl?: string;
+      authAlgo?: string;
+      transmissionSig?: string;
+      rawBody?: string;
+    },
+  ): Promise<void> {
+    const isNew = await this.webhookService.verifyPaypal(body, headers);
     if (!isNew) return;
 
     if (body.event_type !== "PAYMENT.CAPTURE.COMPLETED") return;

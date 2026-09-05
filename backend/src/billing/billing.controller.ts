@@ -65,7 +65,7 @@ export class BillingController {
   @UseInterceptors(
     FileInterceptor("receipt_file", { dest: "./uploads/billing-receipts" }),
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async provisionTenant(
     @Body() body: ProvisionOfflineTenantDto,
     @UploadedFile() file?: Express.Multer.File,

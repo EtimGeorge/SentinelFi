@@ -7,6 +7,7 @@ import helmet from "helmet";
 import hpp from "hpp";
 import { ConfigService } from "@nestjs/config";
 import { Request, Response, NextFunction } from "express";
+import { json } from "express";
 import { DataSource } from "typeorm";
 import { DatabaseConfig } from "./common/config/database.config";
 import { RedisIoAdapter } from "./messaging/adapters/redis-io.adapter";
@@ -38,12 +39,39 @@ async function bootstrap() {
 
     app.use(cookieParser());
 
+    // Capture rawBody for webhook HMAC verification (Paystack needs raw string, PayPal needs raw + headers)
+    app.use(
+      json({
+        limit: "100kb",
+        verify: (req: any, _res, buf) => {
+          if (buf && buf.length) {
+            req.rawBody = buf.toString("utf8");
+          }
+        },
+      }),
+    );
+
     // Security middleware: helmet (HSTS, CSP, X-Frame-Options, etc.) + hpp (HTTP parameter pollution)
+    const isProd = nodeEnv === "production";
     app.use(helmet({
-      contentSecurityPolicy: false, // Disable CSP in dev; enable per-route in production
+      contentSecurityPolicy: isProd ? {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          connectSrc: ["'self'", frontendUrl],
+          imgSrc: ["'self'", "data:", "https:"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+        },
+      } : false,
       crossOriginEmbedderPolicy: false,
     }));
     app.use(hpp());
+    // Trust proxy for correct IP behind Next.js proxy / load balancer
+    const httpAdapter = app.getHttpAdapter();
+    const instance: any = httpAdapter.getInstance();
+    if (instance && typeof instance.set === "function") {
+      instance.set("trust proxy", 1);
+    }
 
     app.setGlobalPrefix("api/v1");
     // Register the Socket.io adapter (with optional Redis for scaling)

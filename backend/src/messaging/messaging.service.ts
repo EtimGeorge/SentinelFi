@@ -140,15 +140,90 @@ export class MessagingService {
     });
   }
 
+  private async resolveUserIdentifiers(
+    identifiers: string[],
+    tenantId: string,
+  ): Promise<string[]> {
+    const uuidV4 =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuids: string[] = [];
+    const lookups: string[] = [];
+    for (const raw of identifiers) {
+      const v = (raw || "").trim();
+      if (!v) continue;
+      // Skip synthetic SYSTEM identifier – handled by UI guard, but be defensive
+      if (v === "SYSTEM") continue;
+      if (uuidV4.test(v)) uuids.push(v);
+      else lookups.push(v.toLowerCase());
+    }
+    if (lookups.length === 0) return uuids;
+    // Resolve emails/usernames to UUIDs via public.user table scoped to tenant
+    const users = await this.userRepository
+      .createQueryBuilder("u")
+      .where("u.tenant_id = :tenantId", { tenantId })
+      .andWhere(
+        "(LOWER(u.email) IN (:...lookups) OR LOWER(COALESCE(u.username,'')) IN (:...lookups))",
+        { lookups },
+      )
+      .getMany();
+    const map = new Map<string, string>();
+    for (const u of users) {
+      map.set(u.email.toLowerCase(), u.id);
+      if ((u as any).username) map.set((u as any).username.toLowerCase(), u.id);
+    }
+    for (const l of lookups) {
+      const id = map.get(l);
+      if (!id) {
+        throw new BadRequestException(`User not found for identifier: ${l}`);
+      }
+      uuids.push(id);
+    }
+    return uuids;
+  }
+
   async createConversation(
     creatorId: string,
     selectedUserIds: string[],
     tenantId: string,
     name?: string,
   ): Promise<ConversationEntity> {
-    const allMembers = Array.from(new Set([creatorId, ...selectedUserIds]));
+    if (!tenantId) {
+      throw new BadRequestException(
+        "Messaging is tenant-scoped — SuperAdmin must impersonate a tenant user first.",
+      );
+    }
+    // Accept both UUIDs and emails/usernames – resolve emails to UUIDs tenant-scoped
+    const resolvedIds = await this.resolveUserIdentifiers(selectedUserIds, tenantId);
+    if (resolvedIds.length === 0 && selectedUserIds.length > 0) {
+      // All identifiers were synthetic (e.g. SYSTEM) – nothing to create
+      throw new BadRequestException("No valid user identifiers provided.");
+    }
+    const uuidV4 =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const allMembers = Array.from(new Set([creatorId, ...resolvedIds]));
     if (allMembers.length < 2) {
       throw new BadRequestException("A conversation needs at least 2 members.");
+    }
+    for (const uid of allMembers) {
+      if (!uuidV4.test(uid)) {
+        throw new BadRequestException(`Invalid userId format: ${uid}`);
+      }
+    }
+    // Validate all members belong to same tenant (prevents FK 500 and cross-tenant leak)
+    const users = await this.userRepository.find({
+      where: { id: In(allMembers) },
+      select: ["id", "tenant_id"] as any,
+    });
+    if (users.length !== allMembers.length) {
+      const found = new Set(users.map((u) => u.id));
+      const missing = allMembers.filter((id) => !found.has(id));
+      throw new BadRequestException(`User(s) not found: ${missing.join(", ")}`);
+    }
+    const crossTenant = users.find((u) => (u.tenant_id ?? null) !== tenantId);
+    if (crossTenant) {
+      throw new ForbiddenException(
+        "All conversation members must belong to the same tenant.",
+      );
     }
 
     // Check if an exact DIRECT conversation already exists to prevent duplicates
@@ -162,8 +237,8 @@ export class MessagingService {
 
       const existing = creatorConvs.find(
         (m) =>
-          m.conversation.type === "DIRECT" &&
-          m.conversation.members.some((mem) => mem.user_id === targetId),
+          m.conversation?.type === "DIRECT" &&
+          m.conversation.members?.some((mem) => mem.user_id === targetId),
       );
 
       if (existing) {
@@ -171,27 +246,37 @@ export class MessagingService {
       }
     }
 
-    const conv = this.conversationRepository.create({
-      tenant_id: tenantId,
-      type: allMembers.length === 2 ? "DIRECT" : "GROUP",
-      name: name || undefined,
-    });
-
-    const savedConv = await this.conversationRepository.save(conv);
-
-    const members = allMembers.map((userId) =>
-      this.memberRepository.create({
-        conversation_id: savedConv.id,
-        user_id: userId,
-      }),
-    );
-
-    await this.memberRepository.save(members);
-
-    return this.conversationRepository.findOneOrFail({
-      where: { id: savedConv.id },
-      relations: ["members", "members.user"],
-    });
+    // Creation — use manager transaction without extra DataSource injection
+    const queryRunner = this.conversationRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const conv = queryRunner.manager.getRepository(ConversationEntity).create({
+        tenant_id: tenantId,
+        type: allMembers.length === 2 ? "DIRECT" : "GROUP",
+        name: name || undefined,
+      });
+      const savedConv = await queryRunner.manager.getRepository(ConversationEntity).save(conv);
+      const members = allMembers.map((userId) =>
+        queryRunner.manager.getRepository(ConversationMemberEntity).create({
+          conversation_id: savedConv.id,
+          user_id: userId,
+        }),
+      );
+      await queryRunner.manager.getRepository(ConversationMemberEntity).save(members);
+      await queryRunner.commitTransaction();
+      const full = await this.conversationRepository.findOne({
+        where: { id: savedConv.id },
+        relations: ["members", "members.user"],
+      });
+      if (!full) throw new BadRequestException("Failed to load created conversation");
+      return full;
+    } catch (e) {
+      await queryRunner.rollbackTransaction();
+      throw e;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async markConversationAsRead(

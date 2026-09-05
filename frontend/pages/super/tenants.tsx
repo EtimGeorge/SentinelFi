@@ -27,7 +27,7 @@ import { useCurrency } from '../../components/context/CurrencyContext';
 import { Role } from '@shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import Switch from '../../components/common/Switch';
-import Cookies from 'js-cookie'; // NEW: Import Cookies
+// Cookies no longer needed - impersonation now uses httpOnly cookie set by backend
 
 // Interface for Tenant (adapted from backend DTO, includes more fields)
 interface Tenant {
@@ -542,10 +542,8 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
     setFormLoading(true);
     try {
       const response = await api.post<{ access_token: string }>(`/super/tenants/${tenantId}/impersonate`);
-      const { access_token } = response.data;
-
-      // Replace current access token with the impersonation token
-      Cookies.set('access_token', access_token, { expires: 1 / 24, sameSite: 'Lax', path: '/' }); // Set for 1 hour
+      // Backend now sets httpOnly cookie (sameSite Lax, secure in prod). Frontend no longer needs js-cookie.
+      // Keep response access_token only for fallback; do not set via JS (mitigates XSS).
       addToast('Impersonation successful. Redirecting to tenant dashboard.', 'success');
 
       // Redirect to the tenant's dashboard, AuthContext will handle the new token

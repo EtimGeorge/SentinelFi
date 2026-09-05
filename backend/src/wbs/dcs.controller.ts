@@ -92,7 +92,7 @@ export class DcsController {
     Role.FinanceManager,
     Role.OperationalDirector,
   )
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async scheduleReport(
     @Body() dto: AutomatedReportRequestDto,
     @Req() req: AuthenticatedRequest,

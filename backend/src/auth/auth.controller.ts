@@ -89,22 +89,21 @@ export class AuthController {
     accessToken: string,
     rememberMe: boolean,
   ) {
-    const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000; // 30 days or 1 hour
+    const maxAge = rememberMe ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000; // 7 days or 1 hour — aligned with JWT exp
     const isProduction = process.env.NODE_ENV === "production";
 
-    // IMPORTANT: sameSite 'lax' doesn't work for cross-origin (localhost:3000 -> localhost:3001)
-    // In production, use 'none' with 'secure: true' for cross-origin support
-    // In development, use false (which allows cookies in cross-origin)
+    // SameSite Lax + proxy same-origin (Next.js rewrites /api -> backend) mitigates CSRF without breaking auth.
+    // Previous 'none'/false allowed cross-site sends → CSRF. Lax is correct for same-site proxy.
     response.cookie("access_token", accessToken, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? "none" : false, // Changed: none for production, false for dev
+      sameSite: "lax",
       path: "/",
       maxAge,
     });
 
     this.logger.log(
-      `Auth cookie set (sameSite: ${isProduction ? "none" : "false"}, secure: ${isProduction})`,
+      `Auth cookie set (sameSite: lax, secure: ${isProduction}, maxAge: ${maxAge}ms)`,
     );
   }
 
@@ -130,7 +129,8 @@ export class AuthController {
         "SuperAdmin",
         ipAddress,
         userAgent,
-      ); // PASS NEW ARGS
+        loginDto.rememberMe || false,
+      );
       this.setAuthCookie(res, result.accessToken, loginDto.rememberMe || false); // CHANGED: result.access_token to result.accessToken
       ResponseHelper.sendJson(res, HttpStatus.OK, {
         success: true,
@@ -176,7 +176,9 @@ export class AuthController {
         "Tenant",
         ipAddress,
         userAgent,
-      ); // PASS NEW ARGS
+        loginDto.rememberMe || false,
+        loginDto.tenantId,
+      );
       this.setAuthCookie(res, result.accessToken, loginDto.rememberMe || false); // CHANGED: result.access_token to result.accessToken
       ResponseHelper.sendJson(res, HttpStatus.OK, {
         success: true,
@@ -219,13 +221,20 @@ export class AuthController {
         // Non-fatal: always clear the cookie even if blacklisting fails
       });
     }
-    response.clearCookie("access_token", { path: "/" });
+    const isProduction = process.env.NODE_ENV === "production";
+    response.clearCookie("access_token", {
+      path: "/",
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+    });
     return { success: true, message: "Logged out successfully" };
   }
 
   @Public()
   @Post("register")
   @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async register(
     @Body() registerDto: RegisterUserDto,
   ): Promise<UserResponseDto> {
@@ -240,6 +249,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Get("invitation/verify")
   async verifyInvitation(@Req() req: Request) {
     const token = req.query.token as string;
@@ -248,6 +258,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post("invitation/accept")
   @HttpCode(HttpStatus.OK)
   async acceptInvitation(@Body() acceptDto: AcceptInvitationDto) {

@@ -24,7 +24,7 @@ import { LiveExpenseEntity } from "./live-expense.entity";
 import type { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
 import { UpdateLiveExpenseDto } from "./dto/update-live-expense.dto";
 import { TENANT_DATA_SOURCE } from "../database/constants";
-import { Inject } from "@nestjs/common";
+import { Inject, forwardRef } from "@nestjs/common";
 import { GetWbsBudgetsDto } from "./dto/get-wbs-budgets.dto";
 import { GetLiveExpensesDto } from "./dto/get-live-expenses.dto";
 import { WbsBudgetRollupDto } from "./dto/wbs-budget-rollup.dto";
@@ -104,6 +104,7 @@ export class WbsService {
     @InjectRepository(ApprovalLogEntity, TENANT_DATA_SOURCE)
     private approvalLogRepo: Repository<ApprovalLogEntity>,
     private readonly pdfService: PdfGenerationService,
+    @Inject(forwardRef(() => TenantService))
     private readonly tenantService: TenantService,
     private readonly forensicsService: FinancialForensicsService,
   ) {}

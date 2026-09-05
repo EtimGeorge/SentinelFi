@@ -71,7 +71,7 @@ import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
     },
     {
       provide: "APP_PIPE",
-      useValue: new ValidationPipe({ whitelist: true }),
+      useValue: new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
     },
     Logger,
   ],

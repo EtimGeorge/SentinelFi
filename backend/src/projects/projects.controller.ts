@@ -47,7 +47,7 @@ export class ProjectsController {
     Role.CEO,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createProject(
     @Body() createProjectDto: CreateProjectDto,
     @Req() req: AuthenticatedRequest,
@@ -77,7 +77,7 @@ export class ProjectsController {
     Role.FinanceManager,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createLpo(
     @Body() createLpoDto: CreateLpoDto,
     @Req() req: AuthenticatedRequest,
@@ -110,7 +110,7 @@ export class ProjectsController {
     Role.AssignedProjectUser,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async findAllProjects(
     @Query() getProjectsDto: GetProjectsDto,
     @Req() req: AuthenticatedRequest,
@@ -192,7 +192,7 @@ export class ProjectsController {
     Role.CEO,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateProject(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() updateProjectDto: UpdateProjectDto,

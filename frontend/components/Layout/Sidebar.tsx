@@ -85,7 +85,7 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
 
 import useGlobalStore from '../../store/globalStore';
 import { useCurrency } from '../../components/context/CurrencyContext';
-import api from '../../lib/api';
+import { apiClient } from '../../lib/api';
 
 const Sidebar: React.FC = () => {
   const [navItems, setNavItems] = useState<NavItem[]>([]);
@@ -113,12 +113,19 @@ const Sidebar: React.FC = () => {
             setIsNavReady(true);
           }
         }
-
-        // Fetch projects for global selector
-        const res = await api.get('/projects?limit=100');
-        setProjects(res.data.projects || []);
       } catch (error) {
-        console.error('[Sidebar] Failed to initialize:', error);
+        console.error('[Sidebar] Failed to init nav:', error);
+      }
+      // Fetch projects for global selector — suppress 403 silently (role-gated)
+      try {
+        const res: any = await apiClient.get('/projects?limit=100');
+        setProjects(res.projects || res.data?.projects || []);
+      } catch (e: any) {
+        if (e?.response?.status !== 403 && !e?._isForbidden) {
+          console.error('[Sidebar] Failed to initialize projects:', e);
+        } else {
+          console.debug('[Sidebar] Projects fetch skipped — forbidden for role');
+        }
       }
     };
 
@@ -198,6 +205,7 @@ const Sidebar: React.FC = () => {
                   src="/SentinelFi Logo Concept-bg-remv-logo-only.png" 
                   alt="SentinelFi Logo" 
                   fill
+                  sizes="40px"
                   className="object-contain p-1 shadow-2xl"
                 />
               </div>
@@ -237,6 +245,7 @@ const Sidebar: React.FC = () => {
                     src="/SentinelFi Logo Concept-bg-remv-logo-only.png" 
                     alt="SentinelFi Logo" 
                     fill
+                    sizes="40px"
                     className="object-contain p-1"
                   />
                 </div>

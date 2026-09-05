@@ -43,5 +43,7 @@ ENV NODE_ENV=production
 
 EXPOSE 3001
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 CMD wget -qO- http://localhost:3001/api/v1/health/live || exit 1
+
 # ✅ Path matches the actual build output: backend/dist/backend/src/main.js
 CMD ["node", "backend/dist/backend/src/main.js"]

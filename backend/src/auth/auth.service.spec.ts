@@ -747,26 +747,24 @@ describe("AuthService - REAL Implementation Tests", () => {
         },
       );
 
-      userRepo.findOne.mockResolvedValue(null); // No existing user
-      roleRepo.findOne.mockResolvedValue(defaultRole);
-
       const newUser = createMockUserEntity({
         email: "new@example.com",
-        tenant_id: "tenant-123",
+        tenant_id: null,
       });
+      roleRepo.findOne.mockResolvedValue(defaultRole);
+      userRepo.findOne.mockResolvedValueOnce(null).mockResolvedValue(newUser as any);
       userRepo.create.mockReturnValue(newUser);
       userRepo.save.mockResolvedValue(newUser);
 
       // ACT
       const result = await service.register({
         email: "new@example.com",
-        password: "password123",
-        tenant_id: "tenant-123",
+        password: "password123VeryStrong1",
       });
 
       // ASSERT
       expect(result.email).toBe("new@example.com");
-      expect(result.tenant_id).toBe("tenant-123");
+      expect(result.tenant_id).toBeNull(); // public registration must not allow tenant infiltration
       expect(bcrypt.hash).toHaveBeenCalled(); // Password was hashed
     });
   });

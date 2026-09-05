@@ -18,6 +18,7 @@ import { Role } from '../components/context/AuthContext'; // Import Role for lay
 import { apiClient } from '../lib/api';
 import useUIStore from '../store/uiStore';
 import { AiAssistantWidget } from '../components/ai/AiAssistantWidget';
+import { TourProvider } from '../contexts/TourContext';
 
 // ============================================================================
 // LAYOUT TYPING (NEW)
@@ -98,21 +99,38 @@ function NotificationWatcher() {
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
+    const isForbidden = (e: any) => e?.response?.status === 403 || e?._isForbidden;
     const fetchCounts = async () => {
       try {
-        // Fetch counts for both WBS and Requisitions
+        // Fetch counts for both WBS and Requisitions — suppress 403 (RBAC) silently
         const [wbs, reqs] = await Promise.all([
-          apiClient.get('/wbs/budgets?status=pending&limit=1'),
-          apiClient.get('/finance-core/requisitions').catch(() => [])
+          apiClient.get('/wbs/budgets?status=pending&limit=1').catch((e: any) => {
+            if (isForbidden(e)) return null;
+            throw e;
+          }),
+          apiClient.get('/finance-core/requisitions').catch((e: any) => {
+            if (isForbidden(e)) return [];
+            return [];
+          }),
         ]);
 
-        const wbsCount = wbs?.total || (Array.isArray(wbs) ? wbs.length : 0);
+        if (!wbs && Array.isArray(reqs) && reqs.length === 0) {
+          // Both forbidden for this role — don't spam, set 0
+          setUnreadCount(0);
+          return;
+        }
 
-        const reqData: any[] = Array.isArray(reqs) ? reqs : (reqs?.data || []);
+        const wbsCount = (wbs as any)?.total || (Array.isArray(wbs) ? (wbs as any).length : 0) || 0;
+
+        const reqData: any[] = Array.isArray(reqs) ? reqs : ((reqs as any)?.data || []);
         const reqCount = reqData.filter((r: any) => r.status === 'PENDING_APPROVAL').length;
 
         setUnreadCount(wbsCount + reqCount);
-      } catch (error) {
+      } catch (error: any) {
+        if (isForbidden(error)) {
+          console.debug('[NotificationWatcher] Skipped — insufficient role');
+          return;
+        }
         console.error('[NotificationWatcher] Failed to sync counts:', error);
       }
     };
@@ -184,10 +202,12 @@ export default function App(props: AppProps) {
       <AuthProvider>
         <BreadcrumbProvider>
           <CurrencyProvider>
-            <RouteGuard>
-              <NotificationWatcher />
-              <AppContent {...props} />
-            </RouteGuard>
+            <TourProvider>
+              <RouteGuard>
+                <NotificationWatcher />
+                <AppContent {...props} />
+              </RouteGuard>
+            </TourProvider>
           </CurrencyProvider>
         </BreadcrumbProvider>
       </AuthProvider>

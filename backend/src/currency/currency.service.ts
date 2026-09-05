@@ -29,7 +29,7 @@ export class CurrencyService implements OnModuleInit {
     data: any[] | null;
     timestamp: number;
   } = { data: null, timestamp: 0 };
-  private readonly CACHE_TTL_MS = 300000; // 5 minutes
+  private readonly CACHE_TTL_MS = 3600000; // 1 hour - per ARCH-005 FX cache, balances freshness vs DB load
 
   constructor(
     @InjectRepository(CurrencyExchangeRateEntity)
@@ -110,14 +110,44 @@ export class CurrencyService implements OnModuleInit {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        "Failed to update exchange rates from API",
-        error instanceof Error ? error.stack : errorMessage,
+      this.logger.warn(
+        `Primary FX API failed (${errorMessage}), trying ECB fallback...`,
       );
-
+      try {
+        await this.fetchFromECB();
+        this.logger.log(`ECB fallback succeeded`);
+        return;
+      } catch (ecbError) {
+        this.logger.error(
+          "Failed to update exchange rates from API and ECB fallback",
+          ecbError instanceof Error ? ecbError.stack : String(ecbError),
+        );
+      }
       // We no longer rely on hardcoded fallback seeding here because the migration
       // seeds metadata and initializeRates() handles initial empty state.
     }
+  }
+
+  private async fetchFromECB(): Promise<void> {
+    // ECB eurofxref-daily.xml fallback - parse via exchangerate.host (JSON wrapper for ECB)
+    const ecbUrl = `https://api.exchangerate.host/latest?base=USD`;
+    const response = await fetch(ecbUrl);
+    if (!response.ok) throw new Error(`ECB API ${response.status}`);
+    const data: any = await response.json();
+    const rates = data.rates || data.conversion_rates;
+    if (!rates) throw new Error("ECB no rates");
+    const lastUpdated = data.date ? new Date(data.date) : new Date();
+    const supported = await this.currencyMetadataRepository.find({ where: { isActive: true } });
+    for (const cur of supported) {
+      if (cur.code === "USD") continue;
+      const rate = rates[cur.code];
+      if (!rate) continue;
+      await this.currencyRateRepository.upsert(
+        { fromCurrency: "USD", toCurrency: cur.code, rate, lastUpdated, source: "ECB" },
+        ["fromCurrency", "toCurrency", "lastUpdated"],
+      );
+    }
+    this.cache = { data: null, timestamp: 0 };
   }
 
   /**

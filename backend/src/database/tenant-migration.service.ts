@@ -28,6 +28,20 @@ import { OperationalBudgetPeriodAllocationEntity } from "../operational-budgets/
 import { ClientEntity } from "../clients/client.entity";
 import { CEOAnnotationEntity } from "../dashboard/annotation.entity";
 import { ApprovalLogEntity } from "../common/entities/approval-log.entity";
+// FinanceCore enterprise entities - ensure new tenants get full financial intelligence schema
+import { FiscalYearEntity } from "../finance-core/entities/fiscal-year.entity";
+import { FiscalPeriodEntity } from "../finance-core/entities/fiscal-period.entity";
+import { DepartmentEntity } from "../finance-core/entities/department.entity";
+import { CostCenterEntity } from "../finance-core/entities/cost-center.entity";
+import { AccountClassEntity } from "../finance-core/entities/account-class.entity";
+import { AccountGroupEntity } from "../finance-core/entities/account-group.entity";
+import { GLAccountEntity } from "../finance-core/entities/gl-account.entity";
+import { BudgetLedgerEntity } from "../finance-core/entities/budget-ledger.entity";
+import { P2PRequisitionEntity } from "../finance-core/entities/p2p-requisition.entity";
+import { P2PPurchaseOrderEntity } from "../finance-core/entities/p2p-purchase-order.entity";
+import { P2PInvoiceEntity } from "../finance-core/entities/p2p-invoice.entity";
+import { PayrollRunEntity } from "../finance-core/entities/payroll-run.entity";
+import { PayrollLineItemEntity } from "../finance-core/entities/payroll-line-item.entity";
 
 @Injectable()
 export class TenantMigrationService {
@@ -96,6 +110,19 @@ export class TenantMigrationService {
         TenantEntity, // Public entity (for reference)
         AuditLogEntity, // Public entity (for reference)
         ApprovalLogEntity, // Added
+        FiscalYearEntity,
+        FiscalPeriodEntity,
+        DepartmentEntity,
+        CostCenterEntity,
+        AccountClassEntity,
+        AccountGroupEntity,
+        GLAccountEntity,
+        BudgetLedgerEntity,
+        P2PRequisitionEntity,
+        P2PPurchaseOrderEntity,
+        P2PInvoiceEntity,
+        PayrollRunEntity,
+        PayrollLineItemEntity,
       ],
       migrations: [getTenantMigrationsPath()],
       migrationsTableName: "tenant_migrations", // Dedicated migrations table for tenant schemas

@@ -127,6 +127,25 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // ── 403 Forbidden — suppress retry + throttle noisy logs for background polls ─
+    if (error.response?.status === 403) {
+      const url = config.url || '';
+      const isBackgroundPoll =
+        url.includes('/wbs/budgets') ||
+        url.includes('/finance-core/requisitions') ||
+        url.includes('/projects?') ||
+        url.includes('/dashboard/') ||
+        url.includes('/admin/audit-logs');
+      // Downgrade to debug for background pollers to avoid console spam
+      if (isBackgroundPoll) {
+        console.debug(`[API] 403 suppressed for background poll: ${config.method?.toUpperCase()} ${url}`);
+      }
+      // Never retry 403 — it's RBAC/tenant, not transient
+      // Attach flag so callers can show contextual UI without re-triggering
+      (error as any)._isForbidden = true;
+      return Promise.reject(error);
+    }
+
     if (config._skipRetry) {
       return Promise.reject(error);
     }

@@ -147,7 +147,7 @@ class ForecastDto {
  */
 @Controller("ai")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+@UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
 export class AiAssistantController {
   constructor(
     private readonly aiService: AiAssistantService,

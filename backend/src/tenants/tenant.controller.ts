@@ -86,7 +86,7 @@ export class TenantController {
    */
   @Get()
   @Roles(Role.SuperAdmin)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async findAllTenants(@Query() query: GetTenantsDto): Promise<any> {
     return await this.tenantService.findAllTenants();
   }
@@ -99,7 +99,7 @@ export class TenantController {
   @Roles(Role.SuperAdmin)
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(FileInterceptor("initialBudgetFile"))
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createTenant(
     @Body() createTenantDto: CreateTenantDto,
     @UploadedFile() file?: Express.Multer.File,

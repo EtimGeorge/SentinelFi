@@ -51,6 +51,7 @@ import { ReportScheduleEntity } from "../entities/report-schedule.entity";
 import { MessageEntity } from "../../messaging/entities/message.entity";
 import { ConversationEntity } from "../../messaging/entities/conversation.entity";
 import { ConversationMemberEntity } from "../../messaging/entities/conversation-member.entity";
+import { NotificationEntity } from "../../notifications/entities/notification.entity";
 
 // Define a custom error interface for database errors that include a 'code' property
 interface DbError extends Error {
@@ -192,6 +193,7 @@ export class DatabaseConfig {
       MessageEntity,
       ConversationEntity,
       ConversationMemberEntity,
+      NotificationEntity,
       SubscriptionEntity,
     ];
   }

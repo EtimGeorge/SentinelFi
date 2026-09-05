@@ -68,7 +68,7 @@ export class WbsController {
     Role.AssignedProjectUser,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async getWbsBudgets(
     @Query() getWbsBudgetsDto: GetWbsBudgetsDto,
     @Req() req: AuthenticatedRequest,
@@ -254,7 +254,7 @@ export class WbsController {
     Role.AssignedProjectUser,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async getLiveExpenses(
     @Query() getLiveExpensesDto: GetLiveExpensesDto,
     @Req() req: AuthenticatedRequest,
@@ -392,7 +392,7 @@ export class WbsController {
     Role.FinanceManager,
     Role.AssignedProjectUser,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createDraft(
     @Body() createWbsDto: CreateWbsBudgetDto,
     @Req() req: AuthenticatedRequest,
@@ -430,7 +430,7 @@ export class WbsController {
   @Post("budget-draft/batch")
   @HttpCode(HttpStatus.CREATED)
   @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createDraftBatch(
     @Body() createWbsDtos: CreateWbsBudgetDto[],
     @Req() req: AuthenticatedRequest,
@@ -481,7 +481,7 @@ export class WbsController {
 
   @Patch("budget-draft/:id")
   @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateWbsBudget(
     @Param("id") id: string,
     @Body() updateWbsBudgetDto: UpdateWbsBudgetDto,
@@ -539,7 +539,7 @@ export class WbsController {
   @Post("budget-draft/validate")
   @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async validateDraft(
     @Body() dto: CreateWbsBudgetDto,
     @Req() req: AuthenticatedRequest,
@@ -571,7 +571,7 @@ export class WbsController {
     Role.CEO,
     Role.AdminDirector,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async logLiveExpense(
     @Body() expenseDto: CreateLiveExpenseDto,
     @Req() req: AuthenticatedRequest,
@@ -614,7 +614,7 @@ export class WbsController {
     Role.CEO,
     Role.AdminDirector,
   )
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async logLiveExpenseBatch(
     @Body() batchDto: { entries: CreateLiveExpenseDto[] },
     @Req() req: AuthenticatedRequest,
@@ -687,7 +687,7 @@ export class WbsController {
 
   @Patch("expense/live-entry/:id")
   @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateLiveExpenseEntry(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() updateLiveExpenseDto: UpdateLiveExpenseDto,
@@ -758,7 +758,7 @@ export class WbsController {
 
   @Post("categories")
   @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createCategory(
     @Body() createWbsCategoryDto: CreateWbsCategoryDto,
     @Req() req: AuthenticatedRequest,
@@ -786,7 +786,7 @@ export class WbsController {
 
   @Patch("categories/:id")
   @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateCategory(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() updateWbsCategoryDto: UpdateWbsCategoryDto,
@@ -852,7 +852,7 @@ export class WbsController {
     Role.CEO,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async changeStatus(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body("status") status: string,
@@ -964,7 +964,7 @@ export class WbsController {
 
   @Post("templates/apply/:projectId")
   @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async applyTemplate(
     @Param("projectId", new ParseUUIDPipe()) projectId: string,
     @Body("templateId", new ParseUUIDPipe()) templateId: string,

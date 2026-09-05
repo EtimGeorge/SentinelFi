@@ -48,7 +48,7 @@ export class OperationalBudgetsController {
     Role.FinanceManager,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createOperationalBudget(
     @Body() createOperationalBudgetDto: CreateOperationalBudgetDto,
     @Req() req: AuthenticatedRequest,
@@ -249,7 +249,7 @@ export class OperationalBudgetsController {
     Role.TechnicalDirector,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async findAllOperationalBudgets(
     @Query() getOperationalBudgetsDto: GetOperationalBudgetsDto,
     @Req() req: AuthenticatedRequest,
@@ -304,7 +304,7 @@ export class OperationalBudgetsController {
     Role.FinanceManager,
     Role.SuperAdmin,
   )
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateOperationalBudget(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() updateOperationalBudgetDto: UpdateOperationalBudgetDto,

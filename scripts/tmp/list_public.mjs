@@ -1,0 +1,10 @@
+import { DataSource } from "typeorm";
+import dotenv from "dotenv";
+dotenv.config({ path: "D:/DOCUMENTS/Development/SentinelFi/backend/.env" });
+let url = (process.env.DATABASE_URL || "").trim().replace(/^['"]|['"]$/g, "");
+if (url.startsWith("postgresql://")) url = url.replace("postgresql://", "postgres://");
+const ds = new DataSource({ type: "postgres", url, ssl: { rejectUnauthorized: false } });
+await ds.initialize();
+const t=await ds.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name`);
+console.log(t.map(x=>x.table_name).join(','));
+await ds.destroy();

@@ -32,7 +32,7 @@ export class SettingsController {
 
   @Put()
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateSettings(
     @Body() updateSettingsDto: UpdateSettingsDto,
   ): Promise<SettingsEntity> {
@@ -41,7 +41,7 @@ export class SettingsController {
 
   @Post("test-email")
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async sendTestEmail(
     @Body() sendTestEmailDto: SendTestEmailDto,
   ): Promise<{ message: string }> {

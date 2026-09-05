@@ -1,0 +1,10 @@
+import * as dotenv from 'dotenv';
+dotenv.config({ path: 'backend/.env' });
+import { DataSource } from 'typeorm';
+const ds = new DataSource({ type: 'postgres', url: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+await ds.initialize();
+const users = await ds.query('SELECT id, email, tenant_id, is_active FROM "user" LIMIT 20');
+console.log('USERS', JSON.stringify(users,null,2));
+const roles = await ds.query('SELECT u.email, r.name FROM "user" u JOIN user_roles ur ON ur.user_id=u.id JOIN role r ON r.id=ur.role_id LIMIT 20');
+console.log('ROLES', JSON.stringify(roles,null,2));
+await ds.destroy();

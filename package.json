@@ -39,6 +39,7 @@
     "typeorm:tenant:drop": "npm run typeorm -- -d backend/ormconfig.tenant.ts schema:drop",
     "db:seed:roles-permissions": "cross-env NODE_OPTIONS=--max-old-space-size=4096 npx ts-node -r reflect-metadata -r tsconfig-paths/register --project backend/tsconfig.typeorm.json backend/src/database/seeds/seed-roles-permissions.ts",
     "db:setup-test-tenants": "cross-env NODE_OPTIONS=--max-old-space-size=4096 npx ts-node -r reflect-metadata -r tsconfig-paths/register --project backend/tsconfig.typeorm.json backend/scripts/setup-test-tenants.ts",
+    "dev": "concurrently \"npm run start:backend:dev\" \"npm run dev:frontend\"",
     "db:reset": "ts-node backend/scripts/db-reset.ts",
     "lint-all": "npm run lint -w frontend && npm run lint -w backend",
     "typecheck-all": "npm run build:shared && npm run typecheck -w frontend && npm run typecheck -w backend"
@@ -106,6 +107,7 @@
     "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "concurrently": "^9.2.4",
     "cross-env": "^10.1.0",
     "eslint": "^8.42.0",
     "eslint-config-next": "^14.2.35",

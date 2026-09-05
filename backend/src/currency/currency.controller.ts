@@ -15,6 +15,10 @@ import {
   GetSupportedCurrenciesDto,
 } from "./dto/currency.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { Role } from "@shared/types/role.enum";
+import { Throttle } from "@nestjs/throttler";
 import { Public } from "../common/decorators/public.decorator";
 
 @Controller("currency")
@@ -26,6 +30,7 @@ export class CurrencyController {
    * PUBLIC — no auth required (used by public pricing page)
    */
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Get("supported")
   async getSupportedCurrencies(): Promise<GetSupportedCurrenciesDto> {
     const currencies = await this.currencyService.getSupportedCurrencies();
@@ -37,6 +42,7 @@ export class CurrencyController {
    * PUBLIC — no auth required (used by public pricing page)
    */
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Get("rates")
   async getExchangeRates(): Promise<GetExchangeRatesDto> {
     return this.currencyService.getExchangeRates();
@@ -71,7 +77,9 @@ export class CurrencyController {
   /**
    * Manually trigger exchange rate update (SuperAdmin only)
    */
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SuperAdmin)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post("update-rates")
   @HttpCode(HttpStatus.OK)
   async updateRates(): Promise<{ message: string }> {

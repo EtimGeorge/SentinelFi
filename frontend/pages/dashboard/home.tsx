@@ -51,8 +51,14 @@ const DashboardHome: React.FC = () => {
   useEffect(() => {
     if (!user) return;
     api.get('/projects?limit=100')
-      .then(res => setProjects(res.data.projects || []))
-      .catch(err => console.error('Failed to fetch projects for dashboard', err));
+      .then((res: any) => setProjects(res.data?.projects || res.projects || []))
+      .catch((err: any) => {
+        if (err?.response?.status !== 403 && !err?._isForbidden) {
+          console.error('Failed to fetch projects for dashboard', err);
+        } else {
+          console.debug('[Dashboard] Projects fetch skipped — forbidden for role');
+        }
+      });
   }, [user]);
 
   const projectCurrencyMap = useMemo(() => {
@@ -102,7 +108,12 @@ const DashboardHome: React.FC = () => {
           return;
         }
         if (!isCancelled) {
-          console.error('Failed to load dashboard data:', error);
+          if (error?.response?.status === 403 || error?._isForbidden) {
+            console.debug('[Dashboard] Insufficient role for dashboard endpoint:', error?.config?.url);
+            // Show empty state instead of error spam — role lacks dashboard permission
+          } else {
+            console.error('Failed to load dashboard data:', error);
+          }
         }
       } finally {
         if (!isCancelled) {

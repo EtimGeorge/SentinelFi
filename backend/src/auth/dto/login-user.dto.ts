@@ -24,4 +24,8 @@ export class LoginUserDto {
   @IsBoolean()
   @IsOptional()
   rememberMe?: boolean;
+
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
 }

@@ -36,12 +36,20 @@ export class MaintenanceGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    // 4. Allow SuperAdmins always
-    if (user && user.roles?.includes(Role.SuperAdmin)) {
+    // 4. Allow SuperAdmins always (roles are SimpleRole[] {id,name})
+    const isSuperAdmin = user?.roles?.some(
+      (r: any) => (r?.name ?? r) === Role.SuperAdmin,
+    );
+    if (isSuperAdmin) {
       return true;
     }
 
-    // 5. Allow SuperAdmin management routes specifically (fallback check)
+    // 5. Allow health probes during maintenance (k8s liveness/readiness)
+    if (request.url.startsWith("/api/v1/health")) {
+      return true;
+    }
+
+    // 6. Allow SuperAdmin management routes specifically (fallback check)
     if (request.url.startsWith("/api/v1/super")) {
       return true;
     }

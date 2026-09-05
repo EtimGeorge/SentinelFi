@@ -4,6 +4,8 @@ import {
   NotFoundException,
   ConflictException,
   Logger,
+  Inject,
+  forwardRef,
 } from "@nestjs/common";
 import { DataSource, Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
@@ -29,7 +31,8 @@ export class TenantService {
     @InjectRepository(TenantEntity)
     private tenantRepository: Repository<TenantEntity>,
     private readonly dataSource: DataSource,
-    private readonly wbsService: WbsService, // Inject WbsService
+    @Inject(forwardRef(() => WbsService))
+    private readonly wbsService: WbsService, // Inject WbsService (circular: TenantService <-> WbsService)
     private readonly auditService: AuditService, // NEW: Inject AuditService
     private readonly tenantMigrationService: TenantMigrationService, // NEW: Inject TenantMigrationService
     private readonly authService: AuthService, // NEW: Inject AuthService for user creation

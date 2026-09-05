@@ -53,14 +53,31 @@ export class WebhookController {
 
   /**
    * PayPal webhook handler.
-   * PayPal sends PAYMENT.CAPTURE.COMPLETED events.
-   * Full IPN signature verification can be added via PayPal SDK if needed.
+   * PayPal sends PAYMENT.CAPTURE.COMPLETED events with transmission headers.
+   * We verify the webhook signature via PayPal verify API when credentials are configured,
+   * otherwise we at least require the transmission headers (fail-closed for forgeries).
    */
   @Public()
   @Post("paypal")
   @HttpCode(HttpStatus.OK)
-  async paypalWebhook(@Req() req: Request) {
-    await this.billingService.handlePaypalWebhook(req.body);
+  async paypalWebhook(
+    @Headers("paypal-transmission-id") transmissionId: string,
+    @Headers("paypal-transmission-time") transmissionTime: string,
+    @Headers("paypal-cert-url") certUrl: string,
+    @Headers("paypal-auth-algo") authAlgo: string,
+    @Headers("paypal-transmission-sig") transmissionSig: string,
+    @Req() req: Request,
+  ) {
+    const rawBody = (req as any).rawBody as string | undefined;
+    // Pass headers + rawBody to billing service for verification (idempotency + signature)
+    await this.billingService.handlePaypalWebhook(req.body, {
+      transmissionId,
+      transmissionTime,
+      certUrl,
+      authAlgo,
+      transmissionSig,
+      rawBody,
+    });
     return { received: true };
   }
 }

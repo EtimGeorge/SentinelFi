@@ -4,6 +4,8 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
+  Logger,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuthGuard } from "@nestjs/passport";
@@ -14,6 +16,7 @@ import { TenantEntity } from "../../tenants/tenant.entity";
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard("jwt") {
+  private readonly logger = new Logger(JwtAuthGuard.name);
   constructor(
     private reflector: Reflector,
     private dataSource: DataSource,
@@ -72,7 +75,15 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
       // Re-throw known HTTP exceptions (ForbiddenException, HttpException)
       if (err instanceof HttpException || err instanceof ForbiddenException)
         throw err;
-      // Log and allow through on DB errors — don't lock out users due to infrastructure issues
+      // Fail-closed on infrastructure error: log and return 503 so frontend can retry
+      // Previously this was fail-open (silent return true) which let expired tenants through during DB outage.
+      this.logger.error(
+        `Tenant check failed for user=${user?.id} tenant=${user?.tenant_id}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+      throw new ServiceUnavailableException(
+        "Tenant verification temporarily unavailable — please retry.",
+      );
     }
 
     return true;

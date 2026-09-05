@@ -2,9 +2,9 @@ import {
   IsEmail,
   IsNotEmpty,
   MinLength,
-  IsUUID,
   IsOptional,
   IsString,
+  Matches,
 } from "class-validator";
 
 export class RegisterUserDto {
@@ -17,12 +17,14 @@ export class RegisterUserDto {
   username?: string;
 
   @IsNotEmpty({ message: "Password is required" })
-  @MinLength(8, { message: "Password must be at least 8 characters long" })
-  // Add more password strength validations (e.g., regex for special characters, numbers, etc.)
+  @MinLength(12, { message: "Password must be at least 12 characters long" })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
+    message:
+      "Password must contain at least one uppercase letter, one lowercase letter, and one number",
+  })
   password!: string;
 
-  @IsOptional()
-  @IsUUID("4", { message: "Invalid tenant ID format" }) // Validate if it's a UUID v4
-  tenant_id?: string;
+  // tenant_id removed — public self-registration must not allow arbitrary tenant assignment (prevents tenant infiltration).
+  // Tenant assignment is via invitation flow only.
   // Note: confirmPassword is handled on the frontend for matching, not sent to backend DTO
 }

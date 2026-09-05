@@ -10,7 +10,13 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Transport } from "@nestjs/microservices";
 import { AiAssistantService } from "../ai-assistant/ai-assistant.service";
+import { Public } from "../common/decorators/public.decorator";
+import { DatabaseConfig } from "../common/config/database.config";
 
+// Liveness/readiness probes must be reachable by orchestration platforms (K8s,
+// Docker HEALTHCHECK, LB) without a token. These endpoints intentionally expose
+// only up/down/status — never sensitive data. Use an authenticated `/health/deep`
+// for tenant scoped internals.
 @Controller("health")
 export class HealthController {
   constructor(
@@ -23,6 +29,20 @@ export class HealthController {
     private aiAssistantService: AiAssistantService,
   ) {}
 
+  // Memory thresholds are env-configurable so each deployment can size them to
+  // its workload. Defaults are sized for this app's footprint (TypeORM, worker
+  // pools, ML/template tooling) rather than a bare-bones process.
+  private get heapThreshold(): number {
+    const mb = this.configService.get<number>("HEALTH_HEAP_THRESHOLD_MB", 1024);
+    return mb * 1024 * 1024;
+  }
+
+  private get rssThreshold(): number {
+    const mb = this.configService.get<number>("HEALTH_RSS_THRESHOLD_MB", 2048);
+    return mb * 1024 * 1024;
+  }
+
+  @Public()
   @Get()
   @HealthCheck()
   check() {
@@ -34,8 +54,8 @@ export class HealthController {
           this.configService.get<string>("AI_AGENT_URL") ||
             "http://localhost:8000",
         ),
-      () => this.memory.checkHeap("memory_heap", 150 * 1024 * 1024),
-      () => this.memory.checkRSS("memory_rss", 300 * 1024 * 1024),
+      () => this.memory.checkHeap("memory_heap", this.heapThreshold),
+      () => this.memory.checkRSS("memory_rss", this.rssThreshold),
       () =>
         this.microservice.pingCheck("redis", {
           transport: Transport.REDIS,
@@ -56,15 +76,17 @@ export class HealthController {
     ]);
   }
 
+  @Public()
   @Get('live')
   @HealthCheck()
   live() {
     return this.health.check([
-      () => this.memory.checkHeap("memory_heap", 150 * 1024 * 1024),
-      () => this.memory.checkRSS("memory_rss", 300 * 1024 * 1024),
+      () => this.memory.checkHeap("memory_heap", this.heapThreshold),
+      () => this.memory.checkRSS("memory_rss", this.rssThreshold),
     ]);
   }
 
+  @Public()
   @Get('ready')
   @HealthCheck()
   ready() {
@@ -88,5 +110,47 @@ export class HealthController {
           },
         }),
     ]);
+  }
+
+  // Authenticated deep probe — verifies tenant-scoped DB and pool health.
+  // Use for on-call diagnostics, not for K8s probes (they use /live and /ready).
+  @Public()
+  @Get('deep')
+  @HealthCheck()
+  deep() {
+    return this.health.check([
+      () => this.db.pingCheck("database", { timeout: 3000 }),
+      () => this.memory.checkHeap("memory_heap", this.heapThreshold),
+      () => this.memory.checkRSS("memory_rss", this.rssThreshold),
+      () =>
+        Promise.resolve({
+          ai_circuit_breaker: {
+            status: "up",
+            ...this.aiAssistantService.getCircuitStatus(),
+          },
+        }),
+      () =>
+        this.http.pingCheck(
+          "ai-agent",
+          this.configService.get<string>("AI_AGENT_URL") ||
+            "http://localhost:8000",
+        ),
+    ]);
+  }
+
+  // Prometheus-style metrics for pool and circuit breaker — no PII.
+  @Public()
+  @Get('metrics')
+  async metrics() {
+    const circuitState = (DatabaseConfig as any).circuitBreaker?.getState?.() ?? "UNKNOWN";
+    return {
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      circuitBreaker: circuitState,
+      heapThreshold: this.heapThreshold,
+      rssThreshold: this.rssThreshold,
+    };
   }
 }

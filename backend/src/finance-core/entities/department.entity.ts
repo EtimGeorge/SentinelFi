@@ -10,7 +10,6 @@ import {
   OneToMany,
 } from "typeorm";
 import { UserEntity } from "../../auth/user.entity";
-import { CostCenterEntity } from "./cost-center.entity";
 
 @Entity("department")
 @Index(["tenant_id", "code"], { unique: true })
@@ -42,8 +41,8 @@ export class DepartmentEntity {
   @JoinColumn({ name: "parent_department_id" })
   parentDepartment!: DepartmentEntity;
 
-  @OneToMany(() => CostCenterEntity, (cc) => cc.department)
-  costCenters!: CostCenterEntity[];
+  @OneToMany("CostCenterEntity", "department")
+  costCenters!: any[];
 
   @CreateDateColumn({ type: "timestamptz" })
   created_at!: Date;

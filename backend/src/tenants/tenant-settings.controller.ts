@@ -76,7 +76,7 @@ export class TenantSettingsController {
   @Patch()
   @Roles(Role.SuperAdmin, Role.AdminDirector, Role.TechnicalDirector)
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateSettings(
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateTenantSettingsDto,
@@ -116,7 +116,7 @@ export class TenantSettingsController {
   @Post("test-smtp")
   @Roles(Role.SuperAdmin, Role.AdminDirector, Role.TechnicalDirector)
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async testSmtp(
     @Req() req: AuthenticatedRequest,
     @Body() dto: TestSmtpDto,

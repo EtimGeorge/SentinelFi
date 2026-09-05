@@ -21,26 +21,46 @@ export class RedisIoAdapter extends IoAdapter {
       return;
     }
 
-    try {
-      const pubClient = new Redis(redisUrl);
-      const subClient = pubClient.duplicate();
+    let pubClient: Redis | null = null;
+    let subClient: Redis | null = null;
 
-      pubClient.on("error", (err) =>
-        this.logger.error("Redis Pub Client Error", err),
-      );
-      subClient.on("error", (err) =>
-        this.logger.error("Redis Sub Client Error", err),
-      );
+    try {
+      // Fail-soft connection: bounded retries and no infinite reconnect spam so
+      // that an unreachable Redis degrades to the in-memory adapter instead of
+      // flooding logs / blocking startup.
+      pubClient = new Redis(redisUrl, {
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+        enableOfflineQueue: false,
+        connectTimeout: 2500,
+        retryStrategy: () => null,
+      });
+      subClient = pubClient.duplicate();
+
+      pubClient.on("error", () => {});
+      subClient.on("error", () => {});
+
+      await Promise.all([pubClient.connect(), subClient.connect()]);
 
       this.adapterConstructor = createAdapter(pubClient, subClient);
       this.logger.log(
         `Connected to Redis for Socket.io horizontal scaling at ${redisUrl}`,
       );
     } catch (err) {
-      this.logger.error(
-        "Failed to connect to Redis, falling back to in-memory adapter",
-        err,
+      // Degrade gracefully — ignored errors already swallowed above.
+      this.logger.warn(
+        "Redis unavailable for Socket.io; falling back to the in-memory adapter. Horizontal scaling is disabled.",
       );
+      for (const client of [pubClient, subClient]) {
+        if (client) {
+          try {
+            client.disconnect();
+          } catch {
+            /* noop */
+          }
+        }
+      }
+      this.adapterConstructor = null;
     }
   }
 

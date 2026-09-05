@@ -23,6 +23,7 @@ import { CreateTenantAdminUserDto } from "../superadmin/dto/create-tenant-admin-
 import { RegisterUserDto } from "./dto/register-user.dto";
 import * as crypto from "crypto";
 import { RoleEntity } from "./role.entity";
+import { TenantEntity } from "../tenants/tenant.entity";
 import {
   SafeTransaction,
   RetryableQuery,
@@ -168,7 +169,9 @@ export class AuthService {
       throw new ForbiddenException("Cannot impersonate another SuperAdmin.");
     }
 
+    const impersonateJti = crypto.randomUUID();
     const payload: Omit<JwtPayload, "iat" | "exp"> = {
+      jti: impersonateJti,
       email: targetUser.email,
       sub: targetUser.id,
       id: targetUser.id,
@@ -254,7 +257,9 @@ export class AuthService {
       ),
     ];
 
+    const stopJti = crypto.randomUUID();
     const payload: Omit<JwtPayload, "iat" | "exp"> = {
+      jti: stopJti,
       email: originalSuperAdmin.email,
       sub: originalSuperAdmin.id,
       id: originalSuperAdmin.id,
@@ -292,9 +297,11 @@ export class AuthService {
     expectedRoleType: "SuperAdmin" | "Tenant",
     ipAddress?: string,
     userAgent?: string,
+    rememberMe: boolean = false,
+    tenantCode?: string,
   ): Promise<LoginResponse> {
     // Return LoginResponse
-    const cacheKey = `${email}:${ipAddress || "unknown"}`;
+    const cacheKey = `${email}:${ipAddress || "unknown"}:${tenantCode || ""}`;
     const cachedPromise = this.loginCache.get(cacheKey);
     if (cachedPromise) return cachedPromise;
 
@@ -304,6 +311,8 @@ export class AuthService {
       expectedRoleType,
       ipAddress,
       userAgent,
+      rememberMe,
+      tenantCode,
     );
     this.loginCache.set(cacheKey, loginPromise);
 
@@ -316,6 +325,8 @@ export class AuthService {
     expectedRoleType: "SuperAdmin" | "Tenant",
     ipAddress?: string,
     userAgent?: string,
+    rememberMe: boolean = false,
+    tenantCode?: string,
   ): Promise<LoginResponse> {
     // Return LoginResponse
     const startTime = Date.now();
@@ -402,9 +413,9 @@ export class AuthService {
 
       // 3. Resolve role and tenant context
       this.logger.debug(
-        `[LOGIN DIAGNOSTIC] Validating role for expected type: ${expectedRoleType}`,
+        `[LOGIN DIAGNOSTIC] Validating role for expected type: ${expectedRoleType}${tenantCode ? ` tenantCode=${tenantCode}` : ""}`,
       );
-      this.validateUserRoleAndTenant(user, expectedRoleType);
+      await this.validateUserRoleAndTenant(user, expectedRoleType, tenantCode);
       this.logger.log(
         `[LOGIN SUCCESS] Authentication passed for ${user.email}.`,
       );
@@ -418,7 +429,9 @@ export class AuthService {
       ];
       const roleNames: Role[] = user.roles.map((role) => role.name as Role); // Corrected to map to Role[]
 
+      const jti = crypto.randomUUID();
       const payload: Omit<JwtPayload, "iat" | "exp"> = {
+        jti,
         email: user.email,
         sub: user.id,
         id: user.id,
@@ -428,11 +441,12 @@ export class AuthService {
       };
 
       this.logger.debug(
-        `[LOGIN DIAGNOSTIC] JWT Payload generated: ${JSON.stringify(payload)}`,
+        `[LOGIN DIAGNOSTIC] JWT Payload generated: ${JSON.stringify({ ...payload, jti: jti.slice(0,8)+'...' })}`,
       );
 
       const t3 = Date.now();
-      const accessToken = this.jwtService.sign(payload);
+      const expiresIn = rememberMe ? 7 * 24 * 60 * 60 : 60 * 60; // 7 days vs 1 hour
+      const accessToken = this.jwtService.sign(payload, { expiresIn });
       const tokenTime = Date.now() - t3;
       this.logger.debug(`[PERF] JWT generation completed in ${tokenTime}ms`);
 
@@ -608,10 +622,11 @@ export class AuthService {
     return isValid;
   }
 
-  private validateUserRoleAndTenant(
+  private async validateUserRoleAndTenant(
     user: UserEntity,
     expectedRoleType: "SuperAdmin" | "Tenant",
-  ): void {
+    tenantCode?: string,
+  ): Promise<void> {
     const isSuperAdmin = user.roles.some(
       (role) => role.name === Role.SuperAdmin,
     ); // Use string literal
@@ -644,6 +659,48 @@ export class AuthService {
           "Your account is not associated with a tenant.",
         );
       }
+      // Enforce tenantCode match if provided (prevents silent cross-tenant login via generic portal)
+      const rawCode = tenantCode?.trim();
+      if (rawCode) {
+        const code = rawCode.toLowerCase();
+        // Normalize helper: lower, trim, replace spaces/underscores/hyphens
+        const norm = (s: string) => s.toLowerCase().trim().replace(/[\s_]+/g, "_").replace(/-/g, "_");
+        const tenant = (user as any).tenant as TenantEntity | undefined;
+        // Try direct match against user's tenant fields first (no DB round-trip)
+        const candidates = tenant
+          ? [tenant.tenant_id, tenant.schema_name, tenant.name].map((v) => (v ? norm(v) : ""))
+          : [];
+        // Also allow matching without underscores (e.g., SOLUTION_ENERGY vs solutionenergy)
+        const codeNoSep = code.replace(/[^a-z0-9]/g, "");
+        const candidatesNoSep = candidates.map((c) => c.replace(/[^a-z0-9]/g, ""));
+        const matches =
+          candidates.includes(norm(code)) ||
+          candidatesNoSep.includes(codeNoSep) ||
+          (tenant && tenant.tenant_id.toLowerCase() === code);
+
+        if (!matches) {
+          // Fallback: lookup tenant by code to give precise error (optional DB check)
+          let lookup: TenantEntity | null = null;
+          try {
+            lookup = await this.dataSource
+              .getRepository(TenantEntity)
+              .createQueryBuilder("t")
+              .where("LOWER(t.schema_name) = :code OR LOWER(t.name) = :code OR t.tenant_id::text = :raw", {
+                code: code,
+                raw: rawCode,
+              })
+              .getOne();
+          } catch {}
+          const expected = tenant?.name ?? tenant?.schema_name ?? "unknown";
+          const hint = lookup ? ` (you entered "${rawCode}" which maps to "${lookup.name}")` : "";
+          this.logger.warn(
+            `[LOGIN FAILED] Tenant mismatch for ${user.email}: account is in "${expected}" but login attempted with "${rawCode}"${hint}`,
+          );
+          throw new ForbiddenException(
+            `Tenant mismatch: your account belongs to "${expected}" not "${rawCode}". Use the correct Tenant ID for your organization.`,
+          );
+        }
+      }
     }
   }
 
@@ -655,16 +712,19 @@ export class AuthService {
   private async generateAccessToken(user: UserEntity): Promise<string> {
     // Use UserEntity for consistency
     // Minimize JWT payload size for faster generation and smaller cookies
+    const genJti = crypto.randomUUID();
     const payload = {
       userId: user.id,
       email: user.email,
       username: user.username,
       roles: user.roles.map((role) => role.name as Role), // Map to Role[]
       tenant_id: user.tenant?.tenant_id || null, // Corrected to tenant_id
+      jti: genJti,
       iat: Math.floor(Date.now() / 1000),
     };
 
     return this.jwtService.signAsync(payload, {
+      jwtid: genJti,
       expiresIn: "24h",
       algorithm: "HS256", // Faster than RS256 for symmetric keys
     });
@@ -1011,7 +1071,7 @@ export class AuthService {
       username: registerDto.username || registerDto.email.split("@")[0],
       password_hash: hashedPassword,
       roles: [defaultRole],
-      tenant_id: registerDto.tenant_id,
+      tenant_id: null, // Never trust tenant_id from public registration — assign via invitation only
     });
 
     const savedUser = await this.dataSource
@@ -1299,7 +1359,9 @@ export class AuthService {
     payload: Record<string, any>,
     options?: any,
   ): Promise<string> {
-    return this.jwtService.sign(payload, options);
+    const jti = payload.jti ?? crypto.randomUUID();
+    const payloadWithJti = { ...payload, jti };
+    return this.jwtService.sign(payloadWithJti, options);
   }
 
   async updateUser(
