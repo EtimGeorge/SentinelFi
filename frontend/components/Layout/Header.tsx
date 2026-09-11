@@ -45,16 +45,16 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="bg-brand-dark border-b border-gray-700/50 p-2 px-4 flex items-center justify-between z-30 sticky top-0">
-      <div className="flex items-center">
+    <header className="bg-brand-dark border-b border-gray-700/50 px-4 sm:px-6 lg:px-8 py-2 lg:py-3 flex items-center justify-between gap-4 lg:gap-8 z-30 sticky top-0">
+      <div className="flex items-center gap-2 lg:gap-4 min-w-0 flex-1">
         {/* Add back your hamburger button here if needed */}
-        <Link href="/dashboard/home" className="flex items-center space-x-2">
+        <Link href="/dashboard/home" className="flex items-center gap-2 lg:gap-3 min-w-0">
           <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="SentinelFi Logo" height={36} width={144} priority={true} />
-          <span className="text-lg font-bold text-brand-primary">SentinelFi <span className="text-xs">(client)</span></span>
+          <span className="text-lg font-bold text-brand-primary whitespace-nowrap">SentinelFi <span className="text-xs">(client)</span></span>
         </Link>
       </div>
 
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center gap-2 sm:gap-4 lg:gap-6 xl:gap-8 shrink-0">
         <Tooltip content="Notifications">
           <button
             onClick={handleNotificationsClick}
