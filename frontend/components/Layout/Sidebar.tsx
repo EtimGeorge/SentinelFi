@@ -227,6 +227,47 @@ const Sidebar: React.FC = () => {
               {navItems.map((item) => <NavItemLink key={item.name} item={item} isCollapsed={false} />)}
             </ul>
           </nav>
+
+          {/* Workspace context (project + currency) — mobile drawer only; desktop keeps header pickers */}
+          <div className="flex-shrink-0 mt-auto pt-4 border-t border-brand-primary/30 md:hidden">
+            <div className="flex items-center gap-3 mb-3" aria-hidden="true">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Workspace</span>
+              <span className="h-px flex-1 bg-white/10" />
+            </div>
+            <div className="space-y-2">
+              <label className="block">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Active Project</span>
+                <select
+                  value={selectedProjectId}
+                  onChange={(e) => { setSelectedProjectId(e.target.value); closeMobileSidebar(); }}
+                  className="mt-1 w-full bg-brand-darker border border-gray-700 rounded-lg py-2 px-2 text-xs text-brand-primary font-bold focus:border-brand-primary outline-none transition cursor-pointer"
+                  aria-label="Active Project Context"
+                >
+                  <option value="all">All Projects</option>
+                  {projects.map((p) => (
+                    <option key={p.project_id} value={p.project_id}>
+                      {p.project_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Currency</span>
+                <select
+                  value={userCurrency?.code || ''}
+                  onChange={(e) => { setUserCurrencyCode(e.target.value); closeMobileSidebar(); }}
+                  className="mt-1 w-full bg-brand-darker border border-gray-700 rounded-lg py-2 px-2 text-xs text-brand-primary font-bold focus:border-brand-primary outline-none transition cursor-pointer"
+                  aria-label="Display Currency"
+                >
+                  {availableCurrencies.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
         </div>
       </aside>
 
