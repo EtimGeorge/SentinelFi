@@ -1,5 +1,10 @@
 'use strict';
 
+// Canonical source for eslint-plugin-sentinelfi (local design-token guardrail).
+// Published pointer: packages/eslint-plugin-sentinelfi. Loaded by ESLint via
+// name resolution (`plugin:sentinelfi/recommended`) from the hoisted workspace
+// symlink in the root node_modules.
+
 const GRADIENT_ALLOW = /(landing|login|pages(?:\/|\\)index\.tsx|brand\.tsx|components(?:\/|\\)ai[\/\\])/i;
 
 const BANNED = [

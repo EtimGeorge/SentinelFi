@@ -1,0 +1,7 @@
+{
+  "name": "eslint-plugin-sentinelfi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local design-token guardrail for the SentinelFi dashboard (canonical source: packages/eslint-plugin-sentinelfi/index.js). Not meant for publish.",
+  "main": "index.js"
+}
