@@ -39,7 +39,7 @@ const CheckEmailPage: NextPageWithLayout = () => {
           </p>
 
           <p className="text-sm text-gray-500 mb-10">
-            The email comes from <span className="text-brand-primary">noreply@sentinelfi.com</span>. Check your spam folder if you don't see it within 2 minutes.
+            The email comes from <span className="text-brand-primary">noreply@sentinelfi.com</span>. Check your spam folder if you don&apos;t see it within 2 minutes.
           </p>
 
           <div className="glass-card p-6 text-left space-y-3 mb-10">
