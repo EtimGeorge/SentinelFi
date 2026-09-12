@@ -49,7 +49,7 @@ const FiscalYearSetupPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Left Column: Form */}
           <div className="md:col-span-2 space-y-8">
-            <div className="bg-white dark:bg-[#1e293b] p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="bg-white dark:bg-[#1e293b] p-8 rounded-2xl border border-slate-200 dark:border-slate-800 elev-lg">
               <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
                 <Calendar className="text-blue-500" />
                 Initialize New Fiscal Year
@@ -67,7 +67,7 @@ const FiscalYearSetupPage: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Start Date</label>
                     <input
@@ -98,7 +98,7 @@ const FiscalYearSetupPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg elev-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
                 >
                   {loading ? 'Processing...' : <><Plus size={20} /> Create Fiscal Year</>}
                 </button>
@@ -108,10 +108,10 @@ const FiscalYearSetupPage: React.FC = () => {
 
           {/* Right Column: Active Years */}
           <div className="space-y-6">
-            <h2 className="font-bold text-slate-500 uppercase tracking-widest text-xs">Existing Years</h2>
+            <h2 className="font-bold text-slate-500  text-xs">Existing Years</h2>
             <div className="space-y-3">
               {fiscalYears.map(fy => (
-                <div key={fy.id} className="bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm">
+                <div key={fy.id} className="bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex justify-between items-center elev-sm">
                   <div>
                     <div className="font-bold">FY {fy.year_label}</div>
                     <div className="text-xs text-slate-400">{new Date(fy.start_date).toLocaleDateString()} - {new Date(fy.end_date).toLocaleDateString()}</div>

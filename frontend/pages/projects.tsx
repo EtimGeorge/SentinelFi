@@ -7,6 +7,7 @@ import { Folder, TrendingUp, CheckCircle, AlertTriangle, TrendingDown, Percent, 
 import api from '../lib/api';
 import PageContainer from '../components/Layout/PageContainer';
 import Card from '../components/common/Card';
+import KpiCard from '../components/common/KpiCard';
 import Modal from '../components/common/Modal';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
@@ -337,7 +338,7 @@ const ProjectsPage: React.FC = () => {
         subtitle="Oversight and financial status for all active and archived projects."
         headerContent={
           <div className="flex items-center space-x-4">
-            <Button onClick={() => setIsModalOpen(true)} variant="primary" className="shadow-lg shadow-brand-primary/20">
+            <Button onClick={() => setIsModalOpen(true)} variant="primary" className="elev-lg shadow-brand-primary/20">
               <Plus className="w-5 h-5 mr-2" /> New Project
             </Button>
             <div className="h-8 w-px bg-gray-700 mx-2" />
@@ -351,30 +352,63 @@ const ProjectsPage: React.FC = () => {
           <div className="text-alert-critical text-lg text-center my-10">{error}</div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-              <Card className="p-6 bg-brand-dark/40 border border-gray-700">
-                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total Active Projects</p>
-                <p className="text-3xl font-bold text-white">{projects.length}</p>
-              </Card>
-              <Card className="p-6 bg-brand-dark/40 border border-gray-700">
-                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Portfolio Variance</p>
-                <p className={`text-3xl font-bold ${portfolioKPIs.averagePortfolioVariance > 0 ? 'text-red-500' : 'text-alert-positive'}`}>
-                  {portfolioKPIs.averagePortfolioVariance.toFixed(2)}%
-                </p>
-              </Card>
-              <Card className="p-6 bg-brand-dark/40 border border-gray-700">
-                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Total Contract Value</p>
-                <p className="text-3xl font-bold text-brand-primary">
-                  {convertToDisplay(portfolioKPIs.totalContractValue, userCurrency.code)}
-                </p>
-              </Card>
-              <Card className="p-6 bg-brand-dark/40 border border-gray-700">
-                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Projects at Risk</p>
-                <p className={`text-3xl font-bold flex items-center gap-2 ${portfolioKPIs.atRiskCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                  <span className={`w-2.5 h-2.5 rounded-full ${portfolioKPIs.atRiskCount > 0 ? 'bg-red-400 animate-pulse' : 'bg-green-400'}`} />
-                  {portfolioKPIs.atRiskCount > 0 ? `${portfolioKPIs.atRiskCount} at risk` : 'All clear'}
-                </p>
-              </Card>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4 mb-12">
+              <KpiCard
+                label="Active Projects"
+                tone="neutral"
+                icon={<Folder className="w-4 h-4" />}
+                value={<>{projects.length}<span className="text-sm font-medium text-gray-400"> total</span></>}
+                footer={
+                  <span className="inline-flex items-center gap-1.5 text-label text-gray-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-alert-positive" />
+                    Live portfolio
+                  </span>
+                }
+              />
+              <KpiCard
+                label="Portfolio Variance"
+                tone={portfolioKPIs.averagePortfolioVariance > 0 ? 'critical' : 'positive'}
+                icon={<Percent className="w-4 h-4" />}
+                trend={{ value: portfolioKPIs.averagePortfolioVariance, period: 'vs plan' }}
+                value={<span className="font-mono">{portfolioKPIs.averagePortfolioVariance.toFixed(2)}%</span>}
+              />
+              <KpiCard
+                label="Total Contract Value"
+                tone="neutral"
+                icon={<DollarSign className="w-4 h-4" />}
+                value={<span className="font-mono tabular-nums">{convertToDisplay(portfolioKPIs.totalContractValue, userCurrency.code)}</span>}
+                footer={
+                  <span className="font-mono text-[11px] text-gray-500">
+                    {userCurrency.code} · converted exposure
+                  </span>
+                }
+              />
+              <KpiCard
+                label="Projects at Risk"
+                tone={portfolioKPIs.atRiskCount > 0 ? 'critical' : 'positive'}
+                icon={portfolioKPIs.atRiskCount > 0 ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                value={
+                  portfolioKPIs.atRiskCount > 0 ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-alert-critical" />
+                      {portfolioKPIs.atRiskCount}
+                    </span>
+                  ) : (
+                    <>All clear</>
+                  )
+                }
+                footer={
+                  portfolioKPIs.atRiskCount > 0 ? (
+                    <span className="inline-flex items-center gap-1.5 text-label text-alert-critical">
+                      <TrendingDown className="w-3 h-3" /> Need attention
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-label text-alert-positive">
+                      <CheckCircle className="w-3 h-3" /> No flags
+                    </span>
+                  )
+                }
+              />
             </div>
 
             {/* Advanced Filtering & Search Bar */}
@@ -428,45 +462,45 @@ const ProjectsPage: React.FC = () => {
                   return (
                     <Card
                       key={project.project_id}
-                      className="group relative overflow-hidden flex flex-col hover:border-brand-primary/50 transition-all duration-300"
-                      borderTopColor={isCritical ? 'alert' : 'primary'}
+                      className="group relative flex min-w-0 overflow-hidden flex-col hover:border-brand-primary/50 transition-all duration-300"
+                      accent={isCritical ? 'alert' : 'primary'}
                     >
-                      <div className="flex justify-between items-start mb-6">
-                        <div className="flex items-start gap-3">
+                      <div className="flex justify-between items-start gap-3 mb-6">
+                        <div className="flex items-start gap-3 min-w-0">
                           {/* Health Engine Indicator */}
-                          <div className={`mt-1.5 w-2.5 h-2.5 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)] ${variance > 5 ? 'bg-alert-critical animate-pulse' : variance > 2 ? 'bg-brand-secondary' : 'bg-alert-positive'}`} />
-                          <div>
-                            <h3 className="text-lg font-black text-white group-hover:text-brand-primary transition">{project.project_name}</h3>
-                            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">{project.client?.name || 'Internal Operations'}</p>
+                          <div className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_10px_rgba(0,0,0,0.5)] ${variance > 5 ? 'bg-alert-critical animate-pulse' : variance > 2 ? 'bg-brand-secondary' : 'bg-alert-positive'}`} />
+                          <div className="min-w-0">
+                            <h3 className="text-lg font-black text-white break-words group-hover:text-brand-primary transition">{project.project_name}</h3>
+                            <p className="text-xs text-gray-500  font-bold truncate">{project.client?.name || 'Internal Operations'}</p>
                           </div>
                         </div>
-                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-tighter ${project.status === ProjectStatus.ACTIVE ? 'bg-brand-primary/20 text-brand-primary' : project.status === ProjectStatus.ARCHIVED ? 'bg-gray-700 text-gray-400' : 'bg-gray-800 text-gray-400'}`}>
+                        <span className={`shrink-0 px-2 py-1 rounded text-xs font-black uppercase tracking-tighter ${project.status === ProjectStatus.ACTIVE ? 'bg-brand-primary/20 text-brand-primary' : project.status === ProjectStatus.ARCHIVED ? 'bg-gray-700 text-gray-400' : 'bg-gray-800 text-gray-400'}`}>
                           {project.status}
                         </span>
                       </div>
 
                       <div className="space-y-4 flex-grow">
-                        <div className="flex justify-between items-end">
-                          <div>
-                            <p className="text-[10px] text-gray-500 uppercase font-bold">Contract Value</p>
-                            <p className="text-xl font-bold text-brand-primary">{convertToDisplay(contractValue, project.currency || 'NGN')}</p>
+                        <div className="flex flex-wrap justify-between items-end gap-4">
+                          <div className="min-w-0">
+                            <p className="text-xs text-gray-500 uppercase font-bold">Contract Value</p>
+                            <p className="text-lg sm:text-xl font-bold text-brand-primary break-all leading-tight">{convertToDisplay(contractValue, project.currency || 'NGN')}</p>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right shrink-0">
                             <p className={`text-sm font-black ${isCritical ? 'text-alert-critical' : 'text-alert-positive'}`}>
                               {variance > 0 ? '+' : ''}{variance.toFixed(2)}%
                             </p>
-                            <p className="text-[10px] text-gray-500 uppercase font-bold">Variance</p>
+                            <p className="text-xs text-gray-500 uppercase font-bold">Variance</p>
                           </div>
                         </div>
                         {totalBudget > 0 && (
-                          <div className="flex justify-between text-xs">
-                            <span className="text-gray-400">Allocated Budget</span>
-                            <span className="text-gray-100 font-mono">{convertToDisplay(totalBudget, project.currency || 'NGN')}</span>
+                          <div className="flex justify-between text-xs gap-4">
+                            <span className="text-gray-400 shrink-0">Allocated Budget</span>
+                            <span className="text-gray-100 font-mono text-right break-words">{convertToDisplay(totalBudget, project.currency || 'NGN')}</span>
                           </div>
                         )}
 
                         <div className="space-y-1">
-                          <p className="text-[10px] text-gray-500 uppercase font-bold">Progress</p>
+                          <p className="text-xs text-gray-500 uppercase font-bold">Progress</p>
                           <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
                             <div
                               className={`h-full transition-all duration-1000 ${isCritical ? 'bg-alert-critical' : 'bg-brand-primary'}`}
@@ -476,57 +510,59 @@ const ProjectsPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="mt-8 pt-4 border-t border-gray-800 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {project.createdBy && (
-                            <div className="w-7 h-7 rounded-full border-2 border-brand-primary/30 bg-brand-primary/10 flex items-center justify-center text-[9px] font-bold text-brand-primary" title={project.createdBy.email}>
-                              {project.createdBy.email?.substring(0, 2).toUpperCase()}
-                            </div>
-                          )}
-                          <span className="text-[10px] text-gray-500 font-medium">
-                            {project.createdBy?.email ? project.createdBy.email.split('@')[0] : 'System'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {project.status === ProjectStatus.ARCHIVED ? (
+                      <div className="mt-6 pt-4 border-t border-gray-800 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {project.createdBy && (
+                              <div className="w-7 h-7 rounded-full border-2 border-brand-primary/30 bg-brand-primary/10 flex items-center justify-center text-xs font-bold text-brand-primary shrink-0" title={project.createdBy.email}>
+                                {project.createdBy.email?.substring(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="text-xs text-gray-500 font-medium truncate">
+                              {project.createdBy?.email ? project.createdBy.email.split('@')[0] : 'System'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {project.status === ProjectStatus.ARCHIVED ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-yellow-500 hover:bg-yellow-500/10 p-1.5"
+                                title="Restore Project"
+                                onClick={() => handleRestoreProject(project.project_id)}
+                                disabled={isProcessing === project.project_id}
+                              >
+                                <RefreshCcw className="w-4 h-4" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-500 hover:bg-gray-500/10 p-1.5"
+                                title="Archive Project"
+                                onClick={() => handleArchiveProject(project.project_id)}
+                                disabled={isProcessing === project.project_id}
+                              >
+                                <Archive className="w-4 h-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="text-yellow-500 hover:bg-yellow-500/10 p-1.5"
-                              title="Restore Project"
-                              onClick={() => handleRestoreProject(project.project_id)}
+                              className="text-alert-critical hover:bg-alert-critical/10 p-1.5"
+                              title="Delete Project"
+                              onClick={() => {
+                                setProjectToDelete(project);
+                                setIsDeleteModalOpen(true);
+                              }}
                               disabled={isProcessing === project.project_id}
                             >
-                              <RefreshCcw className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-gray-500 hover:bg-gray-500/10 p-1.5"
-                              title="Archive Project"
-                              onClick={() => handleArchiveProject(project.project_id)}
-                              disabled={isProcessing === project.project_id}
-                            >
-                              <Archive className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-alert-critical hover:bg-alert-critical/10 p-1.5"
-                            title="Delete Project"
-                            onClick={() => {
-                              setProjectToDelete(project);
-                              setIsDeleteModalOpen(true);
-                            }}
-                            disabled={isProcessing === project.project_id}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          </div>
                         </div>
-                        <Link href={`/projects/${project.project_id}/overview`}>
-                          <Button variant="ghost" size="sm" className="text-brand-primary font-black uppercase text-[10px] tracking-widest hover:bg-brand-primary/10">
+                        <Link href={`/projects/${project.project_id}/overview`} className="block w-full">
+                          <Button variant="ghost" size="sm" className="w-full text-brand-primary font-black uppercase text-xs  hover:bg-brand-primary/10">
                             View Dossier <ArrowRight className="w-3 h-3 ml-1" />
                           </Button>
                         </Link>
@@ -647,7 +683,7 @@ const ProjectsPage: React.FC = () => {
                 <p className="text-sm text-brand-secondary font-medium">Step 2: Financial Governance</p>
                 <p className="text-xs text-gray-400">Set the tax and contingency parameters for budget control.</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-400">Base Currency</label>
                   <select
@@ -677,7 +713,7 @@ const ProjectsPage: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Contingency Fund (%)"
                   type="number"
@@ -690,7 +726,7 @@ const ProjectsPage: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="VAT Rate (%)"
                   type="number"
@@ -728,11 +764,11 @@ const ProjectsPage: React.FC = () => {
                 <div className="grid grid-cols-1 gap-3">
                   <div 
                     onClick={() => setFormData({...formData, wbs_template_id: ''})}
-                    className={`p-4 border rounded-xl cursor-pointer transition flex items-center justify-between ${!formData.wbs_template_id ? 'bg-brand-primary/10 border-brand-primary shadow-lg shadow-brand-primary/10' : 'bg-brand-dark/40 border-gray-700 hover:border-gray-500'}`}
+                    className={`p-4 border rounded-xl cursor-pointer transition flex items-center justify-between ${!formData.wbs_template_id ? 'bg-brand-primary/10 border-brand-primary elev-lg shadow-brand-primary/10' : 'bg-brand-dark/40 border-gray-700 hover:border-gray-500'}`}
                   >
                     <div>
                       <p className="font-bold text-white">Blank Project</p>
-                      <p className="text-[10px] text-gray-500">Start from scratch with an empty WBS.</p>
+                      <p className="text-xs text-gray-500">Start from scratch with an empty WBS.</p>
                     </div>
                     {!formData.wbs_template_id && <CheckCircle className="w-5 h-5 text-brand-primary" />}
                   </div>
@@ -741,14 +777,14 @@ const ProjectsPage: React.FC = () => {
                     <div 
                       key={t.id}
                       onClick={() => setFormData({...formData, wbs_template_id: t.id})}
-                      className={`p-4 border rounded-xl cursor-pointer transition flex items-center justify-between ${formData.wbs_template_id === t.id ? 'bg-brand-primary/20 border-brand-primary shadow-lg shadow-brand-primary/20' : 'bg-brand-dark/40 border-gray-700 hover:border-gray-500'}`}
+                      className={`p-4 border rounded-xl cursor-pointer transition flex items-center justify-between ${formData.wbs_template_id === t.id ? 'bg-brand-primary/20 border-brand-primary elev-lg shadow-brand-primary/20' : 'bg-brand-dark/40 border-gray-700 hover:border-gray-500'}`}
                     >
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-white">{t.name}</p>
-                          <span className="px-1.5 py-0.5 rounded bg-gray-700 text-[8px] font-black uppercase text-gray-300">{t.industry}</span>
+                          <span className="px-1.5 py-0.5 rounded bg-gray-700 text-xs font-black uppercase text-gray-300">{t.industry}</span>
                         </div>
-                        <p className="text-[10px] text-gray-500 truncate max-w-sm">{t.description}</p>
+                        <p className="text-xs text-gray-500 truncate max-w-sm">{t.description}</p>
                       </div>
                       {formData.wbs_template_id === t.id && <CheckCircle className="w-5 h-5 text-brand-primary" />}
                     </div>
@@ -799,7 +835,7 @@ const ProjectsPage: React.FC = () => {
             </Button>
             <Button
               variant="primary"
-              className="bg-alert-critical hover:bg-red-600 border-none shadow-lg shadow-alert-critical/20"
+              className="bg-alert-critical hover:bg-red-600 border-none elev-lg shadow-alert-critical/20"
               disabled={deleteConfirmText !== projectToDelete?.project_name || isProcessing === projectToDelete?.project_id}
               onClick={handleDeleteProject}
             >

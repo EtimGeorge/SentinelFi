@@ -54,7 +54,7 @@ const BrandPage: NextPageWithLayout = () => {
                   </p>
                 </div>
                 <div className="mt-8 pt-6 border-t border-white/10 relative z-10">
-                  <div className="flex items-center gap-3 text-sm text-gray-400 font-mono tracking-wider uppercase">
+                  <div className="flex items-center gap-3 text-sm text-gray-400 font-mono r uppercase">
                     <ShieldCheck className="w-5 h-5 text-brand-primary" /> Registered Trademark Owner
                   </div>
                 </div>
@@ -91,7 +91,7 @@ const BrandPage: NextPageWithLayout = () => {
                   </p>
                 </div>
                 <div className="mt-8 pt-6 border-t border-white/10 relative z-10">
-                  <div className="flex items-center gap-3 text-sm text-gray-400 font-mono tracking-wider uppercase">
+                  <div className="flex items-center gap-3 text-sm text-gray-400 font-mono r uppercase">
                     <Zap className="w-5 h-5 text-alert-critical" /> Principal Financial Sponsor
                   </div>
                 </div>

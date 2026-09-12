@@ -226,8 +226,8 @@ const VarianceReportPage: React.FC = () => {
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Glassmorphic Filters Sidebar */}
           <aside className="lg:w-80 shrink-0 space-y-6 print:hidden">
-            <div className="p-6 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl sticky top-24">
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+            <div className="p-6 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl elev-lg sticky top-24">
+              <h3 className="text-xs font-black text-slate-500  mb-6 flex items-center gap-2">
                 <Filter className="w-4 h-4" /> Variance Controls
               </h3>
 
@@ -236,13 +236,13 @@ const VarianceReportPage: React.FC = () => {
                 <div className="p-1 bg-slate-950 rounded-2xl flex border border-slate-800">
                   <button
                     onClick={() => setViewMode('analytics')}
-                    className={`flex-1 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'analytics' ? 'bg-brand-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-black  transition-all ${viewMode === 'analytics' ? 'bg-brand-primary text-white elev-lg' : 'text-slate-500 hover:text-slate-300'}`}
                   >
                     Analytics
                   </button>
                   <button
                     onClick={() => setViewMode('report')}
-                    className={`flex-1 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'report' ? 'bg-brand-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-black  transition-all ${viewMode === 'report' ? 'bg-brand-primary text-white elev-lg' : 'text-slate-500 hover:text-slate-300'}`}
                   >
                     Report
                   </button>
@@ -286,7 +286,7 @@ const VarianceReportPage: React.FC = () => {
                       <button
                         key={opt}
                         onClick={() => setInterval(opt as any)}
-                        className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-tighter transition-all ${interval === opt
+                        className={`px-3 py-2 rounded-xl border text-xs font-black uppercase tracking-tighter transition-all ${interval === opt
                           ? 'bg-brand-primary border-brand-primary text-white'
                           : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:border-slate-700'
                           }`}
@@ -303,7 +303,7 @@ const VarianceReportPage: React.FC = () => {
                     <div className="flex items-center gap-3"><Printer className="w-4 h-4 text-brand-primary" /> Direct Print</div>
                   </button>
 
-                  <button onClick={handlePushToDCS} disabled={loading} className="w-full flex items-center justify-between px-4 py-3 bg-alert-warning/10 hover:bg-alert-warning/20 border border-alert-warning/20 rounded-xl text-alert-warning text-xs font-black uppercase tracking-widest transition-all group disabled:opacity-30">
+                  <button onClick={handlePushToDCS} disabled={loading} className="w-full flex items-center justify-between px-4 py-3 bg-alert-warning/10 hover:bg-alert-warning/20 border border-alert-warning/20 rounded-xl text-alert-warning text-xs font-black  transition-all group disabled:opacity-30">
                     <div className="flex items-center gap-3"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Push to DCS</div>
                   </button>
                 </div>
@@ -321,7 +321,7 @@ const VarianceReportPage: React.FC = () => {
                     <TrendingDown className="w-8 h-8 text-red-500" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Active Anomalies</p>
+                    <p className="text-xs font-black text-red-500 ">Active Anomalies</p>
                     <p className="text-3xl font-black text-white">{majorVarianceAlerts.length}</p>
                   </div>
                 </Card>
@@ -330,7 +330,7 @@ const VarianceReportPage: React.FC = () => {
                     <Shield className="w-8 h-8 text-emerald-500" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">WBS Integrity Rate</p>
+                    <p className="text-xs font-black text-emerald-500 ">WBS Integrity Rate</p>
                     <p className="text-3xl font-black text-white">98.4%</p>
                   </div>
                 </Card>
@@ -338,7 +338,7 @@ const VarianceReportPage: React.FC = () => {
             )}
 
             {/* Document Report View */}
-            <div className={`p-10 bg-white text-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-200 min-h-[900px] relative overflow-hidden transition-all duration-500 ${loading ? 'opacity-50 blur-[1px]' : 'opacity-100'}`}>
+            <div className={`p-10 bg-white text-slate-900 rounded-[2.5rem] elev-lg border border-slate-200 min-h-[900px] relative overflow-hidden transition-all duration-500 ${loading ? 'opacity-50 blur-[1px]' : 'opacity-100'}`}>
               <div className="absolute top-0 right-0 p-8 print:hidden flex gap-3">
                 <Tooltip content="Export to Word" position="bottom">
                   <button onClick={() => handleExport('docx')} className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl text-slate-400 hover:text-brand-primary transition-all">
@@ -360,7 +360,7 @@ const VarianceReportPage: React.FC = () => {
               <div className="max-w-4xl mx-auto space-y-12">
                 <header className="text-center space-y-4 border-b-2 border-slate-100 pb-12">
                   <h2 className="text-3xl font-black uppercase tracking-tighter leading-tight">Financial Variance<br /><span className="text-brand-primary">Intelligence Report</span></h2>
-                  <div className="flex items-center justify-center gap-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                  <div className="flex items-center justify-center gap-6 text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
                     <span className="flex items-center gap-2"><Calendar className="w-3 h-3" /> Interval: {interval.toUpperCase()}</span>
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>
                     <span className="flex items-center gap-2"><Lock className="w-3 h-3" /> SECURED: {format(new Date(), 'PP')}</span>
@@ -369,7 +369,7 @@ const VarianceReportPage: React.FC = () => {
 
                 <div className="space-y-8">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
+                    <h4 className="text-xs font-black text-slate-900  flex items-center gap-3">
                       <Projector className="w-4 h-4 text-brand-primary" />
                       Hierarchical Budget vs Actual Analysis
                     </h4>
@@ -377,7 +377,7 @@ const VarianceReportPage: React.FC = () => {
 
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                      <tr className="text-left text-slate-400 text-xs font-black  border-b border-slate-100">
                         <th className="py-5 font-black">WBS Code</th>
                         <th className="py-5 font-black">Line Item Description</th>
                         <th className="py-5 font-black text-right">Approved Budget</th>
@@ -410,7 +410,7 @@ const VarianceReportPage: React.FC = () => {
                               <td className={`py-5 text-right font-black ${isNegative ? 'text-red-500' : 'text-emerald-600'}`}>
                                 <div className="flex flex-col items-end">
                                   <span>{isNegative ? '-' : '+'}{convertToDisplay(Math.abs(variance), projectCurrencyMap[item.project_id] || 'NGN', false)}</span>
-                                  <span className="text-[8px] opacity-70">
+                                  <span className="text-xs opacity-70">
                                     {((variance / (budget || 1)) * 100).toFixed(1)}%
                                   </span>
                                 </div>
@@ -428,11 +428,11 @@ const VarianceReportPage: React.FC = () => {
                 <footer className="pt-12 border-t border-slate-200 mt-20 flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <Lock className="w-4 h-4 text-slate-300" />
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Verified Multi-Tenant Integrity Hub</span>
+                    <span className="text-xs font-black text-slate-400 ">Verified Multi-Tenant Integrity Hub</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{userCurrency.code} Valuation</p>
-                    <p className="text-[10px] text-slate-400 font-medium">SentinelFi Intelligence</p>
+                    <p className="text-xs font-black text-slate-900 ">{userCurrency.code} Valuation</p>
+                    <p className="text-xs text-slate-400 font-medium">SentinelFi Intelligence</p>
                   </div>
                 </footer>
               </div>

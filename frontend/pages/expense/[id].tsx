@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+﻿import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
@@ -87,7 +87,7 @@ const ExpenseDossierPage: React.FC = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${isOverrun ? 'bg-red-500 text-white' : 'bg-brand-primary/20 text-brand-primary'}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-black  ${isOverrun ? 'bg-red-500 text-white' : 'bg-brand-primary/20 text-brand-primary'}`}>
                     {expense.variance_flag.replace(/_/g, ' ')}
                   </span>
                   {isOverrun && <AlertTriangle className="w-4 h-4 text-red-500 animate-pulse" />}
@@ -99,7 +99,7 @@ const ExpenseDossierPage: React.FC = () => {
               </div>
               <div className="text-left md:text-right">
                 <p className="text-4xl font-black text-white">{convertToDisplay(parseFloat(expense.actual_paid_amount), expense.project_currency)}</p>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Confirmed Settlement Amount</p>
+                <p className="text-xs font-bold text-gray-500  mt-1">Confirmed Settlement Amount</p>
               </div>
             </div>
           </Card>
@@ -111,7 +111,7 @@ const ExpenseDossierPage: React.FC = () => {
                 <div className="flex items-start space-x-4">
                   <Briefcase className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Target Project</label>
+                    <label className="text-xs font-black text-gray-500 ">Target Project</label>
                     <Link href={`/projects/${expense.project_id}/overview`} className="text-sm text-brand-primary hover:underline font-bold block">
                       {expense.project_name} <ExternalLink className="inline w-3 h-3 ml-1" />
                     </Link>
@@ -120,7 +120,7 @@ const ExpenseDossierPage: React.FC = () => {
                 <div className="flex items-start space-x-4">
                   <Layers className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Allocated Budget Line</label>
+                    <label className="text-xs font-black text-gray-500 ">Allocated Budget Line</label>
                     <Link href={`/budget/${expense.wbs_id}`} className="text-sm text-gray-200 hover:text-brand-secondary transition font-mono">
                       {expense.wbs_code} - {expense.budget_description}
                     </Link>
@@ -129,15 +129,15 @@ const ExpenseDossierPage: React.FC = () => {
                 <div className="flex items-start space-x-4">
                   <ShieldCheck className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Entry Verified By</label>
+                    <label className="text-xs font-black text-gray-500 ">Entry Verified By</label>
                     <p className="text-sm text-gray-300">{expense.performed_by_email}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
                   <Hash className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">System Record Hash</label>
-                    <p className="text-[10px] font-mono text-gray-500 truncate max-w-[150px]">{expense.expense_id}</p>
+                    <label className="text-xs font-black text-gray-500 ">System Record Hash</label>
+                    <p className="text-xs font-mono text-gray-500 truncate max-w-[150px]">{expense.expense_id}</p>
                   </div>
                 </div>
               </div>
@@ -158,11 +158,11 @@ const ExpenseDossierPage: React.FC = () => {
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-gray-800/50 rounded-lg">
-                    <p className="text-[10px] font-black text-gray-500 uppercase">Input Timestamp</p>
+                    <p className="text-xs font-black text-gray-500 uppercase">Input Timestamp</p>
                     <p className="text-xs text-gray-300">{new Date(expense.created_at).toLocaleString()}</p>
                   </div>
                   <div className="p-3 bg-gray-800/50 rounded-lg">
-                    <p className="text-[10px] font-black text-gray-500 uppercase">Process Workflow</p>
+                    <p className="text-xs font-black text-gray-500 uppercase">Process Workflow</p>
                     <p className="text-xs text-gray-300">Live Expense API v1</p>
                   </div>
                 </div>

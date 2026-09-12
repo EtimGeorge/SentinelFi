@@ -136,7 +136,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
   // Export Handlers
   const handleExportCSV = async () => {
     setIsExporting(true);
-    toast('Preparing CSV...', { icon: '⏳' });
+    toast('Preparing CSV...', { icon: 'â³' });
     try {
       const response = await api.get(`/wbs/budgets/export?projectId=${projectId}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -156,7 +156,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
 
   const handleExportExcel = async () => {
     setIsExporting(true);
-    toast('Preparing Excel... (Simulated)', { icon: '⏳' });
+    toast('Preparing Excel... (Simulated)', { icon: 'â³' });
     try {
       // In a real app, this would call a specific excel endpoint like /wbs/budgets/export/excel
       const response = await api.get(`/wbs/budgets/export?projectId=${projectId}&format=xlsx`, { responseType: 'blob' });
@@ -177,7 +177,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
 
   const handleExportDCS = async () => {
     setIsExporting(true);
-    toast('Pushing to Document Control System...', { icon: '☁' });
+    toast('Pushing to Document Control System...', { icon: 'â˜' });
     try {
       // Simulate DCS API call delay
       await new Promise(resolve => setTimeout(resolve, 1500));
@@ -192,7 +192,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
   const handleSubmitProject = async () => {
     if (!window.confirm("Submit all draft/rejected project budgets for approval?")) return;
     setIsSubmitting(true);
-    toast('Submitting project budget...', { icon: '⏳' });
+    toast('Submitting project budget...', { icon: 'â³' });
     try {
       await api.patch(`/wbs/project/${projectId}/submit`);
       toast.success('Project budget submitted for approval!');
@@ -209,7 +209,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
     if (reason === null) return;
 
     setIsSubmitting(true);
-    toast('Recalling approval...', { icon: '⏳' });
+    toast('Recalling approval...', { icon: 'â³' });
     try {
       await api.patch(`/wbs/budget/${item.wbs_id}/recall`, { reason });
       toast.success('Approval recalled successfully');
@@ -247,7 +247,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
           <tr className={`hover:bg-white/5 transition-colors border-b border-gray-800/50 ${isParent ? 'bg-gray-800/20' : ''}`}>
             <td className="px-4 py-3 align-top">
               <div className={`flex items-start ${level > 0 ? 'ml-6 border-l-2 pl-3' : ''}`} style={{ borderColor: level > 0 ? wbsColor : 'transparent' }}>
-                <span className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded bg-gray-800 mr-3 mt-1" style={{ color: wbsColor }}>
+                <span className="font-mono text-xs font-black px-1.5 py-0.5 rounded bg-gray-800 mr-3 mt-1" style={{ color: wbsColor }}>
                   {item.wbs_code}
                 </span>
                 <div className="flex-1">
@@ -255,17 +255,17 @@ const ProjectBudgetPreviewPage: React.FC = () => {
                     {item.description}
                   </p>
                   {!isParent && (!visibleCols.qty || !visibleCols.uom || !visibleCols.rate) && Number(item.total_cost_budgeted_rollup || 0) === 0 && (
-                    <p className="text-[9px] text-gray-500 font-mono mt-1 print:hidden">
+                    <p className="text-xs text-gray-500 font-mono mt-1 print:hidden">
                       {item.quantity_budgeted || 1} {item.uom || 'EA'} @ {convertToDisplay(item.unit_cost_budgeted || 0, project?.currency || 'NGN')}
                     </p>
                   )}
                   {isEditable && (
-                    <button onClick={() => handleInlineEdit(item.wbs_id)} className="text-[10px] flex items-center gap-1 text-brand-secondary hover:text-white mt-2 print:hidden transition">
+                    <button onClick={() => handleInlineEdit(item.wbs_id)} className="text-xs flex items-center gap-1 text-brand-secondary hover:text-white mt-2 print:hidden transition">
                       <Edit2 className="w-3 h-3" /> Edit Item
                     </button>
                   )}
                   {canApprove && String(item.status).toUpperCase() === 'APPROVED' && (
-                    <button onClick={() => handleRecallApproval(item)} className="text-[10px] flex items-center gap-1 text-orange-500 hover:text-orange-400 mt-2 print:hidden transition">
+                    <button onClick={() => handleRecallApproval(item)} className="text-xs flex items-center gap-1 text-orange-500 hover:text-orange-400 mt-2 print:hidden transition">
                       <RotateCcw className="w-3 h-3" /> Recall Approval
                     </button>
                   )}
@@ -274,7 +274,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
             </td>
             {visibleCols.qty && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono">{!isParent ? (item.quantity_budgeted || 1) : ''}</td>}
             {visibleCols.uom && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono uppercase">{!isParent ? (item.uom || 'EA') : ''}</td>}
-            {visibleCols.days && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono">{!isParent ? (item.days_budgeted || '—') : ''}</td>}
+            {visibleCols.days && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono">{!isParent ? (item.days_budgeted || 'â€”') : ''}</td>}
             {visibleCols.rate && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono">{!isParent ? convertToDisplay(item.unit_cost_budgeted || 0, project?.currency || 'NGN') : ''}</td>}
             <td className="px-4 py-3 whitespace-nowrap align-top text-right">
               <span className={`text-sm ${isParent ? 'font-black text-white' : 'font-bold text-gray-300'}`}>
@@ -286,7 +286,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
                 <span className="text-sm font-bold text-gray-400">
                   {convertToDisplay(spent, project?.currency || 'NGN')}
                 </span>
-              ) : <span className="text-sm text-gray-600">—</span>}
+              ) : <span className="text-sm text-gray-600">â€”</span>}
             </td>
             <td className="px-4 py-3 whitespace-nowrap align-top text-right">
               <div className="flex flex-col items-end justify-start">
@@ -295,7 +295,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
                   {convertToDisplay(Math.abs(variance), project?.currency || 'NGN')}
                 </span>
                 {budgeted > 0 && spent > 0 && (
-                  <span className={`text-[9px] font-black ${variancePct < 0 ? 'text-red-500/70' : 'text-green-500/70'}`}>
+                  <span className={`text-xs font-black ${variancePct < 0 ? 'text-red-500/70' : 'text-green-500/70'}`}>
                     {Math.abs(variancePct).toFixed(1)}% {variancePct < 0 ? 'OVER' : 'REMAINING'}
                   </span>
                 )}
@@ -326,30 +326,30 @@ const ProjectBudgetPreviewPage: React.FC = () => {
           <td className="px-4 py-3 align-top">
             <p className="text-sm text-gray-200 whitespace-normal break-words max-w-md">{item.description}</p>
             {isEditable && (
-              <button onClick={() => handleInlineEdit(item.wbs_id)} className="text-[10px] flex items-center gap-1 text-brand-secondary hover:text-white mt-2 print:hidden transition">
+              <button onClick={() => handleInlineEdit(item.wbs_id)} className="text-xs flex items-center gap-1 text-brand-secondary hover:text-white mt-2 print:hidden transition">
                 <Edit2 className="w-3 h-3" /> Edit Item
               </button>
             )}
             {canApprove && String(item.status).toUpperCase() === 'APPROVED' && (
-              <button onClick={() => handleRecallApproval(item)} className="text-[10px] flex items-center gap-1 text-orange-500 hover:text-orange-400 mt-2 print:hidden transition">
+              <button onClick={() => handleRecallApproval(item)} className="text-xs flex items-center gap-1 text-orange-500 hover:text-orange-400 mt-2 print:hidden transition">
                 <RotateCcw className="w-3 h-3" /> Recall Approval
               </button>
             )}
             {(!visibleCols.qty || !visibleCols.uom || !visibleCols.rate) && (
-              <p className="text-[9px] text-gray-500 font-mono mt-1 uppercase print:hidden">
+              <p className="text-xs text-gray-500 font-mono mt-1 uppercase print:hidden">
                 {item.quantity_budgeted || 1} {item.uom || 'EA'} @ {convertToDisplay(item.unit_cost_budgeted || 0, project?.currency || 'NGN')}
               </p>
             )}
           </td>
           {visibleCols.qty && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono">{item.quantity_budgeted || 1}</td>}
           {visibleCols.uom && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono uppercase">{item.uom || 'EA'}</td>}
-          {visibleCols.days && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono">{item.days_budgeted || '—'}</td>}
+          {visibleCols.days && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono">{item.days_budgeted || 'â€”'}</td>}
           {visibleCols.rate && <td className="px-4 py-3 align-top text-right text-xs text-gray-400 font-mono">{convertToDisplay(item.unit_cost_budgeted || 0, project?.currency || 'NGN')}</td>}
           <td className="px-4 py-3 whitespace-nowrap align-top text-right">
             <span className="text-sm font-black text-white">{convertToDisplay(budgeted, project?.currency || 'NGN')}</span>
           </td>
           <td className="px-4 py-3 whitespace-nowrap align-top text-right">
-            <span className="text-sm font-bold text-gray-400">{spent > 0 ? convertToDisplay(spent, project?.currency || 'NGN') : '—'}</span>
+            <span className="text-sm font-bold text-gray-400">{spent > 0 ? convertToDisplay(spent, project?.currency || 'NGN') : 'â€”'}</span>
           </td>
           <td className="px-4 py-3 whitespace-nowrap align-top text-right">
             <span className={`text-sm font-bold flex items-center justify-end gap-1 ${variance < 0 ? 'text-alert-critical' : 'text-alert-positive'}`}>
@@ -381,15 +381,15 @@ const ProjectBudgetPreviewPage: React.FC = () => {
           </div>
         }
       >
-        {/* Print Only Header — matches the PDF document format */}
+        {/* Print Only Header â€” matches the PDF document format */}
         <div className="hidden print:block mb-6">
           <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
             <div>
-              <h1 className="text-xl font-black text-black uppercase tracking-wider">SentinelFi</h1>
+              <h1 className="text-xl font-black text-black r">SentinelFi</h1>
               <p className="text-xs text-gray-600">Financial Management System</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">BUDGET PREVIEW</p>
+              <p className="text-xs text-gray-500  font-bold">BUDGET PREVIEW</p>
               <p className="text-xs text-gray-500">Generated: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
             </div>
           </div>
@@ -399,21 +399,21 @@ const ProjectBudgetPreviewPage: React.FC = () => {
           <table className="w-full text-xs border-collapse mb-4" style={{ border: 'none' }}>
             <tbody>
               <tr>
-                <td className="py-1 pr-8 font-bold text-gray-600 uppercase tracking-wider" style={{ border: 'none', width: '120px' }}>RFQ Number</td>
-                <td className="py-1 text-black font-bold" style={{ border: 'none' }}>{project?.rfq_number || '—'}</td>
-                <td className="py-1 pr-8 font-bold text-gray-600 uppercase tracking-wider" style={{ border: 'none', width: '120px' }}>Status</td>
-                <td className="py-1 text-black font-bold uppercase" style={{ border: 'none' }}>{project?.status || '—'}</td>
+                <td className="py-1 pr-8 font-bold text-gray-600 r" style={{ border: 'none', width: '120px' }}>RFQ Number</td>
+                <td className="py-1 text-black font-bold" style={{ border: 'none' }}>{project?.rfq_number || 'â€”'}</td>
+                <td className="py-1 pr-8 font-bold text-gray-600 r" style={{ border: 'none', width: '120px' }}>Status</td>
+                <td className="py-1 text-black font-bold uppercase" style={{ border: 'none' }}>{project?.status || 'â€”'}</td>
               </tr>
               <tr>
-                <td className="py-1 pr-8 font-bold text-gray-600 uppercase tracking-wider" style={{ border: 'none' }}>Client</td>
-                <td className="py-1 text-black font-bold" style={{ border: 'none' }}>{project?.client?.name || '—'}</td>
-                <td className="py-1 pr-8 font-bold text-gray-600 uppercase tracking-wider" style={{ border: 'none' }}>Total Budget</td>
+                <td className="py-1 pr-8 font-bold text-gray-600 r" style={{ border: 'none' }}>Client</td>
+                <td className="py-1 text-black font-bold" style={{ border: 'none' }}>{project?.client?.name || 'â€”'}</td>
+                <td className="py-1 pr-8 font-bold text-gray-600 r" style={{ border: 'none' }}>Total Budget</td>
                 <td className="py-1 text-black font-bold" style={{ border: 'none' }}>{convertToDisplay(kpis.totalBudgeted, project?.currency || 'NGN')}</td>
               </tr>
               <tr>
-                <td className="py-1 pr-8 font-bold text-gray-600 uppercase tracking-wider" style={{ border: 'none' }}>Currency</td>
+                <td className="py-1 pr-8 font-bold text-gray-600 r" style={{ border: 'none' }}>Currency</td>
                 <td className="py-1 text-black" style={{ border: 'none' }}>{project?.currency || 'NGN'}</td>
-                <td className="py-1 pr-8 font-bold text-gray-600 uppercase tracking-wider" style={{ border: 'none' }}>Variance</td>
+                <td className="py-1 pr-8 font-bold text-gray-600 r" style={{ border: 'none' }}>Variance</td>
                 <td className={`py-1 font-bold ${kpis.variance < 0 ? 'text-red-700' : 'text-green-700'}`} style={{ border: 'none' }}>
                   {convertToDisplay(kpis.variance, project?.currency || 'NGN')} {kpis.variance < 0 ? '(OVER)' : '(WITHIN)'}
                 </td>
@@ -428,22 +428,22 @@ const ProjectBudgetPreviewPage: React.FC = () => {
         {/* Granular KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6 print:hidden">
           <div className="bg-brand-dark/40 border border-gray-700/50 rounded-xl p-4">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Total Project Budget</label>
-            <p className="text-2xl font-black text-white">{loading || !project ? '—' : convertToDisplay(kpis.totalBudgeted, project.currency || 'NGN')}</p>
+            <label className="text-xs font-black text-gray-500  block mb-1">Total Project Budget</label>
+            <p className="text-2xl font-black text-white">{loading || !project ? 'â€”' : convertToDisplay(kpis.totalBudgeted, project.currency || 'NGN')}</p>
           </div>
           <div className="bg-brand-dark/40 border border-gray-700/50 rounded-xl p-4">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Actual Expenditure</label>
-            <p className="text-2xl font-black text-gray-300">{loading || !project ? '—' : convertToDisplay(kpis.totalSpent, project.currency || 'NGN')}</p>
+            <label className="text-xs font-black text-gray-500  block mb-1">Actual Expenditure</label>
+            <p className="text-2xl font-black text-gray-300">{loading || !project ? 'â€”' : convertToDisplay(kpis.totalSpent, project.currency || 'NGN')}</p>
           </div>
           <div className="bg-brand-dark/40 border border-gray-700/50 rounded-xl p-4">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Total Variance</label>
+            <label className="text-xs font-black text-gray-500  block mb-1">Total Variance</label>
             <p className={`text-2xl font-black ${kpis.variance < 0 ? 'text-alert-critical' : 'text-alert-positive'}`}>
-              {loading || !project ? '—' : convertToDisplay(Math.abs(kpis.variance), project.currency || 'NGN')}
+              {loading || !project ? 'â€”' : convertToDisplay(Math.abs(kpis.variance), project.currency || 'NGN')}
             </p>
-            {kpis.variance < 0 && <span className="text-[10px] text-alert-critical font-bold uppercase animate-pulse">Over Budget</span>}
+            {kpis.variance < 0 && <span className="text-xs text-alert-critical font-bold uppercase animate-pulse">Over Budget</span>}
           </div>
           <div className="bg-brand-dark/40 border border-gray-700/50 rounded-xl p-4 flex flex-col justify-center">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Budget Health</label>
+            <label className="text-xs font-black text-gray-500  block mb-2">Budget Health</label>
             <div className="flex items-center gap-3">
               <div className="flex-grow bg-gray-700 h-2 rounded-full overflow-hidden">
                 <div
@@ -451,7 +451,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
                   style={{ width: `${Math.min(100, Math.max(0, kpis.healthPercent))}%` }}
                 />
               </div>
-              <span className="text-sm font-black text-white">{loading ? '—' : `${kpis.healthPercent}%`}</span>
+              <span className="text-sm font-black text-white">{loading ? 'â€”' : `${kpis.healthPercent}%`}</span>
             </div>
           </div>
         </div>
@@ -460,7 +460,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
         <Card className="mb-6 p-4 border-gray-700 bg-gray-800/80 backdrop-blur-md sticky top-4 z-10 print:hidden" noPadding>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-6 py-4">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">View Mode:</span>
+              <span className="text-xs font-black text-gray-500 ">View Mode:</span>
               <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
                 <button
                   onClick={() => setGroupBy('hierarchical')}
@@ -483,8 +483,8 @@ const ProjectBudgetPreviewPage: React.FC = () => {
                   <Settings2 className="w-4 h-4" />
                 </button>
                 {showColMenu && (
-                  <div className="absolute top-10 left-0 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-3 z-50">
-                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 border-b border-gray-700 pb-2">Toggle Columns</h4>
+                  <div className="absolute top-10 left-0 w-48 bg-gray-800 border border-gray-700 rounded-lg elev-lg p-3 z-50">
+                    <h4 className="text-xs font-black text-gray-400  mb-2 border-b border-gray-700 pb-2">Toggle Columns</h4>
                     <label className="flex items-center gap-2 mb-2 cursor-pointer group">
                       <input type="checkbox" checked={visibleCols.qty} onChange={() => toggleCol('qty')} className="bg-gray-900 border border-gray-700 rounded w-4 h-4 " />
                       <span className="text-sm font-bold text-gray-300 group-hover:text-white">Quantity</span>
@@ -524,7 +524,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
         </Card>
 
         {/* Data Grid */}
-        <Card title="Structural Ledger" borderTopColor="primary" className="border border-gray-700 print:shadow-none print:border-none">
+        <Card title="Structural Ledger" accent="primary" className="border border-gray-700 print:shadow-none print:border-none">
           {budgets.length === 0 && !loading ? (
             <div className="py-12 text-center text-gray-500">No budget data available for this project.</div>
           ) : (
@@ -532,15 +532,15 @@ const ProjectBudgetPreviewPage: React.FC = () => {
               <table className="min-w-full print:text-xs print:w-full">
                 <thead className="bg-brand-dark/50 print:bg-gray-100 print:text-black">
                   <tr>
-                    <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700">WBS Structure & Description</th>
-                    {groupBy === 'flat' && <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700 hidden">Description</th>}
-                    {visibleCols.qty && <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700 w-24">Qty</th>}
-                    {visibleCols.uom && <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700 w-24">UoM</th>}
-                    {visibleCols.days && <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700 w-24">Days</th>}
-                    {visibleCols.rate && <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700 w-32">Unit Rate</th>}
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700 w-40">Allocated Budget</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700 w-40">Actual Spent</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-700 w-40">Variance</th>
+                    <th className="px-4 py-3 text-left text-xs font-black text-gray-500  border-b border-gray-700">WBS Structure & Description</th>
+                    {groupBy === 'flat' && <th className="px-4 py-3 text-left text-xs font-black text-gray-500  border-b border-gray-700 hidden">Description</th>}
+                    {visibleCols.qty && <th className="px-4 py-3 text-right text-xs font-black text-gray-500  border-b border-gray-700 w-24">Qty</th>}
+                    {visibleCols.uom && <th className="px-4 py-3 text-right text-xs font-black text-gray-500  border-b border-gray-700 w-24">UoM</th>}
+                    {visibleCols.days && <th className="px-4 py-3 text-right text-xs font-black text-gray-500  border-b border-gray-700 w-24">Days</th>}
+                    {visibleCols.rate && <th className="px-4 py-3 text-right text-xs font-black text-gray-500  border-b border-gray-700 w-32">Unit Rate</th>}
+                    <th className="px-4 py-3 text-right text-xs font-black text-gray-500  border-b border-gray-700 w-40">Allocated Budget</th>
+                    <th className="px-4 py-3 text-right text-xs font-black text-gray-500  border-b border-gray-700 w-40">Actual Spent</th>
+                    <th className="px-4 py-3 text-right text-xs font-black text-gray-500  border-b border-gray-700 w-40">Variance</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800 print:divide-gray-300">

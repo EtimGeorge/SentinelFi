@@ -100,13 +100,13 @@ const AIBudgetDraftingPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
           <div className="lg:col-span-1">
-            <Card title="Upload Source Document" borderTopColor="secondary">
+            <Card title="Upload Source Document" accent="secondary">
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-white mb-1" htmlFor="projectName">Project Name <span className="text-red-500">*</span></label>
                   <input type="text" id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} required
                     placeholder="e.g., Alpha Project NGN Budget"
-                    className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                    className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm text-white" />
                 </div>
 
                 <div>
@@ -127,7 +127,7 @@ const AIBudgetDraftingPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2 px-4 rounded-lg font-semibold text-white bg-alert-critical hover:bg-alert-critical/90 disabled:opacity-50 transition shadow-md"
+                  className="w-full py-2 px-4 rounded-lg font-semibold text-white bg-alert-critical hover:bg-alert-critical/90 disabled:opacity-50 transition elev-md"
                 >
                   {loading ? <Loader2 className="w-5 h-5 inline animate-spin" /> : 'Submit to AI Agent'}
                 </button>
@@ -136,7 +136,7 @@ const AIBudgetDraftingPage: React.FC = () => {
           </div>
 
           <div className="lg:col-span-2">
-            <Card title="Extracted Draft Preview" borderTopColor="primary"
+            <Card title="Extracted Draft Preview" accent="primary"
               headerContent={draftResult && <CheckCircle className="w-6 h-6 text-alert-positive" />}>
 
               {aiProcessingStatus && loading && !error && ( // Display status while loading and no error

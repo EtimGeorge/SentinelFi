@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import MarketingLayout from '../components/Landing/MarketingLayout';
 import Link from 'next/link';
 import { 
@@ -11,7 +11,15 @@ import {
   Lock,
   ChevronRight,
   Globe,
-  Database
+  Database,
+  CreditCard,
+  Mail,
+  Receipt,
+  KeyRound,
+  CheckCircle2,
+  FileText,
+  TrendingUp,
+  Activity,
 } from 'lucide-react';
 import { NextPage } from 'next';
 
@@ -27,72 +35,205 @@ const LandingPage: NextPageWithLayout = () => {
     { id: 'AUDIT', label: 'Governance (Audit)', icon: <Lock />, desc: 'Real-time compliance monitoring and expense verification.' },
   ];
 
+  const modules = [
+    {
+      icon: <TrendingUp className="w-7 h-7" />,
+      color: 'text-brand-primary',
+      bg: 'bg-brand-primary/10 border-brand-primary/20',
+      title: 'CAPEX & Revenue Engine',
+      desc: 'Multi-billion dollar capital projects with WBS-enforced budgets, live variance tracking, and income reconciliation.',
+      href: '/landing/features#capex',
+    },
+    {
+      icon: <FileText className="w-7 h-7" />,
+      color: 'text-alert-critical',
+      bg: 'bg-alert-critical/10 border-alert-critical/20',
+      title: 'OPEX, Payroll & Recurring',
+      desc: 'Operational budgets, payroll batches, and recurring cost lines with absolute line-item traceability.',
+      href: '/landing/features#opex',
+    },
+    {
+      icon: <Receipt className="w-7 h-7" />,
+      color: 'text-brand-secondary',
+      bg: 'bg-brand-secondary/10 border-brand-secondary/20',
+      title: 'Procurement & P2P',
+      desc: 'Purchase-to-pay workflow: requisitions, purchase orders, goods receipt, three-way matching, and payment.',
+      href: '/landing/features#procurement',
+    },
+    {
+      icon: <ShieldCheck className="w-7 h-7" />,
+      color: 'text-brand-primary',
+      bg: 'bg-brand-primary/10 border-brand-primary/20',
+      title: 'Approvals & Governance',
+      desc: 'Document-to-form flows, configurable approval chains, and a tamper-resistant audit trail on every action.',
+      href: '/landing/features#approvals',
+    },
+    {
+      icon: <Activity className="w-7 h-7" />,
+      color: 'text-alert-critical',
+      bg: 'bg-alert-critical/10 border-alert-critical/20',
+      title: 'AI Forensics & Intelligence',
+      desc: 'Sentinel-AI scans every document and transaction, surfacing anomalies and duplicate invoices in real time.',
+      href: '/landing/features#ai',
+    },
+    {
+      icon: <Database className="w-7 h-7" />,
+      color: 'text-brand-secondary',
+      bg: 'bg-brand-secondary/10 border-brand-secondary/20',
+      title: 'Reporting & Tenant Sovereignty',
+      desc: 'CAPEX/OPEX variance reports, currency-aware ledgers, and physically isolated multi-tenant databases.',
+      href: '/landing/features#reporting',
+    },
+  ];
+
+  const businessModules = [
+    {
+      icon: <KeyRound className="w-6 h-6" />,
+      color: 'text-brand-primary',
+      label: 'Subscriptions',
+      title: 'Plans, cycles & trials',
+      desc: '14-day full-feature trial, single Professional plan with monthly or annual billing (15% annual saving), and enterprise custom contracts â€” all managed from one Billing console.',
+      href: '/landing/features#subscriptions',
+    },
+    {
+      icon: <CreditCard className="w-6 h-6" />,
+      color: 'text-brand-secondary',
+      label: 'Payments',
+      title: 'Paystack & PayPal',
+      desc: 'Instant provisioning via PCI-DSS gateways. Paystack for Africa and Nigeria, PayPal for international teams. Zero card data ever touches SentinelFi servers.',
+      href: '/landing/features#payments',
+    },
+    {
+      icon: <Receipt className="w-6 h-6" />,
+      color: 'text-alert-critical',
+      label: 'Billing',
+      title: 'Invoices, renewals & history',
+      desc: 'Secure invoice records, downloadable PDF receipts, auto-expiry enforcement, and one-click renewal when a workspace lapses.',
+      href: '/landing/features#billing',
+    },
+    {
+      icon: <Mail className="w-6 h-6" />,
+      color: 'text-alert-positive',
+      label: 'Email',
+      title: 'Magic links & alerts',
+      desc: 'Passwordless magic-link onboarding dispatched in under 60 seconds, plus transactional alerts for approvals, anomalies, and subscription events.',
+      href: '/landing/features#email',
+    },
+  ];
+
   return (
     <>
       {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center overflow-hidden pt-32 pb-32">
-        {/* User-provided background with brand-aligned overlay */}
+      <section className="relative min-h-[92vh] flex items-center overflow-hidden pt-32 pb-32">
         <div className="absolute inset-0 z-0">
           <img 
             src="/AI-DEGITAL-WALLPAPER.jpeg" 
             alt="SentinelFi Core Background" 
-            className="w-full h-full object-cover opacity-60"
+            className="w-full h-full object-cover opacity-50"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-brand-dark/95 via-brand-dark/80 to-brand-dark" />
-          <div className="absolute inset-0 bg-brand-primary/5 mix-blend-overlay" />
+          <div className="absolute inset-0 bg-gradient-to-b from-brand-dark/95 via-brand-dark/85 to-brand-dark" />
+          <div className="absolute inset-0 bg-brand-primary/10 mix-blend-overlay" />
         </div>
 
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-alert-critical/30 bg-alert-critical/5 text-alert-critical text-xs font-mono mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-alert-critical/40 bg-alert-critical/10 text-alert-critical text-xs font-mono mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 shadow-[0_0_24px_rgba(234,88,12,0.25)]">
             <Globe className="w-3 h-3" /> 
             PLATFORM v2.4: MULTI-TENANT ENGINE LIVE
           </div>
           
-          <h1 className="text-6xl md:text-8xl lg:text-9xl font-black m-heading mb-8 leading-[1] gradient-text tracking-tighter">
-            Absolute Proof. <br />
-            Total Assurance.
+          <h1 className="text-6xl md:text-8xl lg:text-9xl font-black m-heading mb-8 leading-[1] tracking-tighter">
+            <span className="block text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.6)]">Absolute Proof.</span>
+            <span className="block gradient-text">Total Assurance.</span>
           </h1>
           
-          <p className="text-xl md:text-2xl text-m-text-muted max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
+          <p className="text-xl md:text-2xl text-slate-200/90 max-w-3xl mx-auto mb-12 leading-relaxed font-medium drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
             The single source of truth for enterprise project capital. 
-            Automated WBS governance, AI-driven financial intelligence, 
+            <span className="text-brand-primary font-bold"> Automated WBS governance</span>,
+            <span className="text-brand-secondary font-bold"> AI-driven financial intelligence</span>, 
             and complete tenant sovereignty.
           </p>
           
           <div className="flex flex-col sm:flex-row justify-center gap-6">
-            <Link href="/landing/pricing" className="m-button-primary text-xl px-12 py-6 shadow-2xl shadow-brand-primary/20">
+            <Link href="/landing/pricing" className="m-button-primary text-xl px-12 py-6">
               Secure Your Instance <ArrowRight className="w-6 h-6" />
             </Link>
-            <Link href="/landing/workflows" className="flex items-center justify-center gap-2 text-white font-bold hover:text-alert-critical transition-all group">
+            <Link href="/landing/workflows" className="flex items-center justify-center gap-2 text-slate-200 font-bold hover:text-brand-primary transition-all group drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
               Explore the Ecosystem <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Hero Image Mockup - Elevated Card */}
-      <section className="pb-24 -mt-24 relative z-20">
+      {/* Hero Dashboard Mockup - CSS-built, no broken file paths */}
+      <section className="pb-24 -mt-20 relative z-20">
         <div className="container mx-auto px-6">
-          <div className="glass-card p-2 max-w-6xl mx-auto overflow-hidden shadow-2xl shadow-black/50 border-white/10">
-            <div className="aspect-[16/9] bg-brand-dark/50 rounded-xl flex items-center justify-center relative group overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-t from-m-dark via-transparent to-transparent z-10 opacity-60" />
-              <img 
-                src="file:///C:/Users/user/.gemini/antigravity/brain/203929f0-b656-46dc-869f-e1ffd2892510/sentinelfi_hero_concept_1773491666109.png" 
-                alt="SentinelFi Dashboard Concept"
-                className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-700"
-              />
-              <div className="absolute inset-x-0 bottom-0 p-8 z-20 translate-y-4 group-hover:translate-y-0 transition-transform opacity-0 group-hover:opacity-100">
-                 <div className="glass-card p-6 bg-m-dark/80 border-alert-critical/20 backdrop-blur-xl">
-                    <div className="flex justify-between items-center">
-                       <div>
-                          <h4 className="text-alert-critical font-mono text-xs uppercase mb-1 tracking-widest">Intelligence Feed</h4>
-                          <p className="text-white font-black text-lg">WBS Variance Anomalies Detected in Project-S7</p>
-                       </div>
-                       <div className="text-right">
-                          <span className="text-xs bg-red-500/20 text-red-500 px-3 py-1 rounded-full font-bold border border-red-500/30">CRITICAL RISK</span>
-                       </div>
+          <div className="glass-card p-3 max-w-6xl mx-auto overflow-hidden shadow-2xl shadow-black/50 border-white/10">
+            <div className="rounded-xl bg-brand-darker/80 backdrop-blur-sm overflow-hidden relative">
+              <div className="flex items-center gap-2 px-6 py-4 border-b border-white/5">
+                <div className="w-3 h-3 rounded-full bg-red-500/60" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
+                <div className="w-3 h-3 rounded-full bg-green-500/60" />
+                <div className="ml-6 flex-1 max-w-md bg-white/5 border border-white/10 rounded-lg px-4 py-1.5 text-xs text-slate-400 font-mono">
+                  app.sentinelfi.io Â· sovereign workspace console
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 p-6 lg:p-10">
+                {/* Left KPI column */}
+                <div className="md:col-span-4 space-y-4">
+                  <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+                    <p className="text-[10px] text-brand-primary font-black uppercase tracking-widest mb-2">Total Project Revenue</p>
+                    <p className="text-3xl font-black font-mono text-white">$1.24B</p>
+                    <p className="text-[10px] text-alert-positive font-bold mt-1">â–² 8.2% vs prior quarter</p>
+                  </div>
+                  <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+                    <p className="text-[10px] text-alert-critical font-black uppercase tracking-widest mb-2">Global Variance</p>
+                    <p className="text-3xl font-black font-mono text-alert-critical">-2.4%</p>
+                    <p className="text-[10px] text-slate-400 font-bold mt-1">3 projects flagged, 1 critical</p>
+                  </div>
+                  <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+                    <p className="text-[10px] text-brand-secondary font-black uppercase tracking-widest mb-2">Sentinel-AI Scans</p>
+                    <p className="text-3xl font-black font-mono text-white">1,284,091</p>
+                    <p className="text-[10px] text-slate-400 font-bold mt-1">2 anomalies quarantined today</p>
+                  </div>
+                </div>
+
+                {/* Right chart column */}
+                <div className="md:col-span-8 space-y-4">
+                  <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
+                    <div className="flex items-center justify-between mb-6">
+                      <p className="text-xs font-black text-slate-300 uppercase tracking-widest">WBS Variance Heatmap â€” Project S7</p>
+                      <span className="text-[10px] bg-brand-primary/20 text-brand-primary px-3 py-1 rounded-full font-black border border-brand-primary/30">TRACKING NOMINAL</span>
                     </div>
-                 </div>
+                    <div className="flex items-end gap-2 h-32">
+                      {[40, 70, 45, 90, 65, 80, 50, 60, 75, 55, 88, 62].map((h, i) => (
+                        <div key={i} className="flex-1 bg-brand-primary/60 rounded-md transition-all" style={{ height: `${h}%` }} />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-6 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-4">
+                      <div className="p-3 bg-alert-critical/15 border border-alert-critical/25 rounded-xl">
+                        <ShieldCheck className="w-6 h-6 text-alert-critical" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black">Duplicate Invoice</p>
+                        <p className="text-sm font-black text-white">#92-K vs #91-J Â· 98.4%</p>
+                        <p className="text-[10px] text-alert-critical font-bold">QUARANTINED BY SENTINEL-AI</p>
+                      </div>
+                    </div>
+                    <div className="p-6 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-4">
+                      <div className="p-3 bg-brand-primary/15 border border-brand-primary/25 rounded-xl">
+                        <Users className="w-6 h-6 text-brand-primary" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black">Tenant Isolation</p>
+                        <p className="text-sm font-black text-white">Sovereign RDS Schema</p>
+                        <p className="text-[10px] text-brand-primary font-bold">PHYSICAL SEPARATION ACTIVE</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -101,11 +242,11 @@ const LandingPage: NextPageWithLayout = () => {
 
       {/* Interactive Workbench - High Contrast Section */}
       <section className="py-32 bg-brand-dark relative overflow-hidden ring-1 ring-white/5 shadow-inner">
-        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-brand-primary/30 to-transparent" />
+        <div className="absolute top-0 left-0 w-full h-px bg-white/5" />
         <div className="container mx-auto px-6">
           <div className="text-center mb-20 max-w-3xl mx-auto">
-            <h2 className="text-5xl md:text-6xl font-black m-heading mb-6 tracking-tight gradient-text">Unified Strategic Control</h2>
-            <p className="text-xl text-m-text-muted leading-relaxed">A single data stream, optimized for every stakeholder. Precision insights delivered at scale.</p>
+            <h2 className="text-5xl md:text-6xl font-black m-heading mb-6 tracking-tight text-white">Unified <span className="gradient-text">Strategic Control</span></h2>
+            <p className="text-xl text-slate-300 leading-relaxed">A single data stream, optimized for every stakeholder. Precision insights delivered at scale.</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
@@ -129,8 +270,8 @@ const LandingPage: NextPageWithLayout = () => {
                     {React.cloneElement(role.icon as React.ReactElement, { className: 'w-7 h-7' })}
                   </div>
                   <div>
-                    <h4 className={`text-xl font-black tracking-tight ${activeRole === role.id ? 'text-white' : 'text-slate-300'}`}>{role.label}</h4>
-                    <p className="text-sm text-m-text-muted mt-2 leading-relaxed">{role.desc}</p>
+                    <h4 className={`text-xl font-black tracking-tight ${activeRole === role.id ? 'text-white' : 'text-slate-200'}`}>{role.label}</h4>
+                    <p className="text-sm text-slate-400 mt-2 leading-relaxed">{role.desc}</p>
                   </div>
                 </button>
               ))}
@@ -180,7 +321,7 @@ const LandingPage: NextPageWithLayout = () => {
                            <div className="p-2 bg-brand-secondary/20 rounded-lg group-hover:scale-110 transition-transform">
                              <Database className="w-5 h-5 text-brand-secondary" />
                            </div>
-                           <span className="text-lg font-bold text-gray-200">4.{i} Infrastructure Deployment Protocol</span>
+                           <span className="text-lg font-bold text-slate-200">4.{i} Infrastructure Deployment Protocol</span>
                         </div>
                         <span className={`text-xs font-black px-4 py-1.5 rounded-lg bg-brand-primary/10 text-brand-primary border border-brand-primary/20`}>85% COMPLETE</span>
                       </div>
@@ -219,12 +360,85 @@ const LandingPage: NextPageWithLayout = () => {
         </div>
       </section>
 
+      {/* One Platform. Every Module. */}
+      <section className="py-32 bg-brand-dark/40 border-y border-white/5">
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-20 max-w-3xl mx-auto">
+            <p className="text-xs font-black uppercase tracking-[0.4em] text-brand-primary mb-4">Full Platform Coverage</p>
+            <h2 className="text-5xl md:text-6xl font-black m-heading mb-6 tracking-tight text-white">One Platform. <span className="gradient-text">Every Module.</span></h2>
+            <p className="text-lg text-slate-300 leading-relaxed">
+              SentinelFi is an end-to-end project finance operating system â€” not a point solution. 
+              Every feature connects to a live workflow inside your sovereign workspace.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {modules.map((m) => (
+              <Link key={m.title} href={m.href} className="group">
+                <div className="glass-card p-8 h-full hover:-translate-y-2">
+                  <div className={`w-14 h-14 ${m.bg} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
+                    <div className={m.color}>{m.icon}</div>
+                  </div>
+                  <h4 className="text-xl font-black m-heading text-white mb-3">{m.title}</h4>
+                  <p className="text-slate-400 leading-relaxed text-sm">{m.desc}</p>
+                  <p className="mt-6 text-xs font-black uppercase tracking-widest text-brand-primary flex items-center gap-2">
+                    Explore module <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Business Layer: Billing, Subscriptions, Payments, Email */}
+      <section className="py-32 bg-brand-dark relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-px bg-white/5" />
+        <div className="container mx-auto px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center mb-20">
+            <div className="lg:col-span-5">
+              <p className="text-xs font-black uppercase tracking-[0.4em] text-brand-secondary mb-4">The Business Layer</p>
+              <h2 className="text-4xl md:text-6xl font-black m-heading mb-6 tracking-tight text-white">
+                Subscriptions, Payments & <span className="gradient-text-purple">Email</span> â€” Explained.
+              </h2>
+              <p className="text-lg text-slate-300 leading-relaxed mb-8">
+                From your first magic-link to automated renewal, the entire commercial lifecycle 
+                is transparent, automated, and sovereign.
+              </p>
+              <Link href="/landing/pricing" className="m-button-primary text-lg">
+                View Pricing & Plans <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+
+            <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-8">
+              {businessModules.map((m) => (
+                <Link key={m.title} href={m.href} className="group">
+                  <div className="glass-card p-8 h-full hover:-translate-y-2">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className={`w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center ${m.color} group-hover:scale-110 transition-transform`}>
+                        {m.icon}
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{m.label}</span>
+                    </div>
+                    <h4 className="text-lg font-black m-heading text-white mb-3">{m.title}</h4>
+                    <p className="text-sm text-slate-400 leading-relaxed">{m.desc}</p>
+                    <p className="mt-6 text-xs font-black uppercase tracking-widest text-brand-secondary flex items-center gap-2">
+                      Learn more <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* The Ecosystem Features - Distinct alternating background */}
       <section id="features" className="py-32 bg-brand-dark/40 border-y border-white/5">
         <div className="container mx-auto px-6">
           <div className="text-center mb-24">
-            <h2 className="text-5xl md:text-6xl font-black m-heading mb-6 tracking-tighter gradient-text">Precision Engineering</h2>
-            <p className="text-xl text-m-text-muted max-w-2xl mx-auto">High-fidelity components built for mission-critical financial oversight. Zero ambiguity, total control.</p>
+            <h2 className="text-5xl md:text-6xl font-black m-heading mb-6 tracking-tighter text-white">Precision <span className="gradient-text">Engineering</span></h2>
+            <p className="text-xl text-slate-300 max-w-2xl mx-auto">High-fidelity components built for mission-critical financial oversight. Zero ambiguity, total control.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
@@ -243,6 +457,21 @@ const LandingPage: NextPageWithLayout = () => {
               title="WBS Governance" 
               desc="Enforce rigid work breakdown structures across multi-billion dollar project portfolios. Absolute structural integrity for every line item."
             />
+            <FeatureCard 
+              icon={<CheckCircle2 className="text-brand-primary" />} 
+              title="Approval Workflows" 
+              desc="Document-to-form conversions, role-based approval chains, and unbroken audit trails for every requisition, budget, and expense."
+            />
+            <FeatureCard 
+              icon={<CreditCard className="text-brand-secondary" />} 
+              title="Secure Billing & Payments" 
+              desc="Paystack and PayPal powered subscription billing. Invoices, receipts, and renewal enforcement â€” all automated."
+            />
+            <FeatureCard 
+              icon={<Mail className="text-alert-positive" />} 
+              title="Email & Magic Link Access" 
+              desc="Passwordless onboarding and transactional alerts. Teams are operational within minutes, with every event delivered to the right inbox."
+            />
           </div>
         </div>
       </section>
@@ -253,11 +482,11 @@ const LandingPage: NextPageWithLayout = () => {
           <div className="flex flex-col lg:flex-row items-center gap-16">
             <div className="lg:w-1/3">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-primary/30 bg-brand-primary/10 text-brand-primary text-xs font-mono mb-6 uppercase tracking-widest">
-                <ShieldCheck className="w-3 h-3" /> SentinelFi® Heritage
+                <ShieldCheck className="w-3 h-3" /> SentinelFiÂ® Heritage
               </div>
               <h2 className="text-4xl md:text-5xl font-black m-heading mb-6 tracking-tight text-white">Backed by Industry Leaders</h2>
-              <p className="text-lg text-m-text-muted leading-relaxed">
-                SentinelFi® was forged from real-world engineering and energy sector challenges. We built the platform we needed to secure our own billion-dollar portfolios.
+              <p className="text-lg text-slate-300 leading-relaxed">
+                SentinelFiÂ® was forged from real-world engineering and energy sector challenges. We built the platform we needed to secure our own billion-dollar portfolios.
               </p>
             </div>
             
@@ -266,8 +495,8 @@ const LandingPage: NextPageWithLayout = () => {
                 <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/20 blur-3xl -mr-10 -mt-10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                 <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary mb-4">Built & Owned By</h4>
                 <div className="text-2xl font-black text-white m-heading mb-4">Seancrystal Global Services Limited</div>
-                <p className="text-m-text-muted text-sm leading-relaxed">
-                  The primary architect and registered owner of the SentinelFi® platform. Driving digital transformation in capital project governance and financial security.
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  The primary architect and registered owner of the SentinelFiÂ® platform. Driving digital transformation in capital project governance and financial security.
                 </p>
               </div>
 
@@ -275,8 +504,8 @@ const LandingPage: NextPageWithLayout = () => {
                 <div className="absolute top-0 right-0 w-32 h-32 bg-alert-critical/20 blur-3xl -mr-10 -mt-10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                 <h4 className="text-xs font-black uppercase tracking-widest text-alert-critical mb-4">Funded By</h4>
                 <div className="text-2xl font-black text-white m-heading mb-4">Solution Energy & Engineering Services</div>
-                <p className="text-m-text-muted text-sm leading-relaxed">
-                  The strategic financial partner powering SentinelFi's rapid development. Leaders in global energy infrastructure and large-scale engineering operations.
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  The strategic financial partner powering SentinelFi&apos;s rapid development. Leaders in global energy infrastructure and large-scale engineering operations.
                 </p>
               </div>
             </div>
@@ -288,12 +517,14 @@ const LandingPage: NextPageWithLayout = () => {
       <section className="py-40 relative overflow-hidden bg-brand-dark">
         <div className="hero-glow !bg-brand-primary/10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px]" />
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <h2 className="text-6xl md:text-8xl font-black m-heading mb-10 tracking-tighter leading-none">Ready for the Future?</h2>
-          <p className="text-2xl text-m-text-muted max-w-2xl mx-auto mb-16 font-medium leading-relaxed">
+          <h2 className="text-6xl md:text-8xl font-black m-heading mb-10 tracking-tighter leading-none text-white">
+            Ready for the <span className="gradient-text">Future?</span>
+          </h2>
+          <p className="text-2xl text-slate-300 max-w-2xl mx-auto mb-16 font-medium leading-relaxed">
             Join the enterprise elite. Deploy your sovereign instance of SentinelFi in under 5 minutes. Initial setup is just a click away.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
-            <Link href="/landing/pricing" className="m-button-primary text-2xl px-16 py-8 shadow-3xl shadow-brand-primary/30">
+            <Link href="/landing/pricing" className="m-button-primary text-2xl px-16 py-8">
               Initialize Setup <ArrowRight className="w-8 h-8 ml-2" />
             </Link>
           </div>
@@ -309,7 +540,7 @@ const FeatureCard = ({ icon, title, desc }: { icon: React.ReactNode, title: stri
       {React.cloneElement(icon as React.ReactElement, { className: 'w-10 h-10 transition-transform group-hover:scale-110' })}
     </div>
     <h4 className="text-2xl font-black mb-6 m-heading text-white">{title}</h4>
-    <p className="text-m-text-muted leading-relaxed text-lg">{desc}</p>
+    <p className="text-slate-400 leading-relaxed text-lg">{desc}</p>
   </div>
 );
 
@@ -319,4 +550,3 @@ LandingPage.getLayout = (page: React.ReactNode) => {
 };
 
 export default LandingPage;
-

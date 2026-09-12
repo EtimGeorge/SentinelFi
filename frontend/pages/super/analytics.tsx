@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -140,7 +140,7 @@ const SuperAdminAnalyticsPage: NextPageWithLayout = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-              <Card title="Global Project Throughput (WBS)" borderTopColor="primary">
+              <Card title="Global Project Throughput (WBS)" accent="primary">
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <StatCard title="Total WBS Nodes" value={data.wbsMetrics.total_budget ? (data.wbsMetrics.total_spent > 0 ? 'ACTIVE' : 'READY') : '---'} icon={<Package className="w-5 h-5 text-brand-primary"/>} />
                   <StatCard title="Total Capital Managed" value={data.wbsMetrics.totalBudgetAmount} icon={<DollarSign className="w-5 h-5 text-green-400"/>} />
@@ -152,7 +152,7 @@ const SuperAdminAnalyticsPage: NextPageWithLayout = () => {
                  </div>
               </Card>
 
-              <Card title="Platform Operational Liquidity" borderTopColor="alert">
+              <Card title="Platform Operational Liquidity" accent="alert">
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <StatCard title="Total Op. Budgets" value={data.operationalBudgetMetrics.totalBudgets || 0} icon={<Package className="w-5 h-5 text-orange-400"/>} />
                   <StatCard title="Total Allocated" value={`$${((parseFloat(data.operationalBudgetMetrics.totalBudgetAmount) || 0) / 1000).toFixed(1)}k`} icon={<DollarSign className="w-5 h-5 text-green-400"/>} />

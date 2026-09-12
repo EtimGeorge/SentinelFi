@@ -19,6 +19,7 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
+import DataTable from '../../../components/common/DataTable';
 import toast from 'react-hot-toast';
 import Tooltip from '../../../components/common/Tooltip';
 import { HelpCircle } from 'lucide-react';
@@ -131,7 +132,7 @@ const CorporateAnalyticsPage: React.FC = () => {
               <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-brand-primary/5 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform duration-700" />
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Annual Utilization</p>
+                  <p className="text-xs font-black text-slate-500 ">Annual Utilization</p>
                   <Tooltip content="Percentage of the total authorized budget that has been either spent (actual) or committed (pending invoices/LPOs).">
                     <HelpCircle className="w-3 h-3 text-slate-700 hover:text-brand-primary transition cursor-help" />
                   </Tooltip>
@@ -140,7 +141,7 @@ const CorporateAnalyticsPage: React.FC = () => {
                   <h3 className="text-3xl font-black text-white tracking-tighter">
                     {((analyticsData.totals.actual / (analyticsData.totals.allocated || 1)) * 100).toFixed(1)}%
                   </h3>
-                  <span className="text-[10px] font-bold text-emerald-400 flex items-center bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                  <span className="text-xs font-bold text-emerald-400 flex items-center bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
                     <ArrowUpRight size={10} className="mr-0.5" /> 2.1%
                   </span>
                 </div>
@@ -149,7 +150,7 @@ const CorporateAnalyticsPage: React.FC = () => {
               <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform duration-700" />
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Avg. Monthly Burn</p>
+                  <p className="text-xs font-black text-slate-500 ">Avg. Monthly Burn</p>
                   <Tooltip content="The average rate at which the organization is consuming its operational budget per fiscal period based on historical actuals.">
                     <HelpCircle className="w-3 h-3 text-slate-700 hover:text-blue-400 transition cursor-help" />
                   </Tooltip>
@@ -160,7 +161,7 @@ const CorporateAnalyticsPage: React.FC = () => {
               <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-brand-primary/10 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform duration-700" />
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Projected Saving</p>
+                  <p className="text-xs font-black text-slate-500 ">Projected Saving</p>
                   <Tooltip content="The favorable variance identified between authorized allocations and actual consumption across the fiscal cycle.">
                     <HelpCircle className="w-3 h-3 text-slate-700 hover:text-brand-primary transition cursor-help" />
                   </Tooltip>
@@ -170,7 +171,7 @@ const CorporateAnalyticsPage: React.FC = () => {
 
               <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group border-b-4 border-b-yellow-500/30">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Committed Runway</p>
+                  <p className="text-xs font-black text-slate-500 ">Committed Runway</p>
                   <Tooltip content="Funds already encumbered through issued Purchase Orders but not yet settled through final payments.">
                     <HelpCircle className="w-3 h-3 text-slate-700 hover:text-yellow-500 transition cursor-help" />
                   </Tooltip>
@@ -182,7 +183,7 @@ const CorporateAnalyticsPage: React.FC = () => {
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
               {/* Waterfall Expenditure Chart */}
               <Card
-                className="xl:col-span-2 bg-slate-900/40 border-slate-800 shadow-2xl"
+                className="xl:col-span-2 bg-slate-900/40 border-slate-800 elev-lg"
                 title="Fiscal Expenditure Waterfall"
                 subtitle="Monthly comparison of Allocated Budget vs. Actual Spend + Commitments."
               >
@@ -213,12 +214,12 @@ const CorporateAnalyticsPage: React.FC = () => {
                             />
                           </div>
                         </div>
-                        <span className="text-[9px] font-black text-slate-500 uppercase mt-4 tracking-widest">{period.periodName}</span>
+                        <span className="text-xs font-black text-slate-500 uppercase mt-4 ">{period.periodName}</span>
 
                         {/* Tooltip */}
                         <div className="absolute bottom-full mb-4 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-20 translate-y-2 group-hover:translate-y-0">
-                          <div className="bg-slate-950 border border-slate-800 p-3 rounded-xl shadow-2xl text-[10px] whitespace-nowrap backdrop-blur-md">
-                            <p className="text-slate-500 mb-2 font-black uppercase tracking-widest border-b border-slate-800 pb-1">{period.periodName} Fiscal Dossier</p>
+                          <div className="bg-slate-950 border border-slate-800 p-3 rounded-xl elev-lg text-xs whitespace-nowrap backdrop-blur-md">
+                            <p className="text-slate-500 mb-2 font-black  border-b border-slate-800 pb-1">{period.periodName} Fiscal Dossier</p>
                             <div className="space-y-2">
                               <div className="flex justify-between gap-6"><span className="text-slate-600 uppercase font-black">Authorized:</span> <span className="text-white font-mono">{convertToDisplay(period.allocated, 'NGN')}</span></div>
                               <div className="flex justify-between gap-6"><span className="text-brand-primary uppercase font-black">Settled:</span> <span className="text-brand-primary font-mono">{convertToDisplay(period.actual, 'NGN')}</span></div>
@@ -234,15 +235,15 @@ const CorporateAnalyticsPage: React.FC = () => {
 
               {/* Right Side: Quick Pivot Stats */}
               <div className="space-y-6">
-                <Card title="Budget Health Index" className="bg-slate-900/40 border-slate-800 shadow-xl">
+                <Card title="Budget Health Index" className="bg-slate-900/40 border-slate-800 elev-lg">
                   <div className="space-y-8">
                     {analyticsData.periods.filter((p: any) => p.allocated > 0).slice(-3).map((p: any) => {
                       const util = (p.actual / (p.allocated || 1)) * 100;
                       return (
                         <div key={p.periodId} className="group">
                           <div className="flex justify-between items-center mb-2.5">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.periodName} Utilization</span>
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${util > 100 ? 'bg-red-500/10 text-red-400' : 'bg-green-500/10 text-green-400'}`}>
+                            <span className="text-xs font-black text-slate-400 ">{p.periodName} Utilization</span>
+                            <span className={`text-xs font-black px-2 py-0.5 rounded-full ${util > 100 ? 'bg-red-500/10 text-red-400' : 'bg-green-500/10 text-green-400'}`}>
                               {util.toFixed(1)}%
                             </span>
                           </div>
@@ -258,7 +259,7 @@ const CorporateAnalyticsPage: React.FC = () => {
 
                     <div className="pt-6 border-t border-slate-800 mt-6">
                       <div className="flex items-center gap-2 mb-4">
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Core Spending Drivers</p>
+                        <p className="text-xs text-slate-500 font-black ">Core Spending Drivers</p>
                         <Tooltip content="Top categories contributing to the current fiscal period's operational expenditure.">
                           <HelpCircle className="w-3 h-3 text-slate-700 hover:text-slate-400 cursor-help" />
                         </Tooltip>
@@ -282,55 +283,45 @@ const CorporateAnalyticsPage: React.FC = () => {
             </div>
 
             {/* Detailed Rollup Table */}
-            <Card title="Operational Ledger Rollup" subtitle="Granular period-by-period recursive financial audit." className="bg-slate-900/40 border-slate-800 shadow-2xl">
-              <div className="overflow-x-auto rounded-xl border border-slate-800/50">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-slate-950/60 border-b border-slate-800 font-black text-[10px] text-slate-500 uppercase tracking-[0.2em]">
-                      <th className="p-5">Strategic Period</th>
-                      <th className="p-5 text-right">Authorized</th>
-                      <th className="p-5 text-right">Settled Spend</th>
-                      <th className="p-5 text-right">Encumbered</th>
-                      <th className="p-5 text-right">Fiscal Variance</th>
-                      <th className="p-5 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/40">
-                    {analyticsData.periods.map((period: any) => {
-                      const variance = period.allocated - period.actual - period.committed;
-                      const variancePercent = (variance / (period.allocated || 1)) * 100;
-                      return (
-                        <tr key={period.periodId} className="hover:bg-brand-primary/[0.03] transition-colors group">
-                          <td className="p-5 font-black text-slate-200 text-xs tracking-tight uppercase">{period.periodName}</td>
-                          <td className="p-5 text-right font-mono text-xs text-slate-400">{convertToDisplay(period.allocated, 'NGN')}</td>
-                          <td className="p-5 text-right font-mono text-xs text-brand-primary font-black italic">{convertToDisplay(period.actual, 'NGN')}</td>
-                          <td className="p-5 text-right font-mono text-xs text-yellow-500">{convertToDisplay(period.committed, 'NGN')}</td>
-                          <td className={`p-5 text-right font-mono text-xs font-black ${getHealthColor(variancePercent)}`}>
-                            {convertToDisplay(variance, 'NGN')}
-                          </td>
-                          <td className="p-5 text-center">
-                            {variance < 0 ? (
-                              <div className="inline-flex p-1.5 bg-red-500/10 rounded-full text-red-500 border border-red-500/20"><AlertTriangle size={14} /></div>
-                            ) : (
-                              <div className="inline-flex p-1.5 bg-emerald-500/10 rounded-full text-emerald-500 border border-emerald-500/20"><CheckCircle2 size={14} /></div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    <tr className="bg-brand-primary/5 font-black border-t-2 border-brand-primary/20 backdrop-blur-sm">
-                      <td className="p-6 text-white uppercase text-[10px] tracking-[0.2em]">Annual Intelligence Summary</td>
-                      <td className="p-6 text-right font-mono text-white text-sm">{convertToDisplay(analyticsData.totals.allocated, 'NGN')}</td>
-                      <td className="p-6 text-right font-mono text-brand-primary text-sm">{convertToDisplay(analyticsData.totals.actual, 'NGN')}</td>
-                      <td className="p-6 text-right font-mono text-yellow-500 text-sm">{convertToDisplay(analyticsData.totals.committed, 'NGN')}</td>
-                      <td className={`p-6 text-right font-mono text-sm ${getHealthColor((analyticsData.totals.variance / (analyticsData.totals.allocated || 1)) * 100)}`}>
-                        {convertToDisplay(analyticsData.totals.variance, 'NGN')}
-                      </td>
-                      <td className="p-6"></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+            <Card title="Operational Ledger Rollup" subtitle="Granular period-by-period recursive financial audit." className="bg-slate-900/40 border-slate-800 elev-lg">
+              <DataTable
+                columns={[
+                  { key: 'period', label: 'Strategic Period', tier: 'P0', get: (period) => (
+                    <span className="font-black text-slate-200 text-xs tracking-tight uppercase">{period.periodName}</span>
+                  )},
+                  { key: 'allocated', label: 'Authorized', tier: 'P1', cellClassName: 'text-right font-mono text-xs text-slate-400', get: (period) => (
+                    convertToDisplay(period.allocated, 'NGN')
+                  )},
+                  { key: 'actual', label: 'Settled Spend', tier: 'P1', cellClassName: 'text-right font-mono text-xs text-brand-primary font-black italic', get: (period) => (
+                    convertToDisplay(period.actual, 'NGN')
+                  )},
+                  { key: 'committed', label: 'Encumbered', tier: 'P2', cellClassName: 'text-right font-mono text-xs text-yellow-500', get: (period) => (
+                    convertToDisplay(period.committed, 'NGN')
+                  )},
+                  { key: 'variance', label: 'Fiscal Variance', tier: 'P2', cellClassName: 'text-right font-mono text-xs font-black', get: (period) => {
+                    const variance = period.allocated - period.actual - period.committed;
+                    const variancePercent = (variance / (period.allocated || 1)) * 100;
+                    return (
+                      <span className={getHealthColor(variancePercent)}>
+                        {convertToDisplay(variance, 'NGN')}
+                      </span>
+                    );
+                  }},
+                  { key: 'status', label: 'Status', tier: 'P2', cellClassName: 'text-center', get: (period) => {
+                    const variance = period.allocated - period.actual - period.committed;
+                    return variance < 0 ? (
+                      <div className="inline-flex p-1.5 bg-red-500/10 rounded-full text-red-500 border border-red-500/20"><AlertTriangle size={14} /></div>
+                    ) : (
+                      <div className="inline-flex p-1.5 bg-emerald-500/10 rounded-full text-emerald-500 border border-emerald-500/20"><CheckCircle2 size={14} /></div>
+                    );
+                  }},
+                ]}
+                rows={[
+                  ...analyticsData.periods,
+                  { periodId: '__totals__', periodName: 'Annual Intelligence Summary', allocated: analyticsData.totals.allocated, actual: analyticsData.totals.actual, committed: analyticsData.totals.committed, variance: analyticsData.totals.variance, _totals: true },
+                ]}
+                rowKey={(period: any) => period.periodId}
+              />
             </Card>
           </>
         ) : (

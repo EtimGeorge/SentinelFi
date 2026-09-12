@@ -6,18 +6,16 @@ import {
   Plus,
   X,
   Edit3,
-  Save,
   Loader2,
   AlertTriangle,
   Trash2,
   Search,
   KeyRound,
   CreditCard,
-  ChevronDown,
-  ChevronRight,
   Activity,
   CloudUpload
 } from 'lucide-react';
+import DataTable from "../../components/common/DataTable";
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input'; // Re-using Input component
 import Button from '../../components/common/Button'; // Re-using Button component
@@ -100,11 +98,11 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <Card title="Provision New Enterprise Tenant" borderTopColor="primary" className="w-full max-w-lg">
+      <Card title="Provision New Enterprise Tenant" accent="primary" className="w-full max-w-lg">
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <p className="text-sm text-red-400 mb-3 bg-red-900/50 p-2 rounded-md">{error}</p>}
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Internal ID (Unique)</label>
               <Input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. ALPHA_CORP" className="w-full" />
@@ -180,7 +178,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <Card title={title} borderTopColor={confirmVariant === 'danger' ? 'alert' : 'primary'} className="w-full max-w-sm">
+      <Card title={title} accent={confirmVariant === 'danger' ? 'alert' : 'primary'} className="w-full max-w-sm">
         <div className="text-gray-300 mb-6">{message}</div>
         <div className="flex justify-end space-x-4">
           <Button onClick={onClose} variant="secondary" disabled={loading}>Cancel</Button>
@@ -294,7 +292,7 @@ const ManagePlanModal: React.FC<ManagePlanModalProps> = ({ isOpen, onClose, tena
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <Card title={`Manage Plan for Tenant: ${tenantName || ''}`} borderTopColor="primary" className="w-full max-w-lg">
+      <Card title={`Manage Plan for Tenant: ${tenantName || ''}`} accent="primary" className="w-full max-w-lg">
         {fetchLoading ? ( // Use fetchLoading here
           <div className="flex justify-center items-center h-48">
             <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
@@ -363,7 +361,7 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ isOpen, onClose
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <Card title="Emergency Password Override" borderTopColor="alert" className="w-full max-w-md">
+      <Card title="Emergency Password Override" accent="alert" className="w-full max-w-md">
         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
           <p className="text-xs text-red-400 flex items-center">
             <AlertTriangle className="w-4 h-4 mr-2" />
@@ -439,8 +437,6 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
 
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [selectedTenantForArchive, setSelectedTenantForArchive] = useState<{ id: string; name: string } | null>(null);
-
-  const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -531,10 +527,6 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
     setShowManagePlanModal(true);
   }, []);
 
-  const toggleExpandTenantRow = useCallback((tenantId: string) => { // NEW
-    setExpandedTenantId(prev => (prev === tenantId ? null : tenantId));
-  }, []);
-
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
 
@@ -613,7 +605,7 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
                   placeholder="Search by name or schema..."
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                  className="pl-10 p-2 w-full sm:w-64 bg-brand-dark/50 border border-gray-600 rounded-lg shadow-sm text-white focus:ring-brand-primary focus:border-brand-primary"
+                  className="pl-10 p-2 w-full sm:w-64 bg-brand-dark/50 border border-gray-600 rounded-lg elev-sm text-white focus:ring-brand-primary focus:border-brand-primary"
                 />
               </div>
               <select
@@ -631,125 +623,98 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
             </Button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-800">
-              <thead className="bg-brand-dark/50">
-                <tr>
-                  {['Tenant Name', 'Schema Name', 'Admin Email', 'Status', 'Created At', 'Actions'].map(header => (
-                    <th key={header} className={`px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider ${header === 'Actions' ? 'text-right' : ''}`}>
-                      {header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {loading ? (
-                  <tr><td colSpan={6} className="p-4 text-center text-gray-400"><div className="flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading tenant data...</div></td></tr>
-                ) : tenants.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-gray-500">No tenants found matching your criteria.</td></tr>
-                ) : (
-                  tenants.map((tenant) => (
-                    <React.Fragment key={tenant.tenant_id}>
-                      <tr
-                        className="hover:bg-gray-800/50 transition-colors duration-150 cursor-pointer" // Make row clickable
-                        onClick={() => toggleExpandTenantRow(tenant.tenant_id)}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white font-medium">{tenant.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{tenant.schema_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{tenant.admin_email}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <Switch
-                            checked={tenant.is_active}
-                            onChange={() => handleStatusToggle(tenant)}
-                            disabled={formLoading}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{new Date(tenant.created_at).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center justify-end">
-                          <button onClick={(e) => { e.stopPropagation(); handleManagePlan(tenant); }} disabled={formLoading} className="text-gray-400 hover:text-blue-400 transition mr-3" title="Manage Subscription"><CreditCard className="w-5 h-5" /></button>
-                          <button onClick={(e) => { e.stopPropagation(); handleImpersonate(tenant.tenant_id); }} disabled={formLoading} className="text-gray-400 hover:text-purple-400 transition mr-3" title="Impersonate Admin"><KeyRound className="w-5 h-5" /></button>
-                          <button onClick={(e) => { e.stopPropagation(); handleStatusToggle(tenant); }} disabled={formLoading} className="text-gray-400 hover:text-brand-primary transition disabled:opacity-50 mr-3" title={tenant.is_active ? 'Deactivate Tenant' : 'Activate Tenant'}><Edit3 className="w-5 h-5" /></button>
-                          {expandedTenantId === tenant.tenant_id ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
-                        </td>
-                      </tr>
-                      {expandedTenantId === tenant.tenant_id && (
-                        <tr>
-                          <td colSpan={6} className="p-0 bg-gray-900/50 border-t border-gray-700">
-                            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-300">
-                              <div>
-                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center">
-                                  <Activity className="w-3 h-3 mr-2" />
-                                  Metadata & Compliance
-                                </h4>
-                                <div className="space-y-3">
-                                  <div className="flex justify-between text-sm py-2 border-b border-gray-800/50">
-                                    <span className="text-gray-400">Unique Entity ID</span>
-                                    <span className="text-gray-300 font-mono">{tenant.tenant_id}</span>
-                                  </div>
-                                  <div className="flex justify-between text-sm py-2 border-b border-gray-800/50">
-                                    <span className="text-gray-400">Database Schema</span>
-                                    <span className="text-brand-secondary font-mono">{tenant.schema_name}</span>
-                                  </div>
-                                  <div className="flex justify-between text-sm py-2 border-b border-gray-800/50">
-                                    <span className="text-gray-400">Onboarding Date</span>
-                                    <span className="text-gray-300">{new Date(tenant.created_at).toLocaleString()}</span>
-                                  </div>
-                                  {tenant.deleted_at && (
-                                    <div className="flex justify-between text-sm py-2 border-b border-brand-primary/20 bg-brand-primary/5 px-2 rounded">
-                                      <span className="text-brand-primary font-bold">Archived On</span>
-                                      <span className="text-brand-primary">{new Date(tenant.deleted_at).toLocaleString()}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="bg-brand-dark/30 rounded-xl border border-gray-800 p-5">
-                                <h4 className="text-xs font-bold text-red-500/80 uppercase tracking-widest mb-4 flex items-center">
-                                  <AlertTriangle className="w-3 h-3 mr-2" />
-                                  Technical Danger Zone
-                                </h4>
-                                <div className="space-y-4">
-                                  <div className="flex items-center justify-between p-3 rounded-lg border border-gray-700/50 hover:bg-gray-800 transition-colors">
-                                    <div>
-                                      <p className="text-sm text-white font-medium">Reset Admin Password</p>
-                                      <p className="text-xs text-gray-500">Emergency override for lost access.</p>
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() => { setSelectedTenantForReset({ id: tenant.tenant_id, name: tenant.name }); setShowResetModal(true); }}
-                                    >
-                                      <KeyRound className="w-3 h-3 mr-2" />
-                                      Override
-                                    </Button>
-                                  </div>
-
-                                  <div className="flex items-center justify-between p-3 rounded-lg border border-red-500/10 hover:bg-red-500/5 transition-colors">
-                                    <div>
-                                      <p className="text-sm text-white font-medium">Archive Tenant</p>
-                                      <p className="text-xs text-gray-500">Soft-delete. Data preserved for 30 days.</p>
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="danger"
-                                      onClick={() => { setSelectedTenantForArchive({ id: tenant.tenant_id, name: tenant.name }); setShowArchiveConfirm(true); }}
-                                    >
-                                      <Trash2 className="w-3 h-3 mr-2" />
-                                      Archive
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
+          {loading ? (
+            <div className="p-10 flex items-center justify-center text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />Loading tenant data...
+            </div>
+          ) : (
+            <DataTable<Tenant>
+              columns={[
+                { key: 'name', label: 'Tenant Name', tier: 'P0', get: (t) => <span className="text-white font-medium">{t.name}</span>, title: (t) => t.name },
+                { key: 'schema', label: 'Schema Name', tier: 'P1', get: (t) => <span className="text-gray-400">{t.schema_name}</span>, title: (t) => t.schema_name },
+                { key: 'email', label: 'Admin Email', tier: 'P1', get: (t) => <span className="text-gray-400">{t.admin_email}</span>, title: (t) => t.admin_email },
+                { key: 'status', label: 'Status', tier: 'P1', get: (t) => <Switch checked={t.is_active} onChange={() => handleStatusToggle(t)} disabled={formLoading} />, title: (t) => t.is_active ? 'Active' : 'Inactive' },
+                { key: 'created', label: 'Created At', tier: 'P3', get: (t) => <span className="text-gray-400">{new Date(t.created_at).toLocaleDateString()}</span> },
+              ]}
+              rows={tenants}
+              rowKey={(t) => t.tenant_id}
+              emptyMessage="No tenants found matching your criteria."
+              actions={[
+                { key: 'plan', label: 'Manage Subscription', icon: <CreditCard className="w-4 h-4" />, onClick: (t) => handleManagePlan(t), primary: true, title: 'Manage Subscription' },
+                { key: 'impersonate', label: 'Impersonate Admin', icon: <KeyRound className="w-4 h-4" />, onClick: (t) => handleImpersonate(t.tenant_id), title: 'Impersonate Admin' },
+                { key: 'deactivate', label: 'Deactivate Tenant', icon: <Edit3 className="w-4 h-4" />, onClick: (t) => handleStatusToggle(t), visible: (t) => t.is_active, title: 'Deactivate Tenant' },
+                { key: 'activate', label: 'Activate Tenant', icon: <Edit3 className="w-4 h-4" />, onClick: (t) => handleStatusToggle(t), visible: (t) => !t.is_active, title: 'Activate Tenant' },
+              ]}
+              expandedContent={(tenant) => (
+                <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-300">
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-500  mb-4 flex items-center">
+                      <Activity className="w-3 h-3 mr-2" />
+                      Metadata & Compliance
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm py-2 border-b border-gray-800/50">
+                        <span className="text-gray-400">Unique Entity ID</span>
+                        <span className="text-gray-300 font-mono">{tenant.tenant_id}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-2 border-b border-gray-800/50">
+                        <span className="text-gray-400">Database Schema</span>
+                        <span className="text-brand-secondary font-mono">{tenant.schema_name}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-2 border-b border-gray-800/50">
+                        <span className="text-gray-400">Onboarding Date</span>
+                        <span className="text-gray-300">{new Date(tenant.created_at).toLocaleString()}</span>
+                      </div>
+                      {tenant.deleted_at && (
+                        <div className="flex justify-between text-sm py-2 border-b border-brand-primary/20 bg-brand-primary/5 px-2 rounded">
+                          <span className="text-brand-primary font-bold">Archived On</span>
+                          <span className="text-brand-primary">{new Date(tenant.deleted_at).toLocaleString()}</span>
+                        </div>
                       )}
-                    </React.Fragment>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-brand-dark/30 rounded-xl border border-gray-800 p-5">
+                    <h4 className="text-xs font-bold text-red-500/80  mb-4 flex items-center">
+                      <AlertTriangle className="w-3 h-3 mr-2" />
+                      Technical Danger Zone
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-3 rounded-lg border border-gray-700/50 hover:bg-gray-800 transition-colors">
+                        <div>
+                          <p className="text-sm text-white font-medium">Reset Admin Password</p>
+                          <p className="text-xs text-gray-500">Emergency override for lost access.</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => { setSelectedTenantForReset({ id: tenant.tenant_id, name: tenant.name }); setShowResetModal(true); }}
+                        >
+                          <KeyRound className="w-3 h-3 mr-2" />
+                          Override
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 rounded-lg border border-red-500/10 hover:bg-red-500/5 transition-colors">
+                        <div>
+                          <p className="text-sm text-white font-medium">Archive Tenant</p>
+                          <p className="text-xs text-gray-500">Soft-delete. Data preserved for 30 days.</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => { setSelectedTenantForArchive({ id: tenant.tenant_id, name: tenant.name }); setShowArchiveConfirm(true); }}
+                        >
+                          <Trash2 className="w-3 h-3 mr-2" />
+                          Archive
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            />
+          )}
           {totalPages > 1 && (
             <div className="p-4 border-t border-gray-700 flex items-center justify-between">
               <span className="text-sm text-gray-400">Page {currentPage} of {totalPages}</span>

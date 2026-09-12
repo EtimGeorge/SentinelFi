@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import PdfPreviewModal from '../../../components/modals/PdfPreviewModal';
 import PageContainer from '../../../components/Layout/PageContainer';
@@ -177,7 +177,7 @@ const P2PDeskPage: React.FC = () => {
     };
     const item = config[status] || { color: 'bg-gray-800 text-gray-400', icon: FileText };
     return (
-      <div className={`px-2 py-1 rounded-md flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${item.color}`}>
+      <div className={`px-2 py-1 rounded-md flex items-center gap-1.5 text-xs font-black r ${item.color}`}>
         <item.icon className="w-3 h-3" />
         {status.replace(/_/g, ' ')}
       </div>
@@ -197,49 +197,49 @@ const P2PDeskPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="bg-brand-dark/40 border-gray-800">
             <div className="flex items-center gap-1.5 mb-1">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Requisitions</p>
+              <p className="text-xs font-black text-gray-500 ">Total Requisitions</p>
               <Tooltip content="Formal requests for expenditure initiated by departmental owners. These require authorization before becoming commitments.">
                 <HelpCircle className="w-3 h-3 text-gray-700 hover:text-brand-primary transition cursor-help" />
               </Tooltip>
             </div>
             <h3 className="text-2xl font-black text-white">{requisitions.length}</h3>
-            <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
               <Clock className="w-3 h-3" /> Ongoing approval workflows
             </p>
           </Card>
           <Card className="bg-brand-dark/40 border-gray-800">
             <div className="flex items-center gap-1.5 mb-1">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Open Purchase Orders</p>
+              <p className="text-xs font-black text-gray-500 ">Open Purchase Orders</p>
               <Tooltip content="Legally binding commitments sent to vendors. These represent funds that have been 'locked' from the available budget.">
                 <HelpCircle className="w-3 h-3 text-gray-700 hover:text-brand-primary transition cursor-help" />
               </Tooltip>
             </div>
             <h3 className="text-2xl font-black text-brand-primary">{purchaseOrders.length}</h3>
-            <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
               <ShoppingCart className="w-3 h-3" /> Committed expenditure
             </p>
           </Card>
           <Card className="bg-brand-dark/40 border-gray-800">
             <div className="flex items-center gap-1.5 mb-1">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Pending Invoices</p>
+              <p className="text-xs font-black text-gray-500 ">Pending Invoices</p>
               <Tooltip content="Vendor invoices received against issued POs or non-PO spend. These are awaiting final settlement.">
                 <HelpCircle className="w-3 h-3 text-gray-700 hover:text-brand-primary transition cursor-help" />
               </Tooltip>
             </div>
             <h3 className="text-2xl font-black text-alert-warning">{invoices.filter(i => i.status !== 'PAID').length}</h3>
-            <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
               <Receipt className="w-3 h-3" /> Awaiting payment processing
             </p>
           </Card>
           <Card className="bg-brand-dark/40 border-gray-800">
             <div className="flex items-center gap-1.5 mb-1">
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Budget Runway</p>
+              <p className="text-xs font-black text-gray-500 ">Budget Runway</p>
               <Tooltip content="Estimated remaining life of the current operational budget based on historical burn rates and future commitments.">
                 <HelpCircle className="w-3 h-3 text-gray-700 hover:text-brand-primary transition cursor-help" />
               </Tooltip>
             </div>
             <h3 className="text-2xl font-black text-white">92%</h3>
-            <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
               <ArrowUpRight className="w-3 h-3 text-alert-positive" /> Within fiscal targets
             </p>
           </Card>
@@ -287,7 +287,7 @@ const P2PDeskPage: React.FC = () => {
           size="lg"
         >
           <form onSubmit={handleCreateRequisition} className="space-y-6 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Input
                   label="Description"
@@ -313,11 +313,11 @@ const P2PDeskPage: React.FC = () => {
               />
 
               <div className="p-4 bg-black/30 rounded-xl border border-gray-800 space-y-4">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-black text-gray-500  mb-2 flex items-center gap-1.5">
                   <ArrowUpRight className="w-3 h-3" /> Financial Context
                 </p>
                 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Input
                     label="Transaction Amount"
                     type="number"
@@ -336,7 +336,7 @@ const P2PDeskPage: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Input
                     label="Internal Exchange Rate"
                     type="number"
@@ -355,7 +355,7 @@ const P2PDeskPage: React.FC = () => {
               </div>
 
               <div className="p-4 bg-black/30 rounded-xl border border-gray-800 space-y-4">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <p className="text-xs font-black text-gray-500  mb-2 flex items-center gap-1.5">
                   <Filter className="w-3 h-3" /> Budgetary Routing
                 </p>
                 
@@ -389,12 +389,12 @@ const P2PDeskPage: React.FC = () => {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-gray-800 bg-black/20">
-                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Document</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Date / Requester</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Description / Cost Center</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Amount</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Action</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-500 ">Document</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-500 ">Date / Requester</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-500 ">Description / Cost Center</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-500  text-right">Amount</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-500 ">Status</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-500  text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
@@ -402,17 +402,17 @@ const P2PDeskPage: React.FC = () => {
                 <tr key={req.id} className="hover:bg-white/5 transition group">
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-white mb-0.5">{req.requisition_number}</p>
-                    <p className="text-[10px] text-gray-500 font-medium">Requisition</p>
+                    <p className="text-xs text-gray-500 font-medium">Requisition</p>
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-xs text-white mb-0.5">{new Date(req.created_at).toLocaleDateString()}</p>
-                    <p className="text-[10px] text-gray-500">{req.requester?.email.split('@')[0]}</p>
+                    <p className="text-xs text-gray-500">{req.requester?.email.split('@')[0]}</p>
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-xs text-white font-medium mb-0.5 max-w-xs truncate">{req.description}</p>
                     <div className="flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-brand-primary" />
-                      <p className="text-[10px] text-gray-500 uppercase font-black">{req.costCenter?.name}</p>
+                      <p className="text-xs text-gray-500 uppercase font-black">{req.costCenter?.name}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right font-mono text-sm text-white">
@@ -441,17 +441,17 @@ const P2PDeskPage: React.FC = () => {
                 <tr key={po.id} className="hover:bg-white/5 transition group">
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-white mb-0.5">{po.po_number}</p>
-                    <p className="text-[10px] text-gray-500 font-medium">Purchase Order</p>
+                    <p className="text-xs text-gray-500 font-medium">Purchase Order</p>
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-xs text-white mb-0.5">{new Date(po.created_at).toLocaleDateString()}</p>
-                    <p className="text-[10px] text-gray-400 capitalize">{po.vendor_name}</p>
+                    <p className="text-xs text-gray-400 capitalize">{po.vendor_name}</p>
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-xs text-white font-medium mb-0.5 max-w-xs truncate">{po.requisition?.description}</p>
                     <div className="flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-alert-positive" />
-                      <p className="text-[10px] text-alert-positive uppercase font-black">Committed Spend</p>
+                      <p className="text-xs text-alert-positive uppercase font-black">Committed Spend</p>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right font-mono text-sm text-white">
@@ -479,16 +479,16 @@ const P2PDeskPage: React.FC = () => {
                 <tr key={inv.id} className="hover:bg-white/5 transition group">
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-white mb-0.5">{inv.invoice_number}</p>
-                    <p className="text-[10px] text-gray-500 font-medium">{inv.purchase_order_id ? 'PO Linked' : 'Non-PO'}</p>
+                    <p className="text-xs text-gray-500 font-medium">{inv.purchase_order_id ? 'PO Linked' : 'Non-PO'}</p>
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-xs text-white mb-0.5">{new Date(inv.invoice_date).toLocaleDateString()}</p>
-                    <p className="text-[10px] text-gray-400 capitalize">{inv.vendor_name}</p>
+                    <p className="text-xs text-gray-400 capitalize">{inv.vendor_name}</p>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-alert-warning" />
-                      <p className="text-[10px] text-alert-warning uppercase font-black">{inv.costCenter?.name}</p>
+                      <p className="text-xs text-alert-warning uppercase font-black">{inv.costCenter?.name}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right font-mono text-sm text-white">

@@ -24,7 +24,7 @@ const ReportingIndexPage: React.FC = () => {
       description: 'Advanced monitoring of budgeted vs actual expenditures with AI anomaly detection.',
       icon: BarChart2,
       path: '/reporting/variance',
-      color: 'from-blue-600 to-indigo-600',
+      iconColor: 'bg-brand-primary/15 text-brand-primary',
       badge: 'Real-time'
     },
     {
@@ -33,7 +33,7 @@ const ReportingIndexPage: React.FC = () => {
       description: 'Deep insights into project budgets, WBS rollout progress, and capital efficiency.',
       icon: TrendingUp,
       path: '/reporting/capex',
-      color: 'from-emerald-500 to-teal-600',
+      iconColor: 'bg-alert-positive/15 text-alert-positive',
       badge: 'Audit-ready'
     },
     {
@@ -42,7 +42,7 @@ const ReportingIndexPage: React.FC = () => {
       description: 'Professional oversight of departmental spending and cost-center optimization.',
       icon: PieChart,
       path: '/reporting/opex',
-      color: 'from-amber-500 to-orange-600',
+      iconColor: 'bg-alert-warning/15 text-alert-warning',
       badge: 'Compliance'
     },
     {
@@ -51,7 +51,7 @@ const ReportingIndexPage: React.FC = () => {
       description: 'Access the Document Control System for cryptographically secured report history.',
       icon: FileText,
       path: '/reporting/archive',
-      color: 'from-rose-500 to-pink-600',
+      iconColor: 'bg-alert-critical/15 text-alert-critical',
       badge: 'Secured'
     }
   ];
@@ -66,13 +66,13 @@ const ReportingIndexPage: React.FC = () => {
       >
         <div className="space-y-12">
           {/* Hero Section */}
-          <section className="relative p-10 bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
+          <section className="relative p-10 bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden elev-lg">
             <div className="absolute top-0 right-0 w-96 h-96 bg-brand-primary/10 blur-[100px] -mr-48 -mt-48 rounded-full" />
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="max-w-xl space-y-4">
                 <div className="flex items-center gap-2 px-3 py-1 bg-brand-primary/10 border border-brand-primary/20 rounded-full w-fit">
                   <Zap className="w-3 h-3 text-brand-primary" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary">Engine Active</span>
+                  <span className="text-xs font-black  text-brand-primary">Engine Active</span>
                 </div>
                 <h1 className="text-4xl font-black text-white leading-tight uppercase tracking-tighter">
                   One Source of <span className="text-brand-primary">Truth</span>
@@ -89,27 +89,24 @@ const ReportingIndexPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {modules.map((module) => (
               <Link key={module.title} href={module.path}>
-                <div className="group relative bg-slate-950/40 backdrop-blur-xl border border-slate-800 hover:border-brand-primary/50 p-8 rounded-[2rem] transition-all duration-500 cursor-pointer overflow-hidden transform hover:-translate-y-2 hover:shadow-2xl">
-                  {/* Decorative Gradient */}
-                  <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${module.color} opacity-5 blur-3xl group-hover:opacity-20 transition-opacity`} />
-
-                  <div className="relative z-10 space-y-6">
+                <div className="group relative bg-gray-800/60 border border-gray-700 hover:border-brand-primary/50 p-6 rounded-xl transition-all duration-200 cursor-pointer overflow-hidden hover:shadow-elev-md">
+                  <div className="relative z-10 space-y-5">
                     <div className="flex items-center justify-between">
-                      <div className={`p-4 bg-gradient-to-br ${module.color} rounded-2xl shadow-lg transform group-hover:scale-110 transition-transform duration-500`}>
-                        <module.icon className="w-6 h-6 text-white" />
+                      <div className={`p-3 ${module.iconColor || 'bg-gray-700/50'} rounded-lg`}>
+                        <module.icon className="w-6 h-6" />
                       </div>
-                      <span className="px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                      <span className="px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-label-sm text-gray-500">
                         {module.badge}
                       </span>
                     </div>
 
                     <div className="space-y-2">
-                      <div className="text-[10px] font-black text-brand-primary uppercase tracking-[0.2em]">{module.subtitle}</div>
+                      <div className="text-xs font-black text-brand-primary uppercase tracking-[0.2em]">{module.subtitle}</div>
                       <h3 className="text-2xl font-black text-white uppercase tracking-tighter">{module.title}</h3>
                       <p className="text-slate-400 text-sm leading-relaxed">{module.description}</p>
                     </div>
 
-                    <div className="flex items-center gap-2 text-white font-black text-xs uppercase tracking-widest group-hover:gap-4 transition-all">
+                    <div className="flex items-center gap-2 text-white font-black text-xs  group-hover:gap-4 transition-all">
                       Access Intelligence <ChevronRight className="w-4 h-4 text-brand-primary" />
                     </div>
                   </div>

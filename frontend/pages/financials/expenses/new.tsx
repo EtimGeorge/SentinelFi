@@ -152,7 +152,7 @@ const WbsNodeRow = ({ node, onSelect, selectedId, depth = 0 }: {
           </button>
         ) : <span className="w-3 h-3 inline-block shrink-0" />}
 
-        <span className="font-mono text-[10px] font-black text-brand-primary bg-brand-primary/10 px-1.5 py-0.5 rounded shrink-0">
+        <span className="font-mono text-xs font-black text-brand-primary bg-brand-primary/10 px-1.5 py-0.5 rounded shrink-0">
           {node.wbs_code}
         </span>
         <span className={`text-xs flex-1 truncate ${isSelected ? 'text-white font-semibold' : 'text-slate-300'}`}>
@@ -160,7 +160,7 @@ const WbsNodeRow = ({ node, onSelect, selectedId, depth = 0 }: {
         </span>
 
         <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          {node.uom && <span className="text-[10px] text-slate-500 font-mono italic">{node.uom}</span>}
+          {node.uom && <span className="text-xs text-slate-500 font-mono italic">{node.uom}</span>}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -169,11 +169,11 @@ const WbsNodeRow = ({ node, onSelect, selectedId, depth = 0 }: {
               style={{ width: `${used}%` }} />
           </div>
           {!isApproved ? (
-            <span className="text-[9px] font-black uppercase text-red-100 bg-red-600/40 px-1 py-0.5 rounded flex items-center gap-1">
+            <span className="text-xs font-black uppercase text-red-100 bg-red-600/40 px-1 py-0.5 rounded flex items-center gap-1">
               <AlertTriangle className="w-2 h-2" /> {node.status}
             </span>
           ) : (
-            <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded">
+            <span className="text-xs font-black uppercase text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded">
               {node.total_cost_budgeted > 0 ? `${used.toFixed(0)}%` : 'OPEN'}
             </span>
           )}
@@ -455,7 +455,7 @@ export default function ProjectExpenseLogger() {
         }
       >
         {/* ── PROGRESS INDICATOR ── */}
-        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-600 mb-8">
+        <div className="flex items-center gap-2 text-xs font-black  text-slate-600 mb-8">
           {(['SELECT_TYPE', mode === 'CAPEX' ? 'SELECT_PROJECT' : 'SELECT_OPEX', 'ENTRY'] as const).map((s, i) => {
             const labels: Record<string, string> = {
               SELECT_TYPE: 'Type', SELECT_PROJECT: 'Project', SELECT_OPEX: 'Op. Budget', ENTRY: 'Entry'
@@ -537,10 +537,10 @@ export default function ProjectExpenseLogger() {
                       <div className="w-9 h-9 rounded-xl bg-brand-primary/10 flex items-center justify-center shrink-0">
                         <Briefcase className="w-4 h-4 text-brand-primary" />
                       </div>
-                      <span className="text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full">{p.status}</span>
+                      <span className="text-xs font-black uppercase bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full">{p.status}</span>
                     </div>
                     <h3 className="font-black text-white text-sm uppercase tracking-tight leading-snug group-hover:text-brand-primary transition line-clamp-2">{p.project_name}</h3>
-                    <p className="text-[10px] text-slate-600 mt-2 font-mono">{p.project_id.slice(0, 12)}…</p>
+                    <p className="text-xs text-slate-600 mt-2 font-mono">{p.project_id.slice(0, 12)}…</p>
                   </button>
                 ))}
               </div>
@@ -579,12 +579,12 @@ export default function ProjectExpenseLogger() {
                           <Building2 className="w-4 h-4 text-blue-400" />
                         </div>
                         {b.category && (
-                          <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{b.category.name}</span>
+                          <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{b.category.name}</span>
                         )}
                       </div>
                       <h3 className="font-black text-white text-sm uppercase tracking-tight leading-snug group-hover:text-blue-400 transition line-clamp-2">{b.name}</h3>
                       <div className="mt-3 space-y-1">
-                        <div className="flex justify-between text-[10px] text-slate-500">
+                        <div className="flex justify-between text-xs text-slate-500">
                           <span>Remaining</span>
                           <span className={used >= 95 ? 'text-red-400' : used >= 80 ? 'text-amber-400' : 'text-emerald-400'}>
                             {convertToDisplay(Math.max(0, b.budgeted_amount - b.actual_spent), 'NGN')}
@@ -612,10 +612,10 @@ export default function ProjectExpenseLogger() {
                 {mode === 'CAPEX' ? <Briefcase className="w-5 h-5 text-brand-primary" /> : <Building2 className="w-5 h-5 text-blue-400" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{mode} Expense Log</p>
+                <p className="text-xs font-black  text-slate-500">{mode} Expense Log</p>
                 <p className="text-sm font-black text-white truncate">{contextLabel}</p>
               </div>
-              <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase ${mode === 'CAPEX' ? 'bg-brand-primary/15 text-brand-primary' : 'bg-blue-500/15 text-blue-400'}`}>
+              <span className={`text-xs font-black px-2.5 py-1 rounded-full uppercase ${mode === 'CAPEX' ? 'bg-brand-primary/15 text-brand-primary' : 'bg-blue-500/15 text-blue-400'}`}>
                 {mode}
               </span>
             </div>
@@ -639,7 +639,7 @@ export default function ProjectExpenseLogger() {
                     <div key={line.id} className={`px-6 py-5 space-y-4 transition-colors ${line.variance_level !== 'NONE' ? vc.bg : ''}`}>
                       {/* Row Header */}
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Line {idx + 1}</span>
+                        <span className="text-xs font-black text-slate-600 ">Line {idx + 1}</span>
                         {lines.length > 1 && (
                           <button onClick={() => removeLine(line.id)} className="text-slate-700 hover:text-red-400 transition">
                             <X className="w-4 h-4" />
@@ -662,7 +662,7 @@ export default function ProjectExpenseLogger() {
                                 : 'Select WBS Line…'}
                             </button>
                             {activePicker === line.id && (
-                              <div className="absolute top-full mt-1.5 left-0 right-0 z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-h-72 overflow-y-auto">
+                              <div className="absolute top-full mt-1.5 left-0 right-0 z-50 bg-slate-900 border border-slate-700 rounded-2xl elev-lg max-h-72 overflow-y-auto">
                                 <div className="p-2 sticky top-0 bg-slate-900 border-b border-slate-800">
                                   <div className="relative">
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
@@ -679,7 +679,7 @@ export default function ProjectExpenseLogger() {
                                         disabled={n.status?.toUpperCase() !== 'APPROVED'}
                                         className="w-full text-left flex items-center gap-2 px-3 py-2 hover:bg-slate-800 rounded-xl transition disabled:opacity-40"
                                       >
-                                        <span className="font-mono font-black text-[10px] text-brand-primary">{n.wbs_code}</span>
+                                        <span className="font-mono font-black text-xs text-brand-primary">{n.wbs_code}</span>
                                         <span className="text-xs text-slate-300 truncate">{n.description}</span>
                                       </button>
                                     ))
@@ -798,7 +798,7 @@ export default function ProjectExpenseLogger() {
                         {/* Override Reason */}
                         {(line.variance_level === 'MAJOR' || line.variance_level === 'CRITICAL') && (
                           <div className="lg:col-span-12">
-                            <label className={`text-[10px] font-black uppercase tracking-wider mb-1.5 block ${vc.color}`}>
+                            <label className={`text-xs font-black r mb-1.5 block ${vc.color}`}>
                               {line.variance_level === 'CRITICAL'
                                 ? '⚠ CFO / CEO Override Justification (Required)'
                                 : '⚠ Finance Manager Override Reason (Required)'}
@@ -820,11 +820,11 @@ export default function ProjectExpenseLogger() {
             {/* Footer Summary */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900/30 border border-slate-800">
               <div>
-                <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Total Expenditure</p>
+                <p className="text-xs text-slate-500 uppercase font-black  mb-1">Total Expenditure</p>
                 <p className="text-4xl font-black italic text-white leading-none">
                   {convertToDisplay(totalAmount, currency)}
                 </p>
-                <p className="text-[10px] text-slate-600 mt-1.5">{lines.length} line item{lines.length !== 1 ? 's' : ''} · {mode}</p>
+                <p className="text-xs text-slate-600 mt-1.5">{lines.length} line item{lines.length !== 1 ? 's' : ''} · {mode}</p>
               </div>
 
               <div className="flex items-center gap-3">
@@ -835,7 +835,7 @@ export default function ProjectExpenseLogger() {
                 </button>
                 <button onClick={handleSubmit}
                   disabled={submitting || hasBlockingVariance || hasMajorNoOverride}
-                  className="flex items-center gap-2 px-8 py-3 rounded-2xl bg-brand-primary hover:bg-brand-primary/90 text-white text-sm font-black uppercase tracking-widest transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-8 py-3 rounded-2xl bg-brand-primary hover:bg-brand-primary/90 text-white text-sm font-black  transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? <Spinner className="w-4 h-4" /> : <Send className="w-4 h-4" />}
                   Submit Expenses

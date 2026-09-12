@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import { 
@@ -72,14 +72,14 @@ const SupportHub: React.FC = () => {
                 </p>
                 <button 
                   onClick={() => setSuccess(false)}
-                  className="px-8 py-3 bg-brand-primary text-brand-dark rounded-xl font-black text-sm uppercase tracking-widest hover:scale-105 transition active:scale-95"
+                  className="px-8 py-3 bg-brand-primary text-brand-dark rounded-xl font-black text-sm  hover:scale-105 transition active:scale-95"
                 >
                   New Dispatch
                 </button>
               </Card>
             ) : (
               <>
-                <Card title="Priority Assistance Dispatch" borderTopColor="primary">
+                <Card title="Priority Assistance Dispatch" accent="primary">
                   <p className="text-gray-400 text-sm mb-6">
                     Submit a high-priority request for technical anomalies, missing platform features, or infrastructure scaling needs. Our core engineering team will be notified immediately.
                   </p>
@@ -144,8 +144,8 @@ const SupportHub: React.FC = () => {
 
           {/* Sidebar: Platform Status & FAQs */}
           <div className="space-y-6">
-            <Card className="bg-gradient-to-br from-brand-dark to-brand-primary/5">
-              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center">
+            <Card>
+              <h3 className="text-sm font-bold text-gray-400  mb-4 flex items-center">
                 <ShieldCheck className="w-4 h-4 mr-2 text-green-400" />
                 Infrastructure Health
               </h3>

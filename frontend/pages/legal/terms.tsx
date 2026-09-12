@@ -1,7 +1,12 @@
-import React from 'react';
+﻿import React from 'react';
 import MarketingLayout from '../../components/Landing/MarketingLayout';
 import Link from 'next/link';
 import { Shield, ChevronRight } from 'lucide-react';
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactNode) => React.ReactNode;
+};
 
 const sections = [
   {
@@ -56,9 +61,8 @@ const sections = [
   },
 ];
 
-const TermsPage: React.FC = () => {
+const TermsPage: NextPageWithLayout = () => {
   return (
-    <MarketingLayout title="Terms of Service | SentinelFi">
       <section className="py-28">
         <div className="container mx-auto px-6 max-w-4xl">
           {/* Header */}
@@ -88,7 +92,7 @@ const TermsPage: React.FC = () => {
 
           {/* Quick Navigation */}
           <div className="glass-card p-6 mb-12">
-            <p className="text-xs font-black uppercase tracking-widest text-gray-500 mb-4">Quick Navigation</p>
+            <p className="text-xs font-black  text-gray-500 mb-4">Quick Navigation</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {sections.map((s) => (
                 <a
@@ -124,8 +128,11 @@ const TermsPage: React.FC = () => {
           </div>
         </div>
       </section>
-    </MarketingLayout>
   );
+};
+
+TermsPage.getLayout = (page: React.ReactNode) => {
+  return <MarketingLayout title="Terms of Service | SentinelFi">{page}</MarketingLayout>;
 };
 
 export default TermsPage;

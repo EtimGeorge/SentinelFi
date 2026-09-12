@@ -98,7 +98,7 @@ const SetupPage: NextPageWithLayout = () => {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-brand-dark p-4">
-        <div className="max-w-md w-full bg-gray-800/50 backdrop-blur-xl border border-brand-primary/20 rounded-3xl p-10 text-center shadow-2xl">
+        <div className="max-w-md w-full bg-gray-800/50 backdrop-blur-xl border border-brand-primary/20 rounded-3xl p-10 text-center elev-lg">
           <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-brand-primary/30">
             <CheckCircle2 className="w-10 h-10 text-brand-primary" />
           </div>
@@ -127,11 +127,11 @@ const SetupPage: NextPageWithLayout = () => {
           </div>
         </div>
 
-        <div className="bg-gray-800/40 backdrop-blur-2xl border border-gray-700/50 rounded-[2.5rem] shadow-2xl overflow-hidden">
+        <div className="bg-gray-800/40 backdrop-blur-2xl border border-gray-700/50 rounded-[2.5rem] elev-lg overflow-hidden">
           <div className="p-8 border-b border-gray-700/50 bg-brand-primary/5">
              <div className="flex items-center gap-4 text-brand-primary mb-4">
                 <ShieldCheck className="w-6 h-6" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Verified Secure Provisioning</span>
+                <span className="text-xs font-black uppercase tracking-[0.2em]">Verified Secure Provisioning</span>
              </div>
              <h2 className="text-xl font-black text-white uppercase tracking-tighter mb-1">Finalize Your Infrastructure</h2>
              <p className="text-gray-500 text-xs">Establish the primary administrative identity for your organization.</p>
@@ -139,7 +139,7 @@ const SetupPage: NextPageWithLayout = () => {
 
           <form onSubmit={handleSubmit} className="p-10 space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Identity (Email)</label>
+              <label className="text-xs font-black text-gray-500  ml-1">Identity (Email)</label>
               <Input 
                 disabled={!!queryEmail}
                 value={email}
@@ -152,7 +152,7 @@ const SetupPage: NextPageWithLayout = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">First Name</label>
+                <label className="text-xs font-black text-gray-500  ml-1">First Name</label>
                 <Input 
                   required
                   value={formData.first_name}
@@ -163,7 +163,7 @@ const SetupPage: NextPageWithLayout = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Last Name</label>
+                <label className="text-xs font-black text-gray-500  ml-1">Last Name</label>
                 <Input 
                   required
                   value={formData.last_name}
@@ -176,7 +176,7 @@ const SetupPage: NextPageWithLayout = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Primary Username</label>
+              <label className="text-xs font-black text-gray-500  ml-1">Primary Username</label>
               <Input 
                 value={formData.username}
                 onChange={(e) => setFormData({...formData, username: e.target.value})}
@@ -188,7 +188,7 @@ const SetupPage: NextPageWithLayout = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Vault Password</label>
+                <label className="text-xs font-black text-gray-500  ml-1">Vault Password</label>
                 <Input 
                   required
                   type={showPassword ? 'text' : 'password'}
@@ -205,7 +205,7 @@ const SetupPage: NextPageWithLayout = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Confirm Identity</label>
+                <label className="text-xs font-black text-gray-500  ml-1">Confirm Identity</label>
                 <Input 
                   required
                   type={showPassword ? 'text' : 'password'}
@@ -218,12 +218,12 @@ const SetupPage: NextPageWithLayout = () => {
               </div>
             </div>
 
-            {error && <p className="text-red-500 text-[10px] font-bold uppercase tracking-tight text-center">{error}</p>}
+            {error && <p className="text-red-500 text-xs font-bold uppercase tracking-tight text-center">{error}</p>}
 
             <div className="pt-6">
               <Button 
                 type="submit" 
-                className="w-full py-4 bg-brand-primary text-brand-dark font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all hover:scale-[1.02] shadow-lg shadow-brand-primary/20"
+                className="w-full py-4 bg-brand-primary text-brand-dark font-black  flex items-center justify-center gap-3 transition-all hover:scale-[1.02] elev-lg shadow-brand-primary/20"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}

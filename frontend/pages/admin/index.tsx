@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import PageContainer from '../../components/Layout/PageContainer';
@@ -177,14 +177,14 @@ const AdminDashboard: React.FC = () => {
                  <Card className="bg-brand-primary/5 border-brand-primary/10">
                     <div className="flex items-center gap-3">
                        <Zap className="w-5 h-5 text-brand-primary" />
-                       <h4 className="text-xs font-black text-brand-primary uppercase tracking-widest">Efficiency Prediction</h4>
+                       <h4 className="text-xs font-black text-brand-primary ">Efficiency Prediction</h4>
                     </div>
                     <p className="text-[11px] text-gray-400 mt-2">Based on current throughput, your infrastructure utilization is optimized. No immediate scaling required.</p>
                  </Card>
                  <Card className="bg-blue-500/5 border-blue-500/10">
                     <div className="flex items-center gap-3">
                        <ShieldCheck className="w-5 h-5 text-blue-400" />
-                       <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest">Registry Integrity</h4>
+                       <h4 className="text-xs font-black text-blue-400 ">Registry Integrity</h4>
                     </div>
                     <p className="text-[11px] text-gray-400 mt-2">Identity records are synchronized across all nodes. Zero anomalies detected in last 24h.</p>
                  </Card>
@@ -193,7 +193,7 @@ const AdminDashboard: React.FC = () => {
 
             {/* Support Hub Sidebar */}
             <div className="space-y-6">
-              <Card className="bg-gradient-to-br from-brand-dark to-brand-primary/15 border-brand-primary/30 shadow-[0_0_30px_rgba(var(--brand-primary-rgb),0.1)]">
+              <Card className="border-brand-primary/30">
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="p-2 bg-brand-primary/20 rounded-xl">
                     <LifeBuoy className="w-6 h-6 text-brand-primary" />
@@ -204,7 +204,7 @@ const AdminDashboard: React.FC = () => {
                   Facing technical infrastructure challenges? Directly communicate with the SuperAdmin team.
                 </p>
                 <Link href="/admin/support" passHref>
-                  <button className="w-full py-4 bg-brand-primary hover:bg-brand-primary/90 text-brand-dark rounded-2xl font-black transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-brand-primary/20 flex items-center justify-center space-x-2 text-sm uppercase tracking-widest">
+                  <button className="w-full py-4 bg-brand-primary hover:bg-brand-primary/90 text-brand-dark rounded-2xl font-black transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-brand-primary/20 flex items-center justify-center space-x-2 text-sm ">
                     <MessageSquare className="w-4 h-4" />
                     <span>Launch Helpdesk</span>
                   </button>

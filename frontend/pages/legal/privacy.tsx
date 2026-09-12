@@ -2,6 +2,11 @@ import React from 'react';
 import MarketingLayout from '../../components/Landing/MarketingLayout';
 import Link from 'next/link';
 import { Lock, ChevronRight, Shield, Database, Eye } from 'lucide-react';
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactNode) => React.ReactNode;
+};
 
 const highlights = [
   { icon: <Shield className="w-6 h-6" />, title: 'Sovereign Schema Isolation', desc: 'Your data is stored in an isolated PostgreSQL schema. No cross-tenant data access is architecturally possible.' },
@@ -64,9 +69,8 @@ const sections = [
   },
 ];
 
-const PrivacyPage: React.FC = () => {
+const PrivacyPage: NextPageWithLayout = () => {
   return (
-    <MarketingLayout title="Privacy Policy | SentinelFi">
       <section className="py-28">
         <div className="container mx-auto px-6 max-w-4xl">
           {/* Header */}
@@ -128,8 +132,11 @@ const PrivacyPage: React.FC = () => {
           </div>
         </div>
       </section>
-    </MarketingLayout>
   );
+};
+
+PrivacyPage.getLayout = (page: React.ReactNode) => {
+  return <MarketingLayout title="Privacy Policy | SentinelFi">{page}</MarketingLayout>;
 };
 
 export default PrivacyPage;

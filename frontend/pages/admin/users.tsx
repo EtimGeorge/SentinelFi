@@ -14,17 +14,12 @@ import {
   Search, 
   KeyRound, 
   Activity, 
-  MoreHorizontal,
   CheckCircle2,
   ShieldAlert,
   ShieldCheck,
   UserCheck,
   UserPlus,
-  Filter,
-  Download,
-  Trash,
   RotateCw,
-  MoreVertical,
   UserX
 } from 'lucide-react';
 import Card from '../../components/common/Card';
@@ -34,7 +29,8 @@ import { User, ICreateUserPayload, IUpdateUserPayload } from '@shared/types/user
 import { Role } from '@shared/types/role.enum';
 import useToast from '../../store/toastStore';
 import Switch from '../../components/common/Switch';
-import Modal from '../../components/common/Modal'; 
+import Modal from '../../components/common/Modal';
+import DataTable from '../../components/common/DataTable';
 import { isCorporateEmail } from '@shared/utils/validation';
 const UserManagementPage: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -289,7 +285,7 @@ const UserManagementPage: React.FC = () => {
             />
           </div>
 
-          <Card className="overflow-hidden border-gray-800 shadow-2xl bg-brand-dark/20 backdrop-blur-sm">
+          <Card className="overflow-hidden border-gray-800 elev-lg bg-brand-dark/20 backdrop-blur-sm">
             {/* Toolbar */}
             <div className="p-4 border-b border-gray-800 flex flex-wrap items-center justify-between gap-4 bg-brand-dark/40">
               <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
@@ -323,7 +319,7 @@ const UserManagementPage: React.FC = () => {
                       disabled={formLoading}
                     >
                       <UserX className="w-4 h-4" />
-                      <span className="text-[10px] font-bold">DEACTIVATE</span>
+                      <span className="text-xs font-bold">DEACTIVATE</span>
                     </button>
                   </div>
                 )}
@@ -336,130 +332,64 @@ const UserManagementPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto relative min-h-[400px]">
-              <table className="min-w-full divide-y divide-gray-800">
-                <thead className="bg-brand-dark/40">
-                  <tr>
-                    <th className="px-6 py-4 text-left w-10">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedUserIds.length === filteredUsers.length && filteredUsers.length > 0}
-                        onChange={toggleSelectAll}
-                        className="rounded border-gray-700 bg-brand-dark text-brand-primary focus:ring-brand-primary cursor-pointer w-4 h-4"
-                      />
-                    </th>
-                    {['Identity', 'Authority Level', 'Active Duty', 'Security Signal', 'Actions'].map(header => (
-                      <th key={header} className={`px-6 py-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ${header === 'Actions' ? 'sticky right-0 bg-brand-dark/95 z-10 shadow-[-10px_0_15px_rgba(0,0,0,0.5)]' : ''}`}>
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {loading ? (
-                    <tr><td colSpan={6} className="p-16 text-center text-gray-500"><Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-brand-primary/50" /><span className="font-mono text-xs uppercase tracking-widest">Decrypting Identity Registry...</span></td></tr>
-                  ) : filteredUsers.length === 0 ? (
-                    <tr><td colSpan={6} className="p-16 text-center text-gray-600 font-medium">No operators matched the security filters.</td></tr>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <tr key={user.id} className={`group hover:bg-brand-primary/5 transition-colors duration-300 ${selectedUserIds.includes(user.id) ? 'bg-brand-primary/10' : ''}`}>
-                        <td className="px-6 py-4">
-                          <input 
-                            type="checkbox" 
-                            checked={selectedUserIds.includes(user.id)}
-                            onChange={() => toggleSelectUser(user.id)}
-                            className="rounded border-gray-700 bg-brand-dark text-brand-primary focus:ring-brand-primary cursor-pointer w-4 h-4"
-                          />
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center min-w-[200px]">
-                            <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gradient-to-br from-gray-800 to-brand-dark flex items-center justify-center mr-4 border border-gray-700 group-hover:border-brand-primary/50 transition-all shadow-lg">
-                              <span className="text-sm md:text-lg font-black text-gray-500 group-hover:text-brand-primary transition-colors">{user.email[0].toUpperCase()}</span>
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold text-white group-hover:text-brand-primary transition-colors flex flex-wrap items-center gap-2">
-                                {user.email}
-                                {user.id === currentUser?.id && <span className="text-[10px] bg-brand-primary/10 text-brand-primary px-1.5 py-0.5 rounded border border-brand-primary/20 leading-none">YOU</span>}
-                              </div>
-                              <div className="hidden sm:block text-[10px] font-mono text-gray-600 mt-1 uppercase tracking-tight">SEC_ID: {user.id.slice(0, 12)}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 truncate max-w-[150px]">
-                          <div className="flex flex-col gap-1">
-                            <span className={`px-2.5 py-1 text-[9px] font-black rounded border inline-block w-fit uppercase tracking-tighter ${
-                                user.roles.some(r => r.name === Role.AdminDirector) ? 'border-orange-500/30 text-orange-500 bg-orange-500/5' :
-                                user.roles.some(r => r.name === Role.CEO) ? 'border-brand-primary/30 text-brand-primary bg-brand-primary/5' :
-                                'border-gray-700 text-gray-400 bg-gray-800'
-                            }`}>
-                                {user.roles[0]?.name || 'RESTRICTED'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center">
-                            <Switch 
-                              checked={user.is_active} 
-                              onChange={() => handleStatusToggle(user)} 
-                              disabled={formLoading || user.id === currentUser?.id}
-                            />
-                            <span className={`ml-3 text-[10px] font-black uppercase tracking-widest ${user.is_active ? 'text-green-500' : 'text-red-500/60'}`}>
-                              {user.is_active ? 'ENABLED' : 'LOCKED'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3 min-w-[120px]">
-                             <div className={`w-2 h-2 rounded-full ${user.is_active ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500/30'}`} />
-                             <span className="text-[10px] text-gray-500 font-mono font-bold tracking-tight uppercase">Authenticated</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right sticky right-0 bg-brand-dark/95 group-hover:bg-brand-primary/10 transition-colors z-10 backdrop-blur-md shadow-[-10px_0_15px_rgba(0,0,0,0.5)]">
-                          <div className="flex items-center justify-end space-x-1">
-                            <button 
-                               onClick={() => { setUserToReset(user); setIsResetModalOpen(true); }}
-                               className="p-2 text-gray-400 hover:text-brand-primary hover:bg-brand-primary/10 rounded-lg transition" 
-                               title="Security Override"
-                            >
-                                <KeyRound className="w-4 h-4" />
-                            </button>
-                            <button 
-                               onClick={() => { 
-                                 setEditingUser(user); 
-                                 setEditForm({ 
-                                   email: user.email, 
-                                   username: user.username || '',
-                                   first_name: user.first_name || '', 
-                                   last_name: user.last_name || '', 
-                                   role: user.roles[0]?.name as Role 
-                                 }); 
-                                 setIsEditModalOpen(true); 
-                               }}
-                               className="p-2 text-gray-400 hover:text-brand-primary hover:bg-brand-primary/10 rounded-lg transition" 
-                               title="Edit Authority"
-                            >
-                                <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button 
-                               onClick={() => handleDeleteUser(user.id)}
-                               className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition" 
-                               title="Purge Identity"
-                               disabled={user.id === currentUser?.id}
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {loading ? (
+              <div className="p-16 text-center text-gray-500"><Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-brand-primary/50" /><span className="font-mono text-xs ">Decrypting Identity Registry...</span></div>
+            ) : (
+              <DataTable
+                columns={[
+                  { key: 'identity', label: 'Identity', tier: 'P0', minWidth: 200, get: (u) => (
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-gray-800 flex items-center justify-center mr-4 border border-gray-700 group-hover:border-brand-primary/50 transition-all">
+                        <span className="text-sm md:text-lg font-black text-gray-500 group-hover:text-brand-primary transition-colors">{u.email[0].toUpperCase()}</span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white group-hover:text-brand-primary transition-colors flex flex-wrap items-center gap-2">
+                          {u.email}
+                          {u.id === currentUser?.id && <span className="text-xs bg-brand-primary/10 text-brand-primary px-1.5 py-0.5 rounded border border-brand-primary/20 leading-none">YOU</span>}
+                        </div>
+                        <div className="hidden sm:block text-xs font-mono text-gray-600 mt-1 uppercase tracking-tight">SEC_ID: {u.id.slice(0, 12)}</div>
+                      </div>
+                    </div>
+                  )},
+                  { key: 'role', label: 'Authority Level', tier: 'P1', minWidth: 120, get: (u) => (
+                    <span className={`px-2.5 py-1 text-xs font-black rounded border inline-block w-fit uppercase tracking-tighter ${
+                        u.roles.some(r => r.name === Role.AdminDirector) ? 'border-orange-500/30 text-orange-500 bg-orange-500/5' :
+                        u.roles.some(r => r.name === Role.CEO) ? 'border-brand-primary/30 text-brand-primary bg-brand-primary/5' :
+                        'border-gray-700 text-gray-400 bg-gray-800'
+                    }`}>
+                        {u.roles[0]?.name || 'RESTRICTED'}
+                    </span>
+                  )},
+                  { key: 'status', label: 'Active Duty', tier: 'P1', minWidth: 140, get: (u) => (
+                    <div className="flex items-center">
+                      <Switch checked={u.is_active} onChange={() => handleStatusToggle(u)} disabled={formLoading || u.id === currentUser?.id} />
+                      <span className={`ml-3 text-xs font-black  ${u.is_active ? 'text-green-500' : 'text-red-500/60'}`}>
+                        {u.is_active ? 'ENABLED' : 'LOCKED'}
+                      </span>
+                    </div>
+                  )},
+                  { key: 'signal', label: 'Security Signal', tier: 'P2', minWidth: 120, get: (u) => (
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${u.is_active ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500/30'}`} />
+                      <span className="text-xs text-gray-500 font-mono font-bold tracking-tight uppercase">Authenticated</span>
+                    </div>
+                  )},
+                ]}
+                rows={filteredUsers}
+                rowKey={(u) => u.id}
+                actions={[
+                  { key: 'reset', label: 'Security Override', icon: <KeyRound className="w-4 h-4" />, onClick: (u) => { setUserToReset(u); setIsResetModalOpen(true); }, title: 'Security Override' },
+                  { key: 'edit', label: 'Edit Authority', icon: <Edit3 className="w-4 h-4" />, onClick: (u) => { setEditingUser(u); setEditForm({ email: u.email, username: u.username || '', first_name: u.first_name || '', last_name: u.last_name || '', role: u.roles[0]?.name as Role }); setIsEditModalOpen(true); }, title: 'Edit Authority' },
+                  { key: 'delete', label: 'Purge Identity', icon: <Trash2 className="w-4 h-4" />, onClick: (u) => handleDeleteUser(u.id), danger: true, title: 'Purge Identity', visible: (u) => u.id !== currentUser?.id },
+                ]}
+                emptyMessage="No operators matched the security filters."
+                className="relative min-h-[400px]"
+              />
+            )}
             
             {/* Footer / Pagination placeholder */}
             <div className="p-4 bg-brand-dark/40 border-t border-gray-800 flex items-center justify-between">
-                <span className="text-[10px] text-gray-600 font-bold uppercase tracking-[0.2em]">Registry Version 2.6.43-STABLE</span>
+                <span className="text-xs text-gray-600 font-bold uppercase tracking-[0.2em]">Registry Version 2.6.43-STABLE</span>
                 <div className="flex items-center gap-2">
                     <button className="px-3 py-1 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-500 hover:text-white transition disabled:opacity-30" disabled>PREV</button>
                     <button className="px-3 py-1 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-white transition">NEXT</button>
@@ -473,7 +403,7 @@ const UserManagementPage: React.FC = () => {
                   <ShieldAlert className="w-5 h-5" />
               </div>
               <div>
-                  <h4 className="text-xs font-black text-brand-primary uppercase tracking-widest leading-none mb-1">Security Directive</h4>
+                  <h4 className="text-xs font-black text-brand-primary  leading-none mb-1">Security Directive</h4>
                   <p className="text-[11px] text-gray-400 leading-relaxed font-medium">Tenant isolation is enforced at the network and application layer. Any attempt to modify cross-tenant identity records will trigger a high-priority architectural alert to the SuperAdmin team.</p>
               </div>
           </div>
@@ -491,7 +421,7 @@ const UserManagementPage: React.FC = () => {
         footer={(
           <div className="flex justify-end space-x-3 w-full">
             <button onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm font-bold transition">Cancel</button>
-            <button onClick={handleCreateUser} disabled={formLoading} className="px-6 py-2 bg-brand-primary text-brand-dark rounded-xl font-black text-sm hover:scale-105 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-brand-primary/20">
+            <button onClick={handleCreateUser} disabled={formLoading} className="px-6 py-2 bg-brand-primary text-brand-dark rounded-xl font-black text-sm hover:scale-105 transition active:scale-95 flex items-center gap-2 elev-lg shadow-brand-primary/20">
               {formLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
               SEND INVITATION
             </button>
@@ -499,9 +429,9 @@ const UserManagementPage: React.FC = () => {
         )}
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">First Name</label>
+              <label className="text-xs font-black text-gray-500  pl-1">First Name</label>
               <input 
                 type="text" 
                 value={createForm.first_name}
@@ -511,7 +441,7 @@ const UserManagementPage: React.FC = () => {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Last Name</label>
+              <label className="text-xs font-black text-gray-500  pl-1">Last Name</label>
               <input 
                 type="text" 
                 value={createForm.last_name || ''}
@@ -521,9 +451,9 @@ const UserManagementPage: React.FC = () => {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Identity (Email)</label>
+              <label className="text-xs font-black text-gray-500  pl-1">Identity (Email)</label>
               <input 
                 type="email" 
                 value={createForm.email}
@@ -533,7 +463,7 @@ const UserManagementPage: React.FC = () => {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Identity (Username)</label>
+              <label className="text-xs font-black text-gray-500  pl-1">Identity (Username)</label>
               <input 
                 type="text" 
                 value={createForm.username || ''}
@@ -549,7 +479,7 @@ const UserManagementPage: React.FC = () => {
             </p>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Authority Level (Role)</label>
+            <label className="text-xs font-black text-gray-500  pl-1">Authority Level (Role)</label>
             <select 
               value={createForm.role}
               onChange={(e) => setCreateForm({...createForm, role: e.target.value as Role})}
@@ -559,7 +489,7 @@ const UserManagementPage: React.FC = () => {
             </select>
           </div>
           <div className="p-3 bg-brand-primary/5 rounded-xl border border-brand-primary/10">
-              <p className="text-[10px] text-gray-400 font-medium font-mono">ENROLLMENT_TENANT: <span className="text-brand-primary font-bold">{currentUser?.tenant_id}</span></p>
+              <p className="text-xs text-gray-400 font-medium font-mono">ENROLLMENT_TENANT: <span className="text-brand-primary font-bold">{currentUser?.tenant_id}</span></p>
           </div>
         </div>
       </Modal>
@@ -573,7 +503,7 @@ const UserManagementPage: React.FC = () => {
         footer={(
           <div className="flex justify-end space-x-3 w-full">
             <button onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm font-bold transition">Cancel</button>
-            <button onClick={handleUpdateUser} disabled={formLoading} className="px-6 py-2 bg-brand-primary text-brand-dark rounded-xl font-black text-sm hover:scale-105 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-brand-primary/20">
+            <button onClick={handleUpdateUser} disabled={formLoading} className="px-6 py-2 bg-brand-primary text-brand-dark rounded-xl font-black text-sm hover:scale-105 transition active:scale-95 flex items-center gap-2 elev-lg shadow-brand-primary/20">
               {formLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               UPDATE REGISTRY
             </button>
@@ -581,9 +511,9 @@ const UserManagementPage: React.FC = () => {
         )}
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Update Identity (Email)</label>
+               <label className="text-xs font-black text-gray-500  pl-1">Update Identity (Email)</label>
                <input 
                  type="text" 
                  value={editForm.email || ''}
@@ -592,7 +522,7 @@ const UserManagementPage: React.FC = () => {
                />
             </div>
             <div className="space-y-1">
-               <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Update Identity (Username)</label>
+               <label className="text-xs font-black text-gray-500  pl-1">Update Identity (Username)</label>
                <input 
                  type="text" 
                  value={editForm.username || ''}
@@ -601,9 +531,9 @@ const UserManagementPage: React.FC = () => {
                />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">First Name</label>
+              <label className="text-xs font-black text-gray-500  pl-1">First Name</label>
               <input 
                 type="text" 
                 value={editForm.first_name || ''}
@@ -612,7 +542,7 @@ const UserManagementPage: React.FC = () => {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Last Name</label>
+              <label className="text-xs font-black text-gray-500  pl-1">Last Name</label>
               <input 
                 type="text" 
                 value={editForm.last_name || ''}
@@ -622,7 +552,7 @@ const UserManagementPage: React.FC = () => {
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Authority Level</label>
+            <label className="text-xs font-black text-gray-500  pl-1">Authority Level</label>
             <select 
               value={editForm.role}
               onChange={(e) => setEditForm({...editForm, role: e.target.value as Role})}
@@ -633,7 +563,7 @@ const UserManagementPage: React.FC = () => {
           </div>
           <div className="p-3 bg-alert-warning/5 rounded-xl border border-alert-warning/10 flex gap-3">
               <AlertTriangle className="w-5 h-5 text-alert-warning shrink-0" />
-              <p className="text-[10px] text-gray-400 font-medium">Changing an operator's identity will invalidate their active session tokens.</p>
+              <p className="text-xs text-gray-400 font-medium">Changing an operator's identity will invalidate their active session tokens.</p>
           </div>
         </div>
       </Modal>
@@ -647,7 +577,7 @@ const UserManagementPage: React.FC = () => {
         footer={(
           <div className="flex justify-end space-x-3 w-full">
             <button onClick={() => setIsResetModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm font-bold transition">Cancel</button>
-            <button onClick={handleResetPassword} disabled={formLoading || !resetPasswordForm.newPassword} className="px-6 py-2 bg-red-600 text-white rounded-xl font-black text-sm hover:bg-red-700 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-red-600/20">
+            <button onClick={handleResetPassword} disabled={formLoading || !resetPasswordForm.newPassword} className="px-6 py-2 bg-red-600 text-white rounded-xl font-black text-sm hover:bg-red-700 transition active:scale-95 flex items-center gap-2 elev-lg shadow-red-600/20">
               {formLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
               FORCE CREDENTIAL UPDATE
             </button>
@@ -659,12 +589,12 @@ const UserManagementPage: React.FC = () => {
               <ShieldAlert className="w-10 h-10 text-red-500 shrink-0" />
               <div>
                   <h4 className="text-xs font-black text-red-500 uppercase tracking-tighter">Identity Protection Override</h4>
-                  <p className="text-[10px] text-gray-500 font-medium mt-1">Manual credential reset for <span className="text-white font-bold">{userToReset?.email}</span>. Operation logged in audit registry.</p>
+                  <p className="text-xs text-gray-500 font-medium mt-1">Manual credential reset for <span className="text-white font-bold">{userToReset?.email}</span>. Operation logged in audit registry.</p>
               </div>
           </div>
           <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">New Secure Password</label>
+              <label className="text-xs font-black text-gray-500  pl-1">New Secure Password</label>
               <input 
                 type="password" 
                 value={resetPasswordForm.newPassword}
@@ -674,7 +604,7 @@ const UserManagementPage: React.FC = () => {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Confirm Credentials</label>
+              <label className="text-xs font-black text-gray-500  pl-1">Confirm Credentials</label>
               <input 
                 type="password" 
                 value={resetPasswordForm.confirmPassword}
@@ -697,7 +627,7 @@ const MetricCard: React.FC<{ label: string, value: string, icon: any, color: str
         <Icon className={`w-6 h-6 ${color}`} />
       </div>
       <div>
-        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{label}</p>
+        <p className="text-xs font-black text-gray-500 ">{label}</p>
         <p className="text-2xl font-black text-white mt-0.5 tracking-tight group-hover:text-brand-primary transition-colors">{value}</p>
       </div>
     </div>

@@ -135,7 +135,7 @@ const BudgetDraftingPage: React.FC = () => {
               type="submit"
               form="budget-draft-form" // Associate with the form
               disabled={loading}
-              className="px-6 py-2 rounded-lg font-semibold text-white bg-alert-positive hover:bg-alert-positive/90 disabled:opacity-50 transition shadow-md"
+              className="px-6 py-2 rounded-lg font-semibold text-white bg-alert-positive hover:bg-alert-positive/90 disabled:opacity-50 transition elev-md"
             >
               Save Draft
             </button>
@@ -149,18 +149,18 @@ const BudgetDraftingPage: React.FC = () => {
         <form id="budget-draft-form" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
-              <Card title="WBS Allocation" subtitle="Select the parent element" borderTopColor="primary">
-                <div className="grid grid-cols-2 gap-6">
+              <Card title="WBS Allocation" subtitle="Select the parent element" accent="primary">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-white mb-1" htmlFor="wbs_code">WBS Code <span className="text-alert-critical">*</span></label>
                       <input type="text" name="wbs_code" id="wbs_code" value={formData.wbs_code} onChange={handleChange} required 
                         placeholder="e.g., 1.1.1 or 2.1"
-                        className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm focus:border-brand-primary focus:ring-brand-primary/50 text-white" />
+                        className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm focus:border-brand-primary focus:ring-brand-primary/50 text-white" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-white mb-1" htmlFor="parent_wbs_id">Parent WBS Element <span className="text-alert-critical">*</span></label>
                       <select name="parent_wbs_id" id="parent_wbs_id" value={formData.parent_wbs_id || ''} onChange={handleChange}
-                        className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm focus:border-brand-primary focus:ring-brand-primary/50 text-white appearance-none">
+                        className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm focus:border-brand-primary focus:ring-brand-primary/50 text-white appearance-none">
                           <option value="" className="bg-gray-800 text-gray-400">-- NO PARENT (New Level 1) --</option>
                           {parentWBSOptions.map(wbs => (
                             <option key={wbs.id} value={wbs.id} className="bg-gray-800 text-white">
@@ -173,49 +173,49 @@ const BudgetDraftingPage: React.FC = () => {
                 </div>
               </Card>
               
-              <Card title="General Information" borderTopColor="primary">
+              <Card title="General Information" accent="primary">
                 <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-white mb-1" htmlFor="description">Description <span className="text-alert-critical">*</span></label>
                       <input type="text" name="description" id="description" value={formData.description} onChange={handleChange} required
                         placeholder="e.g., Q3 Marketing Campaign Assets"
-                        className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                        className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm text-white" />
                     </div>
                     
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-white mb-1">Vendor / Payee</label>
-                          <input type="text" placeholder="Search vendor database..." className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                          <input type="text" placeholder="Search vendor database..." className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm text-white" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-white mb-1" htmlFor="duration_days_budgeted">Duration (Days)</label>
                           <input type="number" name="duration_days_budgeted" id="duration_days_budgeted" value={formData.duration_days_budgeted || ''} onChange={handleChange} min="0"
-                            className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                            className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm text-white" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-white mb-1">Required Date</label>
-                          <input type="date" placeholder="mm/dd/yyyy" className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                          <input type="date" placeholder="mm/dd/yyyy" className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm text-white" />
                         </div>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-white mb-1">Justification / Notes</label>
                       <textarea placeholder="Provide context for this budget request..." rows={3}
-                        className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white"></textarea>
+                        className="block w-full p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm text-white"></textarea>
                     </div>
                 </div>
               </Card>
             </div>
             
             <div className="lg:col-span-1 space-y-8">
-              <Card title="Financials" borderTopColor="primary">
+              <Card title="Financials" accent="primary">
                 <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-white mb-1" htmlFor="unit_cost_budgeted">Unit Cost</label>
                       <div className="relative">
                         <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">{userCurrency.symbol}</span>
                         <input type="number" name="unit_cost_budgeted" id="unit_cost_budgeted" value={formData.unit_cost_budgeted || ''} onChange={handleChange} required step="0.01" min="0"
-                          className="block w-full pl-8 p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                          className="block w-full pl-8 p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm text-white" />
                       </div>
                     </div>
 
@@ -226,7 +226,7 @@ const BudgetDraftingPage: React.FC = () => {
                           <Minus className="w-5 h-5 text-white" />
                         </button>
                         <input type="number" name="quantity_budgeted" id="quantity_budgeted" value={formData.quantity_budgeted || ''} onChange={handleChange} required step="0.01" min="0.01"
-                          className="block w-full text-center p-2 bg-brand-dark/50 border border-gray-700 rounded-lg shadow-sm text-white" />
+                          className="block w-full text-center p-2 bg-brand-dark/50 border border-gray-700 rounded-lg elev-sm text-white" />
                         <button type="button" onClick={() => handleQuantityChange(1)} className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition">
                           <Plus className="w-5 h-5 text-white" />
                         </button>
@@ -245,7 +245,7 @@ const BudgetDraftingPage: React.FC = () => {
                 </div>
               </Card>
 
-              <Card title="Attachments" borderTopColor="primary">
+              <Card title="Attachments" accent="primary">
                 <div className="border-2 border-dashed border-gray-700 p-8 rounded-lg text-center cursor-pointer hover:border-brand-primary transition">
                   <CloudUpload className="w-10 h-10 mx-auto text-gray-500 mb-2" />
                   <p className="text-sm text-gray-400">Click to upload or drag and drop quotes/invoices</p>
@@ -253,7 +253,7 @@ const BudgetDraftingPage: React.FC = () => {
               </Card>
 
               {/* NEW: WBS Hierarchy Tree for context */}
-              <Card title="Existing WBS Structure" borderTopColor="secondary">
+              <Card title="Existing WBS Structure" accent="secondary">
                 <div className="max-h-80 overflow-y-auto">
                   <WBSHierarchyTree data={existingWbsData} />
                 </div>

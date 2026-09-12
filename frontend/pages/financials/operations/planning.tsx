@@ -101,24 +101,24 @@ const OpexPlanningPage: React.FC = () => {
         }
       >
         {/* Workspace Tab Navigation */}
-        <div className="flex bg-slate-900/60 p-1 rounded-2xl border border-white/5 self-start mb-10 backdrop-blur-xl shadow-2xl">
+        <div className="flex bg-slate-900/60 p-1 rounded-2xl border border-white/5 self-start mb-10 backdrop-blur-xl elev-lg">
           <button
             onClick={() => setActiveTab('setup')}
-            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'setup' ? 'bg-brand-primary text-black shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.4)]' : 'text-slate-500 hover:text-white'}`}
+            className={`px-6 py-2.5 rounded-xl text-xs font-black  transition-all flex items-center gap-2 ${activeTab === 'setup' ? 'bg-brand-primary text-black shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.4)]' : 'text-slate-500 hover:text-white'}`}
           >
             <Calendar className="w-3.5 h-3.5" />
             Temporal Setup
           </button>
           <button
             onClick={() => setActiveTab('budgeting')}
-            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'budgeting' ? 'bg-brand-primary text-black shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.4)]' : 'text-slate-500 hover:text-white'}`}
+            className={`px-6 py-2.5 rounded-xl text-xs font-black  transition-all flex items-center gap-2 ${activeTab === 'budgeting' ? 'bg-brand-primary text-black shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.4)]' : 'text-slate-500 hover:text-white'}`}
           >
             <Layers className="w-3.5 h-3.5" />
             Planning Matrix
           </button>
           <button
             onClick={() => setActiveTab('review')}
-            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'review' ? 'bg-brand-primary text-black shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.4)]' : 'text-slate-500 hover:text-white'}`}
+            className={`px-6 py-2.5 rounded-xl text-xs font-black  transition-all flex items-center gap-2 ${activeTab === 'review' ? 'bg-brand-primary text-black shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.4)]' : 'text-slate-500 hover:text-white'}`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
             Governance Audit
@@ -126,7 +126,7 @@ const OpexPlanningPage: React.FC = () => {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-slate-900/30 backdrop-blur-md border border-slate-800 rounded-3xl overflow-hidden shadow-2xl min-h-[600px] flex flex-col relative group">
+        <div className="flex-1 bg-slate-900/30 backdrop-blur-md border border-slate-800 rounded-3xl overflow-hidden elev-lg min-h-[600px] flex flex-col relative group">
           <div className="absolute top-0 right-0 w-96 h-96 bg-brand-primary/5 rounded-full -mr-48 -mt-48 blur-3xl opacity-50 pointer-events-none" />
 
           {activeTab === 'setup' ? (
@@ -146,7 +146,7 @@ const OpexPlanningPage: React.FC = () => {
               <div className="flex justify-center gap-3 pt-4">
                 <Button
                   variant="primary"
-                  className="px-10 h-12 text-black font-black uppercase tracking-widest text-[10px]"
+                  className="px-10 h-12 text-black font-black  text-xs"
                   onClick={() => router.push('/financials/operations/setup')}
                 >
                   Initialize Fiscal Cycle
@@ -215,17 +215,17 @@ const OpexPlanningPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-6">
             <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 shadow-inner group">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 group-hover:text-slate-400 transition">Master OPEX Target</p>
+              <p className="text-xs font-black text-slate-500  mb-2 group-hover:text-slate-400 transition">Master OPEX Target</p>
               <p className="text-3xl font-black text-white tracking-tighter italic">{convertToDisplay(0, 'NGN')}</p>
             </div>
             <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 shadow-inner group">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 group-hover:text-slate-400 transition">Active Depts Rolling Up</p>
+              <p className="text-xs font-black text-slate-500  mb-2 group-hover:text-slate-400 transition">Active Depts Rolling Up</p>
               <p className="text-3xl font-black text-white tracking-tighter italic">{departments.length}</p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Governance Attestations</h4>
+            <h4 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Governance Attestations</h4>
             <div className="space-y-3">
               <div className="flex items-center gap-4 p-4 bg-slate-950/40 border border-slate-800 rounded-xl group hover:border-brand-primary/30 transition cursor-pointer">
                 <div className="w-5 h-5 rounded-full border-2 border-slate-800 group-hover:border-brand-primary transition flex items-center justify-center">
@@ -243,10 +243,10 @@ const OpexPlanningPage: React.FC = () => {
           </div>
 
           <div className="flex gap-4 justify-end pt-8 border-t border-white/[0.03]">
-            <Button variant="outline" className="px-10 border-slate-800 h-12 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white" onClick={() => setIsSummaryModalOpen(false)}>Back to Matrix</Button>
+            <Button variant="outline" className="px-10 border-slate-800 h-12 text-xs font-black  text-slate-500 hover:text-white" onClick={() => setIsSummaryModalOpen(false)}>Back to Matrix</Button>
             <Button
               variant="primary"
-              className="px-12 h-12 font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.3)]"
+              className="px-12 h-12 font-black  text-xs shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.3)]"
               onClick={handleSubmitToGovernance}
               isLoading={isSubmitting}
               icon={<ArrowUpRight className="w-4 h-4" />}

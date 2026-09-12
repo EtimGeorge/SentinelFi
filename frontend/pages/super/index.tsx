@@ -240,7 +240,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                     <p className="text-red-300 mb-6">{error}</p>
                     <button
                         onClick={() => fetchDashboardData()}
-                        className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-all font-bold shadow-lg"
+                        className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-all font-bold elev-lg"
                     >
                         RE-ESTABLISH CONNECTION
                     </button>
@@ -279,7 +279,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                 <Building className="w-24 h-24 text-brand-primary" />
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-gray-400 uppercase tracking-wider">Total Tenants</p>
+                                <p className="text-sm font-medium text-gray-400 r">Total Tenants</p>
                                 <div className="flex items-baseline mt-2">
                                     <span className="text-4xl font-bold text-white">{totalTenantsCount}</span>
                                     <span className={`ml-2 text-sm flex items-center ${(tenantGrowthPercentage ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -298,7 +298,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                 <Server className="w-24 h-24 text-blue-500" />
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-gray-400 uppercase tracking-wider">System Load</p>
+                                <p className="text-sm font-medium text-gray-400 r">System Load</p>
                                 <div className="flex items-baseline mt-2">
                                     <span className="text-4xl font-bold text-white font-mono">{systemHealth?.cpu ?? 0}%</span>
                                     <span className="ml-2 text-sm text-gray-500 uppercase">CPU Load</span>
@@ -318,7 +318,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                 <Users className="w-24 h-24 text-purple-500" />
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-gray-400 uppercase tracking-wider">Total Users</p>
+                                <p className="text-sm font-medium text-gray-400 r">Total Users</p>
                                 <div className="flex items-baseline mt-2">
                                     <span className="text-4xl font-bold text-white font-mono">{totalUsersCount ?? 0}</span>
                                 </div>
@@ -345,10 +345,10 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
 
                     {/* Advanced Insights: Managed Capital */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Card className="md:col-span-2 bg-gradient-to-br from-brand-dark to-brand-primary/5">
+                        <Card className="md:col-span-2">
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                 <div>
-                                    <p className="text-xs font-mono text-brand-primary uppercase tracking-widest mb-1">Advanced Oversight</p>
+                                    <p className="text-xs font-mono text-brand-primary  mb-1">Advanced Oversight</p>
                                     <h3 className="text-2xl font-bold text-white">Platform Managed Capital</h3>
                                     <p className="text-sm text-gray-400 mt-1">Aggregated financial throughput across all active customer project portfolios.</p>
                                 </div>
@@ -366,15 +366,15 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                 </div>
                                 <div className="w-full bg-gray-800 h-3 rounded-full overflow-hidden border border-gray-700">
                                     <div
-                                        className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full transition-all duration-1000"
+                                        className="bg-brand-primary h-full transition-all duration-1000"
                                         style={{ width: `${wbsMetrics?.total_budget ? (wbsMetrics.total_spent / wbsMetrics.total_budget) * 100 : 0}%` }}
                                     ></div>
                                 </div>
                             </div>
                         </Card>
 
-                        <Card className="bg-gradient-to-br from-brand-dark to-orange-500/5">
-                            <p className="text-xs font-mono text-orange-400 uppercase tracking-widest mb-1">Operational Health</p>
+                        <Card>
+                            <p className="text-xs font-mono text-orange-400  mb-1">Operational Health</p>
                             <h3 className="text-xl font-bold text-white mb-4">Portflio Liquidity</h3>
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
@@ -386,7 +386,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                     <span className="text-green-400 font-bold">{Math.round((opMetrics?.averageBudgetUtilization || 0) * 100)}%</span>
                                 </div>
                                 <div className="pt-2">
-                                    <p className="text-[10px] items-center italic text-gray-600 uppercase font-mono">
+                                    <p className="text-xs items-center italic text-gray-600 uppercase font-mono">
                                         Across {opMetrics?.totalBudgets || 0} active portfolio budgets.
                                     </p>
                                 </div>
@@ -410,7 +410,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                         <span className="text-green-400 font-mono font-bold">LOW</span>
                                     </div>
                                     <div className="pt-4 border-t border-gray-700">
-                                        <p className="text-[10px] items-center italic text-gray-600 uppercase font-mono">
+                                        <p className="text-xs items-center italic text-gray-600 uppercase font-mono">
                                             AI-Powered projection based on recent {growthData.length} day data cycle.
                                         </p>
                                     </div>
@@ -436,7 +436,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                         <span className="text-white font-mono">{activeTenantsCount * 3 + 2} (Est)</span>
                                     </div>
                                     <div className="pt-4 border-t border-gray-700">
-                                        <p className="text-[10px] items-center italic text-gray-600 uppercase font-mono">
+                                        <p className="text-xs items-center italic text-gray-600 uppercase font-mono">
                                             Last system audit: {auditLogs[0] ? new Date(auditLogs[0].timestamp).toLocaleDateString() : 'Just now'}
                                         </p>
                                     </div>
@@ -518,7 +518,7 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
                                         ) : (
                                             <div className="py-12 text-center text-gray-500 border border-dashed border-gray-700 rounded-lg">
                                                 <Clock className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                                                <p className="text-xs uppercase tracking-widest font-mono">No recent activity logged</p>
+                                                <p className="text-xs  font-mono">No recent activity logged</p>
                                             </div>
                                         )}
                                     </ul>

@@ -4,11 +4,12 @@ import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
+import DataTable from '../../components/common/DataTable';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth, Role } from '../../components/context/AuthContext';
 import { AuditLogEntity } from '@shared/types/audit';
 import useToast from '../../store/toastStore';
-import { Users, Plus, X, Edit3, Save, Loader2, AlertTriangle, Trash2, Search, Calendar, Filter, Building } from 'lucide-react'; // Added Building icon
+import { Loader2, Trash2, Search, Calendar, Filter, Building, AlertTriangle } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -180,40 +181,39 @@ const AuditLogPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-800">
-              <thead className="bg-brand-dark/50">
-                <tr>
-                  {['Timestamp', 'User', 'Action', 'Target Type', 'Target ID', 'Tenant ID', 'Details'].map(header => (
-                    <th key={header} className={`px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider`}>
-                      {header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {loading ? (
-                  <tr><td colSpan={7} className="p-4 text-center text-gray-400"><div className="flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading audit logs...</div></td></tr>
-                ) : auditLogs.length === 0 ? (
-                  <tr><td colSpan={7} className="p-8 text-center text-gray-500">No audit logs found matching your criteria.</td></tr>
-                ) : (
-                  auditLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-800/50 transition-colors duration-150">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{new Date(log.timestamp).toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{log.userEmail || log.userId || 'System'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{log.action}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{log.targetType || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{log.targetId || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{log.tenantId || 'N/A'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-400">
-                        <pre className="whitespace-pre-wrap break-all text-xs bg-gray-700 p-2 rounded max-h-24 overflow-y-auto">{log.details ? JSON.stringify(log.details, null, 2) : 'N/A'}</pre>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          {loading ? (
+            <div className="p-8 text-center text-gray-400"><div className="flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin mr-2" />Loading audit logs...</div></div>
+          ) : (
+            <DataTable
+              columns={[
+                { key: 'timestamp', label: 'Timestamp', tier: 'P0', minWidth: 160, get: (l) => (
+                  <span className="whitespace-nowrap text-sm text-white">{new Date(l.timestamp).toLocaleString()}</span>
+                )},
+                { key: 'user', label: 'User', tier: 'P0', minWidth: 140, get: (l) => (
+                  <span className="whitespace-nowrap text-sm text-gray-400">{l.userEmail || l.userId || 'System'}</span>
+                )},
+                { key: 'action', label: 'Action', tier: 'P1', minWidth: 120, get: (l) => (
+                  <span className="whitespace-nowrap text-sm text-gray-400">{l.action}</span>
+                )},
+                { key: 'targetType', label: 'Target Type', tier: 'P2', minWidth: 110, get: (l) => (
+                  <span className="whitespace-nowrap text-sm text-gray-400">{l.targetType || 'N/A'}</span>
+                )},
+                { key: 'targetId', label: 'Target ID', tier: 'P2', minWidth: 110, get: (l) => (
+                  <span className="whitespace-nowrap text-sm text-gray-400">{l.targetId || 'N/A'}</span>
+                )},
+                { key: 'tenantId', label: 'Tenant ID', tier: 'P3', get: (l) => (
+                  <span className="whitespace-nowrap text-sm text-gray-400">{l.tenantId || 'N/A'}</span>
+                )},
+                { key: 'details', label: 'Details', tier: 'P3', get: (l) => (
+                  <pre className="whitespace-pre-wrap break-all text-xs bg-gray-700 p-2 rounded max-h-24 overflow-y-auto">{l.details ? JSON.stringify(l.details, null, 2) : 'N/A'}</pre>
+                )},
+              ]}
+              rows={auditLogs}
+              rowKey={(l) => l.id}
+              emptyMessage="No audit logs found matching your criteria."
+              virtualized
+            />
+          )}
           {totalPages > 1 && (
             <div className="p-4 border-t border-gray-700 flex items-center justify-between">
               <span className="text-sm text-gray-400">Page {currentPage} of {totalPages}</span>

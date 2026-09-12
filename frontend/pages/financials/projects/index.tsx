@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import PageContainer from '../../../components/Layout/PageContainer';
 import Card from '../../../components/common/Card';
+import DataTable from "../../../components/common/DataTable";
 import api from '../../../lib/api';
 import { useAuth, Role } from '../../../components/context/AuthContext';
 import { useCurrency } from '../../../components/context/CurrencyContext';
@@ -45,7 +46,7 @@ const QUICK_LINKS = [
     description: 'Build and manage hierarchical cost structures',
     icon: Layers,
     path: '/financials/projects/wbs',
-    color: 'from-brand-primary/20 to-brand-primary/5',
+    color: 'bg-brand-primary/10',
     iconColor: 'text-brand-primary',
     borderColor: 'border-brand-primary/30',
   },
@@ -54,7 +55,7 @@ const QUICK_LINKS = [
     description: 'View, filter, and analyze all budget items',
     icon: DollarSign,
     path: '/financials/projects/budgets',
-    color: 'from-brand-secondary/20 to-brand-secondary/5',
+    color: 'bg-brand-secondary/10',
     iconColor: 'text-brand-secondary',
     borderColor: 'border-brand-secondary/30',
   },
@@ -63,7 +64,7 @@ const QUICK_LINKS = [
     description: 'Track live expenses with variance flags',
     icon: Activity,
     path: '/financials/projects/expenses',
-    color: 'from-alert-critical/20 to-alert-critical/5',
+    color: 'bg-alert-critical/10',
     iconColor: 'text-alert-critical',
     borderColor: 'border-alert-critical/30',
   },
@@ -72,7 +73,7 @@ const QUICK_LINKS = [
     description: 'Configure and manage operational budgets',
     icon: Briefcase,
     path: '/financials/operations/planning',
-    color: 'from-wbs-violet/20 to-wbs-violet/5',
+    color: 'bg-wbs-violet/10',
     iconColor: 'text-wbs-violet',
     borderColor: 'border-wbs-violet/30',
   },
@@ -81,7 +82,7 @@ const QUICK_LINKS = [
     description: 'Submit single or bulk expense entries against approved budgets',
     icon: PlusCircle,
     path: '/financials/expenses/new',
-    color: 'from-green-500/20 to-green-500/5',
+    color: 'bg-alert-positive/10',
     iconColor: 'text-green-400',
     borderColor: 'border-green-500/30',
   },
@@ -210,6 +211,93 @@ const BudgetHubPage: React.FC = () => {
     return 'bg-alert-critical';
   };
 
+  const projectColumns = [
+    {
+      key: 'project_name',
+      label: 'Project',
+      get: (ps: ProjectSummary) => (
+        <Link href={`/projects/${ps.project_id}/overview`} className="text-sm font-bold text-gray-200 hover:text-brand-primary transition">
+          {ps.project_name}
+        </Link>
+      ),
+      tier: 'P0' as const,
+    },
+    {
+      key: 'total_budgeted',
+      label: 'Budgeted',
+      get: (ps: ProjectSummary) => (
+        <span className="text-sm font-black text-white">{convertToDisplay(ps.total_budgeted, ps.currency)}</span>
+      ),
+      tier: 'P0' as const,
+      cellClassName: 'text-right',
+    },
+    {
+      key: 'total_spent',
+      label: 'Spent',
+      get: (ps: ProjectSummary) => (
+        <span className="text-sm font-bold text-gray-300">{convertToDisplay(ps.total_spent, ps.currency)}</span>
+      ),
+      tier: 'P1' as const,
+      cellClassName: 'text-right',
+    },
+    {
+      key: 'variance',
+      label: 'Variance',
+      get: (ps: ProjectSummary) => {
+        const variance = ps.total_budgeted - ps.total_spent;
+        return (
+          <span className={`text-sm font-bold flex items-center justify-end gap-1 ${variance >= 0 ? 'text-alert-positive' : 'text-alert-critical'}`}>
+            {variance >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+            {convertToDisplay(Math.abs(variance), ps.currency)}
+          </span>
+        );
+      },
+      tier: 'P1' as const,
+      cellClassName: 'text-right',
+    },
+    {
+      key: 'items',
+      label: 'Items',
+      get: (ps: ProjectSummary) => (
+        <span className="text-xs text-gray-400">{ps.budget_count}B / {ps.expense_count}E</span>
+      ),
+      tier: 'P2' as const,
+      cellClassName: 'text-center',
+    },
+    {
+      key: 'health',
+      label: 'Health',
+      get: (ps: ProjectSummary) => {
+        const variance = ps.total_budgeted - ps.total_spent;
+        const pct = ps.total_budgeted > 0 ? Math.round((variance / ps.total_budgeted) * 100) : 100;
+        return (
+          <div className="flex items-center justify-center gap-2">
+            <div className="w-16 bg-gray-700 rounded-full h-1.5">
+              <div
+                className={`h-1.5 rounded-full ${pct >= 50 ? 'bg-alert-positive' : pct >= 20 ? 'bg-wbs-yellow' : 'bg-alert-critical'}`}
+                style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+              />
+            </div>
+            <span className={`text-xs font-bold ${pct >= 50 ? 'text-alert-positive' : pct >= 20 ? 'text-wbs-yellow' : 'text-alert-critical'}`}>
+              {pct}%
+            </span>
+          </div>
+        );
+      },
+      tier: 'P2' as const,
+    },
+  ];
+
+  const projectActions = [
+    {
+      key: 'preview',
+      label: 'Preview',
+      icon: <Eye className="w-3.5 h-3.5" />,
+      onClick: (ps: ProjectSummary) => router.push(`/financials/projects/preview/${ps.project_id}`),
+      primary: true,
+    },
+  ];
+
   return (
     <>
       <Head><title>Financial Command Center | SentinelFi</title></Head>
@@ -225,55 +313,55 @@ const BudgetHubPage: React.FC = () => {
         {/* KPI Cards Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Total Budgeted */}
-          <div className="bg-gradient-to-br from-brand-primary/15 to-transparent border border-brand-primary/20 rounded-xl p-5 relative overflow-hidden">
+          <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-xl p-5 relative overflow-hidden">
             <div className="absolute top-3 right-3 opacity-10">
               <Wallet className="w-16 h-16 text-brand-primary" />
             </div>
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Budgeted</p>
+            <p className="text-xs font-black text-gray-500 ">Total Budgeted</p>
             <p className="text-2xl font-black text-white mt-1">
-              {loading ? '—' : convertToDisplay(kpis?.totalBudgeted || 0)}
+              {loading ? 'â€”' : convertToDisplay(kpis?.totalBudgeted || 0)}
             </p>
             <div className="flex items-center gap-1 mt-2">
-              <span className="text-xs text-gray-400">{loading ? '—' : kpis?.totalBudgets} budget items</span>
+              <span className="text-xs text-gray-400">{loading ? 'â€”' : kpis?.totalBudgets} budget items</span>
             </div>
           </div>
 
           {/* Total Spent */}
-          <div className="bg-gradient-to-br from-brand-secondary/15 to-transparent border border-brand-secondary/20 rounded-xl p-5 relative overflow-hidden">
+          <div className="bg-brand-secondary/5 border border-brand-secondary/20 rounded-xl p-5 relative overflow-hidden">
             <div className="absolute top-3 right-3 opacity-10">
               <TrendingUp className="w-16 h-16 text-brand-secondary" />
             </div>
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Spent</p>
+            <p className="text-xs font-black text-gray-500 ">Total Spent</p>
             <p className="text-2xl font-black text-white mt-1">
-              {loading ? '—' : convertToDisplay(kpis?.totalSpent || 0)}
+              {loading ? 'â€”' : convertToDisplay(kpis?.totalSpent || 0)}
             </p>
             <div className="flex items-center gap-1 mt-2">
-              <span className="text-xs text-gray-400">{loading ? '—' : kpis?.totalExpenses} expense entries</span>
+              <span className="text-xs text-gray-400">{loading ? 'â€”' : kpis?.totalExpenses} expense entries</span>
             </div>
           </div>
 
           {/* Remaining */}
-          <div className={`bg-gradient-to-br ${(kpis?.totalRemaining ?? 0) >= 0 ? 'from-alert-positive/15 border-alert-positive/20' : 'from-alert-critical/15 border-alert-critical/20'} to-transparent border rounded-xl p-5 relative overflow-hidden`}>
+          <div className={`${(kpis?.totalRemaining ?? 0) >= 0 ? 'bg-alert-positive/5 border-alert-positive/20' : 'bg-alert-critical/5 border-alert-critical/20'} border rounded-xl p-5 relative overflow-hidden`}>
             <div className="absolute top-3 right-3 opacity-10">
               {(kpis?.totalRemaining ?? 0) >= 0
                 ? <TrendingDown className="w-16 h-16 text-alert-positive" />
                 : <AlertTriangle className="w-16 h-16 text-alert-critical" />
               }
             </div>
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Remaining Budget</p>
+            <p className="text-xs font-black text-gray-500 ">Remaining Budget</p>
             <p className={`text-2xl font-black mt-1 ${(kpis?.totalRemaining ?? 0) >= 0 ? 'text-alert-positive' : 'text-alert-critical'}`}>
-              {loading ? '—' : convertToDisplay(Math.abs(kpis?.totalRemaining || 0))}
+              {loading ? 'â€”' : convertToDisplay(Math.abs(kpis?.totalRemaining || 0))}
             </p>
             {(kpis?.totalRemaining ?? 0) < 0 && (
-              <p className="text-[10px] text-alert-critical font-bold mt-1 animate-pulse">⚠ OVER BUDGET</p>
+<p className="text-xs text-alert-critical font-bold mt-1"> OVER BUDGET</p>
             )}
           </div>
 
           {/* Budget Health */}
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 relative overflow-hidden">
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Budget Health</p>
+            <p className="text-xs font-black text-gray-500 ">Budget Health</p>
             <p className={`text-2xl font-black mt-1 ${getHealthColor(kpis?.healthPercent ?? 100)}`}>
-              {loading ? '—' : `${kpis?.healthPercent}%`}
+              {loading ? 'â€”' : `${kpis?.healthPercent}%`}
             </p>
             {/* Health Bar */}
             <div className="w-full bg-gray-700 rounded-full h-2 mt-3">
@@ -283,7 +371,7 @@ const BudgetHubPage: React.FC = () => {
               />
             </div>
             {/* Status breakdown */}
-            <div className="flex items-center gap-3 mt-3 text-[10px] font-bold">
+            <div className="flex items-center gap-3 mt-3 text-xs font-bold">
               <span className="flex items-center gap-1 text-green-400">
                 <CheckCircle className="w-3 h-3" /> {kpis?.approvedCount ?? 0}
               </span>
@@ -294,7 +382,7 @@ const BudgetHubPage: React.FC = () => {
                 <XCircle className="w-3 h-3" /> {kpis?.rejectedCount ?? 0}
               </span>
               {(kpis?.overBudgetCount ?? 0) > 0 && (
-                <span className="flex items-center gap-1 text-alert-critical animate-pulse">
+                <span className="flex items-center gap-1 text-alert-critical">
                   <AlertTriangle className="w-3 h-3" /> {kpis?.overBudgetCount} over
                 </span>
               )}
@@ -304,13 +392,13 @@ const BudgetHubPage: React.FC = () => {
 
         {/* Quick Access Navigation Grid */}
         <div className="mb-6">
-          <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-3">Quick Access</h2>
+          <h2 className="text-sm font-black text-gray-400  mb-3">Quick Access</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {QUICK_LINKS.map((link) => (
               <Link
                 key={link.path}
                 href={link.path}
-                className={`group bg-gradient-to-br ${link.color} border ${link.borderColor} rounded-xl p-5 hover:scale-[1.02] transition-all duration-200 hover:shadow-lg`}
+                className={`group ${link.color} border ${link.borderColor} rounded-xl p-5 hover:shadow-elev-md transition-all duration-200`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -331,82 +419,20 @@ const BudgetHubPage: React.FC = () => {
 
         {/* Project Budget Summary Table */}
         {!loading && kpis && kpis.projectSummaries.length > 0 && (
-          <Card title="Budget by Project" subtitle="Financial summary per project. Click 'Preview' to see the full granular budget." borderTopColor="primary">
-            <div className="overflow-x-auto rounded-lg">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Project</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Budgeted</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Spent</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Variance</th>
-                    <th className="px-4 py-3 text-center text-[10px] font-black text-gray-500 uppercase tracking-widest">Items</th>
-                    <th className="px-4 py-3 text-center text-[10px] font-black text-gray-500 uppercase tracking-widest">Health</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800/50">
-                  {kpis.projectSummaries.map((ps) => {
-                    const variance = ps.total_budgeted - ps.total_spent;
-                    const pct = ps.total_budgeted > 0 ? Math.round((variance / ps.total_budgeted) * 100) : 100;
-                    return (
-                      <tr key={ps.project_id} className="hover:bg-white/5 transition-colors">
-                        <td className="px-4 py-3">
-                          <Link href={`/projects/${ps.project_id}/overview`} className="text-sm font-bold text-gray-200 hover:text-brand-primary transition">
-                            {ps.project_name}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="text-sm font-black text-white">{convertToDisplay(ps.total_budgeted, ps.currency)}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="text-sm font-bold text-gray-300">{convertToDisplay(ps.total_spent, ps.currency)}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className={`text-sm font-bold flex items-center justify-end gap-1 ${variance >= 0 ? 'text-alert-positive' : 'text-alert-critical'}`}>
-                            {variance >= 0
-                              ? <ArrowUpRight className="w-3.5 h-3.5" />
-                              : <ArrowDownRight className="w-3.5 h-3.5" />
-                            }
-                            {convertToDisplay(Math.abs(variance), ps.currency)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="text-xs text-gray-400">{ps.budget_count}B / {ps.expense_count}E</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="w-16 bg-gray-700 rounded-full h-1.5">
-                              <div
-                                className={`h-1.5 rounded-full ${pct >= 50 ? 'bg-alert-positive' : pct >= 20 ? 'bg-wbs-yellow' : 'bg-alert-critical'}`}
-                                style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-                              />
-                            </div>
-                            <span className={`text-[10px] font-bold ${pct >= 50 ? 'text-alert-positive' : pct >= 20 ? 'text-wbs-yellow' : 'text-alert-critical'}`}>
-                              {pct}%
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Link
-                            href={`/financials/projects/preview/${ps.project_id}`}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold text-brand-primary bg-brand-primary/10 border border-brand-primary/20 rounded-lg hover:bg-brand-primary/20 transition"
-                          >
-                            <Eye className="w-3.5 h-3.5" /> Preview
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          <Card title="Budget by Project" subtitle="Financial summary per project. Click 'Preview' to see the full granular budget." accent="primary">
+            <DataTable
+              columns={projectColumns}
+              rows={kpis.projectSummaries}
+              rowKey={(ps) => ps.project_id}
+              actions={projectActions}
+              className="overflow-hidden rounded-lg"
+            />
           </Card>
         )}
 
         {/* Empty State */}
         {!loading && kpis && kpis.projectSummaries.length === 0 && (
-          <Card borderTopColor="secondary">
+          <Card accent="secondary">
             <div className="flex flex-col items-center justify-center py-16">
               <BarChart2 className="w-16 h-16 text-gray-700 mb-4" />
               <h3 className="text-lg font-bold text-gray-400 mb-2">No Budget Data Yet</h3>

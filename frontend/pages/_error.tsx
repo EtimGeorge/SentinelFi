@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { NextPageContext } from 'next';
 import Link from 'next/link';
 import { ShieldAlert, RefreshCcw } from 'lucide-react';
@@ -32,7 +32,7 @@ const ErrorPage: NextPageWithLayout = ({ statusCode }: ErrorProps) => {
         </div>
 
         <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700 text-left">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Recommended Action</h3>
+          <h3 className="text-xs font-bold text-gray-500  mb-2">Recommended Action</h3>
           <p className="text-xs text-gray-300">
             Please try clearing your browser cache and refreshing. If you are the developer, run <code className="bg-gray-900 px-1 py-0.5 rounded text-brand-primary">npm run dev</code> after deleting the <code className="bg-gray-900 px-1 py-0.5 rounded text-brand-primary">.next</code> directory.
           </p>

@@ -10,13 +10,13 @@ import {
   FileText,
   Clock,
   CheckCircle,
-  AlertCircle as AlertCircleIcon
+  AlertCircle as AlertCircleIcon,
+  Download
 } from 'lucide-react';
 import { Spinner } from '../../components/common/Spinner';
-import { AlertCircle, Download } from 'lucide-react';
+import DataTable from "../../components/common/DataTable";
 import { InvoiceDto, InvoiceStatus } from 'shared/types/billing';
 import { toast } from 'react-hot-toast';
-import Button from '../../components/common/Button';
 
 interface StatCardProps {
   title: string;
@@ -122,12 +122,12 @@ const SuperAdminBillingPage: NextPageWithLayout = () => {
                 <div className="p-4 bg-brand-dark/50 border border-gray-700 rounded-xl mt-4">
                   <div className="flex justify-between items-center mb-6">
                     <div>
-                      <p className="text-xs text-brand-primary uppercase font-mono tracking-widest">Projection</p>
+                      <p className="text-xs text-brand-primary uppercase font-mono ">Projection</p>
                       <h4 className="text-xl font-bold text-white">Annual Recurring Revenue (ARR)</h4>
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-green-400 font-mono">{convertToDisplay(data.overview.totalMrr * 12)}</div>
-                      <p className="text-[10px] text-gray-500 uppercase">Forward-Looking 12M</p>
+                      <p className="text-xs text-gray-500 uppercase">Forward-Looking 12M</p>
                     </div>
                   </div>
                   <div className="space-y-4">
@@ -164,38 +164,26 @@ const SuperAdminBillingPage: NextPageWithLayout = () => {
 
             {/* 3. Transactional Ledger */}
             <Card title="Administrative Ledger (Invoices)">
-              <div className="overflow-x-auto mt-4">
-                <table className="min-w-full divide-y divide-gray-800">
-                  <thead className="bg-brand-dark/50">
-                    <tr>
-                      {['Trace ID', 'Tenant Entity', 'Amount', 'Date', 'Status', ''].map(h => (
-                        <th key={h} className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-widest">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800">
-                    {data.invoices.map((invoice) => (
-                      <tr key={invoice.id} className="hover:bg-gray-800/40 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-brand-primary">{invoice.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{invoice.tenantName}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-white">{convertToDisplay(invoice.amount)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{new Date(invoice.date).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            {getStatusIcon(invoice.status as any)}
-                            <span className="ml-2 text-[10px] font-bold uppercase tracking-tighter text-gray-300">{invoice.status}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <Button variant="secondary" size="sm" onClick={() => handleDownload(invoice.id)}>
-                            <Download className="w-4 h-4 mr-2" /> Detail
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable<InvoiceDto>
+                className="mt-4"
+                columns={[
+                  { key: 'tenant', label: 'Tenant Entity', tier: 'P0', get: (inv) => <span className="text-white">{inv.tenantName}</span>, title: (inv) => inv.tenantName },
+                  { key: 'amount', label: 'Amount', tier: 'P0', get: (inv) => <span className="font-mono text-white">{convertToDisplay(inv.amount)}</span>, title: (inv) => convertToDisplay(inv.amount) },
+                  { key: 'trace', label: 'Trace ID', tier: 'P1', get: (inv) => <span className="font-mono text-brand-primary">{inv.id}</span>, title: (inv) => inv.id },
+                  { key: 'status', label: 'Status', tier: 'P1', get: (inv) => (
+                    <div className="flex items-center">
+                      {getStatusIcon(inv.status as any)}
+                      <span className="ml-2 text-xs font-bold uppercase tracking-tighter text-gray-300">{inv.status}</span>
+                    </div>
+                  ) },
+                  { key: 'date', label: 'Date', tier: 'P2', get: (inv) => <span className="text-gray-400">{new Date(inv.date).toLocaleDateString()}</span> },
+                ]}
+                rows={data.invoices}
+                rowKey={(inv) => inv.id}
+                actions={[
+                  { key: 'detail', label: 'Detail', icon: <Download className="w-4 h-4" />, onClick: (inv) => handleDownload(inv.id), primary: true, title: 'Detail' },
+                ]}
+              />
             </Card>
           </div>
         ) : null}

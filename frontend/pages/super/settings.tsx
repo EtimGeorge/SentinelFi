@@ -176,7 +176,7 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
         subtitle="Full-stack control over platform behavior, external bridges, and security."
         headerContent={<Settings className="w-8 h-8 text-brand-primary/80" />}
       >
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden shadow-2xl">
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden elev-lg">
           {/* Navigation Tabs */}
           <div className="flex border-b border-gray-800 bg-gray-900/80 sticky top-0 z-10 backdrop-blur-sm">
             <TabButton id="general" label="General" icon={Globe} />
@@ -211,11 +211,11 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
                   <Card title="Resource Constraints" headerContent={<Server className="w-5 h-5 text-brand-secondary" />}>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Default User Seat Limit</label>
+                        <label className="block text-xs font-bold text-gray-500  mb-2">Default User Seat Limit</label>
                         <Input type="number" value={localSettings.defaultUserQuota} onChange={(e) => updateConfig('defaultUserQuota', parseInt(e.target.value))} />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Default Storage Cap (GB)</label>
+                        <label className="block text-xs font-bold text-gray-500  mb-2">Default Storage Cap (GB)</label>
                         <Input type="number" value={localSettings.defaultStorageQuotaGB} onChange={(e) => updateConfig('defaultStorageQuotaGB', parseInt(e.target.value))} />
                       </div>
                     </div>
@@ -232,7 +232,7 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
                 <Card title="DCS & SMTP Configuration" headerContent={<Mail className="w-5 h-5 text-orange-400" />}>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="col-span-2">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Platform SendGrid API Key (Phase 6)</label>
+                        <label className="block text-xs font-bold text-gray-500  mb-2">Platform SendGrid API Key (Phase 6)</label>
                         <Input 
                           type="password" 
                           placeholder="SG.xxxxxx" 
@@ -240,7 +240,7 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
                           onChange={(e) => updateConfig('sendgridApiKey', e.target.value)} 
                         />
                       </div>
-                      <div className="md:col-span-2 grid grid-cols-2 gap-4 p-4 border border-dashed border-gray-700 rounded-lg">
+                      <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border border-dashed border-gray-700 rounded-lg">
                         <div className="col-span-2 text-xs text-gray-500 font-bold uppercase mb-2">SMTP Fallback (Legacy)</div>
                         <Input placeholder="SMTP Host" value={localSettings.smtpServer || ''} onChange={(e) => updateConfig('smtpServer', e.target.value)} />
                         <Input placeholder="Port" type="number" value={localSettings.smtpPort || ''} onChange={(e) => updateConfig('smtpPort', parseInt(e.target.value))} />
@@ -321,7 +321,7 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
                            Changing global security policies will invalidate all active sessions. 
                            Tenants will be required to re-authenticate under the new compliance rules immediately.
                          </p>
-                         <div className="mt-6 flex items-center text-xs text-gray-500 uppercase font-bold tracking-widest gap-2 opacity-60">
+                         <div className="mt-6 flex items-center text-xs text-gray-500 uppercase font-bold  gap-2 opacity-60">
                             <Lock className="w-3 h-3" />
                             Immutable Trail Level: High
                          </div>
@@ -359,7 +359,7 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
 
                   {/* Password Management */}
                   <div className="lg:col-span-1">
-                    <Card title="Credentials" borderTopColor="alert">
+                    <Card title="Credentials" accent="alert">
                        <div className="space-y-4">
                           <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">New Password (Empty to keep)</label>

@@ -63,7 +63,7 @@ const PlanningMatrixPage: React.FC = () => {
 
       <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f172a]">
         {/* Header Section */}
-        <div className="p-6 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="p-6 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-slate-800 elev-sm">
           <div className="flex justify-between items-center max-w-7xl mx-auto w-full">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -122,7 +122,7 @@ const PlanningMatrixPage: React.FC = () => {
 
         {/* Main Workspace Area */}
         <div className="flex-1 overflow-auto p-6 pt-0">
-          <div className="max-w-7xl mx-auto bg-white dark:bg-[#1e293b] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm min-h-[600px] flex flex-col">
+          <div className="max-w-7xl mx-auto bg-white dark:bg-[#1e293b] rounded-xl border border-slate-200 dark:border-slate-800 elev-sm min-h-[600px] flex flex-col">
 
             {activeTab === 'setup' && (
               <div className="p-8">
@@ -141,7 +141,7 @@ const PlanningMatrixPage: React.FC = () => {
                     <div key={dept.id} className="border border-slate-200 dark:border-slate-800 rounded-xl p-5 hover:border-blue-200 transition-all group">
                       <div className="flex justify-between items-start mb-4">
                         <div>
-                          <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">{dept.code}</span>
+                          <span className="text-xs font-bold text-blue-600 r">{dept.code}</span>
                           <h3 className="font-bold text-lg">{dept.name}</h3>
                         </div>
                         <button
@@ -181,7 +181,7 @@ const PlanningMatrixPage: React.FC = () => {
 
                   <button className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 hover:text-blue-500 hover:border-blue-200 transition-all">
                     <Plus size={32} strokeWidth={1} />
-                    <span className="mt-2 font-bold uppercase tracking-widest text-xs">Add Department</span>
+                    <span className="mt-2 font-bold  text-xs">Add Department</span>
                   </button>
                 </div>
               </div>
@@ -198,7 +198,7 @@ const PlanningMatrixPage: React.FC = () => {
                     <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50">
                       Export Template
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-black shadow-lg">
+                    <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-black elev-lg">
                       <Save size={16} /> Save Allocations
                     </button>
                   </div>

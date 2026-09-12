@@ -233,7 +233,7 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
 
           <div className="flex justify-center mb-6">
             <div className="relative w-40 h-40">
-              <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="App Logo" fill className="object-contain p-0.5" />
+              <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="App Logo" fill sizes="(max-width: 768px) 100vw, 400px" className="object-contain p-0.5" />
             </div>
           </div>
 

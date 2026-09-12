@@ -13,11 +13,11 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  ArrowRight,
-  DollarSign,
   TrendingUp,
-  FileText
+  FileText,
+  ArrowRight
 } from 'lucide-react';
+import DataTable from '../../../../components/common/DataTable';
 import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
 
@@ -109,7 +109,7 @@ const PayrollDeskPage: React.FC = () => {
             <div className="absolute top-0 right-0 w-24 h-24 bg-brand-primary/5 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform duration-700" />
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Gross (FY)</p>
+                <p className="text-xs font-black text-slate-500  mb-1">Total Gross (FY)</p>
                 <h3 className="text-2xl font-black text-white">{convertToDisplay(kpis?.totalGross || 0, 'NGN')}</h3>
               </div>
               <div className="p-2 bg-brand-primary/10 rounded-lg">
@@ -122,7 +122,7 @@ const PayrollDeskPage: React.FC = () => {
             <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/5 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform duration-700" />
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Pending Posted</p>
+                <p className="text-xs font-black text-slate-500  mb-1">Pending Posted</p>
                 <h3 className="text-2xl font-black text-yellow-500">{convertToDisplay(kpis?.pendingPosted || 0, 'NGN')}</h3>
               </div>
               <div className="p-2 bg-yellow-500/10 rounded-lg">
@@ -135,7 +135,7 @@ const PayrollDeskPage: React.FC = () => {
             <div className="absolute top-0 right-0 w-24 h-24 bg-red-400/5 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform duration-700" />
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Employer Taxes</p>
+                <p className="text-xs font-black text-slate-500  mb-1">Employer Taxes</p>
                 <h3 className="text-2xl font-black text-red-400">{convertToDisplay(kpis?.employerTaxes || 0, 'NGN')}</h3>
               </div>
               <div className="p-2 bg-red-400/10 rounded-lg">
@@ -146,7 +146,7 @@ const PayrollDeskPage: React.FC = () => {
 
           <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group border-b-4 border-b-yellow-500/30">
             <div className="flex items-center gap-1.5 mb-2">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Employee Benefits</p>
+              <p className="text-xs font-black text-slate-500 ">Employee Benefits</p>
               <h3 className="text-2xl font-black text-emerald-400">{convertToDisplay(kpis?.employerBenefits || 0, 'NGN')}</h3>
             </div>
             <div className="p-2 bg-emerald-400/10 rounded-lg">
@@ -157,68 +157,49 @@ const PayrollDeskPage: React.FC = () => {
 
         {/* Payroll Runs Table */}
         <Card title="Executive Payroll Cycles" subtitle="Listing of all salary runs and their current lifecycle status.">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="p-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Run Identifier</th>
-                  <th className="p-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Fiscal Period</th>
-                  <th className="p-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Gross Amount</th>
-                  <th className="p-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Status</th>
-                  <th className="p-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Date</th>
-                  <th className="p-4"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/50">
-                {runs.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-12 text-center text-gray-500 italic text-sm">
-                      No payroll cycles found. Initialize your first run to begin.
-                    </td>
-                  </tr>
-                ) : runs.map(run => {
-                  const cfg = statusConfig[run.status] || statusConfig.DRAFT;
-                  const StatusIcon = cfg.icon;
-                  return (
-                    <tr key={run.id} className="group hover:bg-white/5 transition-colors cursor-pointer" onClick={() => router.push(`/financials/operations/payroll/${run.id}`)}>
-                      <td className="p-4">
-                        <div className="font-bold text-gray-100 flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-brand-primary" />
-                          {run.run_identifier}
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm text-gray-400">
-                        {run.fiscalPeriod?.period_name} {new Date(run.fiscalPeriod?.start_date).getFullYear()}
-                      </td>
-                      <td className="p-4 text-sm font-mono text-gray-100 text-right">
-                        {convertToDisplay(Number(run.total_gross_pay) + Number(run.total_taxes_employer) + Number(run.total_benefits_employer), 'NGN')}
-                      </td>
-                      <td className="p-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${cfg.bg} ${cfg.color}`}>
-                          <StatusIcon className="w-3 h-3" />
-                          {cfg.label}
-                        </span>
-                      </td>
-                      <td className="p-4 text-sm text-gray-500">
-                        {new Date(run.run_date).toLocaleDateString()}
-                      </td>
-                      <td className="p-4 text-right">
-                        <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
-                          Details
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={[
+              { key: 'run_identifier', label: 'Run Identifier', tier: 'P0', get: (run) => (
+                <div className="font-bold text-gray-100 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-brand-primary" />
+                  {run.run_identifier}
+                </div>
+              )},
+              { key: 'fiscal_period', label: 'Fiscal Period', tier: 'P1', get: (run) => (
+                <span className="text-sm text-gray-400">
+                  {run.fiscalPeriod?.period_name} {new Date(run.fiscalPeriod?.start_date).getFullYear()}
+                </span>
+              )},
+              { key: 'gross_amount', label: 'Gross Amount', tier: 'P1', cellClassName: 'text-right font-mono text-sm text-gray-100', get: (run) => (
+                convertToDisplay(Number(run.total_gross_pay) + Number(run.total_taxes_employer) + Number(run.total_benefits_employer), 'NGN')
+              )},
+              { key: 'status', label: 'Status', tier: 'P1', get: (run) => {
+                const cfg = statusConfig[run.status] || statusConfig.DRAFT;
+                const StatusIcon = cfg.icon;
+                return (
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase ${cfg.bg} ${cfg.color}`}>
+                    <StatusIcon className="w-3 h-3" />
+                    {cfg.label}
+                  </span>
+                );
+              }},
+              { key: 'run_date', label: 'Date', tier: 'P2', get: (run) => (
+                <span className="text-sm text-gray-500">{new Date(run.run_date).toLocaleDateString()}</span>
+              )},
+            ]}
+            rows={runs}
+            rowKey={(run) => run.id}
+            emptyMessage="No payroll cycles found. Initialize your first run to begin."
+            actions={[
+              { key: 'details', label: 'Details', icon: <ArrowRight className="w-4 h-4" />, primary: true, onClick: (run) => router.push(`/financials/operations/payroll/${run.id}`) },
+            ]}
+          />
         </Card>
 
         {/* New Run Modal */}
         {showNewRunModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/80 backdrop-blur-sm">
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 elev-lg">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-black text-white flex items-center gap-2">
                   <Plus className="text-brand-primary" />
@@ -239,7 +220,7 @@ const PayrollDeskPage: React.FC = () => {
                 />
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Fiscal Period</label>
+                  <label className="text-xs font-black text-gray-500  pl-1">Fiscal Period</label>
                   <select
                     className="w-full bg-brand-dark/60 border border-gray-800 rounded-xl p-3 text-sm text-white focus:border-brand-primary outline-none"
                     value={fiscalPeriodId}

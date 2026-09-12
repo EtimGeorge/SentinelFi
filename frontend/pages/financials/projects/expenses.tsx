@@ -18,10 +18,37 @@ import {
   AlertTriangle, TrendingUp, CheckCircle, Target, X
 } from "lucide-react";
 import Modal from "../../../components/common/Modal";
+import EmptyState from "../../../components/common/EmptyState";
+import DataTable from "../../../components/common/DataTable";
+import { useRouter } from "next/router";
+import { TableSkeleton } from "../../../components/common/LoadingSkeleton";
+import useToastStore from "../../../store/toastStore";
+
+const varianceBadge = (flag: string) => {
+  let badgeColor = 'bg-gray-800 text-gray-400';
+  let icon = <CheckCircle className="w-3 h-3" />;
+  if (flag === VarianceFlag.NO_VARIANCE) {
+    badgeColor = 'bg-green-900/30 text-green-400 border border-green-800/50';
+  } else if (flag === VarianceFlag.MINOR_VARIANCE || flag === VarianceFlag.OVERRIDE_APPLIED) {
+    badgeColor = 'bg-blue-900/30 text-blue-400 border border-blue-800/50';
+  } else if (flag === VarianceFlag.MAJOR_VARIANCE) {
+    badgeColor = 'bg-orange-900/30 text-orange-400 border border-orange-800/50';
+    icon = <AlertTriangle className="w-3 h-3" />;
+  } else if (flag === VarianceFlag.CRITICAL_VARIANCE || flag === VarianceFlag.UNAPPROVED_BUDGET_USAGE) {
+    badgeColor = 'bg-red-900/30 text-red-500 border border-red-700/50 animate-pulse';
+    icon = <AlertTriangle className="w-3 h-3 text-red-500" />;
+  }
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black  ${badgeColor}`}>
+      {icon} {flag.replace(/_/g, ' ')}
+    </span>
+  );
+};
 
 const ExpenseManagementPage: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
   const { userCurrency, convertToDisplay, convertAmount } = useCurrency();
+  const router = useRouter();
 
   const [expenses, setExpenses] = useState<LiveExpense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,7 +147,7 @@ const ExpenseManagementPage: React.FC = () => {
 
   const handleDownloadCsv = async () => {
     setIsDownloading(true);
-    toast('Preparing CSV...', { icon: '⏳' });
+    toast('Preparing CSV...', { icon: 'â³' });
     try {
       const params: GetLiveExpensesDto = {
         wbsId: wbsIdFilter || undefined,
@@ -182,12 +209,40 @@ const ExpenseManagementPage: React.FC = () => {
 
   const handleDeleteExpense = async () => {
     if (!selectedExpense) return;
+    const deleted = selectedExpense;
     setIsSubmittingCorrection(true);
     try {
       await api.delete(`/wbs/expense/live-entry/${selectedExpense.id}`);
-      toast.success("Expense recalled. Budget metrics reverted.");
       setIsDeleteModalOpen(false);
       fetchExpenses();
+      useToastStore.getState().addUndoToast(
+        'Expense recalled. Budget metrics reverted.',
+        async () => {
+          try {
+            const projectId = deleted.wbsBudget?.project?.project_id || (deleted as any).project_id;
+            if (!projectId || !deleted.wbs_id) {
+              toast.error('Cannot restore: project context missing.');
+              return;
+            }
+            await api.post('/wbs/expense/live-entry', {
+              wbs_id: deleted.wbs_id,
+              project_id: projectId,
+              description: deleted.description,
+              amount: deleted.amount,
+              unit_cost: deleted.unit_cost,
+              quantity: deleted.quantity,
+              days: deleted.days ?? undefined,
+              expense_date: typeof deleted.expense_date === 'string' ? deleted.expense_date : new Date(deleted.expense_date).toISOString().split('T')[0],
+            });
+            toast.success('Expense restored.');
+            fetchExpenses();
+          } catch (e: any) {
+            toast.error(`Restore failed: ${e.response?.data?.message || e.message}`);
+          }
+        },
+        6000,
+        'Restore',
+      );
     } catch (err: any) {
       toast.error(`Deletion failed: ${err.response?.data?.message || err.message}`);
     } finally {
@@ -205,38 +260,38 @@ const ExpenseManagementPage: React.FC = () => {
       >
         {/* KPI Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-sm">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 elev-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-brand-primary/10 rounded-lg"><TrendingUp className="w-5 h-5 text-brand-primary" /></div>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Filtered Expenses</p>
+              <p className="text-xs font-black text-gray-500 ">Total Filtered Expenses</p>
             </div>
             <p className="text-2xl font-black text-white">{convertToDisplay(kpis.totalExpenses, userCurrency.code)}</p>
           </div>
-          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-green-500 rounded-xl p-5 shadow-sm">
+          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-green-500 rounded-xl p-5 elev-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-green-500/10 rounded-lg"><CheckCircle className="w-5 h-5 text-green-400" /></div>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Within Budget</p>
+              <p className="text-xs font-black text-gray-500 ">Within Budget</p>
             </div>
             <p className="text-2xl font-black text-white">{kpis.withinBudget} <span className="text-sm font-normal text-gray-400">entries</span></p>
           </div>
-          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-orange-500 rounded-xl p-5 shadow-sm">
+          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-orange-500 rounded-xl p-5 elev-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-orange-500/10 rounded-lg"><Activity className="w-5 h-5 text-orange-500" /></div>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Over Budget</p>
+              <p className="text-xs font-black text-gray-500 ">Over Budget</p>
             </div>
             <p className="text-2xl font-black text-white">{kpis.overBudget} <span className="text-sm font-normal text-gray-400">entries</span></p>
           </div>
-          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-red-500 rounded-xl p-5 shadow-sm">
+          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-red-500 rounded-xl p-5 elev-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-red-500/10 rounded-lg"><AlertTriangle className="w-5 h-5 text-red-500 animate-pulse" /></div>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Major Variance</p>
+              <p className="text-xs font-black text-gray-500 ">Major Variance</p>
             </div>
             <p className="text-2xl font-black text-white">{kpis.majorVariance} <span className="text-sm font-normal text-gray-400">entries</span></p>
           </div>
         </div>
 
         <div className="space-y-6">
-          <Card title="Filters & Actions" borderTopColor="primary" className="border border-gray-700">
+          <Card title="Filters & Actions" accent="primary" className="border border-gray-700">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
               <Input label="Description" placeholder="Search..." value={descriptionFilter} onChange={(e) => setDescriptionFilter(e.target.value)} />
               <Select
@@ -276,111 +331,100 @@ const ExpenseManagementPage: React.FC = () => {
             </div>
           </Card>
 
-          <Card title="Live Expense Stream" borderTopColor="alert" className="border border-gray-700">
-            {expenses.length === 0 && !loading ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Activity className="w-16 h-16 text-gray-700 mb-4" />
-                <h3 className="text-lg font-bold text-gray-400 mb-2">No Expenses Found</h3>
-                <p className="text-sm text-gray-500 max-w-sm">Adjust your filters or use the Expense Tracker to log a new live expense.</p>
-              </div>
+          <Card title="Live Expense Stream" accent="alert" className="border border-gray-700">
+            {loading ? (
+              <TableSkeleton columns={6} rows={5} />
+            ) : expenses.length === 0 ? (
+              <EmptyState pathname="/financials/projects/expenses" />
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-gray-700">
-                <table className="min-w-full divide-y divide-gray-700">
-                  <thead className="bg-brand-dark/50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Project & WBS</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Description</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Date</th>
-                      <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Amount</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Variance Analysis</th>
-                      <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800">
-                    {loading ? (
-                      [...Array(5)].map((_, i) => (
-                        <tr key={i}><td colSpan={6} className="px-4 py-3"><div className="h-8 bg-gray-800 animate-pulse rounded"></div></td></tr>
-                      ))
-                    ) : expenses.map(expense => {
-                      let badgeColor = 'bg-gray-800 text-gray-400';
-                      let icon = <CheckCircle className="w-3 h-3" />;
+              <>
+                <DataTable
+                  columns={[
+                    {
+                      key: 'project',
+                      label: 'Project & WBS',
+                      tier: 'P0',
+                      get: (e: LiveExpense) => (
+                        <>
+                          <Link href={`/projects/${e.wbsBudget?.project?.project_id}/overview`} className="text-sm font-bold text-gray-300 hover:text-brand-primary truncate block">
+                            {e.wbsBudget?.project?.project_name || "N/A"}
+                          </Link>
+                          <span className="font-mono text-xs font-black text-brand-primary bg-brand-primary/10 px-1.5 py-0.5 rounded mt-1 inline-block">
+                            {e.wbsBudget?.wbs_code || "UNMAPPED"}
+                          </span>
+                        </>
+                      ),
+                      title: (e: LiveExpense) => e.wbsBudget?.project?.project_name || "N/A",
+                    },
+                    {
+                      key: 'amount',
+                      label: 'Amount',
+                      tier: 'P0',
+                      cellClassName: 'text-right',
+                      get: (e: LiveExpense) => (
+                        <p className="text-sm font-black text-white">{convertToDisplay(e.amount, e.wbsBudget?.project?.currency || 'NGN')}</p>
+                      ),
+                      title: (e: LiveExpense) => convertToDisplay(e.amount, e.wbsBudget?.project?.currency || 'NGN'),
+                    },
+                    {
+                      key: 'description',
+                      label: 'Description',
+                      tier: 'P1',
+                      get: (e: LiveExpense) => <span className="text-sm text-gray-300">{e.description}</span>,
+                      title: (e: LiveExpense) => e.description,
+                    },
+                    {
+                      key: 'date',
+                      label: 'Date',
+                      tier: 'P1',
+                      get: (e: LiveExpense) => new Date(e.expense_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+                    },
+                    {
+                      key: 'variance',
+                      label: 'Variance Analysis',
+                      tier: 'P2',
+                      get: (e: LiveExpense) => varianceBadge(e.variance_flag as string),
+                    },
+                  ]}
+                  rows={expenses}
+                  rowKey={(e) => String(e.id || e.expense_id || '')}
+                  actions={[
+                    {
+                      key: 'view',
+                      label: 'View Dossier',
+                      primary: true,
+                      icon: <Activity className="w-4 h-4" />,
+                      onClick: (e) => router.push(`/financials/projects/expenses?id=${e.id}`),
+                    },
+                    {
+                      key: 'edit',
+                      label: 'Edit',
+                      icon: <Edit className="w-4 h-4" />,
+                      onClick: (e) => openEditModal(e),
+                    },
+                    {
+                      key: 'delete',
+                      label: 'Delete',
+                      danger: true,
+                      icon: <Trash2 className="w-4 h-4" />,
+                      onClick: (e) => openDeleteModal(e),
+                    },
+                  ]}
+                  virtualized
+                />
 
-                      const flag = expense.variance_flag as string;
-                      if (flag === VarianceFlag.NO_VARIANCE) {
-                        badgeColor = 'bg-green-900/30 text-green-400 border border-green-800/50';
-                      } else if (flag === VarianceFlag.MINOR_VARIANCE || flag === VarianceFlag.OVERRIDE_APPLIED) {
-                        badgeColor = 'bg-blue-900/30 text-blue-400 border border-blue-800/50';
-                      } else if (flag === VarianceFlag.MAJOR_VARIANCE) {
-                        badgeColor = 'bg-orange-900/30 text-orange-400 border border-orange-800/50';
-                        icon = <AlertTriangle className="w-3 h-3" />;
-                      } else if (flag === VarianceFlag.CRITICAL_VARIANCE || flag === VarianceFlag.UNAPPROVED_BUDGET_USAGE) {
-                        badgeColor = 'bg-red-900/30 text-red-500 border border-red-700/50 animate-pulse';
-                        icon = <AlertTriangle className="w-3 h-3 text-red-500" />;
-                      }
-
-                      return (
-                        <tr key={expense.id} className="hover:bg-white/5 transition group">
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <Link href={`/projects/${expense.wbsBudget?.project?.project_id}/overview`} className="text-sm font-bold text-gray-300 hover:text-brand-primary block truncate max-w-[200px]" title={expense.wbsBudget?.project?.project_name}>
-                              {expense.wbsBudget?.project?.project_name || "N/A"}
-                            </Link>
-                            <Link href={`/financials/projects/wbs`} className="font-mono text-[10px] font-black text-brand-primary bg-brand-primary/10 px-1.5 py-0.5 rounded mt-1 inline-block hover:bg-brand-primary/20">
-                              {expense.wbsBudget?.wbs_code || "UNMAPPED"}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="text-sm text-gray-300 block truncate max-w-[250px]" title={expense.description}>
-                              {expense.description}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400">
-                            {new Date(expense.expense_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right">
-                            <p className="text-sm font-black text-white">{convertToDisplay(expense.amount, expense.wbsBudget?.project?.currency || 'NGN')}</p>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${badgeColor}`}>
-                              {icon} {expense.variance_flag.replace(/_/g, ' ')}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                            <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Link href={`/financials/projects/expenses?id=${expense.id}`} className="p-1.5 text-gray-400 hover:text-brand-secondary transition" title="View Dossier">
-                                <Activity className="w-4 h-4" />
-                              </Link>
-                              <button
-                                onClick={() => openEditModal(expense)}
-                                className="p-1.5 hover:bg-brand-primary/20 text-brand-primary rounded-lg transition"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => openDeleteModal(expense)}
-                                className="p-1.5 hover:bg-red-900/30 text-red-500 rounded-lg transition"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {!loading && total > 0 && (
-              <div className="flex justify-between items-center mt-4 border-t border-gray-700/50 pt-4">
-                <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">
-                  Showing {(page - 1) * limit + 1} - {Math.min(page * limit, total)} of {total} records
-                </span>
-                <div className="flex space-x-2">
-                  <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} size="sm" variant="secondary">Prev</Button>
-                  <Button onClick={() => setPage(p => (p * limit < total ? p + 1 : p))} disabled={page * limit >= total} size="sm" variant="secondary">Next</Button>
-                </div>
-              </div>
+                {total > 0 && (
+                  <div className="flex justify-between items-center mt-4 border-t border-gray-700/50 pt-4">
+                    <span className="text-xs text-gray-500 font-bold r">
+                      Showing {(page - 1) * limit + 1} - {Math.min(page * limit, total)} of {total} records
+                    </span>
+                    <div className="flex space-x-2">
+                      <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} size="sm" variant="secondary">Prev</Button>
+                      <Button onClick={() => setPage(p => (p * limit < total ? p + 1 : p))} disabled={page * limit >= total} size="sm" variant="secondary">Next</Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </Card>
         </div>
@@ -395,7 +439,7 @@ const ExpenseManagementPage: React.FC = () => {
             <div className="bg-brand-primary/10 border border-brand-primary/20 p-4 rounded-lg flex items-start gap-3 mb-2">
               <AlertTriangle className="w-5 h-5 text-brand-primary shrink-0 mt-0.5" />
               <div className="text-xs text-brand-secondary">
-                <p className="font-bold uppercase tracking-wider mb-1">Metric Recalibration Active</p>
+                <p className="font-bold r mb-1">Metric Recalibration Active</p>
                 <p>Changing these values will automatically adjust the project's actual spend and fulfillment metrics (Qty/Days).</p>
               </div>
             </div>
@@ -405,7 +449,7 @@ const ExpenseManagementPage: React.FC = () => {
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label={`Amount (${selectedExpense?.wbsBudget?.project?.currency || 'NGN'})`}
                 type="number"

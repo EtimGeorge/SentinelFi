@@ -13,12 +13,15 @@ import SecuredLayout from '../components/Layout/SecuredLayout'; // Using relativ
 import PublicLayout from '../components/Layout/PublicLayout'; // New PublicLayout
 import AppLoadingFallback from '../components/common/AppLoadingFallback'; // New AppLoadingFallback
 import '../styles/globals.css';
+import '../styles/marketing.css';
 import { Toaster } from 'react-hot-toast'; // For toast notifications
-import { Role } from '../components/context/AuthContext'; // Import Role for layout determination
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import { Role } from '../components/context/AuthContext';
 import { apiClient } from '../lib/api';
 import useUIStore from '../store/uiStore';
-import { AiAssistantWidget } from '../components/ai/AiAssistantWidget';
+import { AIChatFAB } from '../components/ai';
 import { TourProvider } from '../contexts/TourContext';
+import ToastProvider from '../components/ToastProvider';
 
 // ============================================================================
 // LAYOUT TYPING (NEW)
@@ -57,6 +60,16 @@ function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPr
   // Derive project ID from route if available
   const projectId = router.query.id as string | undefined;
 
+  // Marketing/auth pages must never mount the workspace AI assistant, even for
+  // signed-in users browsing the public site.
+  const cleanPath = router.pathname.split('?')[0];
+  const isPublicRoute = PUBLIC_ROUTES.some((route) => {
+    if (route.includes('(') || route.includes('*')) {
+      return new RegExp(`^${route}$`).test(cleanPath);
+    }
+    return route === cleanPath;
+  });
+
   // If AuthProvider is not yet initialized or user status is pending, show fallback
   if (!isInitialized) {
     AuthLogger.info('[_app] AuthProvider not yet initialized. Showing fallback.');
@@ -65,8 +78,10 @@ function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPr
 
   // Pages can define a custom layout, otherwise use the default
   const getLayout = Component.getLayout || ((page) => {
-    // Unified layout for all authenticated users (Sidebar handles role-based nav)
-    if (isAuthenticated) {
+    // Public/marketing routes must NEVER be wrapped in the secured chrome —
+    // even when the visitor holds a valid session. Pages that run their own
+    // layout (MarketingLayout etc.) define getLayout and bypass this entirely.
+    if (isAuthenticated && !isPublicRoute) {
       AuthLogger.info('[_app] Applying SecuredLayout.');
       return <SecuredLayout>{page}</SecuredLayout>;
     }
@@ -77,12 +92,9 @@ function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPr
   return (
     <>
       {getLayout(<Component {...pageProps} />)}
-      {/* Global AI Assistant Widget — available on all authenticated pages */}
-      {isAuthenticated && (
-        <AiAssistantWidget
-          currentPage={currentPageCtx}
-          projectId={projectId}
-        />
+      {/* Global AI Assistant FAB — authenticated workspace pages only, never public/marketing routes */}
+      {isAuthenticated && !isPublicRoute && (
+        <AIChatFAB />
       )}
     </>
   );
@@ -100,22 +112,24 @@ function NotificationWatcher() {
     if (!isAuthenticated || !user) return;
 
     const isForbidden = (e: any) => e?.response?.status === 403 || e?._isForbidden;
+    const isServerError = (e: any) => e?.response?.status >= 500;
     const fetchCounts = async () => {
       try {
-        // Fetch counts for both WBS and Requisitions — suppress 403 (RBAC) silently
+        // Fetch counts for both WBS and Requisitions — suppress 403 (RBAC) and 500 (server errors) silently
         const [wbs, reqs] = await Promise.all([
           apiClient.get('/wbs/budgets?status=pending&limit=1').catch((e: any) => {
             if (isForbidden(e)) return null;
+            if (isServerError(e)) return null;
             throw e;
           }),
           apiClient.get('/finance-core/requisitions').catch((e: any) => {
             if (isForbidden(e)) return [];
+            if (isServerError(e)) return [];
             return [];
           }),
         ]);
 
         if (!wbs && Array.isArray(reqs) && reqs.length === 0) {
-          // Both forbidden for this role — don't spam, set 0
           setUnreadCount(0);
           return;
         }
@@ -131,11 +145,25 @@ function NotificationWatcher() {
           console.debug('[NotificationWatcher] Skipped — insufficient role');
           return;
         }
+        // FIX: Don't spam console.error on server errors — they're expected during backend instability
+        if (isServerError(error)) {
+          console.debug('[NotificationWatcher] Server unavailable — skipping sync');
+          return;
+        }
         console.error('[NotificationWatcher] Failed to sync counts:', error);
       }
     };
 
-    fetchCounts();
+    // Defer initial sync until the browser is idle so it doesn't compete with
+    // first-paint nav data (Sidebar/LayoutNav projects, auth bootstrap).
+    const scheduleInitial = () => {
+      if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(() => fetchCounts(), { timeout: 4000 });
+      } else {
+        setTimeout(fetchCounts, 1500);
+      }
+    };
+    scheduleInitial();
     // Poll every 3 minutes for enterprise-level responsiveness
     const interval = setInterval(fetchCounts, 3 * 60 * 1000);
     return () => clearInterval(interval);
@@ -199,39 +227,43 @@ export default function App(props: AppProps) {
         <link rel="icon" href="/SentinelFi Logo Concept-bg-remv-logo-only.png" />
       </Head>
 
-      <AuthProvider>
-        <BreadcrumbProvider>
-          <CurrencyProvider>
-            <TourProvider>
-              <RouteGuard>
-                <NotificationWatcher />
-                <AppContent {...props} />
-              </RouteGuard>
-            </TourProvider>
-          </CurrencyProvider>
-        </BreadcrumbProvider>
-      </AuthProvider>
-      <Toaster
-        position="bottom-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#1a1a2e',
-            color: '#e2e8f0',
-            border: '1px solid rgba(99, 102, 241, 0.2)',
-            borderRadius: '12px',
-            padding: '14px 18px',
-            fontSize: '14px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-          },
-          success: {
-            iconTheme: { primary: '#22c55e', secondary: '#1a1a2e' },
-          },
-          error: {
-            iconTheme: { primary: '#ef4444', secondary: '#1a1a2e' },
-          },
-        }}
-      />
+      <ErrorBoundary>
+        <AuthProvider>
+          <BreadcrumbProvider>
+            <CurrencyProvider>
+              <TourProvider>
+                <RouteGuard>
+                  <ToastProvider>
+                    <NotificationWatcher />
+                    <AppContent {...props} />
+                  </ToastProvider>
+                </RouteGuard>
+              </TourProvider>
+            </CurrencyProvider>
+          </BreadcrumbProvider>
+        </AuthProvider>
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#1a1a2e',
+              color: '#e2e8f0',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+              borderRadius: '12px',
+              padding: '14px 18px',
+              fontSize: '14px',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            },
+            success: {
+              iconTheme: { primary: '#22c55e', secondary: '#1a1a2e' },
+            },
+            error: {
+              iconTheme: { primary: '#ef4444', secondary: '#1a1a2e' },
+            },
+          }}
+        />
+      </ErrorBoundary>
     </>
   );
 }

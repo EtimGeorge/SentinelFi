@@ -11,6 +11,7 @@ import {
   DollarSign, Settings, LayoutGrid, List, RefreshCcw,
   Briefcase, Activity, CheckCircle, Target, Trash2, Edit, AlertTriangle, Search, ChevronDown
 } from 'lucide-react';
+import DataTable from '../../../components/common/DataTable';
 import CategoryManager from '../../../components/budgets/CategoryManager';
 import BudgetGrid from '../../../components/budgets/BudgetGrid';
 import { OperationalBudget } from '@shared/types/operational-budget';
@@ -144,7 +145,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700" />
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-blue-500/10 rounded-lg"><Target className="w-5 h-5 text-blue-400" /></div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Total Master Budget</p>
+              <p className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Total Master Budget</p>
             </div>
             <p className="text-3xl font-black text-white tracking-tighter">
               {budgets.length > 0 ? convertToDisplay(budgets.reduce((acc, b) => acc + Number(b.budgeted_amount || 0), 0), 'NGN') : convertToDisplay(0, 'NGN')}
@@ -155,7 +156,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700" />
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-emerald-500/10 rounded-lg"><CheckCircle className="w-5 h-5 text-emerald-400" /></div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Total Allocated (Actual)</p>
+              <p className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Total Allocated (Actual)</p>
             </div>
             <p className="text-3xl font-black text-white tracking-tighter">
               {budgets.length > 0 ? convertToDisplay(budgets.reduce((acc, b) => acc + Number(b.actual_spent || 0), 0), 'NGN') : convertToDisplay(0, 'NGN')}
@@ -166,7 +167,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
             <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700" />
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-orange-500/10 rounded-lg"><Activity className="w-5 h-5 text-orange-500" /></div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Total Remaining</p>
+              <p className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Total Remaining</p>
             </div>
             <p className="text-3xl font-black text-white tracking-tighter">
               {budgets.length > 0 ? convertToDisplay(budgets.reduce((acc, b) => acc + (Number(b.budgeted_amount || 0) - Number(b.actual_spent || 0)), 0), 'NGN') : convertToDisplay(0, 'NGN')}
@@ -176,24 +177,24 @@ const OperationalBudgetWorkspace: React.FC = () => {
 
         <div className="space-y-6">
           {/* Workspace Controls */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/30 backdrop-blur-sm p-4 rounded-2xl border border-slate-800 shadow-sm">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/30 backdrop-blur-sm p-4 rounded-2xl border border-slate-800 elev-sm">
             <div className="flex items-center gap-3">
               <div className="flex bg-slate-950/60 rounded-xl p-1 border border-slate-800">
                 <button
                   onClick={() => setView('workspace')}
-                  className={`px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${view === 'workspace' ? 'bg-brand-primary text-black shadow-[0_0_15px_rgba(var(--brand-primary-rgb),0.3)]' : 'text-slate-500 hover:text-white'}`}
+                  className={`px-5 py-2.5 rounded-lg text-xs font-black  flex items-center gap-2 transition-all ${view === 'workspace' ? 'bg-brand-primary text-black shadow-[0_0_15px_rgba(var(--brand-primary-rgb),0.3)]' : 'text-slate-500 hover:text-white'}`}
                 >
                   <LayoutGrid className="w-4 h-4" /> Workspace
                 </button>
                 <button
                   onClick={() => setView('expenses')}
-                  className={`px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${view === 'expenses' ? 'bg-brand-primary text-black shadow-[0_0_15px_rgba(var(--brand-primary-rgb),0.3)]' : 'text-slate-500 hover:text-white'}`}
+                  className={`px-5 py-2.5 rounded-lg text-xs font-black  flex items-center gap-2 transition-all ${view === 'expenses' ? 'bg-brand-primary text-black shadow-[0_0_15px_rgba(var(--brand-primary-rgb),0.3)]' : 'text-slate-500 hover:text-white'}`}
                 >
                   <List className="w-4 h-4" /> Expenses
                 </button>
                 <button
                   onClick={() => setView('categories')}
-                  className={`px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${view === 'categories' ? 'bg-brand-primary text-black shadow-[0_0_15px_rgba(var(--brand-primary-rgb),0.3)]' : 'text-slate-500 hover:text-white'}`}
+                  className={`px-5 py-2.5 rounded-lg text-xs font-black  flex items-center gap-2 transition-all ${view === 'categories' ? 'bg-brand-primary text-black shadow-[0_0_15px_rgba(var(--brand-primary-rgb),0.3)]' : 'text-slate-500 hover:text-white'}`}
                 >
                   <Settings className="w-4 h-4" /> Categories
                 </button>
@@ -228,7 +229,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
           {loading ? (
             <div className="p-20 text-center text-slate-500 flex flex-col items-center">
               <RefreshCcw className="w-8 h-8 animate-spin text-brand-primary mb-4" />
-              <p className="font-black uppercase tracking-widest text-xs">Synchronizing Workspace...</p>
+              <p className="font-black  text-xs">Synchronizing Workspace...</p>
             </div>
           ) : view === 'categories' ? (
             <CategoryManager />
@@ -236,63 +237,37 @@ const OperationalBudgetWorkspace: React.FC = () => {
             <div className="bg-slate-900/30 backdrop-blur-sm border border-slate-800 rounded-3xl overflow-hidden">
               <div className="p-6 border-b border-white/[0.03] flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-widest">Operational Spend Tracking</h3>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Review and correct periodic expenditures.</p>
+                  <h3 className="text-sm font-black text-white ">Operational Spend Tracking</h3>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-tight">Review and correct periodic expenditures.</p>
                 </div>
               </div>
               {loadingExpenses ? (
                 <div className="py-20 flex justify-center"><RefreshCcw className="w-8 h-8 animate-spin text-brand-primary" /></div>
               ) : expenses.length === 0 ? (
-                <div className="py-20 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">No expenses registered in this period.</div>
+                <div className="py-20 text-center text-slate-500 text-xs font-bold ">No expenses registered in this period.</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-800">
-                    <thead className="bg-slate-950/60">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Category Mapping</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Spend Narration</th>
-                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Posting Date</th>
-                        <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Net Amount</th>
-                        <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Governance</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/40">
-                      {expenses.map(exp => (
-                        <tr key={exp.operational_expense_id} className="hover:bg-blue-500/[0.02] transition-colors group">
-                          <td className="px-6 py-4">
-                            <span className="text-[11px] font-black text-slate-300 uppercase tracking-tight">{exp.category?.name || 'Uncategorized'}</span>
-                          </td>
-                          <td className="px-6 py-4 text-xs text-slate-400 font-medium">{exp.item_description}</td>
-                          <td className="px-6 py-4 text-[11px] text-slate-500 font-mono italic">{new Date(exp.expense_date).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 text-right text-sm font-black text-white tracking-tighter italic">
-                            {convertToDisplay(exp.amount, 'NGN')}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => openEditModal(exp)}
-                                className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg transition-all"
-                                title="Edit Entry"
-                              >
-                                <Edit size={14} />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setSelectedExpense(exp);
-                                  setIsDeleteModalOpen(true);
-                                }}
-                                className="p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all"
-                                title="Void Entry"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  columns={[
+                    { key: 'category', label: 'Category Mapping', tier: 'P0', get: (exp) => (
+                      <span className="text-[11px] font-black text-slate-300 uppercase tracking-tight">{exp.category?.name || 'Uncategorized'}</span>
+                    )},
+                    { key: 'description', label: 'Spend Narration', tier: 'P1', get: (exp) => (
+                      <span className="text-xs text-slate-400 font-medium">{exp.item_description}</span>
+                    )},
+                    { key: 'expense_date', label: 'Posting Date', tier: 'P1', get: (exp) => (
+                      <span className="text-[11px] text-slate-500 font-mono italic">{new Date(exp.expense_date).toLocaleDateString()}</span>
+                    )},
+                    { key: 'amount', label: 'Net Amount', tier: 'P0', cellClassName: 'text-right text-sm font-black text-white tracking-tighter italic', get: (exp) => (
+                      convertToDisplay(exp.amount, 'NGN')
+                    )},
+                  ]}
+                  rows={expenses}
+                  rowKey={(exp) => exp.operational_expense_id}
+                  actions={[
+                    { key: 'edit', label: 'Edit Entry', icon: <Edit size={14} />, onClick: (exp) => openEditModal(exp) },
+                    { key: 'delete', label: 'Void Entry', icon: <Trash2 size={14} />, danger: true, onClick: (exp) => { setSelectedExpense(exp); setIsDeleteModalOpen(true); } },
+                  ]}
+                />
               )}
             </div>
           ) : selectedBudgetId ? (
@@ -302,7 +277,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
           ) : (
             <div className="p-20 text-center bg-slate-900/20 border border-slate-800 border-dashed rounded-3xl">
               <DollarSign className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-              <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">No Budget Selected</h3>
+              <h3 className="text-sm font-black text-slate-500 ">No Budget Selected</h3>
               <p className="text-xs text-slate-600 mt-2">Select an operational budget to view the matrix workspace.</p>
             </div>
           )}
@@ -358,7 +333,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
           </div>
           <div className="flex gap-3 justify-center pt-6">
             <Button variant="outline" className="px-8 border-slate-800" onClick={() => setIsDeleteModalOpen(false)}>Cancel</Button>
-            <Button className="bg-red-600 hover:bg-red-700 text-white px-8 font-black uppercase tracking-widest text-[10px]" onClick={handleDeleteExpense} isLoading={isSubmittingCorrection}>Recall Expense</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white px-8 font-black  text-xs" onClick={handleDeleteExpense} isLoading={isSubmittingCorrection}>Recall Expense</Button>
           </div>
         </div>
       </Modal>

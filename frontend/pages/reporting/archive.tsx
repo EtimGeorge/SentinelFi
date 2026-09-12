@@ -4,14 +4,12 @@ import {
   FileText,
   Download,
   Search,
-  Loader2,
-  CheckCircle,
-  Clock,
   Shield,
   RefreshCw,
   ExternalLink,
   Archive
 } from 'lucide-react';
+import DataTable from '../../components/common/DataTable';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
@@ -89,8 +87,8 @@ const DcsArchivePage: React.FC = () => {
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Controls Sidebar */}
           <aside className="lg:w-80 shrink-0 space-y-6">
-            <div className="p-6 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl sticky top-24">
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+            <div className="p-6 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl elev-lg sticky top-24">
+              <h3 className="text-xs font-black text-slate-500  mb-6 flex items-center gap-2">
                 <Archive className="w-4 h-4" /> Archive Options
               </h3>
 
@@ -109,9 +107,9 @@ const DcsArchivePage: React.FC = () => {
                 <div className="p-4 bg-brand-primary/5 border border-brand-primary/10 rounded-2xl space-y-3">
                   <div className="flex items-center gap-2 text-brand-primary">
                     <Shield className="w-3 h-3" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Integrity Active</span>
+                    <span className="text-xs font-black ">Integrity Active</span>
                   </div>
-                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-400 leading-relaxed">
                     All documents are cryptographically hashed upon generation to ensure non-repudiation within the DCS.
                   </p>
                 </div>
@@ -130,107 +128,64 @@ const DcsArchivePage: React.FC = () => {
           {/* Main List Area */}
           <main className="flex-1">
             <Card className="p-0 overflow-hidden bg-slate-900/40 backdrop-blur-xl border-slate-800 rounded-3xl">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-800/50 bg-slate-950/30">
-                      <th className="px-8 py-5">Document Name</th>
-                      <th className="px-8 py-5">Classification</th>
-                      <th className="px-8 py-5">Generated</th>
-                      <th className="px-8 py-5 text-center">DCS Sync</th>
-                      <th className="px-8 py-5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/50">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={5} className="py-32 text-center">
-                          <Loader2 className="w-10 h-10 animate-spin mx-auto text-brand-primary opacity-20" />
-                        </td>
-                      </tr>
-                    ) : filteredArchives.length > 0 ? (
-                      filteredArchives.map((item) => (
-                        <tr key={item.id} className="group hover:bg-brand-primary/5 transition-colors">
-                          <td className="px-8 py-6">
-                            <div className="flex items-center gap-4">
-                              <div className="p-2 bg-slate-800 rounded-xl group-hover:bg-brand-primary/10 transition-colors">
-                                <FileText className="w-5 h-5 text-brand-primary" />
-                              </div>
-                              <div className="space-y-0.5">
-                                <div className="text-white font-bold tracking-tight">{item.file_name}</div>
-                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-                                  ID: {item.id.slice(0, 8).toUpperCase()}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-8 py-6">
-                            <span className="px-3 py-1 bg-slate-800 text-slate-400 text-[10px] font-black uppercase rounded-lg border border-slate-700">
-                              {item.report_type.replace(/_/g, ' ')}
-                            </span>
-                          </td>
-                          <td className="px-8 py-6">
-                            <div className="text-slate-300 font-medium">
-                              {format(new Date(item.created_at), 'MMM dd, yyyy')}
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-bold">
-                              {format(new Date(item.created_at), 'HH:mm:ss')}
-                            </div>
-                          </td>
-                          <td className="px-8 py-6">
-                            <div className="flex justify-center">
-                              {item.is_pushed_to_external_dcs ? (
-                                <Tooltip content="Verified by External DCS">
-                                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-positive/10 text-positive rounded-full border border-positive/20">
-                                    <CheckCircle className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Synced</span>
-                                  </div>
-                                </Tooltip>
-                              ) : (
-                                <Tooltip content="Pending System Batch Sync">
-                                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 text-slate-500 rounded-full border border-slate-700">
-                                    <Clock className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Vaulted</span>
-                                  </div>
-                                </Tooltip>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-8 py-6 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Tooltip content="Download File">
-                                <button
-                                  onClick={() => handleDownload(item.id, item.file_name)}
-                                  className="p-2.5 bg-slate-800 hover:bg-brand-primary text-slate-400 hover:text-white rounded-xl transition-all shadow-lg active:scale-90"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                              </Tooltip>
-                              <Tooltip content="Copy Shareable Link">
-                                <button
-                                  onClick={() => handleShare(item.id)}
-                                  className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all shadow-lg active:scale-90"
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </button>
-                              </Tooltip>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={5} className="py-32 text-center">
-                          <div className="flex flex-col items-center gap-4 text-slate-500">
-                            <Archive className="w-12 h-12 opacity-10" />
-                            <div className="text-sm font-black uppercase tracking-widest italic">The digital vault is empty</div>
+              <DataTable
+                columns={[
+                  { key: 'file_name', label: 'Document Name', tier: 'P0', get: (item) => (
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 bg-slate-800 rounded-xl">
+                        <FileText className="w-5 h-5 text-brand-primary" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="text-white font-bold tracking-tight">{item.file_name}</div>
+                        <div className="text-xs text-slate-500 font-bold ">
+                          ID: {item.id.slice(0, 8).toUpperCase()}
+                        </div>
+                      </div>
+                    </div>
+                  )},
+                  { key: 'report_type', label: 'Classification', tier: 'P1', get: (item) => (
+                    <span className="px-3 py-1 bg-slate-800 text-slate-400 text-xs font-black uppercase rounded-lg border border-slate-700">
+                      {item.report_type.replace(/_/g, ' ')}
+                    </span>
+                  )},
+                  { key: 'created_at', label: 'Generated', tier: 'P1', get: (item) => (
+                    <div>
+                      <div className="text-slate-300 font-medium">
+                        {format(new Date(item.created_at), 'MMM dd, yyyy')}
+                      </div>
+                      <div className="text-xs text-slate-500 font-bold">
+                        {format(new Date(item.created_at), 'HH:mm:ss')}
+                      </div>
+                    </div>
+                  )},
+                  { key: 'dcs_sync', label: 'DCS Sync', tier: 'P2', cellClassName: 'text-center', get: (item) => (
+                    <div className="flex justify-center">
+                      {item.is_pushed_to_external_dcs ? (
+                        <Tooltip content="Verified by External DCS">
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-positive/10 text-positive rounded-full border border-positive/20">
+                            <span className="w-3.5 h-3.5 flex items-center justify-center">&#10003;</span>
+                            <span className="text-xs font-black ">Synced</span>
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip content="Pending System Batch Sync">
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 text-slate-500 rounded-full border border-slate-700">
+                            <span className="w-3.5 h-3.5 flex items-center justify-center">&#9202;</span>
+                            <span className="text-xs font-black ">Vaulted</span>
+                          </div>
+                        </Tooltip>
+                      )}
+                    </div>
+                  )},
+                ]}
+                rows={loading ? [] : filteredArchives}
+                rowKey={(item) => item.id}
+                emptyMessage={loading ? 'Loading archive...' : 'The digital vault is empty'}
+                actions={[
+                  { key: 'download', label: 'Download File', icon: <Download className="w-4 h-4" />, primary: true, onClick: (item) => handleDownload(item.id, item.file_name) },
+                  { key: 'share', label: 'Copy Shareable Link', icon: <ExternalLink className="w-4 h-4" />, onClick: (item) => handleShare(item.id) },
+                ]}
+              />
             </Card>
           </main>
         </div>

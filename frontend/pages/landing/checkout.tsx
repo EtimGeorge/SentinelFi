@@ -6,6 +6,11 @@ import api from '../../lib/api';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { isCorporateEmail } from '@shared/utils/validation';
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactNode) => React.ReactNode;
+};
 
 type BillingCycle = 'monthly' | 'annual';
 
@@ -16,6 +21,12 @@ interface Rate {
 }
 
 const PLAN_CONFIG: Record<string, { name: string; monthly_usd: number; annual_usd: number; description: string }> = {
+  free: {
+    name: 'Free',
+    monthly_usd: 0,
+    annual_usd: 0,
+    description: 'Forever free. 1 task/day, ad-supported. Watch ads to unlock extras.',
+  },
   trial: {
     name: 'Free 14-Day Trial',
     monthly_usd: 0,
@@ -24,13 +35,13 @@ const PLAN_CONFIG: Record<string, { name: string; monthly_usd: number; annual_us
   },
   professional: {
     name: 'Professional',
-    monthly_usd: 1500,
-    annual_usd: 1500 * 12 * 0.85,
-    description: 'Billed securely via Paystack or PayPal.',
+    monthly_usd: 500,
+    annual_usd: 500 * 12 * 0.95,
+    description: 'Billed securely via Paystack or PayPal. 5% off annual.',
   },
 };
 
-const CheckoutPage: React.FC = () => {
+const CheckoutPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { plan, cycle } = router.query;
   const billingCycle: BillingCycle = (cycle as BillingCycle) || 'monthly';
@@ -49,7 +60,9 @@ const CheckoutPage: React.FC = () => {
 
   const planConfig = PLAN_CONFIG[plan as string] || null;
   const isTrial = plan === 'trial';
-  const amountUSD = isTrial ? 0 : (billingCycle === 'annual' ? planConfig?.annual_usd : planConfig?.monthly_usd) || 0;
+  const isFree = plan === 'free';
+  const isNoPayment = isTrial || isFree;
+  const amountUSD = isNoPayment ? 0 : (billingCycle === 'annual' ? planConfig?.annual_usd : planConfig?.monthly_usd) || 0;
 
   // Fetch local currency for display
   useEffect(() => {
@@ -92,6 +105,13 @@ const CheckoutPage: React.FC = () => {
         return;
       }
 
+      if (isFree) {
+        // Free flow — no gateway redirect, perpetual workspace
+        await api.post('/billing/start-free', formData);
+        router.push('/auth/check-email?reason=free');
+        return;
+      }
+
       // Paid flow
       const response = await api.post('/billing/process-public-subscription', {
         ...formData,
@@ -115,23 +135,28 @@ const CheckoutPage: React.FC = () => {
   if (!router.isReady) return null;
   if (!planConfig) {
     return (
-      <MarketingLayout title="Checkout | SentinelFi">
-        <div className="py-40 text-center text-gray-400">
-          <p>No plan selected. <a href="/landing/pricing" className="text-brand-primary underline">View Pricing →</a></p>
-        </div>
-      </MarketingLayout>
+      <div className="py-40 text-center text-gray-400">
+        <p>No plan selected. <a href="/landing/pricing" className="text-brand-primary underline">View Pricing →</a></p>
+      </div>
     );
   }
 
   return (
-    <MarketingLayout title={`Checkout — ${planConfig.name} | SentinelFi`}>
       <section className="py-24 container mx-auto px-6 max-w-6xl">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
 
           {/* ── Form Side ──────────────────────────────────────────── */}
           <div className="lg:col-span-7 space-y-8">
             <div>
-              {isTrial ? (
+              {isFree ? (
+                <>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-xs font-black uppercase tracking-widest mb-4">
+                    <Globe className="w-3 h-3" /> Free Forever — No Credit Card Required
+                  </div>
+                  <h1 className="text-4xl font-black font-sora text-white mb-2">Start Your Free Workspace</h1>
+                  <p className="text-gray-400">1 task/day, ad-supported. Watch ads to unlock extras. Magic-link dispatched to your inbox within 60 seconds.</p>
+                </>
+              ) : isTrial ? (
                 <>
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full text-green-400 text-xs font-black uppercase tracking-widest mb-4">
                     <Zap className="w-3 h-3" /> Free Trial — No Credit Card Required
@@ -207,7 +232,7 @@ const CheckoutPage: React.FC = () => {
               </div>
 
               {/* Gateway selection — paid only */}
-              {!isTrial && (
+              {!isNoPayment && (
                 <div className="p-8 glass-card space-y-4">
                   <h3 className="text-sm font-black uppercase tracking-widest text-gray-400">Payment Gateway</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -237,6 +262,8 @@ const CheckoutPage: React.FC = () => {
               >
                 {loading
                   ? 'Processing...'
+                  : isFree
+                  ? 'Launch My Free Workspace →'
                   : isTrial
                   ? 'Launch My Free Trial →'
                   : `Complete ${planConfig.name} Setup`}
@@ -253,7 +280,7 @@ const CheckoutPage: React.FC = () => {
 
                 {[
                   ['Plan', planConfig.name],
-                  ['Billing', isTrial ? '14-day trial' : `${billingCycle === 'annual' ? 'Annual' : 'Monthly'}`],
+                  ['Billing', isFree ? 'Free forever' : isTrial ? '14-day trial' : `${billingCycle === 'annual' ? 'Annual (5% off)' : 'Monthly'}`],
                   ['Workspace Type', 'Sovereign Instance'],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between items-center py-3 border-b border-white/5 text-xs font-mono uppercase tracking-wider">
@@ -265,7 +292,7 @@ const CheckoutPage: React.FC = () => {
                 <div className="flex justify-between items-center pt-6">
                   <span className="font-black text-white">Total</span>
                   <div className="text-right">
-                    {isTrial ? (
+                    {isNoPayment ? (
                       <span className="text-2xl font-black text-green-400 font-sora">Free</span>
                     ) : (
                       <>
@@ -284,8 +311,8 @@ const CheckoutPage: React.FC = () => {
 
               <div className="space-y-4 px-2">
                 {[
-                  { icon: <CheckCircle2 className="w-5 h-5 text-green-400" />, text: isTrial ? 'Magic-link access dispatched within 60 seconds of submission.' : 'Magic-link dispatched after payment confirmation.' },
-                  { icon: <AlertCircle className="w-5 h-5 text-brand-primary" />, text: 'Zero card data stored on SentinelFi. All processing via PCI-DSS gateways.' },
+                  { icon: <CheckCircle2 className="w-5 h-5 text-green-400" />, text: isNoPayment ? 'Magic-link access dispatched within 60 seconds of submission.' : 'Magic-link dispatched after payment confirmation.' },
+                  { icon: <AlertCircle className="w-5 h-5 text-brand-primary" />, text: isFree ? 'Free workspaces show ads on some features. Upgrade to Professional to remove all ads.' : 'Zero card data stored on SentinelFi. All processing via PCI-DSS gateways.' },
                   { icon: <ShieldCheck className="w-5 h-5 text-yellow-400" />, text: 'Your tenant schema is provisioned in an isolated PostgreSQL instance.' },
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
@@ -298,8 +325,11 @@ const CheckoutPage: React.FC = () => {
           </div>
         </div>
       </section>
-    </MarketingLayout>
   );
+};
+
+CheckoutPage.getLayout = (page: React.ReactNode) => {
+  return <MarketingLayout title="Checkout | SentinelFi">{page}</MarketingLayout>;
 };
 
 export default CheckoutPage;

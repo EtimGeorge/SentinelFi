@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+﻿import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
@@ -85,7 +85,7 @@ const UserProfilePage: React.FC = () => {
       >
         <div className="space-y-6">
           {/* Profile Header Card */}
-          <Card className="p-8 border-gray-700 bg-gradient-to-br from-brand-dark/50 to-gray-800/30">
+          <Card className="p-8 border-gray-700">
             <div className="flex flex-col md:flex-row items-center gap-8">
               <div className="w-24 h-24 rounded-full bg-brand-primary/10 border-2 border-brand-primary/30 flex items-center justify-center relative">
                 <User className="w-12 h-12 text-brand-primary" />
@@ -109,10 +109,10 @@ const UserProfilePage: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-2">
-                <div className={`px-4 py-2 rounded-xl text-center font-black text-xs uppercase tracking-widest ${profile.is_active ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                <div className={`px-4 py-2 rounded-xl text-center font-black text-xs  ${profile.is_active ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
                   {profile.is_active ? 'Account Verified' : 'Account Suspended'}
                 </div>
-                <div className="text-[10px] text-center text-gray-500 uppercase tracking-widest font-bold">
+                <div className="text-xs text-center text-gray-500  font-bold">
                   Member Since: {new Date(profile.created_at).toLocaleDateString()}
                 </div>
               </div>
@@ -126,17 +126,17 @@ const UserProfilePage: React.FC = () => {
                 <div className="flex items-start space-x-4">
                   <Mail className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Login Identifier</label>
+                    <label className="text-xs font-black text-gray-500 ">Login Identifier</label>
                     <p className="text-sm text-gray-200">{profile.email}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
                   <Key className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Access Permissions</label>
+                    <label className="text-xs font-black text-gray-500 ">Access Permissions</label>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {profile.roles.map(r => (
-                        <span key={r.id} className="px-2 py-0.5 bg-gray-800 text-brand-primary text-[10px] font-black rounded uppercase border border-brand-primary/20">
+                        <span key={r.id} className="px-2 py-0.5 bg-gray-800 text-brand-primary text-xs font-black rounded uppercase border border-brand-primary/20">
                           {r.name}
                         </span>
                       ))}
@@ -146,7 +146,7 @@ const UserProfilePage: React.FC = () => {
                 <div className="flex items-start space-x-4">
                   <Clock className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Last Authentication</label>
+                    <label className="text-xs font-black text-gray-500 ">Last Authentication</label>
                     <p className="text-sm text-gray-300">{profile.last_login ? new Date(profile.last_login).toLocaleString() : 'Never logged in'}</p>
                   </div>
                 </div>
@@ -166,7 +166,7 @@ const UserProfilePage: React.FC = () => {
                 <Activity className="w-5 h-5 text-brand-primary mr-3" />
                 <div>
                   <p className="text-2xl font-bold text-white leading-none">{profile.activity_count || 0}</p>
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Total System Events</p>
+                  <p className="text-xs font-black text-gray-500  mt-1">Total System Events</p>
                 </div>
               </div>
 
@@ -180,7 +180,7 @@ const UserProfilePage: React.FC = () => {
                       <div className="flex-grow">
                         <div className="flex justify-between items-start">
                           <p className="text-sm font-bold text-gray-200">{act.action}</p>
-                          <span className="text-[10px] text-gray-500 font-mono">{new Date(act.timestamp).toLocaleString()}</span>
+                          <span className="text-xs text-gray-500 font-mono">{new Date(act.timestamp).toLocaleString()}</span>
                         </div>
                         <p className="text-xs text-gray-400 mt-1">{act.details}</p>
                       </div>

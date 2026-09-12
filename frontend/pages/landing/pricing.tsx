@@ -5,8 +5,10 @@ import { Check, ArrowRight, Zap, Shield, Crown, Globe, ChevronDown } from 'lucid
 import axios from 'axios';
 
 // ─── Pricing Constants ────────────────────────────────────────────────────────
-const MONTHLY_USD = 1500;
-const ANNUAL_USD = MONTHLY_USD * 12 * (1 - 0.15); // $15,300 (15% off)
+// Professional: $500/mo, 5% off annual ($5,700/yr). Free tier: $0 forever.
+const MONTHLY_USD = 500;
+const ANNUAL_USD = MONTHLY_USD * 12 * (1 - 0.05); // $5,700 (5% off)
+const ANNUAL_SAVINGS_LABEL = 'SAVE 5%';
 
 type BillingCycle = 'monthly' | 'annual';
 
@@ -89,6 +91,29 @@ const formatInCurrency = (usdAmount: number, currency: CurrencyRate) => {
 // ─── Plan Data ────────────────────────────────────────────────────────────────
 const PLANS = [
   {
+    key: 'free',
+    name: 'Free',
+    icon: <Globe className="w-7 h-7" />,
+    price_usd_monthly: 0,
+    price_usd_annual: 0,
+    badge: null,
+    featured: false,
+    color: 'gray-400',
+    description: 'Forever free. 1 task/day, ad-supported. Watch ads to unlock extras.',
+    features: [
+      '1 task per day included',
+      'Watch ads to unlock extra tasks',
+      'Core WBS & reporting (limited)',
+      '1 tenant instance',
+      'Community support',
+      'Ads on some features — upgrade removes all ads',
+    ],
+    cta: 'Start for Free',
+    ctaHref: () => `/landing/checkout?plan=free`,
+    note: 'Free forever — no credit card required',
+    freeTier: true,
+  },
+  {
     key: 'trial',
     name: 'Free Trial',
     icon: <Zap className="w-7 h-7" />,
@@ -119,20 +144,21 @@ const PLANS = [
     badge: 'Most Popular',
     featured: true,
     color: 'brand-primary',
-    description: 'Full-power financial governance for serious infrastructure teams.',
+    description: 'Full-power financial governance for serious infrastructure teams. $500/mo, 5% off annual.',
     features: [
       'Everything in Free Trial',
       '3 Sovereign Tenant Instances',
-      'Unlimited AI Forensic Scans',
+      'Unlimited tasks & AI Forensic Scans',
       'Predictive Risk Modeling',
       'Automated Invoice Verification',
       'Custom Domain Mapping',
       'Paystack & PayPal Gateways',
+      'No ads — clean workspace',
       'Priority 24/7 Support',
     ],
     cta: 'Go Professional',
     ctaHref: (cycle: BillingCycle) => `/landing/checkout?plan=professional&cycle=${cycle}`,
-    note: 'Charged in USD via secure gateway',
+    note: 'Charged in USD via secure gateway — 5% off annual',
   },
   {
     key: 'enterprise',
@@ -216,7 +242,7 @@ const PricingPage: NextPageWithLayout = () => {
               Simple. Sovereign. <span className="text-brand-primary">Scalable.</span>
             </h1>
             <p className="text-lg text-gray-400 max-w-2xl mx-auto mb-10">
-              One professional plan, no seat fees, no hidden tiers. Start free, go live when you're confident.
+              Free forever for starters, $500/mo Professional for serious teams, custom Enterprise for scale. No seat fees, no hidden tiers.
             </p>
 
             {/* Controls Row */}
@@ -238,7 +264,7 @@ const PricingPage: NextPageWithLayout = () => {
                   }`}
                 >
                   Annual
-                  <span className="bg-green-500/20 text-green-400 text-[10px] px-2 py-0.5 rounded-full font-black">SAVE 15%</span>
+                  <span className="bg-green-500/20 text-green-400 text-[10px] px-2 py-0.5 rounded-full font-black">{ANNUAL_SAVINGS_LABEL}</span>
                 </button>
               </div>
 
@@ -260,7 +286,7 @@ const PricingPage: NextPageWithLayout = () => {
           </div>
 
           {/* Pricing Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch mb-20">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 items-stretch mb-20">
             {PLANS.map((plan) => {
               const isAnnual = billingCycle === 'annual';
               const priceUSD = isAnnual ? plan.price_usd_annual : plan.price_usd_monthly;
@@ -296,7 +322,9 @@ const PricingPage: NextPageWithLayout = () => {
                     ) : priceUSD === 0 ? (
                       <div>
                         <span className="text-5xl font-black font-sora text-white">Free</span>
-                        <span className="text-sm text-gray-500 ml-2">/ 14 days</span>
+                        <span className="text-sm text-gray-500 ml-2">
+                          {(plan as any).freeTier ? '/ forever' : '/ 14 days'}
+                        </span>
                       </div>
                     ) : (
                       <div>

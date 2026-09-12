@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+﻿import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
@@ -95,7 +95,7 @@ const ClientOverviewPage: React.FC = () => {
                   <Briefcase className="w-6 h-6 text-brand-primary" />
                 </div>
                 <div>
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Active Projects</p>
+                  <p className="text-xs font-black text-gray-500 ">Active Projects</p>
                   <p className="text-2xl font-bold text-white">{client.projects?.length || 0}</p>
                 </div>
               </div>
@@ -106,7 +106,7 @@ const ClientOverviewPage: React.FC = () => {
                   <DollarSign className="w-6 h-6 text-brand-secondary" />
                 </div>
                 <div>
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Total Lifecycle Value</p>
+                  <p className="text-xs font-black text-gray-500 ">Total Lifecycle Value</p>
                   <p className="text-2xl font-bold text-white">{convertToDisplay(client.total_value || 0)}</p>
                 </div>
               </div>
@@ -117,7 +117,7 @@ const ClientOverviewPage: React.FC = () => {
                   <ShieldCheck className="w-6 h-6 text-blue-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Client Status</p>
+                  <p className="text-xs font-black text-gray-500 ">Client Status</p>
                   <p className={`text-xl font-bold uppercase tracking-tighter ${client.is_active ? 'text-green-400' : 'text-red-400'}`}>
                     {client.is_active ? 'Prime / Active' : 'Suspended'}
                   </p>
@@ -133,28 +133,28 @@ const ClientOverviewPage: React.FC = () => {
                 <div className="flex items-start space-x-4">
                   <Building className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Industry Classification</label>
+                    <label className="text-xs font-black text-gray-500 ">Industry Classification</label>
                     <p className="text-sm text-gray-200 font-bold">{client.industry || 'General Services'}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
                   <Mail className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Primary Contact Email</label>
+                    <label className="text-xs font-black text-gray-500 ">Primary Contact Email</label>
                     <p className="text-sm text-gray-200">{client.email || 'N/A'}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
                   <Phone className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Phone</label>
+                    <label className="text-xs font-black text-gray-500 ">Contact Phone</label>
                     <p className="text-sm text-gray-200">{client.phone || 'N/A'}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
                   <MapPin className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Headquarters</label>
+                    <label className="text-xs font-black text-gray-500 ">Headquarters</label>
                     <p className="text-sm text-gray-300 leading-relaxed">{client.address || 'N/A'}</p>
                   </div>
                 </div>
@@ -178,15 +178,15 @@ const ClientOverviewPage: React.FC = () => {
                         <div>
                           <p className="text-sm font-black text-gray-200">{project.project_name}</p>
                           <div className="flex items-center gap-3 mt-1">
-                            <span className="text-[10px] font-black uppercase text-gray-500 px-1.5 py-0.5 rounded border border-gray-700">{project.status}</span>
-                            <span className="text-[10px] text-gray-600 flex items-center"><Clock className="w-3 h-3 mr-1" /> Last Active: Recent</span>
+                            <span className="text-xs font-black uppercase text-gray-500 px-1.5 py-0.5 rounded border border-gray-700">{project.status}</span>
+                            <span className="text-xs text-gray-600 flex items-center"><Clock className="w-3 h-3 mr-1" /> Last Active: Recent</span>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-8">
                         <div className="text-right hidden sm:block">
                           <p className="text-xs font-black text-gray-100">{convertToDisplay(parseFloat(project.total_budget))}</p>
-                          <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Budget Allocation</p>
+                          <p className="text-xs text-gray-500 uppercase font-bold tracking-tighter">Budget Allocation</p>
                         </div>
                         <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-brand-primary transition-transform group-hover:translate-x-1" />
                       </div>

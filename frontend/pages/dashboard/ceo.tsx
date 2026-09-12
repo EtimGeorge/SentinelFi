@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+﻿import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic'; // Import dynamic
 import PageContainer from '../../components/Layout/PageContainer';
@@ -9,6 +9,10 @@ import { useCurrency } from '../../components/context/CurrencyContext'; // Impor
 import WBSHierarchyTree from '../../components/dashboard/WBSHierarchyTree';
 import SpendingChart from '../../components/dashboard/SpendingChart';
 import Card from '../../components/common/Card';
+import KpiCard from '../../components/common/KpiCard';
+import MetricHero from '../../components/dashboard/MetricHero';
+import TimeRangeSelector from '../../components/dashboard/TimeRangeSelector';
+import useGlobalStore, { TIME_RANGE_PRESETS } from '../../store/globalStore';
 import { Role } from '../../components/context/AuthContext';
 import { Loader2, Search, RefreshCcw, LayoutDashboard, Briefcase, Settings, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -58,6 +62,7 @@ const CEODashboard: React.FC = () => {
   const [endDate, setEndDate] = useState<Date | null>(new Date()); // Default to today
 
   const [onPageSearchTerm, setOnPageSearchTerm] = useState<string>(''); // For WBS table search
+  const timeRange = useGlobalStore((s) => s.timeRange);
 
   // State for WBS Detail Modal
   const [showWBSDetailModal, setShowWBSDetailModal] = useState(false);
@@ -74,6 +79,17 @@ const CEODashboard: React.FC = () => {
     riskLevel: 'OK' as string,
   });
 
+
+  // Move the window when the global preset changes; manual DatePicker edits
+  // take over from there without fighting the selector.
+  useEffect(() => {
+    const days = TIME_RANGE_PRESETS[timeRange].days;
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - (days - 1));
+    setStartDate(start);
+    setEndDate(end);
+  }, [timeRange]);
 
   const fetchProjects = useCallback(async () => {
     setLoadingProjects(true);
@@ -215,17 +231,17 @@ const CEODashboard: React.FC = () => {
       <PageContainer title="Executive Financial Oversight">
         <div className="space-y-6">
           {error && (
-            <div className="bg-red-900/30 border border-red-700 text-red-300 p-4 rounded-lg flex items-center justify-between">
+            <div className="bg-alert-critical/10 border border-alert-critical/30 text-alert-critical p-4 rounded-lg flex items-center justify-between" role="alert">
               <span>Error loading dashboard data: {error}</span>
-              <button onClick={fetchDashboardData} className="ml-4 px-3 py-1 bg-red-700 hover:bg-red-600 rounded-md flex items-center">
+              <button onClick={fetchDashboardData} className="ml-4 px-3 py-1 bg-alert-critical/20 hover:bg-alert-critical/30 rounded-md flex items-center">
                 <RefreshCcw className="w-4 h-4 mr-2" /> Retry
               </button>
             </div>
           )}
 
 
-          {/* Premium CEO Header Section: Duality Toggle and Global Shortcuts */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-brand-dark/30 border border-gray-700 rounded-2xl">
+          {/* Executive header: Duality Toggle and Global Shortcuts */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-brand-dark/30 border border-gray-700 rounded-lg">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setViewContext('project')}
@@ -274,27 +290,31 @@ const CEODashboard: React.FC = () => {
 
               <div className="flex items-center gap-3">
                 <label className="text-gray-300 text-sm">Date Range:</label>
-                <DatePicker
-                  selected={startDate}
-                  onChange={(date: Date | null) => setStartDate(date)}
-                  selectsStart
-                  startDate={startDate}
-                  endDate={endDate}
-                  className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white focus:ring-brand-primary focus:border-brand-primary w-32"
-                  dateFormat="yyyy/MM/dd"
-                  placeholderText="Start Date"
-                />
-                <DatePicker
-                  selected={endDate}
-                  onChange={(date: Date | null) => setEndDate(date)}
-                  selectsEnd
-                  startDate={startDate}
-                  endDate={endDate}
-                  minDate={startDate}
-                  className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white focus:ring-brand-primary focus:border-brand-primary w-32"
-                  dateFormat="yyyy/MM/dd"
-                  placeholderText="End Date"
-                />
+                <TimeRangeSelector />
+                <div className="flex items-center gap-2">
+                  <DatePicker
+                    selected={startDate}
+                    onChange={(date: Date | null) => setStartDate(date)}
+                    selectsStart
+                    startDate={startDate}
+                    endDate={endDate}
+                    className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white focus:ring-brand-primary focus:border-brand-primary w-32"
+                    dateFormat="yyyy/MM/dd"
+                    placeholderText="Start Date"
+                  />
+                  <span className="text-gray-500">–</span>
+                  <DatePicker
+                    selected={endDate}
+                    onChange={(date: Date | null) => setEndDate(date)}
+                    selectsEnd
+                    startDate={startDate}
+                    endDate={endDate}
+                    minDate={startDate}
+                    className="p-2 bg-brand-dark/50 border border-gray-600 rounded-lg text-white focus:ring-brand-primary focus:border-brand-primary w-32"
+                    dateFormat="yyyy/MM/dd"
+                    placeholderText="End Date"
+                  />
+                </div>
               </div>
             </div>
 
@@ -319,132 +339,92 @@ const CEODashboard: React.FC = () => {
             </div>
           </Card>
 
-          {/* Section 1: MANDATORY KPIs - Upgraded with Burn Rate and Conditional Styling */}
-          <Card title="Executive Financial Highlights" className="bg-gray-800/50">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-
-              <Card title="Total Budgeted Cost" borderTopColor="primary">
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                ) : (
-                  <p className="text-3xl font-semibold text-gray-100">{convertToDisplay(kpis.totalBudget, sourceCurrency)}</p>
-                )}
-              </Card>
-              <Card title="Actual Expenditures" borderTopColor="primary">
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-3xl font-semibold text-gray-100">{convertToDisplay(kpis.totalActualPaid, sourceCurrency)}</p>
-                    <p className="text-xs text-gray-400">Total cash outflow for selected context</p>
-                  </div>
-                )}
-              </Card>
-              <Card title="Committed LPOs" borderTopColor="alert">
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-3xl font-semibold text-gray-100">{convertToDisplay(kpis.totalCommittedLPO, sourceCurrency)}</p>
-                    <p className="text-xs text-brand-secondary">Open and unpaid pipeline</p>
-                  </div>
-                )}
-              </Card>
-              <Card
-                title="Organizational Burn Rate"
-                borderTopColor={kpis.burnRate > 90 ? 'alert' : 'positive'}
-              >
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                ) : (
-                  <div className="space-y-1">
-                    <p className={`text-3xl font-semibold ${kpis.burnRate > 100 ? 'text-red-400' : 'text-gray-100'}`}>
-                      {kpis.burnRate.toFixed(1)}%
-                    </p>
-                    <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-500 ${kpis.burnRate > 90 ? 'bg-red-500' : 'bg-brand-primary'}`}
-                        style={{ width: `${Math.min(kpis.burnRate, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </Card>
-              <Card
-                title="Context Variance"
-                borderTopColor={kpis.variancePercentage > 0 ? 'alert' : 'positive'}
-              >
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                ) : (
-                  <p className={`text-3xl font-semibold ${kpis.variancePercentage > 0 ? 'text-red-400' : 'text-alert-positive'}`}>
-                    {kpis.variancePercentage > 0 ? '+' : ''}{kpis.variancePercentage.toFixed(2)}%
-                  </p>
-                )}
-              </Card>
-
-              {/* NEW: Forensic Metrics */}
-              <Card title="Burn Run-Rate" borderTopColor="primary">
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-2xl font-semibold text-gray-100">{convertToDisplay(kpis.avgDailySpend, sourceCurrency)}</p>
-                    <p className="text-[10px] uppercase text-gray-500 font-bold">AVG. DAILY SPEND</p>
-                  </div>
-                )}
-              </Card>
-
-              <Card 
-                title="Projected Exhaustion" 
-                borderTopColor={kpis.riskLevel === 'CRITICAL' ? 'alert' : kpis.riskLevel === 'WARNING' ? 'secondary' : 'positive'}
-              >
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                ) : (
-                  <div className="space-y-1">
-                    <p className={`text-2xl font-bold ${kpis.riskLevel === 'CRITICAL' ? 'text-red-500' : 'text-gray-100'}`}>
-                      {kpis.estimatedExhaustionDate ? new Date(kpis.estimatedExhaustionDate).toLocaleDateString('en-GB') : 'SUSTAINABLE'}
-                    </p>
-                    <div className="flex items-center gap-2">
-                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                         kpis.riskLevel === 'CRITICAL' ? 'bg-red-900/50 text-red-400 border border-red-700' :
-                         kpis.riskLevel === 'WARNING' ? 'bg-yellow-900/50 text-yellow-500 border border-yellow-700' :
-                         'bg-green-900/50 text-green-400 border border-green-700'
-                       }`}>
-                         {kpis.riskLevel}
-                       </span>
-                    </div>
-                  </div>
-                )}
-              </Card>
+          {/* Section 1: Executive KPI hierarchy — one primary + secondaries */}
+          {loading ? (
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-gray-700 py-16" role="status">
+              <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
+              <span className="ml-3 text-sm text-gray-400">Loading executive metrics...</span>
             </div>
-          </Card>
+          ) : (
+            <div className="space-y-4">
+              <MetricHero
+                label="Total Budgeted Cost"
+                value={convertToDisplay(kpis.totalBudget, sourceCurrency)}
+                period={`${sourceCurrency} · ${viewContext === 'operational' ? 'Operational Overheads' : 'Projects & Operations'}`}
+                progress={{
+                  current: kpis.totalActualPaid,
+                  target: kpis.totalBudget,
+                  label: 'Spent of budget',
+                }}
+                anomaly={kpis.variancePercentage > 5 ? `Spend exceeds allocation by ${Math.abs(kpis.variancePercentage).toFixed(1)}%` : null}
+              />
 
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <KpiCard
+                  label="Actual Expenditures"
+                  value={convertToDisplay(kpis.totalActualPaid, sourceCurrency)}
+                  tone="neutral"
+                  footer={<span className="text-label-sm text-gray-500">Total cash outflow</span>}
+                />
+                <KpiCard
+                  label="Committed LPOs"
+                  value={convertToDisplay(kpis.totalCommittedLPO, sourceCurrency)}
+                  tone="warning"
+                  footer={<span className="text-label-sm text-gray-500">Open, unpaid pipeline</span>}
+                />
+                <KpiCard
+                  label="Burn Rate"
+                  value={`${kpis.burnRate.toFixed(1)}%`}
+                  tone={kpis.burnRate > 90 ? 'critical' : kpis.burnRate > 75 ? 'warning' : 'positive'}
+                  footer={
+                    <div className="h-1 w-full rounded-full bg-gray-700" role="progressbar" aria-valuenow={Math.round(kpis.burnRate)} aria-valuemin={0} aria-valuemax={100} aria-label="Burn rate">
+                      <div className={`h-full rounded-full ${kpis.burnRate > 90 ? 'bg-alert-critical' : 'bg-brand-primary'}`} style={{ width: `${Math.min(kpis.burnRate, 100)}%` }} />
+                    </div>
+                  }
+                />
+                <KpiCard
+                  label="Context Variance"
+                  value={`${kpis.variancePercentage > 0 ? '+' : ''}${kpis.variancePercentage.toFixed(2)}%`}
+                  tone={kpis.variancePercentage > 0 ? 'critical' : 'positive'}
+                  footer={<span className="text-label-sm text-gray-500">{kpis.variancePercentage > 0 ? 'Over plan' : 'Under plan'}</span>}
+                />
+                <KpiCard
+                  label="Burn Run-Rate"
+                  value={convertToDisplay(kpis.avgDailySpend, sourceCurrency)}
+                  tone="neutral"
+                  footer={<span className="text-label-sm text-gray-500">Avg. daily spend</span>}
+                />
+                <KpiCard
+                  label="Projected Exhaustion"
+                  value={kpis.estimatedExhaustionDate ? new Date(kpis.estimatedExhaustionDate).toLocaleDateString('en-GB') : 'SUSTAINABLE'}
+                  tone={kpis.riskLevel === 'CRITICAL' ? 'critical' : kpis.riskLevel === 'WARNING' ? 'warning' : 'positive'}
+                  footer={<span className="text-label-sm text-gray-500">Risk: {kpis.riskLevel}</span>}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Section 2: WBS Breakdown (Hierarchy and Chart View) */}
-          <Card title={selectedProjectId === 'all' ? "Consolidated Breakdown Structure" : "Project Cost Decomposition"} className="bg-gray-800/50">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card title="WBS Cost Structure" className="lg:col-span-1">
-                {loading ? (
-                  <div className="flex items-center justify-center h-full text-brand-primary"><Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading WBS...</div>
-                ) : filteredWBSData.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-gray-400">No WBS data available. Adjust search or date range.</div>
-                ) : (
-                  <WBSHierarchyTree data={filteredWBSData} onWBSClick={handleWBSClick} sourceCurrency={sourceCurrency} />
-                )}
-              </Card>
-              <Card title="WBS Level 1 Spending vs. Budget" className="lg:col-span-2">
-                {loading ? (
-                  <div className="flex items-center justify-center h-full text-brand-primary"><Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading chart...</div>
-                ) : filteredWBSData.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-gray-400">No chart data available. Adjust search or date range.</div>
-                ) : (
-                  <SpendingChart data={filteredWBSData} sourceCurrency={sourceCurrency} />
-                )}
-              </Card>
-            </div>
-          </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card title={selectedProjectId === 'all' ? 'Consolidated WBS Cost Structure' : 'Project WBS Cost Structure'} className="lg:col-span-1">
+              {loading ? (
+                <div className="flex items-center justify-center h-full text-brand-primary"><Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading WBS...</div>
+              ) : filteredWBSData.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-400">No WBS data available. Adjust search or date range.</div>
+              ) : (
+                <WBSHierarchyTree data={filteredWBSData} onWBSClick={handleWBSClick} sourceCurrency={sourceCurrency} />
+              )}
+            </Card>
+            <Card title="WBS Level 1 Spending vs. Budget" className="lg:col-span-2">
+              {loading ? (
+                <div className="flex items-center justify-center h-full text-brand-primary"><Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading chart...</div>
+              ) : filteredWBSData.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-400">No chart data available. Adjust search or date range.</div>
+              ) : (
+                <SpendingChart data={filteredWBSData} sourceCurrency={sourceCurrency} />
+              )}
+            </Card>
+          </div>
 
         </div>
       </PageContainer>

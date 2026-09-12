@@ -1,15 +1,21 @@
-import React from 'react';
+﻿import React from 'react';
 import MarketingLayout from '../../components/Landing/MarketingLayout';
 import { useRouter } from 'next/router';
 import { Mail, RefreshCw, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { NextPage } from 'next';
 
-const CheckEmailPage: React.FC = () => {
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactElement) => React.ReactNode;
+};
+
+const CheckEmailPage: NextPageWithLayout = () => {
   const router = useRouter();
-  const isTrial = router.query.reason === 'trial';
+  const reason = router.query.reason as string | undefined;
+  const isTrial = reason === 'trial';
+  const isFree = reason === 'free';
 
   return (
-    <MarketingLayout title="Check Your Email | SentinelFi">
       <section className="py-40 flex items-center justify-center">
         <div className="max-w-md text-center px-6">
           {/* Animated envelope */}
@@ -25,7 +31,9 @@ const CheckEmailPage: React.FC = () => {
           <h1 className="text-4xl font-black font-sora text-white mb-4">Check Your Inbox</h1>
 
           <p className="text-gray-400 mb-3 leading-relaxed">
-            {isTrial
+            {isFree
+              ? 'Your free workspace is ready — 1 task/day, ad-supported. We\'ve dispatched a magic-link invitation plus a welcome email (via Resend) to your inbox.'
+              : isTrial
               ? 'Your free trial has been activated. We\'ve dispatched a magic-link invitation to your email address.'
               : 'Payment received. Your workspace is being provisioned and a magic-link invitation will arrive in your inbox shortly.'}
           </p>
@@ -53,21 +61,24 @@ const CheckEmailPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/auth/accept-invitation"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary text-white font-black rounded-xl text-sm uppercase tracking-widest hover:bg-brand-primary/90 transition-all font-sora"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary text-white font-black rounded-xl text-sm  hover:bg-brand-primary/90 transition-all font-sora"
             >
               I Have My Link <ArrowRight className="w-4 h-4" />
             </Link>
             <a
               href="mailto:support@sentinelfi.com"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white/5 border border-white/10 text-gray-300 font-black rounded-xl text-sm uppercase tracking-widest hover:border-white/20 transition-all"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white/5 border border-white/10 text-gray-300 font-black rounded-xl text-sm  hover:border-white/20 transition-all"
             >
               <RefreshCw className="w-4 h-4" /> Resend Help
             </a>
           </div>
         </div>
       </section>
-    </MarketingLayout>
   );
+};
+
+CheckEmailPage.getLayout = (page: React.ReactElement) => {
+  return <MarketingLayout title="Check Your Email | SentinelFi">{page}</MarketingLayout>;
 };
 
 export default CheckEmailPage;

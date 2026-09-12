@@ -85,20 +85,20 @@ const FiscalYearSetupPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left: Setup Form */}
           <div className="lg:col-span-2">
-            <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl overflow-hidden elev-lg">
               <div className="p-6 border-b border-white/[0.03] bg-slate-900/60 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-widest">Initialize New Cycle</h3>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Set temporal boundaries for fiscal planning</p>
+                  <h3 className="text-sm font-black text-white ">Initialize New Cycle</h3>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-tight">Set temporal boundaries for fiscal planning</p>
                 </div>
               </div>
               <div className="p-8">
                 <form onSubmit={handleSubmit} className="space-y-8">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1 mb-2 block">Fiscal Year Label</label>
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1 mb-2 block">Fiscal Year Label</label>
                     <input
                       placeholder="e.g. 2026 or FY26"
                       value={label}
@@ -110,7 +110,7 @@ const FiscalYearSetupPage: React.FC = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1 mb-2 block">Start Date</label>
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1 mb-2 block">Start Date</label>
                       <input
                         type="date"
                         value={startDate}
@@ -120,7 +120,7 @@ const FiscalYearSetupPage: React.FC = () => {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1 mb-2 block">End Date</label>
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-1 mb-2 block">End Date</label>
                       <input
                         type="date"
                         value={endDate}
@@ -152,7 +152,7 @@ const FiscalYearSetupPage: React.FC = () => {
                 <AlertCircle className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-black text-blue-400 uppercase tracking-widest mb-1">Governance Insight</h4>
+                <h4 className="text-sm font-black text-blue-400  mb-1">Governance Insight</h4>
                 <p className="text-xs text-slate-400 leading-relaxed max-w-xl">
                   Initializing a fiscal cycle automatically generates monthly periods for periodic budget reconciliation. This action cannot be reversed once transactions are recorded.
                 </p>
@@ -172,17 +172,17 @@ const FiscalYearSetupPage: React.FC = () => {
                 <div className="p-8 text-center text-slate-500 italic text-sm">Synchronizing with core...</div>
               ) : fiscalYears.length === 0 ? (
                 <div className="p-12 text-center bg-slate-900/30 border border-slate-800 border-dashed rounded-3xl">
-                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">No Cycles Configured</p>
+                  <p className="text-slate-500 text-xs font-bold ">No Cycles Configured</p>
                 </div>
               ) : (
                 fiscalYears.map(fy => (
-                  <div key={fy.id} className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl group hover:border-blue-500/30 transition-all flex justify-between items-center shadow-lg">
+                  <div key={fy.id} className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl group hover:border-blue-500/30 transition-all flex justify-between items-center elev-lg">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-black text-white uppercase tracking-tight">FY {fy.year_label}</span>
-                        <span className="text-[10px] font-black px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded uppercase">Active</span>
+                        <span className="text-xs font-black px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded uppercase">Active</span>
                       </div>
-                      <p className="font-mono text-[10px] text-slate-500 uppercase tracking-tighter">
+                      <p className="font-mono text-xs text-slate-500 uppercase tracking-tighter">
                         {new Date(fy.start_date).toLocaleDateString()} — {new Date(fy.end_date).toLocaleDateString()}
                       </p>
                     </div>

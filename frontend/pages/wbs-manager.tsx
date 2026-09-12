@@ -4,9 +4,12 @@ import { useRouter } from 'next/router';
 const WbsManagerRedirect: React.FC = () => {
   const router = useRouter();
   useEffect(() => {
-    const { edit } = router.query;
-    const target = edit ? `/financials/projects/wbs?edit=${edit}` : '/financials/projects/wbs';
-    router.replace(target);
+    const { edit, projectId } = router.query;
+    const params = new URLSearchParams();
+    if (typeof projectId === 'string' && projectId) params.set('projectId', projectId);
+    if (typeof edit === 'string' && edit) params.set('edit', edit);
+    const qs = params.toString();
+    router.replace(`/financials/projects/wbs${qs ? `?${qs}` : ''}`);
   }, [router]);
   return null;
 };

@@ -35,7 +35,7 @@ import {
   Save,
 } from 'lucide-react';
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface TenantSettings {
   isDcsEnabled: boolean;
   isApiEnabled: boolean;
@@ -71,7 +71,7 @@ interface SubscriptionMetrics {
   isApiEnabled: boolean;
 }
 
-// ─── Subcomponents ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Subcomponents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Animated toggle switch */
 const Toggle: React.FC<{
@@ -90,7 +90,7 @@ const Toggle: React.FC<{
     disabled={disabled}
   >
     <span
-      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+      className={`inline-block h-4 w-4 transform rounded-full bg-white elev-md transition-transform duration-200 ${
         enabled ? 'translate-x-6' : 'translate-x-1'
       }`}
     />
@@ -162,7 +162,7 @@ const SecretInput: React.FC<{
   );
 };
 
-// ─── Tab definitions ────────────────────────────────────────────────────────
+// â”€â”€â”€ Tab definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type TabId = 'preferences' | 'integrations' | 'notifications' | 'security' | 'subscription' | 'team';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -174,7 +174,7 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'team', label: 'Team & Access', icon: <Users size={16} /> },
 ];
 
-// ─── Main Page ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SettingsPage: React.FC = () => {
   const { hasAnyRole, user } = useAuth();
   const { currencies, userCurrency, setUserCurrencyCode } = useCurrency();
@@ -220,7 +220,7 @@ const SettingsPage: React.FC = () => {
 
   const isAdmin = hasAnyRole([Role.AdminDirector, Role.TechnicalDirector, Role.SuperAdmin]);
 
-  // ─── Fetch settings ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Fetch settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchSettings = useCallback(async () => {
     setLoadingSettings(true);
     try {
@@ -260,7 +260,7 @@ const SettingsPage: React.FC = () => {
   }, [activeTab, fetchMetrics]);
   useEffect(() => { setSelectedCurrency(userCurrency.code); }, [userCurrency]);
 
-  // ─── Handlers ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleToggle = async (field: keyof TenantSettings, value: boolean) => {
     if (!isAdmin) return;
     const prev = settings;
@@ -379,11 +379,11 @@ const SettingsPage: React.FC = () => {
     finally { setIsSaving(false); }
   };
 
-  // ─── Section rendering ───────────────────────────────────────────────────
+  // â”€â”€â”€ Section rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const renderPreferences = () => (
     <div className="space-y-6">
-      <Card title="Personal Information" subtitle="Update your display name for platform auditing and reporting." borderTopColor="primary">
+      <Card title="Personal Information" subtitle="Update your display name for platform auditing and reporting." accent="primary">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
           <div>
             <label className="block text-xs text-gray-400 mb-1">First Name</label>
@@ -418,7 +418,7 @@ const SettingsPage: React.FC = () => {
         </div>
       </Card>
 
-      <Card title="Display Currency" subtitle="All financial figures will be converted to your preferred currency." borderTopColor="primary">
+      <Card title="Display Currency" subtitle="All financial figures will be converted to your preferred currency." accent="primary">
         <div className="space-y-4 mt-2">
           <select
             value={selectedCurrency}
@@ -426,7 +426,7 @@ const SettingsPage: React.FC = () => {
             className="w-full sm:w-72 bg-gray-700/60 border border-gray-600 rounded-lg p-2 text-white focus:ring-1 focus:ring-brand-primary outline-none text-sm"
           >
             {currencies.map((c) => (
-              <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
+              <option key={c.code} value={c.code}>{c.code} â€” {c.name}</option>
             ))}
           </select>
           <Button onClick={handleSaveCurrency} disabled={selectedCurrency === userCurrency.code} variant="primary" size="sm" icon={<Save size={14} />}>
@@ -435,7 +435,7 @@ const SettingsPage: React.FC = () => {
         </div>
       </Card>
 
-      <Card title="Company Locale" subtitle="Timezone settings for consistent date & time handling across the platform." borderTopColor="secondary">
+      <Card title="Company Locale" subtitle="Timezone settings for consistent date & time handling across the platform." accent="secondary">
         <div className="mt-2 space-y-3">
           <label className="block text-sm text-gray-400">Timezone</label>
           <select
@@ -452,7 +452,7 @@ const SettingsPage: React.FC = () => {
       </Card>
 
       {isAdmin && (
-        <Card title="Tenant Branding & Appearance" subtitle="Customise logos and colours for your automated PDF reports and invoices." borderTopColor="primary">
+        <Card title="Tenant Branding & Appearance" subtitle="Customise logos and colours for your automated PDF reports and invoices." accent="primary">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
              <div className="sm:col-span-2 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="w-16 h-16 rounded-lg bg-gray-800 border border-gray-600 flex items-center justify-center overflow-hidden shrink-0">
@@ -507,7 +507,7 @@ const SettingsPage: React.FC = () => {
   const renderIntegrations = () => (
     <div className="space-y-6">
 
-      {/* ── DCS Section ── */}
+      {/* â”€â”€ DCS Section â”€â”€ */}
       <div className="border-l-2 border-brand-secondary pl-4 mb-1">
         <h3 className="text-white font-semibold text-base">Document Control System (DCS)</h3>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -515,7 +515,7 @@ const SettingsPage: React.FC = () => {
         </p>
       </div>
 
-      <Card borderTopColor="secondary">
+      <Card accent="secondary">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <Database className="mt-0.5 text-brand-secondary shrink-0" size={20} />
@@ -528,7 +528,7 @@ const SettingsPage: React.FC = () => {
                 }
               </div>
               <p className="text-sm text-gray-400 mt-0.5">
-                When disabled, all DCS endpoints return <code className="bg-gray-700 px-1 rounded text-xs text-red-300">403 Forbidden</code> — even if called directly via API.
+                When disabled, all DCS endpoints return <code className="bg-gray-700 px-1 rounded text-xs text-red-300">403 Forbidden</code> â€” even if called directly via API.
                 No document uploads, scheduled reports, or DCS-related features will function.
               </p>
               {!settings?.isDcsEnabled && (
@@ -544,7 +544,7 @@ const SettingsPage: React.FC = () => {
       </Card>
 
       {/* DCS Setup Guide */}
-      <Card title="DCS Integration Guide" borderTopColor="secondary">
+      <Card title="DCS Integration Guide" accent="secondary">
         <div className="space-y-4 mt-2">
           <p className="text-sm text-gray-400">The DCS exposes the following platform API endpoint for scheduling automated financial reports:</p>
           <div className="bg-gray-900 rounded-lg p-3 font-mono text-xs space-y-1">
@@ -570,7 +570,7 @@ const SettingsPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* ── ERP / API Section ── */}
+      {/* â”€â”€ ERP / API Section â”€â”€ */}
       <div className="border-l-2 border-alert-critical pl-4 mt-6 mb-1">
         <h3 className="text-white font-semibold text-base">ERP & External API Integration</h3>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -578,7 +578,7 @@ const SettingsPage: React.FC = () => {
         </p>
       </div>
 
-      <Card borderTopColor="alert">
+      <Card accent="alert">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -593,7 +593,7 @@ const SettingsPage: React.FC = () => {
 
           {settings?.erpConfigured && (
             <div className="flex items-center gap-2 text-xs text-green-400 bg-green-900/20 px-3 py-2 rounded-lg">
-              <CheckCircle size={14} /> Connected to <span className="font-semibold">{settings.erpProvider}</span> — endpoint reachable.
+              <CheckCircle size={14} /> Connected to <span className="font-semibold">{settings.erpProvider}</span> â€” endpoint reachable.
             </div>
           )}
 
@@ -601,7 +601,7 @@ const SettingsPage: React.FC = () => {
             <div>
               <label className="block text-xs text-gray-400 mb-1">ERP Provider Name *</label>
               <select value={erpProvider} onChange={(e) => setErpProvider(e.target.value)} className="input-field text-sm">
-                <option value="">Select provider…</option>
+                <option value="">Select providerâ€¦</option>
                 {['SAP', 'Oracle ERP', 'Microsoft Dynamics', 'Odoo', 'Sage 300', 'QuickBooks', 'Xero', 'Custom'].map((p) => (
                   <option key={p} value={p}>{p}</option>
                 ))}
@@ -667,12 +667,12 @@ const SettingsPage: React.FC = () => {
           </div>
           <div className="bg-gray-900/50 rounded-lg p-3 text-xs text-gray-400 border border-gray-700 mt-2">
             <span className="text-white font-semibold block mb-1">Supported ERP Systems</span>
-            SAP S/4HANA · Oracle Fusion · Microsoft Dynamics 365 · Odoo 16/17 · Sage 300 · QuickBooks Online · Xero · Custom REST APIs
+            SAP S/4HANA Â· Oracle Fusion Â· Microsoft Dynamics 365 Â· Odoo 16/17 Â· Sage 300 Â· QuickBooks Online Â· Xero Â· Custom REST APIs
           </div>
         </div>
       </Card>
 
-      {/* ── Email Integration ── */}
+      {/* â”€â”€ Email Integration â”€â”€ */}
       <div className="border-l-2 border-brand-primary pl-4 mt-6 mb-1">
         <h3 className="text-white font-semibold text-base">Email Delivery</h3>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -680,13 +680,13 @@ const SettingsPage: React.FC = () => {
         </p>
       </div>
 
-      <Card title="Email Provider" borderTopColor="primary">
+      <Card title="Email Provider" accent="primary">
         <div className="space-y-4 mt-2">
           <div className="flex items-center justify-between">
             <div>
               <span className="text-sm text-gray-300 font-medium">Use Custom SMTP Server</span>
               <p className="text-xs text-gray-500 mt-0.5">
-                When off, SentinelFi uses the platform's managed Resend service — zero configuration needed.
+                When off, SentinelFi uses the platform's managed Resend service â€” zero configuration needed.
                 Enable this only if you need emails sent from your own mail server domain.
               </p>
             </div>
@@ -724,7 +724,7 @@ const SettingsPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Password / App Password *</label>
-                  <SecretInput value={smtpPass} onChange={setSmtpPass} placeholder="••••••••••" />
+                  <SecretInput value={smtpPass} onChange={setSmtpPass} placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">From Address *</label>
@@ -741,14 +741,14 @@ const SettingsPage: React.FC = () => {
           <div className="pt-3 border-t border-gray-700">
             <label className="block text-xs text-gray-400 mb-1">
               SendGrid API Key
-              <span className="ml-2 text-gray-500">— optional, overrides SMTP for transactional + marketing emails</span>
+              <span className="ml-2 text-gray-500">â€” optional, overrides SMTP for transactional + marketing emails</span>
             </label>
             {settings?.sendgridConfigured && (
               <p className="text-xs text-green-400 mb-1 flex items-center gap-1"><CheckCircle size={11}/> SendGrid key is configured and active</p>
             )}
-            <SecretInput value={sendgridKey} onChange={setSendgridKey} placeholder="SG.••••••••••••••••••••••••••••••••" />
+            <SecretInput value={sendgridKey} onChange={setSendgridKey} placeholder="SG.â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
             <p className="text-xs text-gray-500 mt-1">
-              Get your key from <span className="text-brand-primary">SendGrid Dashboard → Settings → API Keys</span>.
+              Get your key from <span className="text-brand-primary">SendGrid Dashboard â†’ Settings â†’ API Keys</span>.
               Assign the "Mail Send" permission only.
             </p>
           </div>
@@ -791,7 +791,7 @@ const SettingsPage: React.FC = () => {
           </div>
         </Card>
       ))}
-      <Card title="Budget Alert Threshold" borderTopColor="alert">
+      <Card title="Budget Alert Threshold" accent="alert">
         <div className="space-y-3 mt-2">
           <p className="text-sm text-gray-400">Alert when any budget line is consumed beyond:</p>
           <div className="flex items-center gap-4">
@@ -817,7 +817,7 @@ const SettingsPage: React.FC = () => {
         { label: 'Require MFA for All Users', desc: 'Force multi-factor authentication for every user in this company.', field: 'isMfaRequired' as keyof TenantSettings, danger: true },
         { label: 'Public Audit Log', desc: 'Allow non-admin users to view the audit trail (read-only).', field: 'isAuditLogPublic' as keyof TenantSettings, danger: false },
       ].map(({ label, desc, field, danger }) => (
-        <Card key={field} borderTopColor={danger ? 'alert' : undefined}>
+        <Card key={field} accent={danger ? 'alert' : undefined}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <Shield className={`mt-0.5 shrink-0 ${danger ? 'text-red-400' : 'text-brand-secondary'}`} size={18} />
@@ -830,7 +830,7 @@ const SettingsPage: React.FC = () => {
           </div>
         </Card>
       ))}
-      <Card title="Session & Audit Retention" borderTopColor="secondary">
+      <Card title="Session & Audit Retention" accent="secondary">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-2">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Session Timeout (minutes)</label>
@@ -874,18 +874,18 @@ const SettingsPage: React.FC = () => {
     return (
       <div className="space-y-6">
         {/* Plan overview banner */}
-        <div className="bg-gradient-to-r from-brand-primary/20 to-brand-secondary/10 border border-brand-primary/30 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-brand-primary/10 border border-brand-primary/30 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider text-white ${planBadgeColor}`}>{metrics.plan}</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full r text-white ${planBadgeColor}`}>{metrics.plan}</span>
               <h2 className="text-white font-semibold text-lg">Current Plan</h2>
             </div>
             <p className={`text-sm font-medium ${expiryColor}`}>
               {metrics.isExpired
-                ? '⚠️ Subscription has expired'
+                ? 'âš ï¸ Subscription has expired'
                 : metrics.expiresAt
                 ? `Expires in ${metrics.daysUntilExpiry} days (${new Date(metrics.expiresAt).toLocaleDateString()})`
-                : '✓ No expiry date set'}
+                : 'âœ“ No expiry date set'}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -897,7 +897,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* Consumption metrics */}
-        <Card title="Resource Consumption" subtitle="Live utilisation vs. your plan limits." borderTopColor="primary">
+        <Card title="Resource Consumption" subtitle="Live utilisation vs. your plan limits." accent="primary">
           <div className="space-y-5 mt-3">
             <ConsumptionBar
               label="Active Users"
@@ -918,7 +918,7 @@ const SettingsPage: React.FC = () => {
         </Card>
 
         {/* Feature availability */}
-        <Card title="Included Features" borderTopColor="secondary">
+        <Card title="Included Features" accent="secondary">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
             {[
               { label: 'Document Control (DCS)', enabled: metrics.isDcsEnabled },
@@ -949,7 +949,7 @@ const SettingsPage: React.FC = () => {
     <div className="space-y-4">
       {hasAnyRole([Role.AdminDirector, Role.TechnicalDirector, Role.SuperAdmin]) && (
         <Link href="/admin/users">
-          <Card className="hover:bg-gray-700/40 cursor-pointer transition" borderTopColor="alert">
+          <Card className="hover:bg-gray-700/40 cursor-pointer transition" accent="alert">
             <div className="flex items-center justify-between">
               <div className="flex items-start gap-3">
                 <Users className="text-red-400 mt-0.5 shrink-0" size={20} />
@@ -965,7 +965,7 @@ const SettingsPage: React.FC = () => {
       )}
       {hasAnyRole([Role.AdminDirector, Role.FinanceManager, Role.SuperAdmin]) && (
         <Link href="/wbs-manager">
-          <Card className="hover:bg-gray-700/40 cursor-pointer transition" borderTopColor="primary">
+          <Card className="hover:bg-gray-700/40 cursor-pointer transition" accent="primary">
             <div className="flex items-center justify-between">
               <div className="flex items-start gap-3">
                 <Activity className="text-brand-primary mt-0.5 shrink-0" size={20} />
@@ -1036,7 +1036,7 @@ const SettingsPage: React.FC = () => {
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row gap-6">
-            {/* ── Sidebar nav ── */}
+            {/* â”€â”€ Sidebar nav â”€â”€ */}
             <nav className="flex sm:flex-col gap-1 sm:w-44 shrink-0 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0">
               {TABS.map((tab) => (
                 <button
@@ -1054,7 +1054,7 @@ const SettingsPage: React.FC = () => {
               ))}
             </nav>
 
-            {/* ── Content area ── */}
+            {/* â”€â”€ Content area â”€â”€ */}
             <div className="flex-1 min-w-0">
               {tabContent[activeTab]()}
             </div>

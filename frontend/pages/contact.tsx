@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import MarketingLayout from '../components/Landing/MarketingLayout';
 import { Mail, Phone, MapPin, Send, MessageSquare, ShieldCheck, Globe } from 'lucide-react';
 import api from '../lib/api';
@@ -74,7 +74,7 @@ const ContactPage: NextPageWithLayout = () => {
           <div className="p-8 bg-m-primary/5 border border-m-primary/20 rounded-3xl">
              <div className="flex items-center gap-4 mb-4">
                 <ShieldCheck className="w-6 h-6 text-m-primary" />
-                <h4 className="font-bold text-white uppercase tracking-widest text-xs">Security Assurance</h4>
+                <h4 className="font-bold text-white  text-xs">Security Assurance</h4>
              </div>
              <p className="text-sm text-m-text-muted">
                 Every inquiry is treated with the same data isolation standards as our 
@@ -89,7 +89,7 @@ const ContactPage: NextPageWithLayout = () => {
           <form onSubmit={handleSubmit} className="relative z-10 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Full Name</label>
+                <label className="text-xs font-bold  text-gray-400">Full Name</label>
                 <input 
                   type="text" 
                   required
@@ -99,7 +99,7 @@ const ContactPage: NextPageWithLayout = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Professional Email</label>
+                <label className="text-xs font-bold  text-gray-400">Professional Email</label>
                 <input 
                   type="email" 
                   required
@@ -111,7 +111,7 @@ const ContactPage: NextPageWithLayout = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Company / Organization</label>
+              <label className="text-xs font-bold  text-gray-400">Company / Organization</label>
               <input 
                 type="text" 
                 required
@@ -122,7 +122,7 @@ const ContactPage: NextPageWithLayout = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Areas of Interest</label>
+              <label className="text-xs font-bold  text-gray-400">Areas of Interest</label>
               <div className="flex flex-wrap gap-2 pt-2">
                 {interestOptions.map(option => (
                   <button
@@ -134,7 +134,7 @@ const ContactPage: NextPageWithLayout = () => {
                         : [...formData.interests, option];
                       setFormData({...formData, interests: updated});
                     }}
-                    className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
                       formData.interests.includes(option)
                         ? 'bg-m-primary/20 border-m-primary text-m-primary'
                         : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/30'
@@ -147,7 +147,7 @@ const ContactPage: NextPageWithLayout = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Detailed Requirements</label>
+              <label className="text-xs font-bold  text-gray-400">Detailed Requirements</label>
               <textarea 
                 rows={4}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-m-primary focus:ring-1 focus:ring-m-primary outline-none transition-all resize-none"
@@ -179,7 +179,7 @@ const ContactInfoItem = ({ icon, label, value }: { icon: React.ReactNode, label:
       {React.cloneElement(icon as React.ReactElement, { className: 'w-6 h-6' })}
     </div>
     <div>
-      <p className="text-xs font-bold text-m-text-muted uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-xs font-bold text-m-text-muted  mb-1">{label}</p>
       <p className="text-xl text-white font-semibold">{value}</p>
     </div>
   </div>

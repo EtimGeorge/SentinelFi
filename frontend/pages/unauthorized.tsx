@@ -20,7 +20,7 @@ const UnauthorizedPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-brand-dark">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md text-center">
+      <div className="bg-gray-800 p-8 rounded-lg elev-lg w-full max-w-md text-center">
         <h1 className="text-4xl font-bold text-alert-critical mb-4">Access Denied</h1>
         <p className="text-gray-300 mb-6">
           You do not have the necessary permissions to view this page.

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import PageContainer from '../../../components/Layout/PageContainer';
 import {
   TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle,
@@ -22,7 +23,7 @@ import { WBSApplyTemplateModal } from '../../../components/projects/WBSApplyTemp
 import { WBSImportModal } from '../../../components/projects/WBSImportModal';
 import { WbsCategoryModal } from '../../../components/projects/WbsCategoryModal';
 
-interface WBSItem {
+export interface WBSItem {
   wbs_id: string;
   parent_wbs_id: string | null;
   wbs_code: string;
@@ -62,7 +63,7 @@ interface ContractValidation {
   overBudget: boolean;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
+export const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
   draft: { label: 'Draft', icon: Edit3, color: 'text-gray-400', bg: 'bg-gray-700/50' },
   pending: { label: 'Pending', icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
   approved: { label: 'Approved', icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30' },
@@ -72,6 +73,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; co
 const WBSManagerPage: React.FC = () => {
   const { hasAnyRole, isAuthenticated } = useAuth();
   const { userCurrency, convertToDisplay, convertAmount } = useCurrency();
+  const router = useRouter();
 
   const [items, setItems] = useState<WBSItem[]>([]);
   const [categories, setCategories] = useState<WBSCategory[]>([]);
@@ -79,6 +81,14 @@ const WBSManagerPage: React.FC = () => {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [projects, setProjects] = useState<{ project_id: string; project_name: string; currency?: string }[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
+
+  // Pre-select a project when arriving from the project dossier (Quick Action / Budget tab)
+  useEffect(() => {
+    const { projectId } = router.query;
+    if (typeof projectId === 'string' && projectId) {
+      setSelectedProjectId(projectId);
+    }
+  }, [router.query]);
   const [contractValidation, setContractValidation] = useState<ContractValidation | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -274,7 +284,12 @@ const WBSManagerPage: React.FC = () => {
     if (!isAuthenticated) return;
     const controller = new AbortController();
     api.get('/projects?limit=100', { signal: controller.signal })
-      .then(res => setProjects(res.data.projects || []))
+      .then(res => {
+        const list = res.data.projects || [];
+        setProjects(list);
+        // Clear a query-driven pre-selection if it isn't accessible to this user
+        setSelectedProjectId(prev => (prev !== 'all' && !list.some(p => p.project_id === prev) ? 'all' : prev));
+      })
       .catch(() => { });
     return () => controller.abort();
   }, [isAuthenticated]);
@@ -521,16 +536,16 @@ const WBSManagerPage: React.FC = () => {
 
               <div className="flex flex-col truncate">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] font-black px-1.5 py-0.5 rounded bg-gray-800" style={{ color: wbsColor }}>{item.wbs_code}</span>
+                  <span className="font-mono text-xs font-black px-1.5 py-0.5 rounded bg-gray-800" style={{ color: wbsColor }}>{item.wbs_code}</span>
                   {/* Status Badge */}
                   {statusCfg && (
-                    <span className={`flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${statusCfg.bg} ${statusCfg.color}`}>
+                    <span className={`flex items-center gap-1 text-xs font-bold uppercase px-1.5 py-0.5 rounded ${statusCfg.bg} ${statusCfg.color}`}>
                       <StatusIcon className="w-2.5 h-2.5" /> {statusCfg.label}
                     </span>
                   )}
                   {/* Category Badge */}
                   {item.category_id && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700" style={{ color: catColor || '#999' }}>
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700" style={{ color: catColor || '#999' }}>
                       <Tag className="w-2.5 h-2.5 inline mr-0.5" />
                       {getCategoryName(item.category_id)}
                     </span>
@@ -542,7 +557,7 @@ const WBSManagerPage: React.FC = () => {
                 <div className="flex flex-col mt-0.5">
                   <span className="text-gray-200 text-sm truncate pr-4">{item.description}</span>
                   {!isParent && Number(item.total_cost_budgeted_rollup || 0) === 0 && (
-                    <span className="text-[10px] text-gray-500 font-mono mt-0.5">
+                    <span className="text-xs text-gray-500 font-mono mt-0.5">
                       {item.uom ? `${item.uom}: ` : 'QTY: '}{item.quantity_budgeted || 1} @ {convertToDisplay(item.unit_cost_budgeted || 0, projectCurrencyMap[item.project_id || ''] || 'NGN')}
                     </span>
                   )}
@@ -554,12 +569,12 @@ const WBSManagerPage: React.FC = () => {
             <div className="flex items-center gap-4 text-right mr-4">
               <div className="min-w-[90px]">
                 <p className="font-black text-sm text-gray-100">{convertToDisplay(budgeted, projectCurrencyMap[item.project_id || ''] || 'NGN')}</p>
-                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Budget</p>
+                <p className="text-xs text-gray-500 uppercase font-bold tracking-tighter">Budget</p>
               </div>
               {spent > 0 && (
                 <div className="min-w-[90px]">
                   <p className="font-bold text-sm text-gray-300">{convertToDisplay(spent, projectCurrencyMap[item.project_id || ''] || 'NGN')}</p>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Actual</p>
+                  <p className="text-xs text-gray-500 uppercase font-bold tracking-tighter">Actual</p>
                 </div>
               )}
               {budgeted > 0 && spent > 0 && (
@@ -567,7 +582,7 @@ const WBSManagerPage: React.FC = () => {
                   <p className={`font-bold text-sm ${variance < 0 ? 'text-red-400' : variance < 10 ? 'text-yellow-400' : 'text-green-400'}`}>
                     {variance.toFixed(1)}%
                   </p>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Variance</p>
+                  <p className="text-xs text-gray-500 uppercase font-bold tracking-tighter">Variance</p>
                 </div>
               )}
             </div>
@@ -630,7 +645,7 @@ const WBSManagerPage: React.FC = () => {
         headerContent={
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-end">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Active Project Filter</label>
+              <label className="text-xs font-black text-gray-500 ">Active Project Filter</label>
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
@@ -669,7 +684,7 @@ const WBSManagerPage: React.FC = () => {
               <Button 
                 variant="primary" 
                 size="sm" 
-                className="bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20"
+                className="bg-indigo-600 hover:bg-indigo-500 elev-lg shadow-indigo-500/20"
                 disabled={selectedProjectId === 'all'}
                 onClick={() => handlePreviewReport('ai-insight')}
               >
@@ -686,12 +701,12 @@ const WBSManagerPage: React.FC = () => {
         {/* Project Budget Total Summary */}
         {items.length > 0 && (
           <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-gradient-to-r from-brand-primary/10 to-transparent border border-brand-primary/20 rounded-xl">
+            <div className="p-4 bg-brand-primary/5 border border-brand-primary/20 rounded-xl">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <DollarSign className="w-5 h-5 text-brand-primary" />
                   <div>
-                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Total Project Budget</p>
+                    <p className="text-xs text-gray-400 uppercase font-bold r">Total Project Budget</p>
                     <p className="text-xl font-black text-white">
                       {convertToDisplay(totalProjectBudgetFiltered, userCurrency.code)}
                     </p>
@@ -699,13 +714,13 @@ const WBSManagerPage: React.FC = () => {
                 </div>
                 <div className="flex gap-6">
                   <div className="text-right">
-                    <p className="text-[10px] text-gray-500 uppercase font-bold">Total Spent</p>
+                    <p className="text-xs text-gray-500 uppercase font-bold">Total Spent</p>
                     <p className="text-sm font-bold text-gray-300">
                       {convertToDisplay(totalSpentFiltered, userCurrency.code)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-gray-500 uppercase font-bold">Root Items</p>
+                    <p className="text-xs text-gray-500 uppercase font-bold">Root Items</p>
                     <p className="text-sm font-bold text-brand-primary">{items.filter(i => !i.parent_wbs_id).length}</p>
                   </div>
                 </div>
@@ -726,16 +741,16 @@ const WBSManagerPage: React.FC = () => {
                     'text-green-500'
                   }`} />
                   <div>
-                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Predictive Run-Rate</p>
+                    <p className="text-xs text-gray-400 uppercase font-bold r">Predictive Run-Rate</p>
                     <div className="flex items-center gap-2">
                        <p className="text-lg font-black text-white">{convertToDisplay(forensics.avgDailySpend, projectCurrencyMap[selectedProjectId] || 'NGN')}</p>
-                       <span className="text-[10px] text-gray-500 font-bold">/ DAY</span>
+                       <span className="text-xs text-gray-500 font-bold">/ DAY</span>
                     </div>
                   </div>
                 </div>
                 
                 <div className="text-right">
-                  <p className="text-[10px] text-gray-500 uppercase font-bold">Projected Exhaustion</p>
+                  <p className="text-xs text-gray-500 uppercase font-bold">Projected Exhaustion</p>
                   <p className={`text-sm font-black ${
                     forensics.riskLevel === 'CRITICAL' ? 'text-red-400' : 
                     forensics.riskLevel === 'WARNING' ? 'text-yellow-400' : 
@@ -743,7 +758,7 @@ const WBSManagerPage: React.FC = () => {
                   }`}>
                     {forensics.estimatedExhaustionDate ? new Date(forensics.estimatedExhaustionDate).toLocaleDateString('en-GB') : 'SUSTAINABLE'}
                   </p>
-                  <p className="text-[10px] font-bold text-gray-500">{forensics.riskLevel} STATUS</p>
+                  <p className="text-xs font-bold text-gray-500">{forensics.riskLevel} STATUS</p>
                 </div>
               </div>
             )}
@@ -768,7 +783,7 @@ const WBSManagerPage: React.FC = () => {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
           <div className="xl:col-span-2">
-            <Card title="WBS Architecture" subtitle="Hierarchical view of all projects and costs. Hover over items to manage." borderTopColor="primary">
+            <Card title="WBS Architecture" subtitle="Hierarchical view of all projects and costs. Hover over items to manage." accent="primary">
               {loading && items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-12">
                   <TrendingUp className="w-12 h-12 text-gray-700 animate-pulse mb-4" />
@@ -797,7 +812,7 @@ const WBSManagerPage: React.FC = () => {
             {actionNode ? (
               <Card
                 title={actionNode.type === 'add' ? 'Add WBS Element' : 'Edit WBS Element'}
-                borderTopColor={actionNode.type === 'add' ? 'positive' : 'secondary'}
+                accent={actionNode.type === 'add' ? 'positive' : 'secondary'}
               >
                 <div className="space-y-3">
                   {/* WBS Code */}
@@ -840,7 +855,7 @@ const WBSManagerPage: React.FC = () => {
                       onChange={handleInputChange}
                       className="w-full bg-gray-800 border border-gray-700 p-2 rounded text-white text-sm"
                     >
-                      <option value="">— Top-Level Element (No Parent) —</option>
+                      <option value="">â€” Top-Level Element (No Parent) â€”</option>
                       {items.map(item => (
                         <option key={item.wbs_id} value={item.wbs_id}>
                           [{item.wbs_code}] {item.description.substring(0, 40)}{item.description.length > 40 ? '...' : ''}
@@ -865,9 +880,9 @@ const WBSManagerPage: React.FC = () => {
                       }}
                       className="w-full bg-gray-800 border border-gray-700 p-2 rounded text-white text-sm"
                     >
-                      <option value="">— Select Category —</option>
+                      <option value="">â€” Select Category â€”</option>
                       {renderCategoryOptions(null)}
-                      <option value="__create_new__">➕ Create New Category...</option>
+                      <option value="__create_new__">âž• Create New Category...</option>
                     </select>
                     {isCreatingCategory && (
                       <div className="mt-2 flex items-center space-x-2">
@@ -916,7 +931,7 @@ const WBSManagerPage: React.FC = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">UoM</label>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">UoM</label>
                       <input
                         type="text"
                         value={formData.uom ?? ''}
@@ -931,7 +946,7 @@ const WBSManagerPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Unit Cost</label>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Unit Cost</label>
                       <input
                         type="number"
                         value={formData.unit_cost ?? 0}
@@ -946,7 +961,7 @@ const WBSManagerPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Quantity</label>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Quantity</label>
                       <input
                         type="number"
                         value={formData.quantity ?? 1}
@@ -960,7 +975,7 @@ const WBSManagerPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Days</label>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Days</label>
                       <input
                         type="number"
                         value={formData.days ?? 1}
@@ -978,17 +993,17 @@ const WBSManagerPage: React.FC = () => {
                   {/* Custom Metadata Editor */}
                   <div className="pt-2 border-t border-gray-800">
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase">Custom Technical Attributes</label>
+                      <label className="text-xs font-bold text-gray-500 uppercase">Custom Technical Attributes</label>
                       <button
                         onClick={addMetadataRow}
-                        className="text-[9px] bg-brand-primary/20 text-brand-primary px-2 py-0.5 rounded hover:bg-brand-primary/30 transition flex items-center"
+                        className="text-xs bg-brand-primary/20 text-brand-primary px-2 py-0.5 rounded hover:bg-brand-primary/30 transition flex items-center"
                       >
                         <Plus className="w-3 h-3 mr-1" /> Add Attribute
                       </button>
                     </div>
 
                     {formData.metadata.length === 0 && (
-                      <p className="text-[9px] text-gray-600 italic mb-2">No custom attributes defined.</p>
+                      <p className="text-xs text-gray-600 italic mb-2">No custom attributes defined.</p>
                     )}
 
                     <div className="space-y-2 mb-3 max-h-[120px] overflow-y-auto pr-1 custom-scrollbar">
@@ -996,13 +1011,13 @@ const WBSManagerPage: React.FC = () => {
                         <div key={idx} className="flex gap-1 items-start">
                           <input
                             placeholder="Key"
-                            className="w-1/3 bg-gray-900 border border-gray-700 p-1.5 rounded text-[10px] text-white font-mono"
+                            className="w-1/3 bg-gray-900 border border-gray-700 p-1.5 rounded text-xs text-white font-mono"
                             value={row.key}
                             onChange={e => updateMetadataRow(idx, 'key', e.target.value)}
                           />
                           <input
                             placeholder="Value"
-                            className="flex-grow bg-gray-900 border border-gray-700 p-1.5 rounded text-[10px] text-white"
+                            className="flex-grow bg-gray-900 border border-gray-700 p-1.5 rounded text-xs text-white"
                             value={row.value}
                             onChange={e => updateMetadataRow(idx, 'value', e.target.value)}
                           />
@@ -1017,9 +1032,9 @@ const WBSManagerPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="p-2 bg-brand-primary/10 border border-brand-primary/30 rounded text-center">
-                    <p className="text-[10px] text-gray-400 uppercase font-bold">Auto-Computed Total ({userCurrency.code})</p>
+                    <p className="text-xs text-gray-400 uppercase font-bold">Auto-Computed Total ({userCurrency.code})</p>
                     <p className="text-xl font-black text-brand-primary">{convertToDisplay(formData.total, projectCurrencyMap[formData.projectId || selectedProjectId] || 'NGN')}</p>
-                    <p className="text-[9px] text-gray-500 mt-0.5">unit cost × quantity × days</p>
+                    <p className="text-xs text-gray-500 mt-0.5">unit cost Ã— quantity Ã— days</p>
                   </div>
 
                   <div className="flex space-x-2 pt-2">
@@ -1040,7 +1055,7 @@ const WBSManagerPage: React.FC = () => {
                 </div>
               </Card>
             ) : (
-              <Card title="WBS Controls" borderTopColor="alert">
+              <Card title="WBS Controls" accent="alert">
                 <div className="space-y-4">
                   <p className="text-sm text-gray-400">Select an item in the tree to edit or add children.</p>
                   {canManage && (
@@ -1084,7 +1099,7 @@ const WBSManagerPage: React.FC = () => {
 
                   {/* Status Legend */}
                   <div className="space-y-2 pt-2">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Status Legend</p>
+                    <p className="text-xs font-bold text-gray-500 ">Status Legend</p>
                     {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
                       const Icon = cfg.icon;
                       return (

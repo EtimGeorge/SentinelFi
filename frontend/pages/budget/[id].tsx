@@ -91,21 +91,21 @@ const BudgetDossierPage: React.FC = () => {
           {/* Quick Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card className="p-4 border-gray-700 bg-brand-dark/30">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Allocated Budget</label>
+              <label className="text-xs font-black text-gray-500  block mb-1">Allocated Budget</label>
               <p className="text-xl font-bold text-white">{convertToDisplay(parseFloat(budget.total_cost_budgeted), budget.project_currency)}</p>
             </Card>
             <Card className="p-4 border-gray-700 bg-brand-dark/30">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Actual Expenditure</label>
+              <label className="text-xs font-black text-gray-500  block mb-1">Actual Expenditure</label>
               <p className="text-xl font-bold text-brand-secondary">{convertToDisplay(budget.total_paid_rollup, budget.project_currency)}</p>
             </Card>
             <Card className="p-4 border-gray-700 bg-brand-dark/30">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Remaining Balance</label>
+              <label className="text-xs font-black text-gray-500  block mb-1">Remaining Balance</label>
               <p className={`text-xl font-bold ${budget.remaining_budget < 0 ? 'text-red-400' : 'text-green-400'}`}>
                 {convertToDisplay(budget.remaining_budget, budget.project_currency)}
               </p>
             </Card>
             <Card className="p-4 border-gray-700 bg-brand-dark/30">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Utilization (Burn)</label>
+              <label className="text-xs font-black text-gray-500  block mb-1">Utilization (Burn)</label>
               <div className="flex items-center gap-2">
                 <p className="text-xl font-bold text-white">{budget.burn_rate.toFixed(1)}%</p>
                 <div className="flex-grow bg-gray-700 h-1.5 rounded-full overflow-hidden max-w-[60px]">
@@ -122,7 +122,7 @@ const BudgetDossierPage: React.FC = () => {
                 <div className="flex items-start space-x-4">
                   <Briefcase className="w-5 h-5 text-gray-500 mt-1" />
                   <div className="flex-grow">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Parent Project</label>
+                    <label className="text-xs font-black text-gray-500 ">Parent Project</label>
                     <Link href={`/projects/${budget.project_id}/overview`} className="text-sm text-brand-primary hover:underline font-bold block">
                       {budget.project_name} <ExternalLink className="inline w-3 h-3 ml-1" />
                     </Link>
@@ -131,21 +131,21 @@ const BudgetDossierPage: React.FC = () => {
                 <div className="flex items-start space-x-4">
                   <Layers className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">WBS Architecture Code</label>
+                    <label className="text-xs font-black text-gray-500 ">WBS Architecture Code</label>
                     <p className="text-sm font-mono text-gray-200">{budget.wbs_code}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
                   <Tag className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Lifecycle Status</label>
+                    <label className="text-xs font-black text-gray-500 ">Lifecycle Status</label>
                     <p className="text-sm text-gray-200 font-bold uppercase tracking-tighter">{budget.status}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
                   <Clock className="w-5 h-5 text-gray-500 mt-1" />
                   <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Initialization Date</label>
+                    <label className="text-xs font-black text-gray-500 ">Initialization Date</label>
                     <p className="text-sm text-gray-300">{new Date(budget.created_at).toLocaleString()}</p>
                   </div>
                 </div>
@@ -164,12 +164,12 @@ const BudgetDossierPage: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-sm font-bold text-gray-200">{expense.description}</p>
-                          <p className="text-[10px] font-mono text-gray-500 uppercase">{new Date(expense.expense_date).toLocaleDateString()}</p>
+                          <p className="text-xs font-mono text-gray-500 uppercase">{new Date(expense.expense_date).toLocaleDateString()}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-black text-white">{convertToDisplay(parseFloat(expense.actual_paid_amount), budget.project_currency)}</p>
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${expense.variance_flag.includes('OVERRUN') ? 'border-red-500/30 text-red-400' : 'border-green-500/30 text-green-400 '}`}>
+                        <span className={`text-xs font-black px-1.5 py-0.5 rounded border ${expense.variance_flag.includes('OVERRUN') ? 'border-red-500/30 text-red-400' : 'border-green-500/30 text-green-400 '}`}>
                           {expense.variance_flag}
                         </span>
                       </div>

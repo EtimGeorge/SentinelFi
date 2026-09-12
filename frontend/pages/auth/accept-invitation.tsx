@@ -120,7 +120,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-brand-dark p-4">
-        <div className="max-w-md w-full bg-gray-800/50 backdrop-blur-xl border border-green-500/20 rounded-3xl p-10 text-center shadow-2xl">
+        <div className="max-w-md w-full bg-gray-800/50 backdrop-blur-xl border border-green-500/20 rounded-3xl p-10 text-center elev-lg">
           <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-green-500/30">
             <CheckCircle2 className="w-10 h-10 text-green-500" />
           </div>
@@ -131,7 +131,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
           <div className="w-full bg-gray-900 h-1.5 rounded-full overflow-hidden">
             <div className="h-full bg-green-500 animate-[progress_3s_ease-in-out]" style={{ width: '100%' }} />
           </div>
-          <Link href="/login" className="inline-block mt-8 text-brand-primary text-xs font-black uppercase tracking-widest hover:underline">
+          <Link href="/login" className="inline-block mt-8 text-brand-primary text-xs font-black  hover:underline">
             Go to Login Now →
           </Link>
         </div>
@@ -163,9 +163,9 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
             </Link>
           </div>
         ) : (
-          <div className="bg-gray-800/40 backdrop-blur-2xl border border-gray-700/50 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+          <div className="bg-gray-800/40 backdrop-blur-2xl border border-gray-700/50 rounded-[2.5rem] elev-lg overflow-hidden animate-in fade-in zoom-in-95 duration-500">
             {/* Context Header */}
-            <div className="p-8 border-b border-gray-700/50 bg-gradient-to-r from-brand-primary/10 to-transparent">
+            <div className="p-8 border-b border-gray-700/50 bg-brand-primary/[0.06]">
               <div className="flex items-start gap-5">
                 <div className="w-16 h-16 bg-gray-900 rounded-3xl flex items-center justify-center border border-brand-primary/30 shadow-inner">
                    <Building2 className="w-8 h-8 text-brand-primary/80" />
@@ -179,7 +179,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
                     <span className="text-[11px] font-mono text-gray-400">{invitationData?.email}</span>
                   </div>
                   <div className="mt-3 px-2 py-0.5 bg-brand-primary/20 rounded border border-brand-primary/30 inline-block">
-                    <span className="text-[9px] font-black text-brand-primary uppercase tracking-widest">Authority: {invitationData?.role}</span>
+                    <span className="text-xs font-black text-brand-primary ">Authority: {invitationData?.role}</span>
                   </div>
                 </div>
               </div>
@@ -190,7 +190,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
 
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Assign Username (Optional)</label>
+                <label className="text-xs font-black text-gray-500  ml-1">Assign Username (Optional)</label>
                 <Input 
                   value={formData.username}
                   onChange={(e) => setFormData({...formData, username: e.target.value})}
@@ -204,7 +204,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Secure Password</label>
+                  <label className="text-xs font-black text-gray-500  ml-1">Secure Password</label>
                   <Input 
                     required
                     type={showPassword ? 'text' : 'password'}
@@ -221,7 +221,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Confirm Identity</label>
+                  <label className="text-xs font-black text-gray-500  ml-1">Confirm Identity</label>
                   <Input 
                     required
                     type={showPassword ? 'text' : 'password'}
@@ -237,7 +237,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
               <div className="pt-4">
                 <Button 
                   type="submit" 
-                  className="w-full py-4 bg-brand-primary text-brand-dark font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_25px_rgba(var(--brand-primary-rgb),0.2)]"
+                  className="w-full py-4 bg-brand-primary text-brand-dark font-black  flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_25px_rgba(var(--brand-primary-rgb),0.2)]"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
@@ -245,7 +245,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
                 </Button>
               </div>
 
-              <p className="text-[10px] text-gray-600 text-center uppercase font-bold tracking-tight">
+              <p className="text-xs text-gray-600 text-center uppercase font-bold tracking-tight">
                 By clicking finalize, you agree to follow the data sovereignty and security protocols of {invitationData?.tenantName}.
               </p>
             </form>
@@ -253,7 +253,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
         )}
 
         <div className="mt-12 text-center">
-           <p className="text-[10px] text-gray-700 font-black uppercase tracking-[0.2em]">SentinelFi Registry Engine v8.01-Secure</p>
+           <p className="text-xs text-gray-700 font-black uppercase tracking-[0.2em]">SentinelFi Registry Engine v8.01-Secure</p>
         </div>
       </div>
     </div>

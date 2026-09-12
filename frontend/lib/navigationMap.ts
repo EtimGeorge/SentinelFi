@@ -23,7 +23,17 @@ import {
   Gauge,
   Cog,
   Crown,
+  Contact,
+  Eye,
+  TrendingDown,
+  Newspaper,
   Settings,
+  Code2,
+  Wrench,
+  Globe,
+  // probe-globe
+  TentTree,
+  Gavel,
   Building2,
   Building,
   Users,
@@ -107,56 +117,56 @@ export const navigationMap: NavItem[] = [
     path: '/financials/expenses',
     roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
     children: [
-        {
-            name: 'Log Expense',
-            icon: DollarSign,
-            path: '/financials/expenses/new',
-            roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
-            exactMatch: true,
-        },
-        {
-            name: 'Project Ledger (CAPEX)',
-            icon: FileText,
-            path: '/financials/projects/expenses',
-            roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
-        },
-        {
-            name: 'Operations Ledger (OPEX)',
-            icon: ClipboardCheck,
-            path: '/financials/operations/manage',
-            roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
-        },
+      {
+        name: 'Log Expense',
+        icon: Banknote,
+        path: '/financials/expenses/new',
+        roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
+        exactMatch: true,
+      },
+      {
+        name: 'Project Ledger (CAPEX)',
+        icon: Files,
+        path: '/financials/projects/expenses',
+        roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
+      },
+      {
+        name: 'Operations Ledger (OPEX)',
+        icon: Banknote,
+        path: '/financials/operations/manage',
+        roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+      },
     ]
   },
   // --- Global Financial Control Section ---
   {
     name: 'Project Financials',
-    icon: BarChart2,
+    icon: LayoutGrid,
     path: '/financials/projects',
     roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
     children: [
         {
             name: 'Project Hub',
-            icon: LayoutDashboard,
+            icon: Command,
             path: '/financials/projects',
             roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
             exactMatch: true,
         },
         {
             name: 'WBS Designer',
-            icon: FileText,
+            icon: Network,
             path: '/financials/projects/wbs',
             roles: [Role.CEO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector],
         },
         {
             name: 'Project Budgets',
-            icon: DollarSign,
+            icon: Banknote,
             path: '/financials/projects/budgets',
             roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
         },
         {
             name: 'Project Analytics',
-            icon: BarChart2,
+            icon: BarChart3,
             path: '/financials/projects/analytics',
             roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
         },
@@ -164,13 +174,13 @@ export const navigationMap: NavItem[] = [
   },
   {
     name: 'Corporate Operations',
-    icon: Building,
+    icon: Briefcase,
     path: '/financials/operations',
     roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager],
     children: [
         {
             name: 'OPEX Planning',
-            icon: BarChart2,
+            icon: CalendarClock,
             path: '/financials/operations/planning',
             roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
         },
@@ -182,19 +192,19 @@ export const navigationMap: NavItem[] = [
         },
         {
             name: 'Payroll Desk',
-            icon: Users,
+            icon: CreditCard,
             path: '/financials/operations/payroll',
             roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
         },
         {
             name: 'Corporate Analytics',
-            icon: BarChart2,
+            icon: Gauge,
             path: '/financials/operations/analytics',
             roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
         },
         {
             name: 'Fiscal Setup',
-            icon: Settings,
+            icon: Wrench,
             path: '/financials/operations/setup',
             roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
         },
@@ -202,38 +212,38 @@ export const navigationMap: NavItem[] = [
   },
   {
     name: 'Reporting',
-    icon: BarChart2,
+    icon: Presentation,
     path: '/reporting',
     roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
     children: [
       {
         name: 'Intelligence Hub',
-        icon: LayoutDashboard,
+        icon: LineChart,
         path: '/reporting',
         roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
         exactMatch: true,
       },
       {
         name: 'Variance Analysis',
-        icon: BarChart2,
+        icon: Scale,
         path: '/reporting/variance',
         roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
       },
       {
         name: 'CAPEX Performance',
-        icon: FileText,
+        icon: CircleDollarSign,
         path: '/reporting/capex',
         roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
       },
       {
         name: 'OPEX Efficiency',
-        icon: BarChart2,
+        icon: PieChart,
         path: '/reporting/opex',
         roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
       },
       {
         name: 'Document Archive',
-        icon: FileText,
+        icon: Archive,
         path: '/reporting/archive',
         roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
       }
@@ -242,13 +252,13 @@ export const navigationMap: NavItem[] = [
   // --- Administration Section (Tenant Level) ---
   {
     name: 'Admin',
-    icon: Building,
+    icon: Crown,
     path: '/admin',
     roles: [Role.CEO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector],
     children: [
         {
             name: 'Command Center',
-            icon: LayoutDashboard,
+            icon: LifeBuoy,
             path: '/admin',
             roles: [Role.CEO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector],
             exactMatch: true,
@@ -261,19 +271,19 @@ export const navigationMap: NavItem[] = [
         },
         {
             name: 'Client Infrastructure',
-            icon: Building,
+            icon: Building2,
             path: '/admin/clients',
             roles: [Role.CEO, Role.AdminDirector, Role.AdminManager, Role.CFO],
         },
         {
             name: 'Security Audit Log',
-            icon: ClipboardCheck,
+            icon: ScrollText,
             path: '/admin/audit-log',
             roles: [Role.CEO, Role.AdminDirector, Role.TechnicalDirector],
         },
         {
             name: 'Landlord Support',
-            icon: Shield,
+            icon: LifeBuoy,
             path: '/admin/support',
             roles: [Role.CEO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector],
         }
@@ -306,19 +316,19 @@ export const superAdminNavigationMap: NavItem[] = [
   },
   {
     name: 'Tenant Management',
-    icon: Building,
+    icon: Building2,
     path: '/super/tenants',
     roles: [Role.SuperAdmin],
   },
   {
     name: 'Global Analytics',
-    icon: BarChart2,
+    icon: BarChart3,
     path: '/super/analytics',
     roles: [Role.SuperAdmin],
   },
   {
     name: 'Platform Audit Logs',
-    icon: ClipboardCheck,
+    icon: ScrollText,
     path: '/super/audit-log',
     roles: [Role.SuperAdmin],
   },

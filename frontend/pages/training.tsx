@@ -96,10 +96,10 @@ const TrainingCard = ({ difficulty, title, duration, desc }: {
       <div className="w-14 h-14 bg-m-primary/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform cursor-pointer">
         <Play className="w-6 h-6 text-m-primary fill-m-primary" />
       </div>
-      <div className="absolute top-4 left-4 px-3 py-1 bg-m-dark/60 rounded-full text-[10px] font-bold uppercase tracking-widest text-m-text-muted flex items-center gap-1.5 backdrop-blur-sm">
+      <div className="absolute top-4 left-4 px-3 py-1 bg-m-dark/60 rounded-full text-xs font-bold  text-m-text-muted flex items-center gap-1.5 backdrop-blur-sm">
         <Clock className="w-3 h-3" /> {duration}
       </div>
-      <div className={`absolute bottom-4 right-4 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter ${
+      <div className={`absolute bottom-4 right-4 px-2 py-0.5 rounded text-xs font-black uppercase tracking-tighter ${
         difficulty === 'Beginner' ? 'bg-green-500/20 text-green-400' :
         difficulty === 'Intermediate' ? 'bg-blue-500/20 text-blue-400' :
         difficulty === 'Advanced' ? 'bg-purple-500/20 text-purple-400' :
@@ -111,7 +111,7 @@ const TrainingCard = ({ difficulty, title, duration, desc }: {
     <div className="p-8 flex-1 flex flex-col">
       <h3 className="text-xl font-bold mb-4 m-heading text-white group-hover:text-m-primary transition-colors">{title}</h3>
       <p className="text-sm text-m-text-muted leading-relaxed mb-8 flex-1">{desc}</p>
-      <div className="flex items-center gap-4 text-xs font-bold text-white uppercase tracking-widest pt-6 border-t border-white/5 group-hover:gap-6 transition-all">
+      <div className="flex items-center gap-4 text-xs font-bold text-white  pt-6 border-t border-white/5 group-hover:gap-6 transition-all">
         <BookOpen className="w-4 h-4 text-m-secondary" />
         Start Lesson
       </div>

@@ -107,7 +107,7 @@ const SubscriptionSettingsPage: React.FC = () => {
               <p className="text-red-400 text-sm leading-relaxed mb-4">
                 To restore full access for you and your team, please renew your subscription below. Your data is safe and will be immediately available upon successful payment.
               </p>
-              <button onClick={handleRenew} disabled={renewing} className="bg-red-500 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-red-500/20 hover:bg-red-600 transition-colors disabled:opacity-50">
+              <button onClick={handleRenew} disabled={renewing} className="bg-red-500 text-white px-6 py-2 rounded-xl text-sm font-bold elev-lg shadow-red-500/20 hover:bg-red-600 transition-colors disabled:opacity-50">
                 {renewing ? 'Redirecting...' : 'Renew Subscription Now'}
               </button>
             </div>
@@ -116,10 +116,10 @@ const SubscriptionSettingsPage: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Current Plan Card */}
-          <div className="md:col-span-2 glass-card p-8 border-brand-primary/20 bg-gradient-to-br from-brand-primary/10 to-transparent">
+          <div className="md:col-span-2 glass-card p-8 border-brand-primary/20">
             <div className="flex justify-between items-start mb-8">
               <div>
-                <p className="text-xs font-black text-brand-primary uppercase tracking-widest mb-1">Current Plan</p>
+                <p className="text-xs font-black text-brand-primary  mb-1">Current Plan</p>
                 <h2 className="text-3xl font-black text-white font-sora capitalize">{sub.plan}</h2>
               </div>
               <div className="text-right">
@@ -130,24 +130,24 @@ const SubscriptionSettingsPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-y-6">
               <div>
-                <p className="text-xs text-gray-500 uppercase font-black tracking-widest mb-1">Status</p>
+                <p className="text-xs text-gray-500 uppercase font-black  mb-1">Status</p>
                 <div className="flex items-center gap-2">
                   {isTrial ? <Zap className="w-4 h-4 text-brand-primary" /> : <CreditCard className="w-4 h-4 text-gray-400" />}
                   <span className="font-bold text-white capitalize">{sub.status}</span>
                 </div>
               </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase font-black tracking-widest mb-1">Gateway</p>
+                <p className="text-xs text-gray-500 uppercase font-black  mb-1">Gateway</p>
                 <p className="font-bold text-white uppercase">{sub.gateway || 'None (Trial)'}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase font-black tracking-widest mb-1">Period Ends</p>
+                <p className="text-xs text-gray-500 uppercase font-black  mb-1">Period Ends</p>
                 <p className="font-bold text-white">
                   {new Date(sub.trial_ends_at || sub.current_period_end).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase font-black tracking-widest mb-1">Time Remaining</p>
+                <p className="text-xs text-gray-500 uppercase font-black  mb-1">Time Remaining</p>
                 <p className={`font-bold ${sub.days_remaining !== null && sub.days_remaining <= 5 ? 'text-red-400' : 'text-white'}`}>
                   {sub.days_remaining !== null ? (sub.days_remaining > 0 ? `${sub.days_remaining} days` : 'Expired') : 'Lifetime'}
                 </p>
@@ -188,7 +188,7 @@ const SubscriptionSettingsPage: React.FC = () => {
         <div className="glass-card p-8 mt-8 opacity-50 cursor-not-allowed">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-black text-white">Billing History</h3>
-            <span className="text-[10px] font-black uppercase tracking-widest bg-white/10 px-3 py-1 rounded-full">Coming Soon</span>
+            <span className="text-xs font-black  bg-white/10 px-3 py-1 rounded-full">Coming Soon</span>
           </div>
           <div className="text-center py-8">
             <Clock className="w-8 h-8 text-gray-600 mx-auto mb-3" />

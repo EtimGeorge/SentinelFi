@@ -4,10 +4,15 @@ import { useRouter } from 'next/router';
 import { CheckCircle2, Clock, Loader2, ArrowRight, Download } from 'lucide-react';
 import axios from 'axios';
 import Link from 'next/link';
+import { NextPage } from 'next';
+
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: React.ReactNode) => React.ReactNode;
+};
 
 type Status = 'pending' | 'trialing' | 'active' | 'error';
 
-const SuccessPage: React.FC = () => {
+const SuccessPage: NextPageWithLayout = () => {
   const router = useRouter();
   const { ref } = router.query;
   const [status, setStatus] = useState<Status>('pending');
@@ -61,7 +66,6 @@ const SuccessPage: React.FC = () => {
   };
 
   return (
-    <MarketingLayout title="Payment Confirmed | SentinelFi">
       <section className="py-40 flex items-center justify-center min-h-[85vh]">
         <div className="max-w-xl text-center px-6">
           {status === 'pending' && (
@@ -94,7 +98,7 @@ const SuccessPage: React.FC = () => {
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
                 <Link href="/auth/accept-invitation"
-                  className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-8 py-4 bg-brand-primary text-white font-black rounded-xl hover:bg-brand-primary/90 transition-all font-sora text-sm uppercase tracking-widest shadow-lg shadow-brand-primary/20"
+                  className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-8 py-4 bg-brand-primary text-white font-black rounded-xl hover:bg-brand-primary/90 transition-all font-sora text-sm  elev-lg shadow-brand-primary/20"
                 >
                   Open Invitation <ArrowRight className="w-5 h-5" />
                 </Link>
@@ -102,7 +106,7 @@ const SuccessPage: React.FC = () => {
                 {status === 'active' && invoiceId && (
                   <button 
                     onClick={handleDownloadInvoice}
-                    className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-8 py-4 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition-all text-sm uppercase tracking-widest"
+                    className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-8 py-4 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition-all text-sm "
                   >
                     <Download className="w-5 h-5" /> Download PDF Receipt
                   </button>
@@ -114,7 +118,7 @@ const SuccessPage: React.FC = () => {
                 <p className="text-xs text-gray-500 font-mono tracking-tighter uppercase">
                   SentinelFi® is a product of Seancrystal Global Services Limited.
                 </p>
-                <p className="text-[10px] text-gray-600 font-mono tracking-tighter uppercase mt-2">
+                <p className="text-xs text-gray-600 font-mono tracking-tighter uppercase mt-2">
                   Funded by Solution Energy and Engineering Services Limited.
                 </p>
               </div>
@@ -135,8 +139,11 @@ const SuccessPage: React.FC = () => {
           )}
         </div>
       </section>
-    </MarketingLayout>
   );
+};
+
+SuccessPage.getLayout = (page: React.ReactNode) => {
+  return <MarketingLayout title="Payment Confirmed | SentinelFi">{page}</MarketingLayout>;
 };
 
 export default SuccessPage;

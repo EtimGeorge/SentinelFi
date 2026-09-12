@@ -53,7 +53,7 @@ const RegisterPage: React.FC = () => {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-brand-dark">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-gray-800 p-8 rounded-lg elev-lg w-full max-w-md">
         <div className="flex justify-center mb-6">
           <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="App Logo" height={48} width={192} />
         </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Card from "../../components/common/Card";
 import Button from "../../components/common/Button";
+import DataTable from "../../components/common/DataTable";
 import { Spinner } from "../../components/common/Spinner";
 import { useApprovalsStore, ApprovalItem } from "../../store/approvalsStore";
 import { apiClient } from "../../lib/api";
@@ -12,13 +13,11 @@ import {
   CheckCircle,
   XCircle,
   ShieldOff,
-  ChevronDown,
   ChevronRight,
   Building2,
   Layout,
   Briefcase,
   AlertCircle,
-  MoreHorizontal,
 } from "lucide-react";
 import useUIStore from "../../store/uiStore";
 import { useCurrency } from "../../components/context/CurrencyContext";
@@ -28,6 +27,13 @@ interface WbsTreeNode extends ApprovalItem {
   children: WbsTreeNode[];
   isPending: boolean; // Flag to highlight items that actually need approval
 }
+
+/** Depth-first flatten of a WBS tree for space-driven rendering. */
+const flattenTree = (nodes: WbsTreeNode[]): WbsTreeNode[] =>
+  nodes.flatMap((node) => [
+    node,
+    ...(node.children ? flattenTree(node.children) : []),
+  ]);
 
 /** Roles that are authorized to see and act on the Approval Inbox */
 export const APPROVAL_AUTHORIZED_ROLES: Role[] = [
@@ -428,95 +434,6 @@ const ApprovalsPage = () => {
     currentPage * itemsPerPage,
   );
 
-  const renderWbsRow = (node: WbsTreeNode) => {
-    const depth = (node.wbs_code?.split(".").length || 1) - 1;
-    return (
-      <React.Fragment key={node.id}>
-        <tr
-          className={`hover:bg-brand-primary/5 transition group/row ${!node.isPending ? "opacity-60 grayscale-[0.5]" : ""}`}
-        >
-          <td className="px-6 py-4">
-            <div
-              className="flex items-center"
-              style={{ paddingLeft: `${depth * 24}px` }}
-            >
-              {depth > 0 && (
-                <div className="w-3 h-3 border-l-2 border-b-2 border-slate-800 mr-2 -mt-2 rounded-bl-md" />
-              )}
-              <span
-                className={`font-mono font-bold text-xs px-2 py-1 rounded ${node.isPending ? "bg-brand-primary/20 text-brand-primary" : "bg-slate-800 text-slate-500"}`}
-              >
-                {node.wbs_code}
-              </span>
-            </div>
-          </td>
-          <td className="px-6 py-4">
-            <div
-              className={`text-sm font-bold leading-tight ${node.isPending ? "text-white" : "text-slate-500"}`}
-            >
-              {node.description}
-            </div>
-            <div className="text-[10px] text-slate-500 uppercase mt-1">
-              Category:{" "}
-              <span className="text-slate-400 font-bold">
-                {node.category_name}
-              </span>
-            </div>
-          </td>
-          <td className="px-6 py-4 text-center">
-            <div className="text-sm text-white font-black">{node.quantity}</div>
-            <div className="text-[10px] text-slate-500 uppercase">
-              {node.uom}
-            </div>
-          </td>
-          <td className="px-6 py-4 text-right font-mono text-slate-300 text-xs">
-            {formatAmount(node.unit_cost || 0, node.project_currency)}
-          </td>
-          <td className="px-6 py-4 text-center">
-            <span className="px-2 py-1 bg-slate-800 rounded text-[10px] font-bold text-slate-400">
-              {node.duration}d
-            </span>
-          </td>
-          <td className="px-6 py-4 text-right">
-            <div
-              className={`text-sm font-black italic ${node.isPending ? "text-brand-primary" : "text-slate-600"}`}
-            >
-              {formatAmount(node.amount, node.project_currency)}
-            </div>
-          </td>
-          <td className="px-6 py-4">
-            {node.isPending && (
-              <div className="flex justify-center gap-2 opacity-40 group-hover/row:opacity-100 transition">
-                <button
-                  onClick={() => handleAction(node.id, "WBS_BUDGET", "REJECT")}
-                  className="p-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition"
-                >
-                  <XCircle className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleAction(node.id, "WBS_BUDGET", "APPROVE")}
-                  className="p-2 rounded-lg bg-green-500/10 text-green-500 hover:bg-green-500 hover:text-white transition"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                </button>
-                {node.custom_metadata && (
-                  <Tooltip
-                    content={JSON.stringify(node.custom_metadata, null, 2)}
-                  >
-                    <button className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                  </Tooltip>
-                )}
-              </div>
-            )}
-          </td>
-        </tr>
-        {node.children.map((child) => renderWbsRow(child))}
-      </React.Fragment>
-    );
-  };
-
   if (loading || isInitialLoad) {
     return (
       <div className="flex flex-col justify-center items-center h-full min-h-[500px] bg-slate-950">
@@ -566,7 +483,7 @@ const ApprovalsPage = () => {
                     <Clock className="w-6 h-6 text-blue-500" />
                   </div>
                   <div>
-                    <div className="text-[10px] text-slate-500 uppercase font-black tracking-widest">
+                    <div className="text-xs text-slate-500 uppercase font-black ">
                       Awaiting Directive
                     </div>
                     <div className="text-2xl font-black text-white">
@@ -581,7 +498,7 @@ const ApprovalsPage = () => {
             </div>
 
             {/* Premium Filter Infrastructure */}
-            <div className="bg-slate-900/20 backdrop-blur-md p-6 rounded-[2.5rem] border border-slate-800/50 shadow-2xl">
+            <div className="bg-slate-900/20 backdrop-blur-md p-6 rounded-[2.5rem] border border-slate-800/50 elev-lg">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
                 <div className="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800 self-start">
                   <button
@@ -589,7 +506,7 @@ const ApprovalsPage = () => {
                       setActiveTab("PROJECT");
                       setCurrentPage(1);
                     }}
-                    className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "PROJECT" ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20 scale-105" : "text-slate-500 hover:text-slate-300"}`}
+                    className={`px-8 py-3 rounded-xl text-xs font-black  transition-all duration-300 ${activeTab === "PROJECT" ? "bg-brand-primary text-white elev-lg shadow-brand-primary/20 scale-105" : "text-slate-500 hover:text-slate-300"}`}
                   >
                     Project CAPEX
                   </button>
@@ -598,7 +515,7 @@ const ApprovalsPage = () => {
                       setActiveTab("OPERATIONAL");
                       setCurrentPage(1);
                     }}
-                    className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "OPERATIONAL" ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20 scale-105" : "text-slate-500 hover:text-slate-300"}`}
+                    className={`px-8 py-3 rounded-xl text-xs font-black  transition-all duration-300 ${activeTab === "OPERATIONAL" ? "bg-brand-primary text-white elev-lg shadow-brand-primary/20 scale-105" : "text-slate-500 hover:text-slate-300"}`}
                   >
                     Operational OPEX
                   </button>
@@ -607,7 +524,7 @@ const ApprovalsPage = () => {
                       setActiveTab("OVERRUNS");
                       setCurrentPage(1);
                     }}
-                    className={`px-8 py-3 rounded-xl text-xs font-black uppercase flex items-center gap-2 tracking-widest transition-all duration-300 ${activeTab === "OVERRUNS" ? "bg-red-500/20 text-red-400 shadow-lg shadow-red-500/10 scale-105 border border-red-500/50" : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"}`}
+                    className={`px-8 py-3 rounded-xl text-xs font-black uppercase flex items-center gap-2  transition-all duration-300 ${activeTab === "OVERRUNS" ? "bg-red-500/20 text-red-400 elev-lg shadow-red-500/10 scale-105 border border-red-500/50" : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"}`}
                   >
                     <AlertCircle className="w-4 h-4" />
                     Overrun Queue
@@ -694,7 +611,7 @@ const ApprovalsPage = () => {
                                 <h3 className="text-xl font-black text-white uppercase tracking-tight group-hover:text-brand-primary transition">
                                   {group.name}
                                 </h3>
-                                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">
+                                <p className="text-xs text-slate-500 font-bold ">
                                   {group.allPendingItems.length} Pending Line
                                   Items in Hierarchy
                                 </p>
@@ -703,7 +620,7 @@ const ApprovalsPage = () => {
 
                             <div className="flex items-center gap-6">
                               <div className="text-right">
-                                <div className="text-[10px] text-slate-500 uppercase font-black">
+                                <div className="text-xs text-slate-500 uppercase font-black">
                                   Total Commitment
                                 </div>
                                 <div className="text-xl font-black text-brand-primary italic">
@@ -733,39 +650,160 @@ const ApprovalsPage = () => {
                           </div>
 
                           {expandedProjects[id] && (
-                            <div className="p-0 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-300">
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse min-w-[1000px]">
-                                  <thead>
-                                    <tr className="bg-slate-950 uppercase text-[9px] font-black text-slate-600 tracking-[0.2em]">
-                                      <th className="px-6 py-3 w-48">
-                                        WBS Code
-                                      </th>
-                                      <th className="px-6 py-3">Description</th>
-                                      <th className="px-6 py-3 text-center">
-                                        Qty / UOM
-                                      </th>
-                                      <th className="px-6 py-3 text-right">
-                                        Unit Rate
-                                      </th>
-                                      <th className="px-6 py-3 text-center">
-                                        Duration
-                                      </th>
-                                      <th className="px-6 py-3 text-right">
-                                        Total (Commitment)
-                                      </th>
-                                      <th className="px-6 py-3 text-center">
-                                        Actions
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-800/50">
-                                    {group.tree.map((node) =>
-                                      renderWbsRow(node),
-                                    )}
-                                  </tbody>
-                                </table>
-                              </div>
+                            <div className="p-3 md:p-6 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-300">
+                              <DataTable
+                                columns={[
+                                  {
+                                    key: "wbs",
+                                    label: "WBS Code",
+                                    tier: "P0",
+                                    minWidth: 160,
+                                    get: (node) => {
+                                      const depth =
+                                        (node.wbs_code?.split(".").length ||
+                                          1) - 1;
+                                      return (
+                                        <div
+                                          className="flex items-center"
+                                          style={{
+                                            paddingLeft: `${depth * 24}px`,
+                                          }}
+                                        >
+                                          {depth > 0 && (
+                                            <div className="w-3 h-3 border-l-2 border-b-2 border-slate-800 mr-2 -mt-2 rounded-bl-md shrink-0" />
+                                          )}
+                                          <span
+                                            className={`font-mono font-bold text-xs px-2 py-1 rounded truncate ${node.isPending ? "bg-brand-primary/20 text-brand-primary" : "bg-slate-800 text-slate-500"}`}
+                                          >
+                                            {node.wbs_code}
+                                          </span>
+                                        </div>
+                                      );
+                                    },
+                                  },
+                                  {
+                                    key: "description",
+                                    label: "Description",
+                                    tier: "P0",
+                                    minWidth: 220,
+                                    title: (node) => node.description,
+                                    get: (node) => (
+                                      <div
+                                        className={`text-sm font-bold truncate ${node.isPending ? "text-white" : "text-slate-500"}`}
+                                      >
+                                        {node.description}
+                                      </div>
+                                    ),
+                                  },
+                                  {
+                                    key: "category",
+                                    label: "Category",
+                                    tier: "P1",
+                                    minWidth: 120,
+                                    get: (node) => (
+                                      <span className="text-xs font-bold text-slate-400 border border-slate-800 px-2 py-1 rounded uppercase">
+                                        {node.category_name}
+                                      </span>
+                                    ),
+                                  },
+                                  {
+                                    key: "qty",
+                                    label: "Qty / UOM",
+                                    tier: "P2",
+                                    minWidth: 96,
+                                    cellClassName: "text-center",
+                                    get: (node) => (
+                                      <div className="text-sm text-slate-300 font-black">
+                                        {node.quantity}{" "}
+                                        <span className="text-xs text-slate-500 uppercase font-bold">
+                                          {node.uom}
+                                        </span>
+                                      </div>
+                                    ),
+                                  },
+                                  {
+                                    key: "unitRate",
+                                    label: "Unit Rate",
+                                    tier: "P2",
+                                    minWidth: 120,
+                                    cellClassName: "text-right font-mono text-xs text-slate-300 whitespace-nowrap",
+                                    get: (node) =>
+                                      formatAmount(
+                                        node.unit_cost || 0,
+                                        node.project_currency,
+                                      ),
+                                  },
+                                  {
+                                    key: "total",
+                                    label: "Total (Commitment)",
+                                    tier: "P0",
+                                    minWidth: 140,
+                                    cellClassName: "text-right",
+                                    get: (node) => (
+                                      <div
+                                        className={`text-sm font-black italic whitespace-nowrap ${node.isPending ? "text-brand-primary" : "text-slate-600"}`}
+                                      >
+                                        {formatAmount(
+                                          node.amount,
+                                          node.project_currency,
+                                        )}
+                                      </div>
+                                    ),
+                                  },
+                                  {
+                                    key: "duration",
+                                    label: "Duration",
+                                    tier: "P3",
+                                    get: (node) => (
+                                      <span className="px-2 py-1 bg-slate-800 rounded text-xs font-bold text-slate-400">
+                                        {node.duration}d
+                                      </span>
+                                    ),
+                                  },
+                                ]}
+                                rows={flattenTree(group.tree)}
+                                rowKey={(node) => node.id}
+                                actions={[
+                                  {
+                                    key: "approve",
+                                    label: "Approve",
+                                    primary: true,
+                                    icon: <CheckCircle className="w-4 h-4" />,
+                                    visible: (node) => !!node.isPending,
+                                    onClick: (node) =>
+                                      handleAction(
+                                        node.id,
+                                        "WBS_BUDGET",
+                                        "APPROVE",
+                                      ),
+                                  },
+                                  {
+                                    key: "reject",
+                                    label: "Reject",
+                                    danger: true,
+                                    icon: <XCircle className="w-4 h-4" />,
+                                    visible: (node) => !!node.isPending,
+                                    onClick: (node) =>
+                                      handleAction(
+                                        node.id,
+                                        "WBS_BUDGET",
+                                        "REJECT",
+                                      ),
+                                  },
+                                ]}
+                                expandedContent={(node) =>
+                                  node.custom_metadata ? (
+                                    <pre className="text-xs font-mono text-slate-400 whitespace-pre-wrap break-words bg-brand-dark/40 border border-slate-800 rounded-lg p-3 mt-2 max-h-48 overflow-y-auto">
+                                      {JSON.stringify(
+                                        node.custom_metadata,
+                                        null,
+                                        2,
+                                      )}
+                                    </pre>
+                                  ) : null
+                                }
+                                emptyMessage="No pending line items in this hierarchy."
+                              />
                             </div>
                           )}
                         </div>
@@ -804,13 +842,13 @@ const ApprovalsPage = () => {
                               <h3 className="text-lg font-black text-slate-100 uppercase tracking-tight group-hover:text-blue-500 transition">
                                 {group.name}
                               </h3>
-                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                              <p className="text-xs text-slate-500 font-bold ">
                                 {group.items.length} Operational Tasks
                               </p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-[10px] text-slate-500 uppercase font-black">
+                            <div className="text-xs text-slate-500 uppercase font-black">
                               Total Request
                             </div>
                             <div className="text-lg font-black text-blue-500 italic">
@@ -824,86 +862,102 @@ const ApprovalsPage = () => {
 
                         {expandedCostCenters[id] && (
                           <div className="p-0 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left border-collapse">
-                                <thead>
-                                  <tr className="bg-slate-950 uppercase text-[9px] font-black text-slate-600 tracking-[0.2em]">
-                                    <th className="px-6 py-4">Req #</th>
-                                    <th className="px-6 py-4">Description</th>
-                                    <th className="px-6 py-4">GL Account</th>
-                                    <th className="px-6 py-4">Submitted By</th>
-                                    <th className="px-6 py-4 text-right">
-                                      Amount
-                                    </th>
-                                    <th className="px-6 py-4 text-center">
-                                      Actions
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-800/40">
-                                  {group.items.map((item) => (
-                                    <tr
-                                      key={item.id}
-                                      className="hover:bg-blue-500/5 transition group/row"
-                                    >
-                                      <td className="px-6 py-4">
-                                        <span className="font-mono text-[10px] font-black text-blue-400 bg-blue-500/10 px-2 py-1 rounded">
-                                          {item.req_number}
-                                        </span>
-                                      </td>
-                                      <td className="px-6 py-4">
-                                        <div className="text-sm font-bold text-white leading-tight">
-                                          {item.description}
-                                        </div>
-                                        <div className="text-[9px] text-slate-500 uppercase mt-1">
-                                          {new Date(
-                                            item.submitted_at,
-                                          ).toLocaleDateString()}
-                                        </div>
-                                      </td>
-                                      <td className="px-6 py-4">
-                                        <span className="text-[10px] font-bold text-slate-400 border border-slate-800 px-2 py-1 rounded uppercase">
-                                          {item.gl_account_name}
-                                        </span>
-                                      </td>
-                                      <td className="px-6 py-4 text-sm font-medium text-slate-400">
+                            <div className="p-3 md:p-6">
+                              <DataTable
+                                columns={[
+                                  {
+                                    key: "req",
+                                    label: "Req #",
+                                    tier: "P0",
+                                    minWidth: 140,
+                                    title: (item: ApprovalItem) =>
+                                      item.req_number,
+                                    get: (item: ApprovalItem) => (
+                                      <span className="font-mono text-xs font-black text-blue-400 bg-blue-500/10 px-2 py-1 rounded truncate">
+                                        {item.req_number}
+                                      </span>
+                                    ),
+                                  },
+                                  {
+                                    key: "description",
+                                    label: "Description",
+                                    tier: "P0",
+                                    minWidth: 240,
+                                    title: (item: ApprovalItem) =>
+                                      item.description,
+                                    get: (item: ApprovalItem) => (
+                                      <span className="text-sm font-bold text-white truncate">
+                                        {item.description}
+                                      </span>
+                                    ),
+                                  },
+                                  {
+                                    key: "gl",
+                                    label: "GL Account",
+                                    tier: "P2",
+                                    minWidth: 120,
+                                    get: (item: ApprovalItem) => (
+                                      <span className="text-xs font-bold text-slate-400 border border-slate-800 px-2 py-1 rounded uppercase truncate">
+                                        {item.gl_account_name}
+                                      </span>
+                                    ),
+                                  },
+                                  {
+                                    key: "submittedBy",
+                                    label: "Submitted By",
+                                    tier: "P2",
+                                    minWidth: 160,
+                                    title: (item: ApprovalItem) =>
+                                      `${item.submitted_by} · ${new Date(
+                                        item.submitted_at,
+                                      ).toLocaleDateString()}`,
+                                    get: (item: ApprovalItem) => (
+                                      <span className="text-sm font-medium text-slate-400 truncate">
                                         {item.submitted_by}
-                                      </td>
-                                      <td className="px-6 py-4 text-right font-black text-blue-500">
-                                        {formatAmount(item.amount, "NGN")}
-                                      </td>
-                                      <td className="px-6 py-4">
-                                        <div className="flex justify-center gap-2 opacity-40 group-hover/row:opacity-100 transition">
-                                          <button
-                                            onClick={() =>
-                                              handleAction(
-                                                item.id,
-                                                "REQUISITION",
-                                                "REJECT",
-                                              )
-                                            }
-                                            className="p-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition"
-                                          >
-                                            <XCircle className="w-4 h-4" />
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              handleAction(
-                                                item.id,
-                                                "REQUISITION",
-                                                "APPROVE",
-                                              )
-                                            }
-                                            className="p-2 rounded-lg bg-green-500/10 text-green-500 hover:bg-green-500 hover:text-white transition"
-                                          >
-                                            <CheckCircle className="w-4 h-4" />
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                      </span>
+                                    ),
+                                  },
+                                  {
+                                    key: "amount",
+                                    label: "Amount",
+                                    tier: "P1",
+                                    minWidth: 130,
+                                    cellClassName:
+                                      "text-right font-black text-blue-500 whitespace-nowrap",
+                                    get: (item: ApprovalItem) =>
+                                      formatAmount(item.amount, "NGN"),
+                                  },
+                                ]}
+                                rows={group.items}
+                                rowKey={(item) => item.id}
+                                actions={[
+                                  {
+                                    key: "approve",
+                                    label: "Approve",
+                                    primary: true,
+                                    icon: <CheckCircle className="w-4 h-4" />,
+                                    onClick: (item) =>
+                                      handleAction(
+                                        item.id,
+                                        "REQUISITION",
+                                        "APPROVE",
+                                      ),
+                                  },
+                                  {
+                                    key: "reject",
+                                    label: "Reject",
+                                    danger: true,
+                                    icon: <XCircle className="w-4 h-4" />,
+                                    onClick: (item) =>
+                                      handleAction(
+                                        item.id,
+                                        "REQUISITION",
+                                        "REJECT",
+                                      ),
+                                  },
+                                ]}
+                                emptyMessage="No operational tasks in this cost center."
+                              />
                             </div>
                           </div>
                         )}
@@ -922,115 +976,120 @@ const ApprovalsPage = () => {
                 />
               ) : (
                 <div className="space-y-6">
-                  <div className="overflow-hidden rounded-3xl border border-red-900/40 bg-slate-900/20 backdrop-blur-sm">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-slate-950 uppercase text-[9px] font-black text-slate-600 tracking-[0.2em] border-b border-red-900/30">
-                            <th className="px-6 py-5">Initiator / Date</th>
-                            <th className="px-6 py-5">
-                              Context (Project & WBS)
-                            </th>
-                            <th className="px-6 py-5">Override Reason</th>
-                            <th className="px-6 py-5 text-right">
-                              Requested Overrun
-                            </th>
-                            <th className="px-6 py-5 text-center">
-                              Governance Decision
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-red-900/10">
-                          {filteredOverrunItems
-                            .slice(
-                              (currentPage - 1) * itemsPerPage,
-                              currentPage * itemsPerPage,
-                            )
-                            .map((item) => (
-                              <tr
-                                key={item.id}
-                                className="hover:bg-red-500/5 transition group/row"
-                              >
-                                <td className="px-6 py-5">
-                                  <div className="text-sm font-bold text-slate-300">
-                                    {item.submitted_by}
-                                  </div>
-                                  <div className="text-[10px] text-slate-500 uppercase mt-1">
-                                    {new Date(
-                                      item.submitted_at,
-                                    ).toLocaleString()}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-5">
-                                  <div className="text-sm font-bold text-brand-primary tracking-tight uppercase flex items-center gap-2">
-                                    {item.project_name}
-                                  </div>
-                                  <div className="mt-1 flex gap-2 items-center">
-                                    <span className="font-mono text-xs font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
-                                      WBS: {item.wbs_code}
-                                    </span>
-                                    <span
-                                      className={`text-[9px] font-black px-2 py-0.5 rounded uppercase ${item.custom_metadata?.variance_flag === "CRITICAL_VARIANCE" ? "bg-red-500/20 text-red-500" : "bg-orange-500/20 text-orange-500"}`}
-                                    >
-                                      {item.custom_metadata?.variance_flag?.replace(
-                                        "_",
-                                        " ",
-                                      )}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-5">
-                                  <p className="text-sm text-slate-400 italic font-medium max-w-sm">
-                                    "
-                                    {item.description.replace(
-                                      "Budget Overrun Override Request: ",
-                                      "",
-                                    )}
-                                    "
-                                  </p>
-                                </td>
-                                <td className="px-6 py-5 text-right">
-                                  <div className="text-lg font-black text-red-400">
-                                    {formatAmount(
-                                      item.amount,
-                                      item.project_currency,
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-5 align-middle">
-                                  <div className="flex justify-center gap-3">
-                                    <button
-                                      onClick={() =>
-                                        handleAction(
-                                          item.id,
-                                          "EXPENSE_OVERRUN",
-                                          "REJECT",
-                                        )
-                                      }
-                                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/10 text-red-500 font-bold text-xs uppercase hover:bg-red-500 hover:text-white transition"
-                                    >
-                                      <XCircle className="w-4 h-4" /> Deny
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        handleAction(
-                                          item.id,
-                                          "EXPENSE_OVERRUN",
-                                          "APPROVE",
-                                        )
-                                      }
-                                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/10 text-green-500 font-bold text-xs uppercase shadow-lg shadow-green-500/5 hover:bg-green-500 hover:text-white transition transform hover:scale-105"
-                                    >
-                                      <CheckCircle className="w-4 h-4" />{" "}
-                                      Authorize
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
+                  <div className="overflow-hidden rounded-3xl border border-red-900/40 bg-slate-900/20 backdrop-blur-sm p-3 md:p-6">
+                    <DataTable
+                      columns={[
+                        {
+                          key: "initiator",
+                          label: "Initiator / Date",
+                          tier: "P0",
+                          minWidth: 180,
+                          get: (item) => (
+                            <span className="text-sm font-bold text-slate-300 truncate">
+                              {item.submitted_by}
+                            </span>
+                          ),
+                        },
+                        {
+                          key: "context",
+                          label: "Context (Project & WBS)",
+                          tier: "P0",
+                          minWidth: 200,
+                          get: (item) => (
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold text-brand-primary tracking-tight uppercase flex items-center gap-2 truncate">
+                                {item.project_name}
+                              </div>
+                              <div className="mt-1 flex gap-2 items-center flex-wrap">
+                                <span className="font-mono text-xs font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+                                  WBS: {item.wbs_code}
+                                </span>
+                                <span
+                                  className={`text-xs font-black px-2 py-0.5 rounded uppercase ${item.custom_metadata?.variance_flag === "CRITICAL_VARIANCE" ? "bg-red-500/20 text-red-500" : "bg-orange-500/20 text-orange-500"}`}
+                                >
+                                  {item.custom_metadata?.variance_flag?.replace(
+                                    "_",
+                                    " ",
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          key: "reason",
+                          label: "Override Reason",
+                          tier: "P1",
+                          minWidth: 220,
+                          title: (item) => item.description,
+                          get: (item) => (
+                            <span className="text-sm text-slate-400 italic font-medium truncate">
+                              &quot;
+                              {item.description.replace(
+                                "Budget Overrun Override Request: ",
+                                "",
+                              )}
+                              &quot;
+                            </span>
+                          ),
+                        },
+                        {
+                          key: "submittedAt",
+                          label: "Submitted",
+                          tier: "P2",
+                          minWidth: 130,
+                          get: (item) => (
+                            <span className="text-xs text-slate-500 uppercase">
+                              {new Date(
+                                item.submitted_at,
+                              ).toLocaleString()}
+                            </span>
+                          ),
+                        },
+                        {
+                          key: "amount",
+                          label: "Requested Overrun",
+                          tier: "P0",
+                          minWidth: 160,
+                          cellClassName:
+                            "text-right text-lg font-black text-red-400 whitespace-nowrap",
+                          get: (item) =>
+                            formatAmount(item.amount, item.project_currency),
+                        },
+                      ]}
+                      rows={filteredOverrunItems.slice(
+                        (currentPage - 1) * itemsPerPage,
+                        currentPage * itemsPerPage,
+                      )}
+                      rowKey={(item) => item.id}
+                      actions={[
+                        {
+                          key: "authorize",
+                          label: "Authorize",
+                          primary: true,
+                          icon: <CheckCircle className="w-4 h-4" />,
+                          onClick: (item) =>
+                            handleAction(
+                              item.id,
+                              "EXPENSE_OVERRUN",
+                              "APPROVE",
+                            ),
+                        },
+                        {
+                          key: "deny",
+                          label: "Deny",
+                          danger: true,
+                          icon: <XCircle className="w-4 h-4" />,
+                          onClick: (item) =>
+                            handleAction(
+                              item.id,
+                              "EXPENSE_OVERRUN",
+                              "REJECT",
+                            ),
+                        },
+                      ]}
+                      emptyMessage="There are no pending budget overrun requests awaiting governance action."
+                    />
                   </div>
                 </div>
               ))}
@@ -1057,7 +1116,7 @@ const ApprovalsPage = () => {
                         setCurrentPage(i + 1);
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
-                      className={`w-10 h-10 rounded-xl font-black text-sm transition-all duration-300 ${currentPage === i + 1 ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20 scale-110" : "bg-slate-900 text-slate-500 hover:text-white"}`}
+                      className={`w-10 h-10 rounded-xl font-black text-sm transition-all duration-300 ${currentPage === i + 1 ? "bg-brand-primary text-white elev-lg shadow-brand-primary/20 scale-110" : "bg-slate-900 text-slate-500 hover:text-white"}`}
                     >
                       {i + 1}
                     </button>
@@ -1102,29 +1161,5 @@ const EmptyState = ({
     <p className="text-slate-500 mt-2 max-w-sm">{subtitle}</p>
   </Card>
 );
-
-const Tooltip = ({
-  children,
-  content,
-}: {
-  children: React.ReactNode;
-  content: string;
-}) => {
-  const [show, setShow] = useState(false);
-  return (
-    <div
-      className="relative inline-block"
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      {children}
-      {show && (
-        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 p-3 bg-slate-900 border border-slate-800 rounded-xl text-[10px] font-mono whitespace-pre text-slate-400 shadow-2xl">
-          {content}
-        </div>
-      )}
-    </div>
-  );
-};
 
 export default ApprovalsPage;

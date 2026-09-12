@@ -22,6 +22,7 @@ import {
   Send,
   DollarSign
 } from 'lucide-react';
+import DataTable from '../../../../components/common/DataTable';
 import toast from 'react-hot-toast';
 
 const PayrollRunDetailsPage: React.FC = () => {
@@ -194,73 +195,53 @@ const PayrollRunDetailsPage: React.FC = () => {
                 )
               }
             >
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-gray-800 font-black text-[10px] text-gray-500 uppercase tracking-widest">
-                      <th className="p-4">Employee</th>
-                      <th className="p-4">Type</th>
-                      <th className="p-4">Cost Center</th>
-                      <th className="p-4 text-right">Amount</th>
-                      {run.status === 'DRAFT' && <th className="p-4"></th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800/50">
-                    {run.lineItems?.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="p-12 text-center text-gray-600 italic text-sm">
-                          No line items added yet. Click 'Add Employee' to begin.
-                        </td>
-                      </tr>
-                    ) : run.lineItems?.map((item: any) => (
-                      <tr key={item.id} className="hover:bg-white/5 transition-colors">
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-brand-primary">
-                              <User size={14} />
-                            </div>
-                            <div>
-                              <div className="font-bold text-gray-200">
-                                {item.employee?.full_name || 'System Generated'}
-                              </div>
-                              <div className="text-[10px] text-gray-500 font-medium">EMP-ID: {item.employee_id.substring(0, 8)}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">
-                            {item.item_type}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-sm font-bold text-gray-300">{item.costCenter?.name}</div>
-                          <div className="text-[10px] text-gray-500">{item.costCenter?.code}</div>
-                        </td>
-                        <td className="p-4 text-right font-mono font-bold text-gray-100">
-                          {convertToDisplay(item.amount, 'NGN')}
-                        </td>
-                        {run.status === 'DRAFT' && (
-                          <td className="p-4 text-right">
-                            <button className="text-gray-600 hover:text-red-500 transition-colors">
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columns={[
+                  { key: 'employee', label: 'Employee', tier: 'P0', get: (item: any) => (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-brand-primary">
+                        <User size={14} />
+                      </div>
+                      <div>
+                        <div className="font-bold text-gray-200">
+                          {item.employee?.full_name || 'System Generated'}
+                        </div>
+                        <div className="text-xs text-gray-500 font-medium">EMP-ID: {item.employee_id.substring(0, 8)}</div>
+                      </div>
+                    </div>
+                  )},
+                  { key: 'item_type', label: 'Type', tier: 'P1', get: (item: any) => (
+                    <span className="text-xs font-black px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">
+                      {item.item_type}
+                    </span>
+                  )},
+                  { key: 'cost_center', label: 'Cost Center', tier: 'P1', get: (item: any) => (
+                    <div>
+                      <div className="text-sm font-bold text-gray-300">{item.costCenter?.name}</div>
+                      <div className="text-xs text-gray-500">{item.costCenter?.code}</div>
+                    </div>
+                  )},
+                  { key: 'amount', label: 'Amount', tier: 'P1', cellClassName: 'text-right font-mono font-bold text-gray-100', get: (item: any) => (
+                    convertToDisplay(item.amount, 'NGN')
+                  )},
+                ]}
+                rows={run.lineItems || []}
+                rowKey={(item: any) => item.id}
+                emptyMessage="No line items added yet. Click 'Add Employee' to begin."
+                actions={[
+                  { key: 'delete', label: 'Delete', icon: <Trash2 size={16} />, danger: true, visible: (item: any) => run.status === 'DRAFT', onClick: () => {} },
+                ]}
+              />
             </Card>
           </div>
 
           {/* Right Column: Run Summary */}
           <div className="lg:col-span-1 space-y-6">
-            <Card title="Cycle Summary" borderTopColor="primary">
+            <Card title="Cycle Summary" accent="primary">
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-3 bg-gray-800/40 rounded-xl border border-gray-700">
                   <span className="text-xs text-gray-500 font-bold uppercase tracking-tighter">Status</span>
-                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${currentCfg.bg} ${currentCfg.color}`}>
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-black uppercase ${currentCfg.bg} ${currentCfg.color}`}>
                     <StatusIcon size={12} />
                     {currentCfg.label}
                   </span>
@@ -280,7 +261,7 @@ const PayrollRunDetailsPage: React.FC = () => {
                     <span className="font-bold text-gray-200">{convertToDisplay(run.total_benefits_employer, 'NGN')}</span>
                   </div>
                   <div className="pt-2 mt-2 border-t border-gray-800 flex justify-between">
-                    <span className="font-black text-gray-400 uppercase text-[10px]">Total Burden</span>
+                    <span className="font-black text-gray-400 uppercase text-xs">Total Burden</span>
                     <span className="font-black text-brand-primary">
                       {convertToDisplay(Number(run.total_gross_pay) + Number(run.total_taxes_employer) + Number(run.total_benefits_employer), 'NGN')}
                     </span>
@@ -289,7 +270,7 @@ const PayrollRunDetailsPage: React.FC = () => {
 
                 <div className="pt-4 space-y-3">
                   <div className="p-3 bg-brand-primary/10 border border-brand-primary/20 rounded-xl">
-                    <p className="text-[10px] text-brand-primary font-black uppercase mb-1 flex items-center gap-1">
+                    <p className="text-xs text-brand-primary font-black uppercase mb-1 flex items-center gap-1">
                       <DollarSign size={10} /> Funding Impact
                     </p>
                     <p className="text-xs text-gray-400 leading-relaxed italic">
@@ -308,7 +289,7 @@ const PayrollRunDetailsPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-gray-300">Run Initialized</p>
-                    <p className="text-[10px] text-gray-500">{new Date(run.created_at).toLocaleString()}</p>
+                    <p className="text-xs text-gray-500">{new Date(run.created_at).toLocaleString()}</p>
                   </div>
                 </div>
                 {run.status !== 'DRAFT' && (
@@ -318,7 +299,7 @@ const PayrollRunDetailsPage: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-xs font-bold text-gray-300">Run Approved</p>
-                      <p className="text-[10px] text-gray-500">Submitted by Finance Mgr</p>
+                      <p className="text-xs text-gray-500">Submitted by Finance Mgr</p>
                     </div>
                   </div>
                 )}
@@ -330,7 +311,7 @@ const PayrollRunDetailsPage: React.FC = () => {
         {/* Add Item Modal */}
         {showAddItemModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-dark/80 backdrop-blur-sm">
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg p-6 elev-lg">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-black text-white flex items-center gap-2">
                   <Plus className="text-brand-primary" />
@@ -339,9 +320,9 @@ const PayrollRunDetailsPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleAddItem} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Employee</label>
+                    <label className="text-xs font-black text-gray-500  pl-1">Employee</label>
                     <select
                       className="w-full bg-brand-dark/60 border border-gray-800 rounded-xl p-3 text-sm text-white focus:border-brand-primary outline-none"
                       value={employeeId}
@@ -357,7 +338,7 @@ const PayrollRunDetailsPage: React.FC = () => {
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Item Type</label>
+                    <label className="text-xs font-black text-gray-500  pl-1">Item Type</label>
                     <select
                       className="w-full bg-brand-dark/60 border border-gray-800 rounded-xl p-3 text-sm text-white focus:border-brand-primary outline-none"
                       value={itemType}
@@ -374,7 +355,7 @@ const PayrollRunDetailsPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Accounting Allocation (Cost Center)</label>
+                  <label className="text-xs font-black text-gray-500  pl-1">Accounting Allocation (Cost Center)</label>
                   <select
                     className="w-full bg-brand-dark/60 border border-gray-800 rounded-xl p-3 text-sm text-white focus:border-brand-primary outline-none"
                     value={costCenterId}
@@ -393,7 +374,7 @@ const PayrollRunDetailsPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">GL Account (Chart of Accounts)</label>
+                  <label className="text-xs font-black text-gray-500  pl-1">GL Account (Chart of Accounts)</label>
                   <select
                     className="w-full bg-brand-dark/60 border border-gray-800 rounded-xl p-3 text-sm text-white focus:border-brand-primary outline-none"
                     value={glAccountId}

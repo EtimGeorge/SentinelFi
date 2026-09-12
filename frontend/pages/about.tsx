@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import MarketingLayout from '../components/Landing/MarketingLayout';
 import { Target, Users, ShieldAlert, Award, Globe, History } from 'lucide-react';
 
@@ -83,19 +83,19 @@ const AboutPage: NextPageWithLayout = () => {
       <section className="py-24 container mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-12 text-center border-t border-white/5">
         <div>
           <h4 className="text-4xl font-black text-m-primary mb-2">$20B+</h4>
-          <p className="text-xs text-m-text-muted uppercase tracking-widest">Assured Capital</p>
+          <p className="text-xs text-m-text-muted ">Assured Capital</p>
         </div>
         <div>
           <h4 className="text-4xl font-black text-white mb-2">450+</h4>
-          <p className="text-xs text-m-text-muted uppercase tracking-widest">Global Tenancies</p>
+          <p className="text-xs text-m-text-muted ">Global Tenancies</p>
         </div>
         <div>
           <h4 className="text-4xl font-black text-m-accent mb-2">99.9%</h4>
-          <p className="text-xs text-m-text-muted uppercase tracking-widest">Uptime Guard</p>
+          <p className="text-xs text-m-text-muted ">Uptime Guard</p>
         </div>
         <div>
           <h4 className="text-4xl font-black text-white mb-2">12ms</h4>
-          <p className="text-xs text-m-text-muted uppercase tracking-widest">Intelligence Latency</p>
+          <p className="text-xs text-m-text-muted ">Intelligence Latency</p>
         </div>
       </section>
     </>

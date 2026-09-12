@@ -17,6 +17,10 @@ import {
   DollarSign, Download, Printer, Search, RefreshCcw, Edit3, Trash2,
   Activity, CheckCircle, Clock, XCircle, Send, CheckSquare, Wallet, PieChart
 } from 'lucide-react';
+import EmptyState from '../../../components/common/EmptyState';
+import DataTable from '../../../components/common/DataTable';
+import { useRouter } from 'next/router';
+import { TableSkeleton } from '../../../components/common/LoadingSkeleton';
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
   draft: { label: 'Draft', icon: Edit3, color: 'text-gray-400', bg: 'bg-gray-700/50' },
@@ -26,6 +30,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; co
 };
 
 const BudgetManagementPage: React.FC = () => {
+  const router = useRouter();
   const { hasAnyRole, isAuthenticated } = useAuth();
   const { userCurrency, convertToDisplay, convertAmount } = useCurrency();
 
@@ -125,7 +130,7 @@ const BudgetManagementPage: React.FC = () => {
 
   const handleDownloadCsv = async () => {
     setIsDownloading(true);
-    toast('Preparing CSV...', { icon: '⏳' });
+    toast('Preparing CSV...', { icon: 'â³' });
     try {
       const params = {
         wbsCode: wbsCodeFilter || undefined,
@@ -159,38 +164,38 @@ const BudgetManagementPage: React.FC = () => {
       >
         {/* KPI Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-sm">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 elev-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-brand-primary/10 rounded-lg"><PieChart className="w-5 h-5 text-brand-primary" /></div>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Filtered Budget</p>
+              <p className="text-xs font-black text-gray-500 ">Total Filtered Budget</p>
             </div>
             <p className="text-2xl font-black text-white">{convertToDisplay(kpis.totalBudgeted, userCurrency.code)}</p>
           </div>
-          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-green-500 rounded-xl p-5 shadow-sm">
+          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-green-500 rounded-xl p-5 elev-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-green-500/10 rounded-lg"><CheckCircle className="w-5 h-5 text-green-400" /></div>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Approved</p>
+              <p className="text-xs font-black text-gray-500 ">Approved</p>
             </div>
             <p className="text-2xl font-black text-white">{kpis.approved} <span className="text-sm font-normal text-gray-400">items</span></p>
           </div>
-          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-yellow-500 rounded-xl p-5 shadow-sm">
+          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-yellow-500 rounded-xl p-5 elev-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-yellow-500/10 rounded-lg"><Clock className="w-5 h-5 text-yellow-500" /></div>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Pending Review</p>
+              <p className="text-xs font-black text-gray-500 ">Pending Review</p>
             </div>
             <p className="text-2xl font-black text-white">{kpis.pending} <span className="text-sm font-normal text-gray-400">items</span></p>
           </div>
-          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-red-500 rounded-xl p-5 shadow-sm">
+          <div className="bg-gray-800 border border-gray-700 border-b-4 border-b-red-500 rounded-xl p-5 elev-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-red-500/10 rounded-lg"><XCircle className="w-5 h-5 text-red-500" /></div>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Rejected</p>
+              <p className="text-xs font-black text-gray-500 ">Rejected</p>
             </div>
             <p className="text-2xl font-black text-white">{kpis.rejected} <span className="text-sm font-normal text-gray-400">items</span></p>
           </div>
         </div>
 
         <div className="space-y-6">
-          <Card title="Filters & Actions" borderTopColor="primary" className="border border-gray-700">
+          <Card title="Filters & Actions" accent="primary" className="border border-gray-700">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
               <Input label="WBS Code" placeholder="e.g., 1.1.2" value={wbsCodeFilter} onChange={(e) => setWbsCodeFilter(e.target.value)} />
               <Input label="Description" placeholder="Search description..." value={descriptionFilter} onChange={(e) => setDescriptionFilter(e.target.value)} />
@@ -226,99 +231,108 @@ const BudgetManagementPage: React.FC = () => {
             </div>
           </Card>
 
-          <Card title="Budget Elements" borderTopColor="secondary" className="border border-gray-700">
-            {budgets.length === 0 && !loading ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Wallet className="w-16 h-16 text-gray-700 mb-4" />
-                <h3 className="text-lg font-bold text-gray-400 mb-2">No Budget Items Found</h3>
-                <p className="text-sm text-gray-500 max-w-sm">Adjust your filters or use the WBS Manager to create new budget elements.</p>
-              </div>
+          <Card title="Budget Elements" accent="secondary" className="border border-gray-700">
+            {loading ? (
+              <TableSkeleton columns={6} rows={5} />
+            ) : budgets.length === 0 ? (
+              <EmptyState pathname="/financials/projects/budgets" />
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-gray-700">
-                <table className="min-w-full divide-y divide-gray-700">
-                  <thead className="bg-brand-dark/50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Project</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">WBS Code</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Description</th>
-                      <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Budgeted Amount</th>
-                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest">Status</th>
-                      <th className="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase tracking-widest">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800">
-                    {loading ? (
-                      [...Array(5)].map((_, i) => (
-                        <tr key={i}><td colSpan={6} className="px-4 py-3"><div className="h-8 bg-gray-800 animate-pulse rounded"></div></td></tr>
-                      ))
-                    ) : budgets.map(budget => {
-                      const st = STATUS_CONFIG[budget.status?.toLowerCase() || 'draft'] || STATUS_CONFIG.draft;
-                      const StatusIcon = st.icon;
-                      const isActing = actionLoading === budget.wbs_id;
+              <>
+                <DataTable
+                  columns={[
+                    {
+                      key: 'project',
+                      label: 'Project',
+                      tier: 'P0',
+                      get: (b: WbsBudget) => (
+                        <>
+                          <Link href={`/projects/${b.project?.project_id}/overview`} className="text-sm font-bold text-gray-300 hover:text-brand-primary block truncate">
+                            {b.project?.project_name || 'N/A'}
+                          </Link>
+                          <span className="font-mono text-xs font-black text-brand-primary bg-brand-primary/10 px-1.5 py-0.5 rounded mt-1 inline-block">
+                            {b.wbs_code}
+                          </span>
+                        </>
+                      ),
+                      title: (b: WbsBudget) => b.project?.project_name || 'N/A',
+                    },
+                    {
+                      key: 'amount',
+                      label: 'Budgeted Amount',
+                      tier: 'P0',
+                      cellClassName: 'text-right',
+                      get: (b: WbsBudget) => <span className="text-sm font-black text-white">{convertToDisplay(b.total_cost_budgeted, b.project?.currency || 'NGN')}</span>,
+                      title: (b: WbsBudget) => convertToDisplay(b.total_cost_budgeted, b.project?.currency || 'NGN'),
+                    },
+                    {
+                      key: 'description',
+                      label: 'Description',
+                      tier: 'P1',
+                      get: (b: WbsBudget) => <span className="text-sm text-gray-300">{b.description}</span>,
+                      title: (b: WbsBudget) => b.description,
+                    },
+                    {
+                      key: 'status',
+                      label: 'Status',
+                      tier: 'P2',
+                      get: (b: WbsBudget) => {
+                        const st = STATUS_CONFIG[b.status?.toLowerCase() || 'draft'] || STATUS_CONFIG.draft;
+                        const StatusIcon = st.icon;
+                        return (
+                          <span className={`flex w-fit items-center gap-1 text-xs font-bold uppercase px-2 py-1 rounded ${st.bg} ${st.color}`}>
+                            <StatusIcon className="w-3 h-3" /> {st.label}
+                          </span>
+                        );
+                      },
+                    },
+                  ]}
+                  rows={budgets}
+                  rowKey={(b) => b.wbs_id}
+                  actions={[
+                    {
+                      key: 'view',
+                      label: 'View Details',
+                      primary: true,
+                      icon: <Activity className="w-4 h-4" />,
+                      onClick: (b) => router.push(`/financials/projects/budgets?id=${b.wbs_id}`),
+                    },
+                    {
+                      key: 'submit',
+                      label: 'Submit',
+                      icon: <Send className="w-4 h-4" />,
+                      visible: (b: WbsBudget) => b.status === 'draft' && canManage,
+                      onClick: (b) => handleStatusChange(b.wbs_id, 'pending'),
+                    },
+                    {
+                      key: 'approve',
+                      label: 'Approve',
+                      icon: <CheckSquare className="w-4 h-4" />,
+                      visible: (b: WbsBudget) => b.status === 'pending' && canApprove,
+                      onClick: (b) => handleStatusChange(b.wbs_id, 'approved'),
+                    },
+                    {
+                      key: 'reject',
+                      label: 'Reject',
+                      danger: true,
+                      icon: <XCircle className="w-4 h-4" />,
+                      visible: (b: WbsBudget) => b.status === 'pending' && canApprove,
+                      onClick: (b) => handleStatusChange(b.wbs_id, 'rejected'),
+                    },
+                  ]}
+                />
 
-                      return (
-                        <tr key={budget.wbs_id} className="hover:bg-white/5 transition group">
-                          <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-gray-300">
-                            <Link href={`/projects/${budget.project?.project_id}/overview`} className="hover:text-brand-primary">
-                              {budget.project?.project_name || 'N/A'}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <Link href={`/financials/projects/wbs`} className="font-mono text-xs font-black text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded hover:bg-brand-primary/20 transition">
-                              {budget.wbs_code}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300 truncate max-w-[250px]" title={budget.description}>
-                            {budget.description}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-black text-white">
-                            {convertToDisplay(budget.total_cost_budgeted, budget.project?.currency || 'NGN')}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className={`flex w-fit items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded ${st.bg} ${st.color}`}>
-                              <StatusIcon className="w-3 h-3" /> {st.label}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right">
-                            <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {budget.status === 'draft' && canManage && (
-                                <button onClick={() => handleStatusChange(budget.wbs_id, 'pending')} disabled={isActing} className="p-1.5 text-yellow-400 hover:bg-yellow-900/30 rounded-lg transition" title="Submit">
-                                  {isActing ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                </button>
-                              )}
-                              {budget.status === 'pending' && canApprove && (
-                                <>
-                                  <button onClick={() => handleStatusChange(budget.wbs_id, 'approved')} disabled={isActing} className="p-1.5 text-green-400 hover:bg-green-900/30 rounded-lg transition" title="Approve">
-                                    {isActing ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <CheckSquare className="w-4 h-4" />}
-                                  </button>
-                                  <button onClick={() => handleStatusChange(budget.wbs_id, 'rejected')} disabled={isActing} className="p-1.5 text-red-400 hover:bg-red-900/30 rounded-lg transition" title="Reject">
-                                    {isActing ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                                  </button>
-                                </>
-                              )}
-                              <Link href={`/financials/projects/budgets?id=${budget.wbs_id}`} className="p-1.5 text-gray-400 hover:text-brand-secondary transition" title="View Details">
-                                <Activity className="w-4 h-4" />
-                              </Link>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {!loading && total > 0 && (
-              <div className="flex justify-between items-center mt-4 border-t border-gray-700/50 pt-4">
-                <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">
-                  Showing {(page - 1) * limit + 1} - {Math.min(page * limit, total)} of {total} records
-                </span>
-                <div className="flex space-x-2">
-                  <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} size="sm" variant="secondary">Prev</Button>
-                  <Button onClick={() => setPage(p => (p * limit < total ? p + 1 : p))} disabled={page * limit >= total} size="sm" variant="secondary">Next</Button>
-                </div>
-              </div>
+                {total > 0 && (
+                  <div className="flex justify-between items-center mt-4 border-t border-gray-700/50 pt-4">
+                    <span className="text-xs text-gray-500 font-bold r">
+                      Showing {(page - 1) * limit + 1} - {Math.min(page * limit, total)} of {total} records
+                    </span>
+                    <div className="flex space-x-2">
+                      <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} size="sm" variant="secondary">Prev</Button>
+                      <Button onClick={() => setPage(p => (p * limit < total ? p + 1 : p))} disabled={page * limit >= total} size="sm" variant="secondary">Next</Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </Card>
         </div>
