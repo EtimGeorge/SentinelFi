@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import {
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
@@ -100,18 +100,26 @@ const CapexDashboard: React.FC<CapexDashboardProps> = ({ fetchCapexDashboard, fm
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState('');
   const [projectList, setProjectList] = useState<ProjectOption[]>([]);
-  
-  const selectedProjectCurrency = useMemo(() => {
-    if (!selectedProject) return 'NGN';
-    return projectList.find(p => p.id === selectedProject)?.currency || 'NGN';
-  }, [selectedProject, projectList]);
+
+  // Response figures are normalized to the backend-declared base currency
+  // (tenant base). Convert FROM that — never from a hardcoded default.
+  const responseCurrency: string =
+    (typeof data?.currency === 'string' && data.currency) ||
+    (!selectedProject
+      ? undefined
+      : projectList.find((p) => p.id === selectedProject)?.currency) ||
+    'NGN';
+  const selectedProjectCurrency = responseCurrency;
 
   const Tooltip = makeTooltip((n) => fmt(n, selectedProjectCurrency));
 
   const load = useCallback(async (pid?: string) => {
     setLoading(true);
     const res = await fetchCapexDashboard(pid || undefined);
-    if (res) { setData(res); setProjectList(res.projectList || []); }
+    // Accept raw or { data }-enveloped payloads; reject wrong shapes loudly
+    const payload = res?.kpis ? res : res?.data?.kpis ? res.data : null;
+    if (payload) { setData(payload); setProjectList(payload.projectList || []); }
+    else if (res) { setData(null); }
     setLoading(false);
   }, [fetchCapexDashboard]);
 

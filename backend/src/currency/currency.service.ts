@@ -19,6 +19,34 @@ interface ExchangeRateResponse {
   time_last_update_unix: number;
 }
 
+export interface SafeConversion {
+  value: number;
+  /** False when no rate existed — value is the unconverted amount. */
+  converted: boolean;
+}
+
+/**
+ * Pure, non-throwing currency conversion over a getUsdRateMap() map.
+ * Same-currency and USD passthrough never need a rate. Anything missing
+ * a rate returns the raw amount with `converted: false` so callers can
+ * degrade per-row (warn) instead of failing whole aggregations.
+ */
+export function convertWithMap(
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string,
+  rates: Record<string, number>,
+): SafeConversion {
+  if (!Number.isFinite(amount)) return { value: 0, converted: true };
+  const from = (fromCurrency || "USD").toUpperCase();
+  const to = (toCurrency || "USD").toUpperCase();
+  if (from === to) return { value: amount, converted: true };
+  const fromRate = from === "USD" ? 1 : rates[from];
+  const toRate = to === "USD" ? 1 : rates[to];
+  if (!fromRate || !toRate) return { value: amount, converted: false };
+  return { value: (amount / fromRate) * toRate, converted: true };
+}
+
 @Injectable()
 export class CurrencyService implements OnModuleInit {
   private readonly logger = new Logger(CurrencyService.name);
@@ -312,6 +340,42 @@ export class CurrencyService implements OnModuleInit {
       convertedAmount: Number(convertedAmount.toFixed(6)),
       rate: Number(rate.toFixed(10)),
     };
+  }
+
+  /**
+   * Bulk rate map for server-side aggregation: `{ CODE: unitsPerUsd }`
+   * (i.e. 1 USD = N units — same convention as the frontend rate map).
+   * Takes the latest stored rate per USD→X pair. Never throws — returns
+   * whatever is available; callers degrade per-row via convertWithMap().
+   */
+  async getUsdRateMap(): Promise<Record<string, number>> {
+    try {
+      const rows = await this.currencyRateRepository
+        .createQueryBuilder("r")
+        .select("r.toCurrency", "code")
+        .addSelect("r.rate", "rate")
+        .addSelect("MAX(r.lastUpdated)", "lastUpdated")
+        .where("r.fromCurrency = :usd", { usd: "USD" })
+        .groupBy("r.toCurrency")
+        .addGroupBy("r.rate")
+        .orderBy("lastUpdated", "DESC")
+        .getRawMany();
+      const map: Record<string, number> = { USD: 1 };
+      for (const row of rows) {
+        const rate = Number(row.rate);
+        if (row.code && Number.isFinite(rate) && rate > 0 && map[row.code] === undefined) {
+          // First row per code wins (ordered by latest); GROUP BY+rate keeps
+          // Postgres happy while the ORDER picks the freshest row first.
+          map[String(row.code).toUpperCase()] = rate;
+        }
+      }
+      return map;
+    } catch (err) {
+      this.logger.warn(
+        `getUsdRateMap failed, aggregation will skip conversion: ${(err as Error).message}`,
+      );
+      return { USD: 1 };
+    }
   }
 
   /**

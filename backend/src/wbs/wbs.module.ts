@@ -15,6 +15,7 @@ import { AuditModule } from "../audit/audit.module";
 import { BudgetControlService } from "../common/budget-control.service";
 import { TenantModule } from "../tenants/tenant.module";
 import { CommonModule } from "../common/common.module";
+import { CurrencyModule } from "../currency/currency.module";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { CommonModule } from "../common/common.module";
     AuditModule,
     forwardRef(() => TenantModule),
     CommonModule,
+    CurrencyModule,
   ],
   controllers: [WbsController, AiController, DcsController],
   providers: [

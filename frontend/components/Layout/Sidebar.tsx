@@ -33,7 +33,7 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
     return (
       <li key={item.name}>
         <div
-          className={`relative flex items-center px-2.5 py-2 rounded-lg transition duration-200 cursor-pointer text-[13px] ${parentActive ? 'bg-brand-primary text-white font-semibold shadow-[0_0_12px_rgba(13,148,136,0.4)]' : 'text-gray-400 hover:bg-white/5 hover:text-white font-medium'
+          className={`relative flex items-center justify-center px-1 py-2 rounded-lg transition duration-200 cursor-pointer text-[13px] ${parentActive ? 'bg-brand-primary text-white font-semibold shadow-[0_0_12px_rgba(13,148,136,0.4)]' : 'text-gray-400 hover:bg-white/5 hover:text-white font-medium'
             }`}
           onClick={() => setIsExpanded(!isExpanded)} // Toggle expansion
           title={isCollapsed ? item.name : ''}
@@ -46,7 +46,7 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
             <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-white" aria-hidden="true" />
           )}
           <item.icon className={`${isCollapsed ? 'mx-auto' : 'mr-2.5'} h-4 w-4 flex-shrink-0`} strokeWidth={parentActive ? 2.25 : 2} />
-          <span className={`whitespace-nowrap overflow-hidden ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+          <span className={`whitespace-nowrap overflow-hidden ${isCollapsed ? 'hidden' : 'w-auto opacity-100'}`}>
             {item.name}
           </span>
           {!isCollapsed && (isExpanded ? <ChevronUp className="ml-auto h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0" />)}
@@ -82,7 +82,7 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
       <Link
         href={item.path}
         aria-current={isActive ? 'page' : undefined}
-        className={`relative flex items-center px-2.5 py-2 rounded-lg transition duration-200 text-[13px] ${isActive
+        className={`relative flex items-center justify-center px-1 py-2 rounded-lg transition duration-200 text-[13px] ${isActive
           ? 'bg-brand-primary text-white font-semibold shadow-[0_0_12px_rgba(13,148,136,0.4)]'
           : 'text-gray-400 hover:bg-white/5 hover:text-white font-medium'
           }`}
@@ -92,7 +92,7 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
           <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-white" aria-hidden="true" />
         )}
         <item.icon className={`${isCollapsed ? 'mx-auto' : 'mr-2.5'} h-4 w-4 flex-shrink-0`} strokeWidth={isActive ? 2.25 : 2} />
-        <span className={`whitespace-nowrap overflow-hidden ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+        <span className={`whitespace-nowrap overflow-hidden ${isCollapsed ? 'hidden' : 'w-auto opacity-100'}`}>
           {item.name}
         </span>
       </Link>

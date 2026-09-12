@@ -61,6 +61,10 @@ import { format } from "date-fns";
 import { PdfGenerationService } from "../common/pdf-generation.service";
 import { TenantService } from "../tenants/tenant.service";
 import { FinancialForensicsService } from "../common/services/financial-forensics.service";
+import {
+  CurrencyService,
+  convertWithMap,
+} from "../currency/currency.service";
 
 
 
@@ -108,6 +112,7 @@ export class WbsService {
     @Inject(forwardRef(() => TenantService))
     private readonly tenantService: TenantService,
     private readonly forensicsService: FinancialForensicsService,
+    private readonly currencyService: CurrencyService,
   ) {}
 
   // Centralized Governance Constants for "Bulletproof" Verification
@@ -2694,6 +2699,35 @@ export class WbsService {
       const projects = await projectQuery.getMany();
       const projectIds = projects.map((p) => p.project_id);
 
+      // ── Currency normalization ──────────────────────────────────────
+      // Projects carry their own currency; raw cross-project SUMs would add
+      // e.g. NGN + USD as plain numbers. Everything below is converted to
+      // the tenant base currency BEFORE aggregating, and the response
+      // declares `currency` so clients convert from a real source.
+      let baseCurrency = "USD";
+      try {
+        const tenant = await this.tenantService.findOneTenant(tenantId);
+        if (tenant?.default_currency_code) {
+          baseCurrency = tenant.default_currency_code.toUpperCase();
+        }
+      } catch {
+        this.logger.warn(
+          `[CAPEX] Tenant lookup failed for ${tenantId}, defaulting analytics currency to USD`,
+        );
+      }
+      const rates = await this.currencyService.getUsdRateMap();
+      const unconverted = new Set<string>();
+      const toBase = (amount: any, from?: string | null): number => {
+        const { value, converted } = convertWithMap(
+          Number(amount) || 0,
+          from || "USD",
+          baseCurrency,
+          rates,
+        );
+        if (!converted && from) unconverted.add(String(from).toUpperCase());
+        return value;
+      };
+
       if (projectIds.length === 0) {
         return {
           kpis: {
@@ -2709,24 +2743,45 @@ export class WbsService {
           portfolioHeatMap: [],
           topCostOverruns: [],
           projectList: [],
+          currency: baseCurrency,
+          currencyWarnings: [],
         };
       }
 
-      const monthlyBurn: any[] = await this.dataSource.query(
+      // Burn grouped by month+category+CURRENCY so mixed-currency spend is
+      // converted before merging (never summed raw).
+      const burnRows: any[] = await this.dataSource.query(
         `SELECT TO_CHAR(le.expense_date, 'YYYY-MM') as month,
           COALESCE(wc.name, 'Uncategorized') as category,
+          COALESCE(p.currency, 'USD') as currency,
           SUM(le.amount) as actual
         FROM live_expense le
         LEFT JOIN wbs_budget wb ON wb.wbs_id = le.wbs_id
         LEFT JOIN wbs_category wc ON wc.id = wb.category_id
+        LEFT JOIN project p ON p.project_id = le.project_id
         WHERE le.project_id = ANY($1)
         AND le.expense_date >= NOW() - INTERVAL '12 months'
-        GROUP BY month, category ORDER BY month ASC`,
+        GROUP BY month, category, currency ORDER BY month ASC`,
         [projectIds],
       );
 
-      const portfolioHeatMap: any[] = await this.dataSource.query(
+      // Merge converted burn into month+category buckets in base currency
+      const burnBuckets = new Map<string, number>();
+      for (const row of burnRows) {
+        const key = `${row.month}|||${row.category}`;
+        burnBuckets.set(
+          key,
+          (burnBuckets.get(key) || 0) + toBase(row.actual, row.currency),
+        );
+      }
+      const monthlyBurn = [...burnBuckets.entries()].map(([key, actual]) => {
+        const [month, category] = key.split("|||");
+        return { month, category, actual: Math.round(actual * 100) / 100 };
+      });
+
+      const rawHeatMap: any[] = await this.dataSource.query(
         `SELECT p.project_id as id, p.project_name as name, p.contract_value,
+          COALESCE(p.currency, 'USD') as currency,
           COALESCE(SUM(wb.total_cost_budgeted), 0) as total_budgeted,
           COALESCE(SUM(wb.total_cost_actual), 0) as total_actual,
           COALESCE(SUM(wb.total_committed_lpo), 0) as total_committed,
@@ -2743,10 +2798,20 @@ export class WbsService {
         FROM project p
         LEFT JOIN wbs_budget wb ON wb.project_id = p.project_id
         WHERE p.project_id = ANY($1)
-        GROUP BY p.project_id, p.project_name, p.contract_value
+        GROUP BY p.project_id, p.project_name, p.contract_value, p.currency
         ORDER BY utilization_pct DESC`,
         [projectIds],
       );
+
+      // NOTE: utilization_pct / rag_status are ratios — currency-invariant,
+      // safe to keep from SQL. Monetary fields are converted to base here.
+      const portfolioHeatMap = rawHeatMap.map((p: any) => ({
+        ...p,
+        contract_value: Math.round(toBase(p.contract_value, p.currency) * 100) / 100,
+        total_budgeted: Math.round(toBase(p.total_budgeted, p.currency) * 100) / 100,
+        total_actual: Math.round(toBase(p.total_actual, p.currency) * 100) / 100,
+        total_committed: Math.round(toBase(p.total_committed, p.currency) * 100) / 100,
+      }));
 
       const topCostOverruns = portfolioHeatMap
         .filter((p: any) => Number(p.total_actual) > Number(p.total_budgeted))
@@ -2801,7 +2866,10 @@ export class WbsService {
         projectList: projects.map((p) => ({
           id: p.project_id,
           name: p.project_name,
+          currency: (p as any).currency || baseCurrency,
         })),
+        currency: baseCurrency,
+        currencyWarnings: [...unconverted],
       };
 
       return result;
