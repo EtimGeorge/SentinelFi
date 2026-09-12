@@ -1,10 +1,222 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@400;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   CHART TOKENS (CSS custom properties for SVG stroke/fill)
+   NOTE: tailwind.config.js chart-* colors are the source of
+   truth; keep the hex values here in sync.
+   ============================================================ */
+:root {
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-axis: rgba(255, 255, 255, 0.12);
+  --chart-tooltip: #1f2937;
+  --chart-budget: #0d9488;
+  --chart-spent: #94a3b8;
+  --chart-positive: #059669;
+  --chart-negative: #ea580c;
+  --chart-fill: rgba(13, 148, 136, 0.08);
+}
+
+/* ============================================================
+   REDUCED MOTION SUPPORT
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Disable specific animations */
+  .animate-fade-in,
+  .animate-fade-out,
+  .animate-slide-up,
+  .animate-slide-down,
+  .animate-slide-in-right,
+  .animate-slide-out-right,
+  .animate-slide-in-left,
+  .animate-slide-out-left,
+  .animate-zoom-in,
+  .animate-zoom-out,
+  .animate-scale-in,
+  .animate-scale-out,
+  .animate-spin-fast,
+  .animate-spin-slow,
+  .animate-pulse-ai,
+  .animate-shimmer,
+  .animate-count-up,
+  .animate-stagger-60,
+  .animate-progress-fill,
+  .animate-border-glow,
+  .animate-button-press,
+  .animate-card-hover,
+  .animate-tooltip-show,
+  .animate-skeleton {
+    animation: none !important;
+  }
+
+  /* Instant count-up for financial numbers */
+  .animate-count-up {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ============================================================
+   TABULAR NUMBERS FOR FINANCIAL FIGURES
+   ============================================================ */
+.font-mono,
+.font-financial,
+.financial-number,
+[data-financial="true"] {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings:
+    "tnum" on,
+    "lnum" on;
+}
+
+/* ============================================================
+   FOCUS VISIBLE STYLES - DOMAIN ACCENT COLORS
+   ============================================================ */
+*:focus-visible {
+  outline: 2px solid var(--focus-color, #0d9488);
+  outline-offset: 2px;
+}
+
+*:focus-visible:not(.ai-purple-focus):not(.opex-cyan-focus):not(.alert-focus) {
+  --focus-color: #0d9488; /* brand-primary default */
+}
+
+.ai-purple-focus:focus-visible {
+  --focus-color: #6b46c1;
+}
+.opex-cyan-focus:focus-visible {
+  --focus-color: #06b6d4;
+}
+.alert-focus:focus-visible {
+  --focus-color: #ea580c;
+}
+
+/* ============================================================
+   MOTION UTILITIES - 18 MOMENTS
+   ============================================================ */
 @layer utilities {
+  /* Stagger delays for lists */
+  .stagger-1 {
+    animation-delay: 60ms;
+  }
+  .stagger-2 {
+    animation-delay: 120ms;
+  }
+  .stagger-3 {
+    animation-delay: 180ms;
+  }
+  .stagger-4 {
+    animation-delay: 240ms;
+  }
+  .stagger-5 {
+    animation-delay: 300ms;
+  }
+  .stagger-6 {
+    animation-delay: 360ms;
+  }
+  .stagger-7 {
+    animation-delay: 420ms;
+  }
+  .stagger-8 {
+    animation-delay: 480ms;
+  }
+  .stagger-9 {
+    animation-delay: 540ms;
+  }
+  .stagger-10 {
+    animation-delay: 600ms;
+  }
+
+  /* Motion moment classes */
+  .motion-fade-in {
+    animation: fadeIn 180ms ease-out;
+  }
+  .motion-fade-out {
+    animation: fadeOut 150ms ease-in;
+  }
+  .motion-slide-up {
+    animation: slideUp 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-slide-down {
+    animation: slideDown 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-slide-in-right {
+    animation: slideInRight 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-slide-out-right {
+    animation: slideOutRight 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-slide-in-left {
+    animation: slideInLeft 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-slide-out-left {
+    animation: slideOutLeft 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-zoom-in {
+    animation: zoomIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-zoom-out {
+    animation: zoomOut 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-scale-in {
+    animation: scaleIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-scale-out {
+    animation: scaleOut 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-spin-fast {
+    animation: spin 600ms linear infinite;
+  }
+  .motion-spin-slow {
+    animation: spin 2s linear infinite;
+  }
+  .motion-pulse-ai {
+    animation: pulseAI 2s ease-in-out infinite;
+  }
+  .motion-shimmer {
+    animation: shimmer 1.5s ease-in-out infinite;
+    background-size: 200% 100%;
+  }
+  .motion-count-up {
+    animation: countUp 600ms ease-out forwards;
+  }
+  .motion-stagger {
+    animation: staggerIn 400ms ease-out forwards;
+  }
+  .motion-progress-fill {
+    animation: progressFill 800ms ease-out forwards;
+  }
+  .motion-border-glow {
+    animation: borderGlow 120ms ease-out;
+  }
+  .motion-button-press {
+    animation: buttonPress 80ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .motion-card-hover {
+    animation: cardHover 120ms ease-out;
+  }
+  .motion-tooltip-show {
+    animation: tooltipShow 400ms ease-out;
+  }
+  .motion-skeleton {
+    animation: skeleton 1.5s ease-in-out infinite;
+    background-size: 200% 100%;
+  }
+
+  /* Reduced motion utilities */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -15,234 +227,207 @@
 }
 
 /* ============================================================
-   GLOBAL PRINT STYLES — Budget Preview / Financial Reports
+   COLOR ENFORCEMENT - PURPLE = AI ONLY
    ============================================================ */
-@media print {
-  /* --- Reset page layout ----------------------------------- */
-  @page {
-    size: A4 landscape;
-    margin: 15mm 10mm;
+@layer components {
+  /* AI-only purple - never reuse for non-AI elements */
+  .ai-purple {
+    @apply bg-brand-secondary text-white;
+  }
+  .ai-purple-text {
+    @apply text-brand-secondary;
+  }
+  .ai-purple-border {
+    @apply border-brand-secondary;
+  }
+  .ai-purple-ring {
+    @apply ring-brand-secondary;
+  }
+  .ai-purple-bg {
+    @apply bg-brand-secondary/10;
   }
 
-  * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+  /* OPEX cyan series */
+  .opex-cyan {
+    @apply bg-opex-cyan text-brand-darker;
+  }
+  .opex-cyan-text {
+    @apply text-opex-cyan;
+  }
+  .opex-cyan-border {
+    @apply border-opex-cyan;
+  }
+  .opex-cyan-bg {
+    @apply bg-opex-cyan/10;
   }
 
-  /* --- Hide ALL interactive & navigational chrome ---------- */
-  /* Sidebar */
-  aside,
-  [data-sidebar],
-  nav[aria-label="sidebar"],
-  .sidebar,
-  #sidebar {
-    display: none !important;
+  /* CAPEX uses brand-primary teal */
+  .capex-teal {
+    @apply bg-brand-primary text-white;
+  }
+  .capex-teal-text {
+    @apply text-brand-primary;
   }
 
-  /* Top navigation bar */
-  header:not(.print-header),
-  [data-topnav],
-  .topnav,
-  #topnav {
-    display: none !important;
+  /* Status colors - never use purple for status */
+  .status-positive {
+    @apply bg-alert-positive text-white;
   }
-
-  /* Breadcrumbs, action bars, sticky toolbars */
-  .print\:hidden,
-  [class*="sticky"],
-  [class*="breadcrumb"] {
-    display: none !important;
+  .status-warning {
+    @apply bg-alert-warning text-brand-darker;
   }
-
-  /* Force full-width content */
-  body,
-  #__next,
-  main,
-  [data-main-content],
-  .main-content {
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    background: white !important;
-    color: black !important;
+  .status-critical {
+    @apply bg-alert-critical text-white;
   }
-
-  /* Page container wrapper — remove all padding/margin  */
-  .page-container,
-  [class*="PageContainer"] {
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* --- Print-only document header ------------------------- */
-  .print-doc-header {
-    display: block !important;
-    padding-bottom: 12px;
-    margin-bottom: 16px;
-    border-bottom: 2px solid #000;
-  }
-
-  /* --- Table styles for document-quality output ----------- */
-  table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    font-size: 9pt !important;
-    page-break-inside: auto;
-  }
-
-  thead {
-    display: table-header-group;
-    background-color: #f3f4f6 !important;
-    color: #111 !important;
-  }
-
-  tr {
-    page-break-inside: avoid;
-    page-break-after: auto;
-  }
-
-  th, td {
-    border: 1px solid #d1d5db !important;
-    padding: 4px 8px !important;
-    color: #000 !important;
-  }
-
-  th {
-    font-weight: 800 !important;
-    text-transform: uppercase;
-    font-size: 7pt !important;
-    letter-spacing: 0.05em;
-    background-color: #e5e7eb !important;
-  }
-
-  tfoot tr {
-    background-color: #f9fafb !important;
-    font-weight: 900 !important;
-  }
-
-  /* WBS code badges */
-  .wbs-code-badge {
-    background-color: #f3f4f6 !important;
-    color: #111 !important;
-    border: 1px solid #d1d5db !important;
-  }
-
-  /* --- Remove card shadows and decorative borders --------- */
-  [class*="Card"],
-  .card {
-    box-shadow: none !important;
-    border: none !important;
-    background: transparent !important;
-  }
-
-  /* Indentation for hierarchical levels */
-  .tree-indent {
-    border-left: 2px solid #9ca3af !important;
+  .status-info {
+    @apply bg-blue-600 text-white;
   }
 }
 
 /* ============================================================
-   AESTHETIC ENHANCEMENT UTILITIES
+   RESPONSIVE TABLE → CARD TRANSFORMATION
    ============================================================ */
+@media (max-width: 639px) {
+  .responsive-table {
+    display: none;
+  }
+  .responsive-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
 
-@layer components {
-  /* Basic Glass Card */
-  .glass-card {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl transition-all duration-500 shadow-2xl;
+@media (min-width: 640px) {
+  .responsive-table {
+    display: table;
   }
-  
-  .glass-card:hover {
-    @apply bg-white/10 border-white/20 shadow-brand-primary/10;
+  .responsive-cards {
+    display: none;
   }
+}
 
-  /* Premium High-Blur Card */
-  .glass-card-premium {
-    @apply bg-brand-dark/40 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] 
-           transition-all duration-700 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)]
-           hover:bg-brand-dark/50 hover:border-white/10 hover:shadow-brand-primary/10;
-  }
+/* Card row for mobile table view */
+.table-card-row {
+  @apply flex flex-col p-4 bg-gray-800/50 border border-gray-700 rounded-xl gap-3;
+}
+.table-card-row > * {
+  @apply flex items-center justify-between gap-4;
+}
+.table-card-label {
+  @apply text-xs font-bold text-gray-500 uppercase tracking-wider;
+}
+.table-card-value {
+  @apply font-mono text-white font-semibold;
+}
 
-  .text-sora {
-    font-family: 'Sora', sans-serif;
-  }
+/* ============================================================
+   KPI CAROUSEL - MOBILE SCROLL-SNAP
+   ============================================================ */
+.kpi-carousel {
+  @apply overflow-x-auto snap-x snap-mandatory pb-4 -mx-4 px-4 flex gap-4;
+}
+.kpi-carousel > * {
+  @apply flex-shrink-0 w-[85%] snap-center;
+}
 
-  .m-heading {
-    @apply text-white transition-colors duration-300;
-  }
+/* ============================================================
+   TOOLTIP COMPONENT
+   ============================================================ */
+.tooltip-trigger {
+  @apply relative inline-block;
+}
+.tooltip-trigger::after {
+  @apply absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 
+         bg-brand-darker text-white text-xs font-mono rounded-lg 
+         whitespace-nowrap opacity-0 invisible transition-all duration-400 
+         motion-tooltip-show z-50;
+  content: attr(data-tooltip);
+}
+.tooltip-trigger:hover::after,
+.tooltip-trigger:focus::after {
+  @apply opacity-100 visible;
+}
 
-  /* Gradient Text Implementation with Full Browser Support */
-  .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-brand-primary;
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
+/* ============================================================
+   AI CHAT MOBILE SHEET - 4XL RADIUS
+   ============================================================ */
+.ai-chat-sheet {
+  @apply fixed inset-x-0 bottom-0 z-50 bg-brand-dark/95 backdrop-blur-3xl 
+         rounded-t-4xl shadow-2xl max-h-[90vh] flex flex-col;
+}
 
-  .gradient-text-platinum {
-    @apply bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-gray-500/50;
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+/* ============================================================
+   BOTTOM TAB BAR - MOBILE <640px
+   ============================================================ */
+@media (max-width: 639px) {
+  .bottom-tab-bar {
+    @apply fixed bottom-0 left-0 right-0 z-40 bg-brand-dark/95 backdrop-blur-3xl 
+           border-t border-white/5 grid grid-cols-5 gap-1 px-2 py-2;
   }
+}
 
-  /* Premium Button Variants */
-  .m-button-primary {
-    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-brand-primary text-brand-dark font-black rounded-2xl 
-           transition-all duration-300 hover:bg-brand-primary/90 hover:scale-[1.02] hover:shadow-xl hover:shadow-brand-primary/20 
-           active:scale-100;
-  }
+/* ============================================================
+   MOBILE TOUCH TARGETS - coarse pointers only
+   ============================================================ */
+/* Kill the 300ms tap delay on interactive elements (no-op on mouse). */
+a,
+button,
+[role="button"],
+input,
+select,
+textarea,
+summary,
+[tabindex]:not([tabindex="-1"]) {
+  touch-action: manipulation;
+}
 
-  .m-button-premium {
-    @apply inline-flex items-center justify-center gap-3 px-10 py-5 bg-white text-brand-dark font-black rounded-2xl 
-           transition-all duration-500 hover:bg-brand-primary hover:text-white hover:scale-[1.05] 
-           hover:shadow-[0_20px_40px_rgba(var(--brand-primary-rgb),0.3)] 
-           active:scale-95 uppercase tracking-widest text-sm;
-  }
-
-  /* Interactive Navigation animations */
-  .nav-item-animated {
-    @apply relative py-2 overflow-hidden text-sm font-black uppercase tracking-widest text-slate-300 
-           transition-all duration-500 hover:text-white;
-  }
-
-  .nav-item-animated::after {
-    content: '';
-    @apply absolute bottom-0 left-0 w-full h-0.5 bg-brand-primary opacity-0 
-           translate-y-2 transition-all duration-500;
-  }
-
-  .nav-item-animated:hover::after {
-    @apply opacity-100 translate-y-0 shadow-[0_0_15px_rgba(13,148,136,0.8)];
-  }
-
-  .hero-glow {
-    @apply absolute pointer-events-none rounded-full bg-brand-primary/20 blur-[120px] mix-blend-screen animate-pulse;
-    animation-duration: 8s;
-  }
+/* No grey/blue flash on tap. */
+a,
+button,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer utilities {
-  .mask-radial {
-    mask-image: radial-gradient(circle at center, black, transparent 80%);
+  /* Opt-in 44px touch target (WCAG 2.5.5).
+     Grows the tap area on touch devices via an invisible overlay so desktop
+     density and focus metrics are untouched. */
+  .tap-target {
+    position: relative;
+  }
+  @media (pointer: coarse) {
+    .tap-target {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    .tap-target::before {
+      content: "";
+      position: absolute;
+      inset: -6px;
+      border-radius: inherit;
+    }
   }
 }
 
-/* Custom Keyframes */
-@keyframes border-glow {
-  0%, 100% { border-color: rgba(13, 148, 136, 0.2); shadow: none; }
-  50% { border-color: rgba(13, 148, 136, 0.6); box-shadow: 0 0 20px rgba(13, 148, 136, 0.2); }
+/* ============================================================
+   CARD / FLEX CONTENT CONTAINMENT - no overflow anywhere
+   ============================================================ */
+/* Allow flex children to shrink below their intrinsic width so that
+   long values (currency figures, WBS codes, long project names) are
+   wrapped/truncated inside the card instead of pushing past its edge. */
+.flex > * {
+  min-width: 0;
 }
 
-.animate-border-glow {
-  animation: border-glow 4s infinite ease-in-out;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-.animate-float {
-  animation: float 6s infinite ease-in-out;
+/* Long unbroken strings (currency figures, WBS codes, project names)
+   must never spill past their card edge — wrap instead of overflowing. */
+p,
+h1, h2, h3, h4, h5, h6,
+.font-mono,
+.font-financial,
+.financial-number {
+  overflow-wrap: break-word;
 }
