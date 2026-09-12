@@ -4,7 +4,7 @@ import { apiClient } from 'lib/api';
 import { Role } from '@shared/types/role.enum';
 import AppLoadingFallback from '../common/AppLoadingFallback';
 import axios from 'axios';
-import { SmartAbortController, globalDeduplicator, authCircuitBreaker } from 'lib/resilience';
+import { globalDeduplicator, authCircuitBreaker, apiCircuitBreaker, smartAbortController } from 'lib/resilience';
 
 export { Role } from '@shared/types/role.enum';
 
@@ -67,7 +67,7 @@ interface AuthContextType {
   isLoading: boolean;
   isSyncing: boolean; // NEW: Background verification status
   error: Error | null;
-  login: (uid: string, password: string, role: Role) => Promise<void>;
+  login: (uid: string, password: string, role: Role, tenantId?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: (silent?: boolean) => Promise<void>; 
   updateProfile: (data: Partial<User>) => Promise<void>; // NEW: Profile update
@@ -175,8 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isOnline, setIsOnline] = useState(true);
   const router = useRouter();
 
-  const smartAbortRef = useRef(new SmartAbortController());
-  const loginInProgressRef = useRef(false);
+   const loginInProgressRef = useRef(false);
   const logoutInProgressRef = useRef(false); // NEW: Prevent logout loops
   const rateLimiterRef = useRef(new LoginRateLimiter());
   const authStateRef = useRef<AuthState>(AuthState.INITIALIZING);
@@ -231,23 +230,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const getDefaultRoute = useCallback((): string => {
     const primaryRole = getPrimaryRole();
+    if (!primaryRole) return '/dashboard/home';
     if (primaryRole === Role.SuperAdmin) return '/super';
-    return '/dashboard/home';
+    return ROLE_CONFIG[primaryRole]?.defaultRoute || '/dashboard/home';
   }, [getPrimaryRole]);
 
-  const fetchCurrentUser = useCallback(async (): Promise<User | null> => {
+  const fetchCurrentUser = useCallback(async (retries = 2): Promise<User | null> => {
     const cacheKey = 'current-user-fetch';
     try {
-      return await authCircuitBreaker.execute(async () => {
+      return await apiCircuitBreaker.execute(async () => {
         return await globalDeduplicator.execute(cacheKey, async () => {
-          const signal = smartAbortRef.current.createSignal();
+          const signal = smartAbortController.createSignal();
           AuthLogger.info('Fetching current user session...');
           try {
             const response = await apiClient.get<User>('/auth/me', { signal });
             if (isMountedRef.current) setError(null);
             return response;
           } finally {
-            smartAbortRef.current.releaseSignal();
+            smartAbortController.releaseSignal();
           }
         });
       });
@@ -259,6 +259,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       AuthLogger.error('Failed to fetch user session:', err);
       if (isMountedRef.current) {
         if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+          // FIX: Retry on 500 errors with exponential backoff
+          if (err.response?.status === 500 && retries > 0) {
+            const delay = Math.pow(2, 3 - retries) * 1000 + Math.random() * 500;
+            AuthLogger.warn(`500 error on /auth/me. Retrying in ${Math.round(delay)}ms... (${retries} attempts left)`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return fetchCurrentUser(retries - 1);
+          }
           setError(err instanceof Error ? err : new Error(String(err)));
         }
       }
@@ -416,27 +423,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsInitialized(true);
       setIsSyncing(true); // Verifying in background
 
-      apiClient.get<User>('/auth/me')
-        .then(response => {
+      // FIX: Add retry mechanism with exponential backoff for background verification
+      let retryCount = 2;
+      const verifySession = async (): Promise<void> => {
+        try {
+          const response = await apiClient.get<User>('/auth/me');
           if (isMountedRef.current) {
             setUser(response);
             SessionStorage.save(response);
             setIsSyncing(false);
             AuthLogger.success('Background verification complete: Session valid.');
           }
-        })
-        .catch(err => {
+        } catch (err: any) {
           if (axios.isCancel(err)) return;
-          AuthLogger.warn('Background verification failed.', err.message);
+          
+          // FIX: Retry on 500 errors instead of giving up immediately
+          if (err.response?.status === 500 && retryCount > 0) {
+            retryCount--;
+            const delay = Math.pow(2, 3 - retryCount) * 1000 + Math.random() * 500;
+            AuthLogger.warn(`Background verification 500. Retrying in ${Math.round(delay)}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            if (isMountedRef.current) {
+              await verifySession();
+            }
+            return;
+          }
+
+          AuthLogger.warn('Background verification failed.', err.message || err);
           if (axios.isAxiosError(err) && err.response?.status === 401) {
             if (isMountedRef.current) {
               setUser(null);
               SessionStorage.clear();
-              // REDIRECT REMOVED: Managed by RouteGuard
             }
           }
           if (isMountedRef.current) setIsSyncing(false);
-        });
+        }
+      };
+      verifySession();
 
     } else {
       setIsLoading(true);
@@ -680,7 +703,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={value}>
       {!isOnline && (
-        <div className="bg-yellow-600 text-white p-2 text-center sticky top-0 z-[10000] flex justify-center items-center gap-2 text-sm font-semibold shadow-md">
+        <div className="bg-yellow-600 text-white p-2 text-center sticky top-0 z-[10000] flex justify-center items-center gap-2 text-sm font-semibold elev-md">
           <svg className="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-3.536m0 0l-2.829-2.829m11.314 0a4.5 4.5 0 00-6.364 0" />
           </svg>
@@ -688,13 +711,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         </div>
       )}
       {isImpersonating && (
-        <div className="bg-red-600 text-white p-3 text-center sticky top-0 z-[9999] flex justify-between items-center shadow-lg border-b border-red-700">
+        <div className="bg-red-600 text-white p-3 text-center sticky top-0 z-[9999] flex justify-between items-center elev-lg border-b border-red-700">
           <div className="flex-1 text-center font-bold">
             ⚠️ SYSTEM ADVISORY: IMPERSONATING AS {user?.first_name} {user?.last_name} ({user?.email})
           </div>
           <button
             onClick={() => stopImpersonation()}
-            className="bg-white text-red-600 px-4 py-1 rounded-md text-sm font-bold hover:bg-gray-100 transition-colors mr-4 shadow-sm"
+            className="bg-white text-red-600 px-4 py-1 rounded-md text-sm font-bold hover:bg-gray-100 transition-colors mr-4 elev-sm"
           >
             END SESSION
           </button>
@@ -702,7 +725,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       )}
       {/* BACKGROUND SYNC INDICATOR */}
       {isSyncing && (
-        <div className="fixed bottom-4 right-4 z-[10000] flex items-center gap-2 bg-brand-dark/80 backdrop-blur-sm border border-brand-primary/30 text-brand-primary px-3 py-1.5 rounded-full shadow-lg text-xs font-semibold animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="fixed bottom-4 right-4 z-[10000] flex items-center gap-2 bg-brand-dark/80 backdrop-blur-sm border border-brand-primary/30 text-brand-primary px-3 py-1.5 rounded-full elev-lg text-xs font-semibold animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="w-2 h-2 bg-brand-primary rounded-full animate-pulse" />
           <span>SYNCING SESSION...</span>
         </div>
@@ -740,17 +763,63 @@ export const PUBLIC_ROUTES = [
   '/landing/testimonials'
 ];
 
-export const ROLE_ROUTES: Record<Role, string[]> = {
-  [Role.SuperAdmin]: ['/super'],
-  [Role.CEO]: ['/dashboard'],
-  [Role.CFO]: ['/dashboard'],
-  [Role.AdminDirector]: ['/dashboard', '/admin'],
-  [Role.OperationalDirector]: ['/dashboard'],
-  [Role.TechnicalDirector]: ['/dashboard'],
-  [Role.FinanceManager]: ['/dashboard'],
-  [Role.AdminManager]: ['/dashboard', '/admin'],
-  [Role.ProjectManager]: ['/dashboard'],
-  [Role.FinanceOfficer]: ['/dashboard'],
-  [Role.AdminOfficer]: ['/dashboard'],
-  [Role.AssignedProjectUser]: ['/dashboard'],
+// Role configuration constants - matches UI_UX_REDESIGN_PLAN.md Section 2.1
+export const ROLE_CONFIG: Record<Role, RoleConfig> = {
+  [Role.SuperAdmin]: { 
+    defaultRoute: '/super', 
+    visible: ['/super', '/super/tenants', '/super/analytics', '/super/audit-log', '/super/billing', '/super/settings'] 
+  },
+  [Role.CEO]: { 
+    defaultRoute: '/dashboard/home', 
+    visible: ['/dashboard/home', '/financials/intelligence', '/reporting', '/settings'] 
+  },
+  [Role.CFO]: { 
+    defaultRoute: '/financials/intelligence', 
+    visible: ['/financials/intelligence', '/dashboard/home', '/reporting', '/financials/approvals'] 
+  },
+  [Role.AdminDirector]: { 
+    defaultRoute: '/dashboard/home', 
+    visible: ['/dashboard/home', '/financials/intelligence', '/reporting', '/settings', '/admin', '/admin/users', '/admin/clients', '/admin/audit-log', '/admin/support'] 
+  },
+  [Role.FinanceManager]: { 
+    defaultRoute: '/financials/projects/wbs?filter=pending&assigned=true', 
+    visible: ['/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses', '/financials/approvals', '/dashboard/home', '/financials/intelligence'] 
+  },
+  [Role.OperationalDirector]: { 
+    defaultRoute: '/financials/operations/procurement', 
+    visible: ['/financials/operations/procurement', '/financials/operations/payroll', '/financials/operations/manage', '/financials/projects', '/dashboard/home'] 
+  },
+  [Role.TechnicalDirector]: { 
+    defaultRoute: '/dashboard/home', 
+    visible: ['/dashboard/home', '/financials/intelligence', '/financials/projects', '/financials/operations', '/admin', '/reporting'] 
+  },
+  [Role.AdminManager]: { 
+    defaultRoute: '/dashboard/home', 
+    visible: ['/dashboard/home', '/admin', '/admin/users', '/admin/clients', '/admin/support', '/financials/projects'] 
+  },
+  [Role.ProjectManager]: { 
+    defaultRoute: '/dashboard/home', 
+    visible: ['/dashboard/home', '/financials/projects', '/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses'] 
+  },
+  [Role.FinanceOfficer]: { 
+    defaultRoute: '/financials/projects/wbs?filter=pending&assigned=true', 
+    visible: ['/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses', '/financials/approvals'] 
+  },
+  [Role.AdminOfficer]: { 
+    defaultRoute: '/dashboard/home', 
+    visible: ['/dashboard/home', '/financials/projects', '/admin/clients'] 
+  },
+  [Role.AssignedProjectUser]: { 
+    defaultRoute: '/financials/expenses/new?mode=expense', 
+    visible: ['/financials/expenses/new', '/financials/projects/expenses', '/financials/projects/wbs'] 
+  },
 };
+
+export interface RoleConfig {
+  defaultRoute: string;
+  visible: string[];
+}
+
+export const ROLE_ROUTES: Record<Role, string[]> = Object.fromEntries(
+  Object.entries(ROLE_CONFIG).map(([role, config]) => [role, config.visible])
+) as Record<Role, string[]>;
