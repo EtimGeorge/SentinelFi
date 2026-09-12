@@ -76,7 +76,11 @@ interface CapexData {
   monthlyBurnByCategory: BurnRow[];
   portfolioHeatMap: HeatRow[];
   topCostOverruns: OverrunRow[];
-  projectList: { id: string; name: string }[];
+  projectList: { id: string; name: string; currency?: string }[];
+  /** Tenant base currency all figures are normalized to (backend-declared). */
+  currency: string;
+  /** Source currencies that lacked a rate and were summed unconverted. */
+  currencyWarnings: string[];
 }
 
 const RAG_HEX: Record<string, string> = {
@@ -101,7 +105,7 @@ const KpiCard: React.FC<{
 }> = ({ label, value, icon, accent, sub, alert }) => (
   <div className={`rounded-lg border bg-gray-800/80 p-4 shadow-elev-sm ${alert ? 'border-red-500/40' : 'border-gray-700/60'}`}>
     <div className="flex items-center justify-between">
-      <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">{label}</span>
+      <span className="text-[11px] font-bold uppercase text-gray-500">{label}</span>
       <span style={{ color: accent }}>{icon}</span>
     </div>
     <p className="mt-2 truncate text-xl font-bold text-white" title={value}>{value}</p>
@@ -148,26 +152,76 @@ const ProjectAnalyticsPage: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedProject, setSelectedProject] = useState('');
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [aiBrief, setAiBrief] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-  const fmt = useCallback((n: number) => convertToDisplay(n), [convertToDisplay]);
-  const fmtShort = useCallback(
-    (n: number) => convertToDisplay(n, false),
-    [convertToDisplay],
+  // All figures arrive normalized to data.currency (tenant base) — convert
+  // from that DECLARED source, never from the display currency.
+  const sourceCurrency = data?.currency || 'USD';
+  const fmt = useCallback(
+    (n: number) => convertToDisplay(n, sourceCurrency),
+    [convertToDisplay, sourceCurrency],
   );
+  const fmtShort = useCallback(
+    (n: number) => {
+      const converted = convertToDisplay(n, sourceCurrency, false);
+      const parsed = parseFloat(converted.replace(/[^0-9.-]/g, ''));
+      return Number.isFinite(parsed) ? parsed.toLocaleString('en-US', { maximumFractionDigits: 0 }) : converted;
+    },
+    [convertToDisplay, sourceCurrency],
+  );
+
+  /**
+   * Normalizes the capex-intelligence payload. The codebase is inconsistent
+   * about envelopes (some controllers wrap in { data }), and error filters
+   * can return truthy non-data shapes — so validate before accepting.
+   */
+  const normalize = (res: any): CapexData | null => {
+    if (!res || typeof res !== 'object') return null;
+    const payload = res.kpis ? res : res.data;
+    if (!payload || typeof payload !== 'object' || !payload.kpis) return null;
+    return {
+      kpis: {
+        totalPortfolioValue: num(payload.kpis.totalPortfolioValue),
+        activeProjects: num(payload.kpis.activeProjects),
+        avgUtilization: num(payload.kpis.avgUtilization),
+        totalBudgeted: num(payload.kpis.totalBudgeted),
+        totalActual: num(payload.kpis.totalActual),
+        totalLpoCommitments: num(payload.kpis.totalLpoCommitments),
+        remainingBudget: num(payload.kpis.remainingBudget),
+      },
+      monthlyBurnByCategory: Array.isArray(payload.monthlyBurnByCategory)
+        ? payload.monthlyBurnByCategory
+        : [],
+      portfolioHeatMap: Array.isArray(payload.portfolioHeatMap) ? payload.portfolioHeatMap : [],
+      topCostOverruns: Array.isArray(payload.topCostOverruns) ? payload.topCostOverruns : [],
+      projectList: Array.isArray(payload.projectList) ? payload.projectList : [],
+      currency: typeof payload.currency === 'string' ? payload.currency.toUpperCase() : 'USD',
+      currencyWarnings: Array.isArray(payload.currencyWarnings) ? payload.currencyWarnings : [],
+    };
+  };
 
   const load = useCallback(
     async (projectId?: string, silent = false) => {
       if (silent) setRefreshing(true);
-      else setLoading(true);
+      else {
+        setLoading(true);
+        setLoadError(null);
+      }
       try {
         const res = await fetchCapexDashboard(projectId || undefined);
-        if (res) {
-          setData(res);
+        const payload = normalize(res);
+        if (payload) {
+          setData(payload);
+          setLoadError(null);
           setFetchedAt(new Date());
+        } else if (res) {
+          // Truthy but wrong shape (envelope drift / filter output) — never crash
+          setLoadError('The analytics service returned an unexpected response shape. Please refresh or contact support.');
         }
+        // res === null: hook already toasted the failure; empty state covers it
       } finally {
         if (silent) setRefreshing(false);
         else setLoading(false);
@@ -189,7 +243,7 @@ const ProjectAnalyticsPage: React.FC = () => {
   // ── Derived: exposure + forecast (linear extrapolation) ────────────────────
 
   const exposure = useMemo(() => {
-    if (!data) return null;
+    if (!data?.kpis) return null;
     const budgeted = num(data.kpis.totalBudgeted);
     const actual = num(data.kpis.totalActual);
     const committed = num(data.kpis.totalLpoCommitments);
@@ -454,6 +508,29 @@ const ProjectAnalyticsPage: React.FC = () => {
     );
   }
 
+  if (loadError) {
+    return (
+      <>
+        <Head><title>Project Analytics | SentinelFi</title></Head>
+        <PageContainer
+          title="Project Analytics"
+          subtitle="Budget vs actuals, commitment exposure, runway forecast and variance per project."
+        >
+          <div className="flex flex-col items-center gap-3 py-16 text-center">
+            <AlertTriangle className="h-10 w-10 text-yellow-500" />
+            <p className="max-w-md text-sm text-gray-300">{loadError}</p>
+            <button
+              onClick={() => load(selectedProject || undefined)}
+              className="tap-target mt-2 flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-xs font-black uppercase text-white transition-all hover:bg-brand-primary/90"
+            >
+              <RefreshCw className="h-3 w-3" /> Retry
+            </button>
+          </div>
+        </PageContainer>
+      </>
+    );
+  }
+
   if (!data || (data.projectList || []).length === 0) {
     return (
       <>
@@ -525,6 +602,17 @@ const ProjectAnalyticsPage: React.FC = () => {
           </div>
         }
       >
+        {/* ── Currency integrity notice ─────────────────────────── */}
+        {(data.currencyWarnings || []).length > 0 && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 text-xs text-yellow-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              No exchange rate for <span className="font-mono font-bold">{data.currencyWarnings.join(', ')}</span> —
+              affected figures are summed unconverted. Treat cross-currency totals as approximate until rates refresh.
+            </span>
+          </div>
+        )}
+
         {/* ── KPI row ─────────────────────────────────────────── */}
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <KpiCard label="Contract Value" value={fmt(num(data.kpis.totalPortfolioValue))} icon={<Briefcase size={16} />} accent="#6366f1" />
@@ -709,7 +797,7 @@ const ProjectAnalyticsPage: React.FC = () => {
             <button
               onClick={handleAiBrief}
               disabled={aiLoading}
-              className="flex items-center gap-1.5 rounded-xl bg-brand-primary px-3 py-1.5 text-xs font-black uppercase tracking-widest text-white transition-all hover:bg-brand-primary/90 disabled:opacity-50"
+              className="tap-target flex items-center gap-1.5 rounded-xl bg-brand-primary px-3 py-1.5 text-xs font-black uppercase text-white transition-all hover:bg-brand-primary/90 disabled:opacity-50"
             >
               <Sparkles className="h-3 w-3" /> {aiLoading ? 'Analyzing…' : aiBrief ? 'Regenerate' : 'Generate'}
             </button>
@@ -728,7 +816,8 @@ const ProjectAnalyticsPage: React.FC = () => {
         {/* ── Audit footer ────────────────────────────────────── */}
         <p className="text-[11px] text-gray-600">
           Source: <span className="font-mono">GET /wbs/capex-intelligence</span>
-          {fetchedAt ? ` · Data as of ${fetchedAt.toLocaleString()}` : ''} · Figures in display currency.
+          {fetchedAt ? ` · Data as of ${fetchedAt.toLocaleString()}` : ''}
+          {` · Figures normalized to ${data.currency} server-side, shown in display currency.`}
         </p>
       </PageContainer>
     </>
