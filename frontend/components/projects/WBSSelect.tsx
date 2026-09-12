@@ -23,8 +23,8 @@ const WBSSelect: React.FC<WBSSelectProps> = ({ projectId, value, onChange, label
       const fetchWBS = async () => {
         setLoading(true);
         try {
-          const response = await api.get<{ wbsBudgets: WbsBudget[] }>(`/wbs/budgets?projectId=${projectId}&limit=100`);
-          setWbsItems(response.data?.wbsBudgets || []);
+          const response = await api.get<{ data: WbsBudget[] }>(`/wbs/budgets?projectId=${projectId}&limit=500`);
+          setWbsItems(response.data?.data || []);
         } catch (err) {
           console.error('Error fetching WBS:', err);
           setWbsItems([]);
@@ -45,7 +45,7 @@ const WBSSelect: React.FC<WBSSelectProps> = ({ projectId, value, onChange, label
 
   return (
     <div className="space-y-1.5 relative">
-      {label && <label className="text-sm font-semibold text-gray-400 uppercase tracking-widest">{label}</label>}
+      {label && <label className="text-sm font-semibold text-gray-400 ">{label}</label>}
 
       <button
         type="button"
@@ -63,7 +63,7 @@ const WBSSelect: React.FC<WBSSelectProps> = ({ projectId, value, onChange, label
       </button>
 
       {isOpen && (
-        <div className="absolute z-20 w-full mt-2 bg-brand-dark border border-gray-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute z-20 w-full mt-2 bg-brand-dark border border-gray-700 rounded-xl elev-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           <div className="p-2 border-b border-gray-700 bg-brand-dark/50">
             <div className="relative">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />

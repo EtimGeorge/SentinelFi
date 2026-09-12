@@ -32,7 +32,7 @@ const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white w-full max-w-5xl h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-white w-full max-w-5xl h-[90vh] rounded-xl elev-lg flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
         <div className="bg-slate-50 px-6 py-4 border-b flex items-center justify-between">
           <div className="flex items-center gap-3">

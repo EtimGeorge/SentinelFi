@@ -108,7 +108,7 @@ const SuperAdminSidebar: React.FC = () => {
     <>
       {/* Mobile Overlay Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 bg-brand-dark text-white shadow-lg z-50 transition-transform duration-300 ease-in-out
+        className={`fixed inset-y-0 left-0 bg-brand-dark text-white elev-lg z-50 transition-transform duration-300 ease-in-out
                     ${isMobileSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'}
                     md:hidden`}
         aria-label="Mobile SuperAdmin Sidebar"
@@ -135,7 +135,7 @@ const SuperAdminSidebar: React.FC = () => {
 
       {/* Desktop Collapsible Sidebar */}
       <aside
-        className={`hidden md:flex flex-col h-screen bg-brand-dark text-gray-300 shadow-lg z-30 transition-all duration-300 ease-in-out
+        className={`hidden md:flex flex-col h-screen bg-brand-dark text-gray-300 elev-lg z-30 transition-all duration-300 ease-in-out
                     ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'}`}
         aria-label="Desktop SuperAdmin Sidebar"
       >

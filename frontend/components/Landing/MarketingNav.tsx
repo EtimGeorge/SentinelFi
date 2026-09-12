@@ -20,7 +20,7 @@ const MarketingNav: React.FC = () => {
   }, []);
 
   const navLinks = [
-    { name: 'Features', href: '/#features' },
+    { name: 'Features', href: '/landing/features' },
     { name: 'Workflows', href: '/landing/workflows' },
     { name: 'Success Stories', href: '/landing/testimonials' },
     { name: 'Pricing', href: '/landing/pricing' },
@@ -39,6 +39,7 @@ const MarketingNav: React.FC = () => {
               src="/SentinelFi Logo Concept-bg-remv-logo-only.png" 
               alt="SentinelFi Logo" 
               fill
+              sizes="(max-width: 768px) 100vw, 200px"
               className="object-contain p-1 group-hover:scale-110 transition-transform duration-500"
             />
             {/* Subtle Glow */}

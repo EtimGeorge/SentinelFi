@@ -210,3 +210,5 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     </CurrencyContext.Provider>
   );
 };
+
+// convertToDisplay is available via useCurrency hook

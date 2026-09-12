@@ -37,7 +37,7 @@ const Input: React.FC<InputProps> = ({
         )}
         <input
           id={inputId}
-          className={`block w-full py-2 border border-gray-600 rounded-lg shadow-sm
+          className={`block w-full py-2.5 border border-gray-600 rounded-lg elev-sm
             focus:outline-none focus:ring-brand-primary focus:border-brand-primary
             bg-brand-dark/50 text-white
             ${icon ? 'pl-10' : 'px-4'} 

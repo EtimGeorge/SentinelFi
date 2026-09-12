@@ -43,7 +43,7 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data, sourceCurrency = 'N
   const spentColor = '#0D9488';
   
   return (
-    <div className="bg-gray-900 p-6 rounded-xl shadow-lg h-[400px] border border-gray-700">
+    <div className="bg-gray-900 p-6 rounded-xl elev-lg h-[400px] border border-gray-700">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={chartData}

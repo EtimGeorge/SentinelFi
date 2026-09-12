@@ -1,36 +1,38 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { globalDeduplicator } from './resilience';
+import { globalDeduplicator, apiCircuitBreaker, smartAbortController, requestLogger } from './resilience';
 
 const BASE_URL = "/api/v1";
 
 /**
  * Handles exponential backoff retry logic for failed requests.
+ * FIX: 500 errors are now retryable with exponential backoff.
  */
 class RetryHandler {
   static readonly MAX_RETRIES = 3;
   private static readonly RETRY_DELAY_MS = 150;
-  private static readonly RETRYABLE_STATUS_CODES = [408, 429, 502, 503, 504];
-  
+  private static readonly RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
+
   static shouldRetry(error: AxiosError, retryCount: number): boolean {
     if (retryCount >= this.MAX_RETRIES) return false;
-    
+
     if (this.isCancellationError(error)) {
       return false;
     }
-    
+
     if (error.response) {
       const { status } = error.response;
-      if (status === 500) {
-        return false;
+      // FIX: 500 is now retryable with exponential backoff
+      if (status >= 500 && this.RETRYABLE_STATUS_CODES.includes(status)) {
+        return true;
       }
       if (status >= 400 && status < 500 && !this.RETRYABLE_STATUS_CODES.includes(status)) {
         return false;
       }
     }
-    
+
     return !error.response || this.RETRYABLE_STATUS_CODES.includes(error.response.status);
   }
-  
+
   static isCancellationError(error: AxiosError): boolean {
     return (
       axios.isCancel(error) ||
@@ -42,7 +44,7 @@ class RetryHandler {
       error.name === 'AbortError'
     );
   }
-  
+
   static getRetryDelay(retryCount: number): number {
     const exponentialDelay = this.RETRY_DELAY_MS * Math.pow(2, retryCount);
     const jitter = Math.random() * 100;
@@ -52,12 +54,12 @@ class RetryHandler {
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 120000, // 2 minutes - allows time for complex operations (project creation, reports)
+  timeout: 120000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
-  validateStatus: (status) => status >= 200 && status < 400,
+  validateStatus: (status) => status >= 200 && status < 500,
 });
 
 declare module 'axios' {
@@ -66,10 +68,10 @@ declare module 'axios' {
     _retryCount?: number;
     _skipRetry?: boolean;
     _deduplicate?: boolean;
+    _skipCircuitBreaker?: boolean;
   }
 }
 
-// Generate correlation ID for request tracing
 const generateCorrelationId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
@@ -77,11 +79,8 @@ const generateCorrelationId = (): string => {
 api.interceptors.request.use(
   (config) => {
     config.metadata = { startTime: Date.now() };
-    
-    // Add correlation ID for request tracing
     const correlationId = generateCorrelationId();
     config.headers['X-Correlation-ID'] = correlationId;
-    
     const fullSource = config.baseURL ? `${config.baseURL}${config.url}` : config.url;
     console.log(`[API] [CID:${correlationId}] → ${config.method?.toUpperCase()} ${fullSource}`);
     return config;
@@ -95,8 +94,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response: AxiosResponse) => {
     const duration = Date.now() - (response.config.metadata?.startTime || 0);
-    const correlationId = response.config.headers['X-Correlation-ID'];
+    const correlationId = response.config.headers?.['X-Correlation-ID'];
     console.log(`[API] [CID:${correlationId}] ✓ ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
+    requestLogger.record(response.config.url || '', duration, true);
     return response;
   },
   async (error: AxiosError) => {
@@ -104,22 +104,23 @@ api.interceptors.response.use(
     if (!config) return Promise.reject(error);
 
     const duration = Date.now() - (config.metadata?.startTime || 0);
-    
-    if (RetryHandler.isCancellationError(error)) {
-       console.debug(`[API] ℹ Request canceled/aborted: ${config.method?.toUpperCase()} ${config.url} (${duration}ms)`);
-       return Promise.reject(error);
-    }
-    
     const correlationId = config.headers?.['X-Correlation-ID'];
+
+    if (RetryHandler.isCancellationError(error)) {
+      console.debug(`[API] ℹ Request canceled/aborted: ${config.method?.toUpperCase()} ${config.url} (${duration}ms)`);
+      requestLogger.record(config.url || '', duration, false);
+      return Promise.reject(error);
+    }
+
     console.error(
       `[API] [CID:${correlationId}] ✗ ${error.response?.status || error.code} ${config.method?.toUpperCase()} ${config.url} (${duration}ms): ${error.message}`
     );
+    requestLogger.record(config.url || '', duration, false);
 
     // ── 402 Subscription Expired — redirect globally ─────────────────────────
     if (error.response?.status === 402) {
       const responseData = error.response.data as any;
       if (responseData?.code === 'SUBSCRIPTION_EXPIRED' && typeof window !== 'undefined') {
-        // Don't redirect if already on the subscription settings page
         if (!window.location.pathname.includes('/settings/subscription')) {
           window.location.href = '/settings/subscription?expired=true';
         }
@@ -136,12 +137,9 @@ api.interceptors.response.use(
         url.includes('/projects?') ||
         url.includes('/dashboard/') ||
         url.includes('/admin/audit-logs');
-      // Downgrade to debug for background pollers to avoid console spam
       if (isBackgroundPoll) {
         console.debug(`[API] 403 suppressed for background poll: ${config.method?.toUpperCase()} ${url}`);
       }
-      // Never retry 403 — it's RBAC/tenant, not transient
-      // Attach flag so callers can show contextual UI without re-triggering
       (error as any)._isForbidden = true;
       return Promise.reject(error);
     }
@@ -151,7 +149,26 @@ api.interceptors.response.use(
     }
 
     config._retryCount = config._retryCount || 0;
-    
+
+    // ── Circuit Breaker Integration ──
+    if (!config._skipCircuitBreaker) {
+      try {
+        return await apiCircuitBreaker.execute(async () => {
+          if (RetryHandler.shouldRetry(error, config._retryCount)) {
+            config._retryCount++;
+            const delay = RetryHandler.getRetryDelay(config._retryCount);
+            console.warn(`[API] Retrying request (${config._retryCount}/${RetryHandler.MAX_RETRIES}) in ${Math.round(delay)}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return api.request(config);
+          }
+          return Promise.reject(error);
+        });
+      } catch (circuitError) {
+        if (circuitError === error) return Promise.reject(error);
+        return Promise.reject(circuitError);
+      }
+    }
+
     if (RetryHandler.shouldRetry(error, config._retryCount)) {
       config._retryCount++;
       const delay = RetryHandler.getRetryDelay(config._retryCount);
@@ -159,7 +176,7 @@ api.interceptors.response.use(
       await new Promise(resolve => setTimeout(resolve, delay));
       return api.request(config);
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -174,16 +191,13 @@ async function apiRequest<T = any>(
   options: { deduplicate?: boolean } = {}
 ): Promise<AxiosResponse<T>> {
   const { deduplicate = true } = options;
-  
+
   if (!deduplicate || config.method?.toUpperCase() !== 'GET') {
     return api.request<T>(config);
   }
-  
+
   const cacheKey = getCacheKey(config);
-  
-  // To prevent RequestDeduplicator race conditions where one component's 
-  // unmount aborts the shared network request for all others, we remove 
-  // the signal from the actual Axios call, but simulate abortion for the caller.
+
   const executeConfig = { ...config };
   const callerSignal = config.signal as AbortSignal | undefined;
   delete executeConfig.signal;
@@ -194,7 +208,6 @@ async function apiRequest<T = any>(
     return sharedPromise;
   }
 
-  // Wrap the shared promise to respect the caller's individual AbortSignal
   return new Promise((resolve, reject) => {
     if (callerSignal.aborted) {
       return reject(new axios.Cancel("canceled"));

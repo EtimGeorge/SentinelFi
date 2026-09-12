@@ -51,7 +51,11 @@ const WBSNode: React.FC<{
 
   // Variance display logic
   const varianceClass = variancePercent <= -10 ? 'text-alert-critical' : (variancePercent > 0 ? 'text-alert-positive' : 'text-gray-400');
-  const varianceIcon = variancePercent <= -10 ? '🔴' : (variancePercent > 0 ? '🟢' : '⚫');
+  const varianceIcon = variancePercent <= -10
+    ? <span className="inline-block h-2 w-2 rounded-full bg-alert-critical shrink-0" aria-label="Over budget" title="Over budget" />
+    : variancePercent > 0
+      ? <span className="inline-block h-2 w-2 rounded-full bg-alert-positive shrink-0" aria-label="Under plan" title="Under plan" />
+      : null;
 
   return (
     <div>
@@ -142,7 +146,7 @@ const WBSHierarchyTree: React.FC<WBSHierarchyTreeProps> = ({ data, onWBSClick, s
   const rootNodes = data.filter(item => !item.parent_wbs_id);
 
   return (
-    <div className="bg-gray-900 rounded-xl shadow-lg overflow-hidden border border-gray-700">
+    <div className="bg-gray-900 rounded-xl elev-lg overflow-hidden border border-gray-700">
 
       {/* Table Header (Grid Layout) */}
       <div className="flex bg-brand-dark/50 text-gray-300 text-xs font-semibold uppercase px-4 py-3 border-b border-gray-700">

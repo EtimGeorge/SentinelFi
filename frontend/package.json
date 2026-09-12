@@ -11,6 +11,7 @@
     "test": "jest --watchAll"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.14.11",
     "axios": "^1.13.6",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.562.0",

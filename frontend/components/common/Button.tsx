@@ -1,8 +1,13 @@
-import React from 'react';
-import { Loader2 } from 'lucide-react';
+import React from "react";
+import { Loader2 } from "lucide-react";
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "danger";
+export type ButtonSize = "sm" | "md" | "lg";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -14,19 +19,24 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const Button: React.FC<ButtonProps> = ({
   className,
   children,
-  variant = 'primary',
-  size = 'md',
+  variant = "primary",
+  size = "md",
   isLoading = false,
   icon,
   ...props
 }) => {
-  const baseStyles = "inline-flex items-center justify-center rounded-md font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyles =
+    "tap-target inline-flex min-w-0 max-w-full items-center justify-center rounded-md font-semibold whitespace-normal break-words focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed";
 
   const variantStyles: Record<ButtonVariant, string> = {
-    primary: "text-white bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary",
-    secondary: "text-gray-300 bg-gray-700 hover:bg-gray-600 focus:ring-gray-500",
-    outline: "text-gray-300 bg-transparent border border-gray-600 hover:bg-gray-800 focus:ring-gray-500",
-    ghost: "text-gray-400 hover:text-white hover:bg-gray-700 focus:ring-gray-600 border-transparent",
+    primary:
+      "text-white bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary",
+    secondary:
+      "text-gray-300 bg-gray-700 hover:bg-gray-600 focus:ring-gray-500",
+    outline:
+      "text-gray-300 bg-transparent border border-gray-600 hover:bg-gray-800 focus:ring-gray-500",
+    ghost:
+      "text-gray-400 hover:text-white hover:bg-gray-700 focus:ring-gray-600 border-transparent",
     danger: "text-white bg-red-600 hover:bg-red-700 focus:ring-red-500",
   };
 

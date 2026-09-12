@@ -63,7 +63,7 @@ const LayoutNav: FC<LayoutNavProps> = ({ toggleSidebar }) => {
           </div>
           <Link
             href="/settings"
-            className="bg-white text-brand-primary px-3 py-0.5 rounded-full hover:bg-gray-100 transition-all font-black uppercase text-[10px] shrink-0"
+            className="bg-white text-brand-primary px-3 py-0.5 rounded-full hover:bg-gray-100 transition-all font-black uppercase text-xs shrink-0"
           >
             Complete Now
           </Link>
@@ -124,7 +124,7 @@ const LayoutNav: FC<LayoutNavProps> = ({ toggleSidebar }) => {
             <button className="relative flex items-center justify-center lg:mx-1 text-gray-400 focus:outline-none hover:text-white transition h-10 w-10 shrink-0">
               <Bell className="h-5 w-5" />
               {unreadNotificationsCount > 0 && (
-                <span className="absolute top-1 right-1 flex items-center justify-center h-3.5 w-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full border border-gray-800">
+                <span className="absolute top-1 right-1 flex items-center justify-center h-3.5 w-3.5 bg-red-500 text-white text-xs font-bold rounded-full border border-gray-800">
                   {unreadNotificationsCount}
                 </span>
               )}
@@ -146,7 +146,7 @@ const LayoutNav: FC<LayoutNavProps> = ({ toggleSidebar }) => {
             {isUserDropdownOpen && (
               <div
                 onMouseLeave={() => setIsUserDropdownOpen(false)}
-                className="absolute right-0 top-11 z-10 w-48 mt-2 overflow-hidden bg-gray-800 border-b-2 border-brand-primary rounded-md shadow-xl"
+                className="absolute right-0 top-11 z-10 w-48 mt-2 overflow-hidden bg-gray-800 border-b-2 border-brand-primary rounded-md elev-lg"
               >
                 <Link
                   href={

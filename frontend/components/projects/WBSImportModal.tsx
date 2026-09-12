@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import { Upload, AlertCircle, CheckCircle2, FileText, X } from 'lucide-react';
@@ -105,7 +105,7 @@ export const WBSImportModal: React.FC<WBSImportModalProps> = ({
           <>
             <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-xl">
               <div className="flex justify-between items-start mb-2">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">CSV / Excel Format Requirements</h4>
+                <h4 className="text-xs font-bold text-gray-400 ">CSV / Excel Format Requirements</h4>
                 <button
                   onClick={() => {
                     const headers = ["WBS Code", "Description", "Unit Cost", "Quantity", "Days", "Parent WBS Code"];
@@ -120,15 +120,15 @@ export const WBSImportModal: React.FC<WBSImportModalProps> = ({
                     link.click();
                     document.body.removeChild(link);
                   }}
-                  className="text-[10px] text-brand-primary hover:underline flex items-center"
+                  className="text-xs text-brand-primary hover:underline flex items-center"
                 >
                   <FileText className="w-3 h-3 mr-1" /> Download Template
                 </button>
               </div>
-              <p className="text-[10px] text-gray-500 mb-3">
+              <p className="text-xs text-gray-500 mb-3">
                 Your file should include these headers: <code className="text-brand-primary">WBS Code</code>, <code className="text-brand-primary">Description</code>, <code className="text-brand-primary">Unit Cost</code>, <code className="text-brand-primary">Quantity</code>, <code className="text-brand-primary">Days</code>.
               </p>
-              <div className="flex items-center space-x-2 text-[10px] text-yellow-500 bg-yellow-900/10 p-2 rounded border border-yellow-900/30">
+              <div className="flex items-center space-x-2 text-xs text-yellow-500 bg-yellow-900/10 p-2 rounded border border-yellow-900/30">
                 <AlertCircle className="w-4 h-4" />
                 <span>Note: Parent relationships are automatically resolved if WBS codes follow a standard hierarchy (e.g., 1.1 is child of 1.0).</span>
               </div>
@@ -178,12 +178,12 @@ export const WBSImportModal: React.FC<WBSImportModalProps> = ({
 
             {importResult.errors.length > 0 && (
               <div className="mt-4">
-                <h4 className="text-xs font-bold text-red-400 uppercase tracking-widest mb-2 flex items-center">
+                <h4 className="text-xs font-bold text-red-400  mb-2 flex items-center">
                   <AlertCircle className="w-4 h-4 mr-1" /> Anomalies ({importResult.errors.length})
                 </h4>
                 <div className="max-h-40 overflow-y-auto bg-red-900/10 border border-red-900/30 rounded-xl p-3">
                   {importResult.errors.map((err, i) => (
-                    <p key={i} className="text-[10px] text-red-400/80 mb-1 font-mono">• {err}</p>
+                    <p key={i} className="text-xs text-red-400/80 mb-1 font-mono">• {err}</p>
                   ))}
                 </div>
               </div>

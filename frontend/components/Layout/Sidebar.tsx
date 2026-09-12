@@ -26,37 +26,51 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
     }
   }, [item, currentPath]);
 
+  const hasActiveChild = item.children?.some(child => currentPath === child.path || currentPath.startsWith(child.path)) ?? false;
+  const parentActive = isActive || hasActiveChild;
+
   if (item.children && item.children.length > 0) {
     return (
       <li key={item.name}>
         <div
-          className={`flex items-center p-3 rounded-xl transition duration-300 cursor-pointer ${isActive ? 'bg-brand-primary/90 text-white shadow-[0_0_15px_rgba(13,148,136,0.3)]' : 'hover:bg-white/5 hover:text-white'
+          className={`relative flex items-center px-2.5 py-2 rounded-lg transition duration-200 cursor-pointer text-[13px] ${parentActive ? 'bg-brand-primary text-white font-semibold shadow-[0_0_12px_rgba(13,148,136,0.4)]' : 'text-gray-400 hover:bg-white/5 hover:text-white font-medium'
             }`}
           onClick={() => setIsExpanded(!isExpanded)} // Toggle expansion
           title={isCollapsed ? item.name : ''}
+          aria-expanded={isExpanded}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsExpanded(!isExpanded); } }}
         >
-          <item.icon className={`${isCollapsed ? 'mx-auto' : 'mr-3'} h-5 w-5 flex-shrink-0`} />
-          <span className={`font-medium whitespace-nowrap overflow-hidden ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+          {parentActive && !isCollapsed && (
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-white" aria-hidden="true" />
+          )}
+          <item.icon className={`${isCollapsed ? 'mx-auto' : 'mr-2.5'} h-4 w-4 flex-shrink-0`} strokeWidth={parentActive ? 2.25 : 2} />
+          <span className={`whitespace-nowrap overflow-hidden ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
             {item.name}
           </span>
-          {!isCollapsed && (isExpanded ? <ChevronUp className="ml-auto h-4 w-4" /> : <ChevronDown className="ml-auto h-4 w-4" />)}
+          {!isCollapsed && (isExpanded ? <ChevronUp className="ml-auto h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0" />)}
         </div>
         {isExpanded && item.children.length > 0 && (
-          <ul className={`ml-4 mt-1 space-y-1 ${isCollapsed ? 'hidden' : 'block'}`}>
-            {item.children.map(child => (
+          <ul className={`ml-3 mt-1 space-y-0.5 border-l border-white/10 pl-2 ${isCollapsed ? 'hidden' : 'block'}`}>
+            {item.children.map(child => {
+              const childActive = currentPath === child.path || currentPath.startsWith(child.path);
+              return (
               <li key={child.name}>
                 <Link
                   href={child.path}
-                  className={`flex items-center p-2 rounded-md transition duration-200 ${currentPath === child.path
-                    ? 'bg-brand-primary text-white'
-                    : 'hover:bg-brand-primary/20'
+                  aria-current={childActive ? 'page' : undefined}
+                  className={`flex items-center px-2 py-1.5 rounded-md transition duration-200 text-xs ${childActive
+                    ? 'bg-brand-primary/20 text-white font-semibold'
+                    : 'text-gray-500 hover:bg-white/5 hover:text-white font-normal'
                     }`}
                 >
-                  <child.icon className="mr-3 h-4 w-4 flex-shrink-0" />
-                  <span className="font-medium whitespace-nowrap overflow-hidden">{child.name}</span>
+                  <child.icon className="mr-2 h-3.5 w-3.5 flex-shrink-0" strokeWidth={childActive ? 2.25 : 2} />
+                  <span className="whitespace-nowrap overflow-hidden truncate">{child.name}</span>
                 </Link>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </li>
@@ -67,14 +81,18 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
     <li>
       <Link
         href={item.path}
-        className={`flex items-center p-3 rounded-xl transition duration-300 ${isActive
-          ? 'bg-brand-primary/90 text-white shadow-[0_0_15px_rgba(13,148,136,0.3)]'
-          : 'hover:bg-white/5 hover:text-white'
+        aria-current={isActive ? 'page' : undefined}
+        className={`relative flex items-center px-2.5 py-2 rounded-lg transition duration-200 text-[13px] ${isActive
+          ? 'bg-brand-primary text-white font-semibold shadow-[0_0_12px_rgba(13,148,136,0.4)]'
+          : 'text-gray-400 hover:bg-white/5 hover:text-white font-medium'
           }`}
         title={isCollapsed ? item.name : ''}
       >
-        <item.icon className={`${isCollapsed ? 'mx-auto' : 'mr-3'} h-5 w-5 flex-shrink-0`} />
-        <span className={`font-medium whitespace-nowrap overflow-hidden ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+        {isActive && !isCollapsed && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-white" aria-hidden="true" />
+        )}
+        <item.icon className={`${isCollapsed ? 'mx-auto' : 'mr-2.5'} h-4 w-4 flex-shrink-0`} strokeWidth={isActive ? 2.25 : 2} />
+        <span className={`whitespace-nowrap overflow-hidden ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
           {item.name}
         </span>
       </Link>
@@ -190,7 +208,7 @@ const Sidebar: React.FC = () => {
     <>
       {/* Mobile Overlay Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 bg-brand-dark/95 backdrop-blur-3xl border-r border-white/5 text-white shadow-2xl z-[60] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
+        className={`fixed inset-y-0 left-0 bg-brand-dark/95 backdrop-blur-3xl border-r border-white/5 text-white elev-lg z-[60] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
                     ${isMobileSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'}
                     md:hidden`}
         aria-label="Mobile Sidebar"
@@ -206,7 +224,7 @@ const Sidebar: React.FC = () => {
                   alt="SentinelFi Logo" 
                   fill
                   sizes="40px"
-                  className="object-contain p-1 shadow-2xl"
+                  className="object-contain p-1 elev-lg"
                 />
               </div>
               <span className="text-xl font-black tracking-tighter text-white uppercase font-sora">
@@ -231,12 +249,12 @@ const Sidebar: React.FC = () => {
           {/* Workspace context (project + currency) — mobile drawer only; desktop keeps header pickers */}
           <div className="flex-shrink-0 mt-auto pt-4 border-t border-brand-primary/30 md:hidden">
             <div className="flex items-center gap-3 mb-3" aria-hidden="true">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Workspace</span>
+              <span className="text-xs font-bold  text-gray-500 whitespace-nowrap">Workspace</span>
               <span className="h-px flex-1 bg-white/10" />
             </div>
             <div className="space-y-2">
               <label className="block">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Active Project</span>
+                <span className="text-xs font-bold  text-gray-500">Active Project</span>
                 <select
                   value={selectedProjectId}
                   onChange={(e) => { setSelectedProjectId(e.target.value); closeMobileSidebar(); }}
@@ -252,7 +270,7 @@ const Sidebar: React.FC = () => {
                 </select>
               </label>
               <label className="block">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">Currency</span>
+                <span className="text-xs font-bold  text-gray-500">Currency</span>
                 <select
                   value={userCurrency?.code || ''}
                   onChange={(e) => { setUserCurrencyCode(e.target.value); closeMobileSidebar(); }}
@@ -274,14 +292,14 @@ const Sidebar: React.FC = () => {
       {/* Desktop Collapsible Sidebar */}
       <aside
         className={`hidden md:flex flex-col h-screen bg-brand-dark/90 backdrop-blur-2xl border-r border-white/5 text-gray-300 shadow-[20px_0_40px_rgba(0,0,0,0.2)] z-30 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
-                    ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'}`}
+                    ${isDesktopSidebarCollapsed ? 'w-14' : 'w-52'}`}
         aria-label="Desktop Sidebar"
       >
         <div className="flex flex-col h-full w-full p-4">
           <div className={`flex-shrink-0 mb-8 mt-2 flex flex-col items-center ${isDesktopSidebarCollapsed ? 'justify-center' : ''}`}>
             {!isDesktopSidebarCollapsed && (
               <div className="flex items-center gap-3 animate-in fade-in duration-500">
-                <div className="relative w-10 h-10 p-1.5 bg-brand-darker border border-white/10 rounded-xl transition-all duration-500 hover:border-brand-primary/50 shadow-2xl">
+                <div className="relative w-10 h-10 p-1.5 bg-brand-darker border border-white/10 rounded-xl transition-all duration-500 hover:border-brand-primary/50 elev-lg">
                   <Image 
                     src="/SentinelFi Logo Concept-bg-remv-logo-only.png" 
                     alt="SentinelFi Logo" 

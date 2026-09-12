@@ -55,8 +55,8 @@ const ApprovalImpactAnalysis: React.FC<ApprovalImpactAnalysisProps> = ({ data, c
         </div>
         <div className="flex-1">
           <div className="flex justify-between items-center mb-1">
-            <h3 className="font-black uppercase text-xs tracking-widest">Decision Support Analysis</h3>
-            <span className="font-black text-[10px] bg-black/40 px-2 py-0.5 rounded uppercase">{data.riskLevel} RISK</span>
+            <h3 className="font-black uppercase text-xs ">Decision Support Analysis</h3>
+            <span className="font-black text-xs bg-black/40 px-2 py-0.5 rounded uppercase">{data.riskLevel} RISK</span>
           </div>
           <p className="text-sm font-bold opacity-90">
             {data.riskLevel === 'CRITICAL'
@@ -70,7 +70,7 @@ const ApprovalImpactAnalysis: React.FC<ApprovalImpactAnalysisProps> = ({ data, c
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Core Metrics */}
-        <Card title="Financial Context" borderTopColor="primary" className="bg-brand-dark/20">
+        <Card title="Financial Context" accent="primary" className="bg-brand-dark/20">
           <div className="space-y-4">
             <div className="flex justify-between text-xs">
               <span className="text-gray-500 font-bold uppercase">Contract Value</span>
@@ -85,11 +85,11 @@ const ApprovalImpactAnalysis: React.FC<ApprovalImpactAnalysisProps> = ({ data, c
 
             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-800">
               <div>
-                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Cumulative Approved</p>
+                <p className="text-xs text-gray-500 uppercase font-black mb-1">Cumulative Approved</p>
                 <p className="text-sm font-bold text-gray-300">{formatCurrency(data.totalApprovedAmount, currency)}</p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] text-gray-500 uppercase font-black mb-1">Impact of this Draft</p>
+                <p className="text-xs text-gray-500 uppercase font-black mb-1">Impact of this Draft</p>
                 <p className="text-sm font-bold text-brand-primary">+{formatCurrency(data.draftAmount, currency)}</p>
               </div>
             </div>
@@ -97,7 +97,7 @@ const ApprovalImpactAnalysis: React.FC<ApprovalImpactAnalysisProps> = ({ data, c
         </Card>
 
         {/* Intelligence / Historical Factors */}
-        <Card title="Risk Intelligence" borderTopColor="alert" className="bg-brand-dark/20">
+        <Card title="Risk Intelligence" accent="alert" className="bg-brand-dark/20">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gray-800 rounded-lg">
@@ -105,7 +105,7 @@ const ApprovalImpactAnalysis: React.FC<ApprovalImpactAnalysisProps> = ({ data, c
               </div>
               <div>
                 <p className="text-xs font-bold text-gray-200">Historical Volatility</p>
-                <p className="text-[10px] text-gray-500 uppercase font-black">
+                <p className="text-xs text-gray-500 uppercase font-black">
                   {data.previousRejectionsCount > 0
                     ? `${data.previousRejectionsCount} Prev. Rejection(s) Detected`
                     : 'Stable Revision History'}
@@ -119,7 +119,7 @@ const ApprovalImpactAnalysis: React.FC<ApprovalImpactAnalysisProps> = ({ data, c
               </div>
               <div>
                 <p className="text-xs font-bold text-gray-200">Volatility Score: {data.volatilityScore}</p>
-                <p className="text-[10px] text-gray-500 uppercase font-black">Rating: {data.volatilityScore > 50 ? 'High Activity' : 'Low Activity'}</p>
+                <p className="text-xs text-gray-500 uppercase font-black">Rating: {data.volatilityScore > 50 ? 'High Activity' : 'Low Activity'}</p>
               </div>
             </div>
 
@@ -130,7 +130,7 @@ const ApprovalImpactAnalysis: React.FC<ApprovalImpactAnalysisProps> = ({ data, c
                   {formatCurrency(data.estimatedVatImpact + data.estimatedWhtImpact, currency)}
                 </span>
               </div>
-              <p className="text-[9px] text-gray-600 mt-1 italic uppercase">Includes VAT and WHT impact on cashflow</p>
+              <p className="text-xs text-gray-600 mt-1 italic uppercase">Includes VAT and WHT impact on cashflow</p>
             </div>
           </div>
         </Card>

@@ -83,8 +83,8 @@ export const WBSApplyTemplateModal: React.FC<WBSApplyTemplateModalProps> = ({
     >
       <div className="space-y-4">
         <div className="p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-xl mb-4">
-          <p className="text-xs text-brand-primary font-bold uppercase tracking-widest">Select Project Structure</p>
-          <p className="text-[10px] text-gray-500 mt-1">Applying a template will bulk-add a set of pre-defined WBS nodes to this project. Existing nodes will NOT be deleted.</p>
+          <p className="text-xs text-brand-primary font-bold ">Select Project Structure</p>
+          <p className="text-xs text-gray-500 mt-1">Applying a template will bulk-add a set of pre-defined WBS nodes to this project. Existing nodes will NOT be deleted.</p>
         </div>
 
         {isLoading ? (
@@ -112,7 +112,7 @@ export const WBSApplyTemplateModal: React.FC<WBSApplyTemplateModalProps> = ({
                   </div>
                   <div>
                     <div className="text-sm font-bold text-white">{template.name}</div>
-                    <div className="text-[10px] text-gray-500 font-mono tracking-wider">{template.industry} • {template.structure.length} items</div>
+                    <div className="text-xs text-gray-500 font-mono r">{template.industry} • {template.structure.length} items</div>
                   </div>
                 </div>
                 {selectedTemplateId === template.id && (

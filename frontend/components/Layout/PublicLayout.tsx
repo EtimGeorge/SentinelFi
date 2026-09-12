@@ -21,6 +21,7 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
                   src="/SentinelFi Logo Concept-bg-remv-logo-only.png" 
                   alt="SentinelFi Logo" 
                   fill
+                  sizes="(max-width: 768px) 100vw, 200px"
                   className="object-contain p-1"
                 />
               </div>

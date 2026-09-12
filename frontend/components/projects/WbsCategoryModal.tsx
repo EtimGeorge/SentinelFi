@@ -187,7 +187,7 @@ export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
                     {cat.name}
                   </span>
                   {isInactive && (
-                    <span className="text-[9px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wider flex-shrink-0">
+                    <span className="text-xs bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded-full font-medium r flex-shrink-0">
                       Inactive
                     </span>
                   )}
@@ -239,12 +239,12 @@ export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
           </p>
 
           {/* Creation Form */}
-          <div className="bg-gradient-to-br from-gray-800/60 to-gray-800/30 border border-gray-700/50 rounded-xl p-4 space-y-3">
+          <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 space-y-3">
             <div className="flex items-center space-x-2">
               <FolderPlus className="w-4 h-4 text-brand-primary" />
-              <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Create Category</h4>
+              <h4 className="text-xs font-bold text-gray-400 ">Create Category</h4>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 placeholder="Category Name *"
                 value={newCat.name}
@@ -283,10 +283,10 @@ export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
           {/* Existing Hierarchy */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Existing Hierarchy</h4>
+              <h4 className="text-xs font-bold text-gray-400 ">Existing Hierarchy</h4>
               <button
                 onClick={() => setShowInactive(!showInactive)}
-                className={`flex items-center space-x-1.5 text-[10px] font-medium px-2 py-1 rounded-full transition ${showInactive
+                className={`flex items-center space-x-1.5 text-xs font-medium px-2 py-1 rounded-full transition ${showInactive
                     ? 'bg-amber-900/20 text-amber-400 border border-amber-800/30'
                     : 'bg-gray-800/40 text-gray-500 border border-gray-700/40 hover:text-gray-300'
                   }`}
@@ -301,7 +301,7 @@ export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
                 <div className="text-center py-12 space-y-2">
                   <Tag className="w-8 h-8 text-gray-600 mx-auto" />
                   <p className="text-xs text-gray-500">No categories defined yet.</p>
-                  <p className="text-[10px] text-gray-600">Create your first top-level category above.</p>
+                  <p className="text-xs text-gray-600">Create your first top-level category above.</p>
                 </div>
               )}
             </div>

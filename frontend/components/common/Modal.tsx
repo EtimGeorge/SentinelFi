@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -8,6 +8,7 @@ interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+  hideCloseButton?: boolean;
 }
 
 const Modal: React.FC<ModalProps> = ({ 
@@ -16,18 +17,26 @@ const Modal: React.FC<ModalProps> = ({
   title, 
   children, 
   footer, 
-  size = 'md' 
+  size = 'md',
+  hideCloseButton = false
 }) => {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
+      closeButtonRef.current?.focus();
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+      };
+      document.addEventListener('keydown', onKey);
+      return () => {
+        document.removeEventListener('keydown', onKey);
+        document.body.style.overflow = 'unset';
+      };
     }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+    document.body.style.overflow = 'unset';
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -43,18 +52,25 @@ const Modal: React.FC<ModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
       <div 
-        className={`w-full ${sizeClasses[size]} bg-brand-dark border border-gray-700 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`w-full ${sizeClasses[size]} bg-brand-dark border border-gray-700 rounded-2xl elev-lg flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-brand-dark/50">
           <h3 className="text-xl font-bold text-white tracking-tight">{title}</h3>
-          <button 
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {!hideCloseButton && (
+            <button 
+              ref={closeButtonRef}
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Content */}

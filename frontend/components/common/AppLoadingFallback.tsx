@@ -32,7 +32,7 @@ const AppLoadingFallback: React.FC<AppLoadingFallbackProps> = ({ message, isAuth
           ></path>
         </svg>
       </div>
-      <h2 className="text-xl font-semibold mb-2 tracking-wider">
+      <h2 className="text-xl font-semibold mb-2 r">
         {message || defaultMessage}
       </h2>
       <p className="text-sm text-gray-500">

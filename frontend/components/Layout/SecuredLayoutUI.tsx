@@ -2,10 +2,12 @@ import React from "react";
 import { useRouter } from "next/router";
 import LayoutNav from "./LayoutNav";
 import Sidebar from "./Sidebar";
+import BottomTabBar from "./BottomTabBar";
 import useUIStore from "../../store/uiStore";
 import SessionTimeoutWarning from "../auth/SessionTimeoutWarning";
 import Breadcrumbs from "../common/Breadcrumbs";
 import ChatWidget from "../messaging/ChatWidget";
+import FreeTierAdBanner from "../ads/FreeTierAdBanner";
 import { useAuth } from "../context/AuthContext";
 import { TourOverlay } from "../tutorial/TourOverlay";
 import { TutorialFab } from "../tutorial/TutorialFab";
@@ -64,9 +66,13 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children, t
           <div className="print:hidden">
             <LayoutNav toggleSidebar={toggleMobileSidebar} />
           </div>
-          <main className="flex-1 p-4 sm:p-6 overflow-y-auto print:p-0 print:overflow-visible print:block">
+          <main className="flex-1 p-4 sm:p-6 overflow-y-auto print:p-0 print:overflow-visible print:block pb-20 md:pb-0">
             <div className="print:hidden">
               <Breadcrumbs />
+            </div>
+            {/* Free-tier monetization slot — self-hides for paid/trial tenants */}
+            <div className="print:hidden">
+              <FreeTierAdBanner />
             </div>
             {children}
           </main>
@@ -74,6 +80,7 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children, t
 
         <SessionTimeoutWarning />
         <ChatWidget />
+        <BottomTabBar />
 
         {/* ── Tutorial System ───────────────────────────────────────── */}
         <TourOverlay />

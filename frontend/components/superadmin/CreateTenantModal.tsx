@@ -50,7 +50,7 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-brand-dark border border-gray-700 rounded-lg shadow-xl max-w-lg w-full p-6 relative">
+      <div className="bg-brand-dark border border-gray-700 rounded-lg elev-lg max-w-lg w-full p-6 relative">
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
           <X className="w-5 h-5" />
         </button>

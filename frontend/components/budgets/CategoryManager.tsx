@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useSecuredApi } from '../hooks/useSecuredApi';
 import Card from '../common/Card';
 import Button from '../common/Button';
@@ -55,7 +55,7 @@ const CategoryManager: React.FC = () => {
   };
 
   return (
-    <Card title="Budget Categories" subtitle="Manage expense categories for your organization." borderTopColor="secondary">
+    <Card title="Budget Categories" subtitle="Manage expense categories for your organization." accent="secondary">
       <div className="space-y-6">
         {/* Add New */}
         <div className="flex gap-2 items-end bg-gray-800/50 p-4 rounded-lg border border-gray-700">
@@ -89,7 +89,7 @@ const CategoryManager: React.FC = () => {
                 <Tag className="w-3 h-3" />
                 <span className="text-sm font-medium">{cat.name}</span>
               </div>
-              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-gray-900 border border-gray-700">
+              <span className="text-xs uppercase font-bold px-2 py-0.5 rounded bg-gray-900 border border-gray-700">
                 {cat.is_system_default ? 'System' : 'Custom'}
               </span>
             </div>

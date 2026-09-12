@@ -113,7 +113,7 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, enabled = true, po
     <div
       ref={tooltipRef}
       style={{ top: coords.top, left: coords.left }}
-      className="fixed z-[99999] px-3 py-2 text-xs font-bold text-white bg-slate-800 rounded-lg shadow-xl whitespace-nowrap animate-in fade-in zoom-in-95 duration-200 pointer-events-none"
+      className="fixed z-[99999] px-3 py-2 text-xs font-bold text-white bg-slate-800 rounded-lg elev-lg whitespace-nowrap animate-in fade-in zoom-in-95 duration-200 pointer-events-none"
       role="tooltip"
     >
       {content}

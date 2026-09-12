@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Search, Filter, X, Calendar, DollarSign, Tag, ChevronDown } from 'lucide-react';
 
 interface FilterOption {
@@ -76,7 +76,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ onFilterChange, filters: filterOp
             <Filter className="h-4 w-4" />
             Filters
             {Object.keys(activeFilters).length > 0 && (
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-brand-primary text-white text-[10px] font-black">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-brand-primary text-white text-xs font-black">
                 {Object.keys(activeFilters).length}
               </span>
             )}
@@ -100,7 +100,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ onFilterChange, filters: filterOp
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {filterOptions.map((opt) => (
               <div key={opt.key} className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <label className="text-xs font-black text-slate-500  flex items-center gap-2">
                   {opt.type === 'date' && <Calendar className="w-3 h-3" />}
                   {opt.type === 'number' && <DollarSign className="w-3 h-3" />}
                   {opt.type === 'select' && <Tag className="w-3 h-3" />}

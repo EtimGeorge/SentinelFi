@@ -161,14 +161,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         <Tooltip content="Open Messages" position="left">
           <button
             onClick={() => setIsOpen(true)}
-            className="w-14 h-14 bg-brand-primary rounded-2xl flex items-center justify-center text-white shadow-2xl hover:bg-brand-primary/90 hover:scale-105 transition-all outline-none focus:ring-4 focus:ring-brand-primary/30 group"
+            className="w-14 h-14 bg-brand-primary rounded-2xl flex items-center justify-center text-white elev-lg hover:bg-brand-primary/90 hover:scale-105 transition-all outline-none focus:ring-4 focus:ring-brand-primary/30 group"
           >
             <MessageCircle className="w-6 h-6 group-hover:animate-pulse" />
-            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white shadow-sm"></span>
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white elev-sm"></span>
           </button>
         </Tooltip>
       ) : (
-        <div className="flex flex-col w-[360px] max-h-[calc(100vh-100px)] h-[580px] bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden transform origin-bottom-right transition-all">
+        <div className="flex flex-col w-[min(360px,calc(100vw-48px))] max-h-[calc(100vh-100px)] h-[min(580px,calc(100dvh-100px))] bg-white border border-slate-200 rounded-3xl elev-lg overflow-hidden transform origin-bottom-right transition-all">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white z-10">
             <div className="flex items-center gap-3">
@@ -180,7 +180,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   <ArrowLeft className="w-4 h-4" />
                 </button>
               )}
-              <span className="font-black tracking-widest text-[10px] uppercase">
+              <span className="font-black  text-xs uppercase">
                 {viewMode === 'CONVERSATIONS' ? 'Messages' : viewMode === 'DIRECTORY' ? 'New Message' : getChatTitle()}
               </span>
             </div>
@@ -223,18 +223,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                         <button 
                           key={conv.id}
                           onClick={() => openConversation(conv.id)}
-                          className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all group ${activeConversationId === conv.id ? 'bg-white shadow-sm ring-1 ring-slate-100' : 'hover:bg-slate-100'}`}
+                          className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all group ${activeConversationId === conv.id ? 'bg-white elev-sm ring-1 ring-slate-100' : 'hover:bg-slate-100'}`}
                         >
                           <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isGroup ? 'bg-indigo-100 text-indigo-600' : 'bg-brand-primary/10 text-brand-primary'}`}>
                             {isGroup ? <Users className="w-5 h-5" /> : name?.[0]}
                           </div>
                           <div className="flex-1 text-left min-w-0">
                             <p className="text-xs font-bold text-slate-900 truncate group-hover:text-brand-primary transition-colors">{name}</p>
-                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                            <p className="text-xs text-slate-400 truncate mt-0.5">
                               {conv.type === 'GROUP' ? `${conv.members.length} members` : 'Direct Message'}
                             </p>
                           </div>
-                          <div className="text-[9px] text-slate-300 font-medium">
+                          <div className="text-xs text-slate-300 font-medium">
                             {new Date(conv.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </button>
@@ -246,7 +246,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                       <p className="text-xs text-slate-500 font-medium">No conversations yet.</p>
                       <button 
                         onClick={() => { setViewMode('DIRECTORY'); fetchDirectory(); }}
-                        className="mt-4 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:underline"
+                        className="mt-4 text-xs font-black  text-brand-primary hover:underline"
                       >
                         Start a chat
                       </button>
@@ -273,12 +273,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   
                   {selectedUserIds.length > 0 && (
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                      <p className="text-xs font-bold text-slate-500 ">
                         {selectedUserIds.length} users selected
                       </p>
                       <button 
                         onClick={handleGroupCreate}
-                        className="px-3 py-1.5 bg-brand-primary text-white text-[10px] font-black uppercase rounded-lg shadow-lg shadow-brand-primary/20 hover:scale-105 transition-all"
+                        className="px-3 py-1.5 bg-brand-primary text-white text-xs font-black uppercase rounded-lg elev-lg shadow-brand-primary/20 hover:scale-105 transition-all"
                       >
                         Create {selectedUserIds.length > 1 ? 'Group' : 'Chat'}
                       </button>
@@ -305,7 +305,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                               </div>
                               <div className="text-left">
                                 <p className={`text-xs font-bold transition-colors ${isSelected ? 'text-brand-primary' : 'text-slate-900 group-hover:text-brand-primary'}`}>{member.first_name} {member.last_name}</p>
-                                <p className="text-[10px] text-slate-500">{member.role || 'Team Member'}</p>
+                                <p className="text-xs text-slate-500">{member.role || 'Team Member'}</p>
                               </div>
                             </div>
                             {isSelected ? (
@@ -333,8 +333,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                       <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
                          <MessageCircle className="w-8 h-8" />
                       </div>
-                      <p className="text-xs font-bold text-slate-900 uppercase tracking-widest">End-to-End Secure</p>
-                      <p className="text-[10px] text-slate-500 leading-relaxed font-medium">Messages are only visible to<br/>members of this conversation.</p>
+                      <p className="text-xs font-bold text-slate-900 ">End-to-End Secure</p>
+                      <p className="text-xs text-slate-500 leading-relaxed font-medium">Messages are only visible to<br/>members of this conversation.</p>
                     </div>
                   ) : (
                     messages.map((msg: Message, idx) => {
@@ -344,7 +344,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                       return (
                         <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                           {showAvatar ? (
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-black uppercase shrink-0 shadow-sm ${isMe ? 'bg-brand-primary text-white' : 'bg-white text-slate-600 border border-slate-100'}`}>
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black uppercase shrink-0 elev-sm ${isMe ? 'bg-brand-primary text-white' : 'bg-white text-slate-600 border border-slate-100'}`}>
                               {isMe ? 'ME' : msg.sender?.first_name?.[0] || '?'}
                             </div>
                           ) : (
@@ -352,12 +352,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                           )}
                           <div className={`group relative flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                             {showAvatar && !isMe && activeConversation?.type === 'GROUP' && (
-                              <span className="text-[9px] font-bold text-slate-400 mb-1 ml-1">{msg.sender?.first_name} {msg.sender?.last_name}</span>
+                              <span className="text-xs font-bold text-slate-400 mb-1 ml-1">{msg.sender?.first_name} {msg.sender?.last_name}</span>
                             )}
-                            <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-xs shadow-sm shadow-slate-200/50 transition-all ${isMe ? 'bg-slate-900 text-white rounded-br-none' : 'bg-white border border-slate-100 text-slate-700 rounded-bl-none'}`}>
+                            <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-xs elev-sm shadow-slate-200/50 transition-all ${isMe ? 'bg-slate-900 text-white rounded-br-none' : 'bg-white border border-slate-100 text-slate-700 rounded-bl-none'}`}>
                               {msg.content}
                             </div>
-                            <span className="text-[8px] text-slate-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-xs text-slate-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
@@ -380,7 +380,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     <button
                       onClick={handleSend}
                       disabled={!isConnected || !inputValue.trim()}
-                      className="absolute right-2 p-2.5 bg-brand-primary text-white rounded-xl shadow-lg shadow-brand-primary/20 hover:bg-brand-primary/90 disabled:opacity-20 disabled:shadow-none transition-all group"
+                      className="absolute right-2 p-2.5 bg-brand-primary text-white rounded-xl elev-lg shadow-brand-primary/20 hover:bg-brand-primary/90 disabled:opacity-20 disabled:shadow-none transition-all group"
                     >
                       <Send className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </button>
@@ -388,7 +388,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   {!isConnected && (
                     <div className="flex items-center justify-center gap-1.5 mt-3 animate-pulse">
                       <div className="w-1 h-1 bg-red-500 rounded-full" />
-                      <p className="text-[9px] text-red-500 font-black uppercase tracking-widest">Reconnecting to server...</p>
+                      <p className="text-xs text-red-500 font-black ">Reconnecting to server...</p>
                     </div>
                   )}
                 </div>

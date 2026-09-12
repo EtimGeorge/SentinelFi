@@ -1,6 +1,6 @@
 // frontend/components/guards/RouteGuard.tsx
 import { useRouter } from 'next/router';
-import { useAuth, Role, PUBLIC_ROUTES, ROLE_ROUTES, AuthLogger } from '../context/AuthContext';
+import { useAuth, Role, PUBLIC_ROUTES, ROLE_ROUTES, ROLE_CONFIG, AuthLogger } from '../context/AuthContext';
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 
 // ============================================================================
@@ -30,7 +30,7 @@ const AuthErrorScreen = ({ error, onRetry }: { error: Error; onRetry: () => void
         <div className="flex flex-col gap-3">
           <button
             onClick={onRetry}
-            className="w-full bg-brand-primary hover:bg-brand-primary/80 text-white font-bold py-3 px-6 rounded-lg transition-all shadow-lg flex items-center justify-center gap-2"
+            className="w-full bg-brand-primary hover:bg-brand-primary/80 text-white font-bold py-3 px-6 rounded-lg transition-all elev-lg flex items-center justify-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -210,7 +210,7 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
         return;
       }
 
-      // 3. Role-Based Access Control (Synchronous) — FIX P0-01: enforce tenant vs super boundaries
+      // 3. Role-Based Access Control — enforce role-specific visible routes
       const getRoleName = (r: any): string | undefined => {
         return typeof r === 'string' ? r : r?.name;
       };
@@ -234,6 +234,25 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
         AuthLogger.warn(`[RouteGuard] Non-AdminDirector blocked from ${currentPath}`);
         await router.replace(getDefaultRoute());
         return;
+      }
+
+      // Role-specific route visibility check
+      const primaryRole = getRoleName(user.roles[0]) as Role;
+      if (primaryRole && primaryRole !== Role.SuperAdmin) {
+        const roleConfig = ROLE_CONFIG[primaryRole];
+        if (roleConfig) {
+          const cleanPath = currentPath.split('?')[0];
+          const isVisible = roleConfig.visible.some(route => {
+            const routeClean = route.split('?')[0];
+            return cleanPath === routeClean || cleanPath.startsWith(routeClean + '/');
+          });
+          
+          if (!isVisible) {
+            AuthLogger.warn(`[RouteGuard] Role ${primaryRole} not authorized for ${currentPath}, redirecting to ${roleConfig.defaultRoute}`);
+            await router.replace(roleConfig.defaultRoute);
+            return;
+          }
+        }
       }
 
       // Access Granted

@@ -131,7 +131,7 @@ const Breadcrumbs: React.FC = () => {
 
                 {openDropdown === crumb.path && crumb.item?.children && (
                   <div
-                    className="absolute top-full left-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-1"
+                    className="absolute top-full left-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg elev-lg z-50 p-1"
                     onMouseLeave={() => setOpenDropdown(null)}
                   >
                     {crumb.item.children.map(child => (

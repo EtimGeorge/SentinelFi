@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import Card from '../common/Card';
 import { X, ExternalLink, MessageSquare, Send, Loader2 } from 'lucide-react';
 import { useSecuredApi } from '../hooks/useSecuredApi';
@@ -75,7 +75,7 @@ const WBSDetailModal: React.FC<WBSDetailModalProps> = ({ isOpen, onClose, wbsId,
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <Card title={`WBS Details: ${wbsCode}`} borderTopColor="primary" className="w-full max-w-3xl relative">
+      <Card title={`WBS Details: ${wbsCode}`} accent="primary" className="w-full max-w-3xl relative">
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
           <X className="w-5 h-5" />
         </button>
@@ -117,10 +117,10 @@ const WBSDetailModal: React.FC<WBSDetailModalProps> = ({ isOpen, onClose, wbsId,
                   <div key={note.id} className="bg-gray-800/80 p-3 rounded-lg border-l-2 border-brand-primary">
                     <p className="text-sm text-gray-200">{note.content}</p>
                     <div className="flex justify-between items-center mt-2">
-                      <span className="text-[10px] text-brand-primary uppercase font-bold">
+                      <span className="text-xs text-brand-primary uppercase font-bold">
                         {note.author.first_name} {note.author.last_name}
                       </span>
-                      <span className="text-[10px] text-gray-500 italic">
+                      <span className="text-xs text-gray-500 italic">
                         {format(new Date(note.created_at), 'MMM d, yyyy HH:mm')}
                       </span>
                     </div>

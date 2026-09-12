@@ -68,7 +68,7 @@ const PlanningGrid: React.FC<PlanningGridProps> = ({ coa, departments, fiscalYea
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block">Scenario Modeling</span>
+                <span className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] block">Scenario Modeling</span>
                 <Tooltip content="Instantly adjust all active planning rows by a specific percentage to model different fiscal outcomes.">
                   <HelpCircle className="w-3 h-3 text-slate-600 hover:text-blue-400 transition" />
                 </Tooltip>
@@ -83,13 +83,13 @@ const PlanningGrid: React.FC<PlanningGridProps> = ({ coa, departments, fiscalYea
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-1.5 shadow-inner">
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Cost Center</span>
+                <span className="text-xs font-black text-slate-600 ">Cost Center</span>
                 <Tooltip content="Select a specific business unit or department to view and manage its unique budget allocations.">
                   <HelpCircle className="w-3 h-3 text-slate-600 hover:text-blue-400 transition cursor-help" />
                 </Tooltip>
               </div>
               <select
-                className="bg-transparent border-none text-[10px] font-black text-white outline-none focus:ring-0 cursor-pointer p-0"
+                className="bg-transparent border-none text-xs font-black text-white outline-none focus:ring-0 cursor-pointer p-0"
                 value={selectedDeptId}
                 onChange={(e) => setSelectedDeptId(e.target.value)}
               >
@@ -111,7 +111,7 @@ const PlanningGrid: React.FC<PlanningGridProps> = ({ coa, departments, fiscalYea
               className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs font-black text-white w-20 outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="0"
             />
-            <span className="absolute right-3 top-1.5 text-slate-600 text-[10px] font-black">%</span>
+            <span className="absolute right-3 top-1.5 text-slate-600 text-xs font-black">%</span>
           </div>
           <button
             onClick={() => applyScenario('UP')}
@@ -141,18 +141,18 @@ const PlanningGrid: React.FC<PlanningGridProps> = ({ coa, departments, fiscalYea
         <div className="min-w-[1500px]">
           {/* Table Header */}
           <div className="flex bg-slate-950 border-b border-slate-800 sticky top-0 z-10">
-            <div className="w-[350px] px-6 py-4 font-black text-[9px] uppercase text-slate-500 tracking-[0.2em] border-r border-white/5 flex items-center gap-2">
+            <div className="w-[350px] px-6 py-4 font-black text-xs uppercase text-slate-500 tracking-[0.2em] border-r border-white/5 flex items-center gap-2">
               Account Architecture
               <Tooltip content="Hierarchical structure of your General Ledger accounts, from Asset Classes to specific GL codes.">
                 <Info size={12} className="text-slate-700 hover:text-slate-400" />
               </Tooltip>
             </div>
             {periods.map((p: any) => (
-              <div key={p.id} className="flex-1 px-4 py-4 font-black text-[9px] uppercase text-slate-500 text-center border-r border-white/5 tracking-tighter">
+              <div key={p.id} className="flex-1 px-4 py-4 font-black text-xs uppercase text-slate-500 text-center border-r border-white/5 tracking-tighter">
                 {p.period_name}
               </div>
             ))}
-            <div className="w-[180px] px-6 py-4 font-black text-[9px] uppercase text-blue-500 text-right bg-blue-500/5 tracking-[0.2em] flex items-center justify-end gap-2">
+            <div className="w-[180px] px-6 py-4 font-black text-xs uppercase text-blue-500 text-right bg-blue-500/5 tracking-[0.2em] flex items-center justify-end gap-2">
               <Tooltip content="Aggregated total projected expenditure across all fiscal periods for this GL account." position="left">
                 <Info size={12} className="text-blue-500/40" />
               </Tooltip>
@@ -192,7 +192,7 @@ const PlanningGrid: React.FC<PlanningGridProps> = ({ coa, departments, fiscalYea
                         <div className="w-4 h-4 rounded bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-500 group-hover:text-blue-400 transition">
                           {expandedRows.has(group.id) ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                         </div>
-                        <span className="font-bold text-[10px] text-slate-400 uppercase tracking-wide">
+                        <span className="font-bold text-xs text-slate-400 ">
                           {group.code} <span className="text-slate-600 mx-1">•</span> {group.name}
                         </span>
                       </div>
@@ -207,8 +207,8 @@ const PlanningGrid: React.FC<PlanningGridProps> = ({ coa, departments, fiscalYea
                           className="flex items-center hover:bg-blue-500/[0.02] transition border-l-2 border-transparent hover:border-blue-500/40"
                         >
                           <div className="w-[350px] pl-20 pr-6 py-4 flex flex-col justify-center">
-                            <span className="font-black text-[10px] text-white uppercase tracking-tight">{gl.name}</span>
-                            <span className="text-[9px] text-slate-500 font-mono mt-0.5">{gl.code}</span>
+                            <span className="font-black text-xs text-white uppercase tracking-tight">{gl.name}</span>
+                            <span className="text-xs text-slate-500 font-mono mt-0.5">{gl.code}</span>
                           </div>
 
                           {periods.map((p: any) => (

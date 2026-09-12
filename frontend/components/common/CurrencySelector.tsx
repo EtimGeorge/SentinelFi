@@ -25,7 +25,7 @@ export const CurrencySelector: React.FC = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-white/5 transition text-sm text-gray-300 hover:text-white"
+        className="tap-target flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-white/5 transition text-sm text-gray-300 hover:text-white"
         title="Select Currency"
       >
         <span>{userCurrency.symbol}</span>
@@ -34,9 +34,9 @@ export const CurrencySelector: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-brand-darker border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute right-0 mt-2 w-56 bg-brand-darker border border-gray-700 rounded-lg elev-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           <div className="py-1 max-h-64 overflow-y-auto no-scrollbar">
-            <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-700/50">
+            <div className="px-3 py-2 text-xs font-semibold text-gray-500 r border-b border-gray-700/50">
               Select Currency
             </div>
             {currencies.map((currency) => (
