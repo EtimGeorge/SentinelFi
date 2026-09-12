@@ -8,16 +8,24 @@ import {
 import { CorrelatedLogger } from "../common/logger/correlated-logger";
 import { Repository, SelectQueryBuilder, DataSource } from "typeorm";
 import { ProjectEntity } from "./project.entity";
-import { LpoEntity } from "./lpo.entity";
+import { LpoEntity, LpoStatus } from "./lpo.entity";
 import { ProjectInflowEntity } from "./project-inflow.entity";
 import { ProjectAuditEntity } from "./project-audit.entity";
 import { ClientEntity } from "../clients/client.entity";
 import { CreateProjectDto } from "./dto/create-project.dto";
 import { CreateLpoDto } from "./dto/create-lpo.dto";
+import { UpdateLpoDto } from "./dto/update-lpo.dto";
+import { RegisterLpoPaymentDto } from "./dto/register-lpo-payment.dto";
+import { CreateInflowDto } from "./dto/create-inflow.dto";
+import { UpdateInflowDto } from "./dto/update-inflow.dto";
 import { UpdateProjectDto } from "./dto/update-project.dto";
 import { GetProjectsDto } from "./dto/get-projects.dto";
 import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
+import { WbsBudgetStatus } from "../../../shared/types/wbs-budget-status.enum";
 import { LiveExpenseEntity } from "../wbs/live-expense.entity";
+import { ApprovalStatus } from "../../../shared/types/approval-status.enum";
+import { VarianceFlag } from "../../../shared/types/variance-flag.enum";
+import { BudgetControlService } from "../common/budget-control.service";
 import { PdfUtility } from "../common/pdf.utility";
 import { ExcelUtility } from "../common/excel.utility";
 import { WordUtility } from "../common/word.utility";
@@ -48,7 +56,23 @@ export class ProjectsService {
     private inflowRepository: Repository<ProjectInflowEntity>,
     @Inject("PROJECTAUDIT_REPOSITORY")
     private auditRepository: Repository<ProjectAuditEntity>,
+    private readonly budgetControlService: BudgetControlService,
   ) {}
+
+  // Centralised governance roles for LPO commitment overrides (mirrors WbsService)
+  private readonly LPO_CRITICAL_OVERRIDE_ROLES = [
+    "CFO",
+    "CEO",
+    "Admin Director",
+    "SuperAdmin",
+  ];
+  private readonly LPO_MAJOR_OVERRIDE_ROLES = [
+    "Finance Manager",
+    "CFO",
+    "CEO",
+    "Admin Director",
+    "SuperAdmin",
+  ];
 
   async logAudit(
     project_id: string,
@@ -87,6 +111,486 @@ export class ProjectsService {
     });
   }
 
+  async findPendingLpos(tenantId: string) {
+    return this.lpoRepository.find({
+      where: {
+        tenant_id: tenantId,
+        approval_status: ApprovalStatus.PENDING_APPROVAL,
+      },
+      order: { created_at: "DESC" },
+      relations: ["wbsItem", "wbsItem.project", "createdBy"],
+    });
+  }
+
+  async findLpo(id: string, tenantId: string) {
+    const lpo = await this.lpoRepository.findOne({
+      where: { id, tenant_id: tenantId },
+      relations: ["wbsItem", "createdBy"],
+    });
+    if (!lpo) {
+      throw new NotFoundException(`LPO with ID "${id}" not found.`);
+    }
+    return lpo;
+  }
+
+  /**
+   * Outstanding commitment on a WBS line: total unpaid on APPROVED LPOs
+   * plus the value of expenses still awaiting approval.
+   */
+  private async computeOutstandingCommitment(
+    wbsId: string,
+    tenantId: string,
+  ): Promise<number> {
+    const results = await this.dataSource.query(
+      `SELECT 
+         (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) 
+            FROM lpo 
+           WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'APPROVED' AND status <> 'CANCELLED') +
+         (SELECT COALESCE(SUM(amount), 0) 
+            FROM live_expense 
+           WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
+       AS total`,
+      [wbsId, tenantId],
+    );
+    return parseFloat(results[0]?.total || 0);
+  }
+
+  private async generateLpoNumber(project: ProjectEntity): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `LPO-${year}`;
+    const count = await this.lpoRepository.count({
+      where: { project_id: project.project_id, tenant_id: project.tenant_id },
+    });
+    return `${prefix}-${String(count + 1).padStart(4, "0")}`;
+  }
+
+  /**
+   * Lodges a new LPO commitment.
+   *
+   * LPOs are governed by the same tiered variance engine as expenses:
+   *  - Within budget  -> APPROVED immediately, booked against total_committed_lpo.
+   *  - Over budget    -> routed to PENDING_APPROVAL for CFO/Finance authorisation,
+   *                      unless a senior authorizer supplies an inline override_reason.
+   */
+  async createLpo(
+    createLpoDto: CreateLpoDto,
+    userId: string,
+    tenantId: string,
+    actorRole?: string,
+  ): Promise<LpoEntity> {
+    const { wbs_id, amount_committed } = createLpoDto;
+
+    // --- 1. Validate the WBS line and project ownership ---
+    const wbsItem = await this.wbsBudgetRepository.findOne({
+      where: { wbs_id, tenant_id: tenantId },
+      relations: ["project"],
+    });
+    if (!wbsItem) {
+      throw new NotFoundException(
+        `WBS Budget line with ID "${wbs_id}" not found for this tenant.`,
+      );
+    }
+    if (wbsItem.project_id !== createLpoDto.project_id) {
+      throw new BadRequestException(
+        "The selected WBS line does not belong to the stated project.",
+      );
+    }
+    const project = wbsItem.project;
+
+    // --- 2. Budget state guard (commitments require an APPROVED budget) ---
+    if (
+      wbsItem.status !== WbsBudgetStatus.APPROVED &&
+      wbsItem.status !== (WbsBudgetStatus as any).RECALLED
+    ) {
+      throw new BadRequestException(
+        `"${wbsItem.wbs_code}" cannot carry commitments because it is in ${wbsItem.status} status. It must be APPROVED or RECALLED first.`,
+      );
+    }
+
+    // --- 3. Tiered variance check against outstanding commitment ---
+    const outstanding = await this.computeOutstandingCommitment(wbs_id, tenantId);
+    const varianceResult = await this.budgetControlService.validateWbsExpense(
+      wbsItem,
+      amount_committed,
+      tenantId,
+      outstanding,
+    );
+
+    let approvalStatus = ApprovalStatus.APPROVED;
+    let finalFlag = varianceResult.flag;
+
+    if (
+      varianceResult.action === "BLOCK" ||
+      varianceResult.action === "REQUIRE_OVERRIDE"
+    ) {
+      const isCritical = varianceResult.action === "BLOCK";
+      const isAuthorized = isCritical
+        ? actorRole && this.LPO_CRITICAL_OVERRIDE_ROLES.includes(actorRole)
+        : actorRole && this.LPO_MAJOR_OVERRIDE_ROLES.includes(actorRole);
+
+      if (isAuthorized && createLpoDto.override_reason) {
+        this.logger.warn(
+          `[LPO] AUTHORIZED OVERRIDE by ${actorRole} | WBS: ${wbsItem.wbs_code} | Reason: ${createLpoDto.override_reason}`,
+        );
+        approvalStatus = ApprovalStatus.APPROVED;
+        finalFlag = VarianceFlag.OVERRIDE_APPLIED;
+      } else if (
+        createLpoDto.override_reason &&
+        !isAuthorized &&
+        actorRole
+      ) {
+        // Authorizer supplied a reason but lacks the role -> never trust it inline
+        approvalStatus = ApprovalStatus.PENDING_APPROVAL;
+      } else {
+        // No authorizer present: route to the approval queue for a CFO decision
+        approvalStatus = ApprovalStatus.PENDING_APPROVAL;
+      }
+    }
+
+    // --- 4. Persist within a transaction: LPO + committed rollup + audit trail ---
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const lpo = queryRunner.manager.create(LpoEntity, {
+        ...createLpoDto,
+        lpo_number:
+          createLpoDto.lpo_number ||
+          (await this.generateLpoNumber(project)),
+        tenant_id: tenantId,
+        created_by_user_id: userId,
+        status: LpoStatus.OPEN,
+        approval_status: approvalStatus,
+        variance_flag: finalFlag,
+        override_reason:
+          createLpoDto.override_reason ||
+          (varianceResult.action === "ALLOW" || varianceResult.action === "WARN"
+            ? null
+            : varianceResult.message),
+      });
+
+      const savedLpo = await queryRunner.manager.save(LpoEntity, lpo);
+
+      // Book committed value ONLY when approved inline
+      if (approvalStatus === ApprovalStatus.APPROVED) {
+        await queryRunner.manager.increment(
+          WbsBudgetEntity,
+          { wbs_id, tenant_id: tenantId },
+          "total_committed_lpo",
+          amount_committed,
+        );
+      }
+
+      await queryRunner.manager.save(ProjectAuditEntity, {
+        project_id: createLpoDto.project_id,
+        tenant_id: tenantId,
+        performed_by_user_id: userId,
+        change_type: approvalStatus === ApprovalStatus.APPROVED
+          ? "LPO_CREATED"
+          : "LPO_PENDING_APPROVAL",
+        old_value: null,
+        new_value: amount_committed,
+        description: `LPO ${savedLpo.lpo_number} committed to ${
+          createLpoDto.vendor_name
+        } for ${amount_committed} against WBS ${wbsItem.wbs_code}${
+          approvalStatus === ApprovalStatus.PENDING_APPROVAL
+            ? " — routed for approval (over-budget)"
+            : ""
+        }.`,
+      });
+
+      await queryRunner.commitTransaction();
+      return savedLpo;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `[LPO] createLpo transaction failed: ${(error as Error).message}`,
+      );
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Approves a pending LPO, books the committed value against the WBS line
+   * and writes an audit trail entry.
+   */
+  async approveLpo(
+    id: string,
+    tenantId: string,
+    userId: string,
+    authorizerRole: string,
+  ): Promise<LpoEntity> {
+    const lpo = await this.lpoRepository.findOne({
+      where: { id, tenant_id: tenantId },
+      relations: ["wbsItem"],
+    });
+    if (!lpo) {
+      throw new NotFoundException(`LPO with ID "${id}" not found.`);
+    }
+    if (lpo.approval_status !== ApprovalStatus.PENDING_APPROVAL) {
+      throw new BadRequestException(
+        `LPO is not awaiting approval (Current: ${lpo.approval_status}).`,
+      );
+    }
+    if (lpo.status === LpoStatus.CANCELLED) {
+      throw new BadRequestException("A cancelled LPO cannot be approved.");
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      lpo.approval_status = ApprovalStatus.APPROVED;
+      lpo.variance_flag = VarianceFlag.OVERRIDE_APPLIED;
+      const saved = await queryRunner.manager.save(LpoEntity, lpo);
+
+      if (lpo.wbsItem) {
+        await queryRunner.manager.increment(
+          WbsBudgetEntity,
+          { wbs_id: lpo.wbs_id, tenant_id: tenantId },
+          "total_committed_lpo",
+          lpo.amount_committed,
+        );
+      }
+
+      await queryRunner.manager.save(ProjectAuditEntity, {
+        project_id: lpo.project_id,
+        tenant_id: tenantId,
+        performed_by_user_id: userId,
+        change_type: "LPO_APPROVED",
+        old_value: null,
+        new_value: lpo.amount_committed,
+        description: `LPO ${lpo.lpo_number} (${lpo.vendor_name}) approved by ${authorizerRole} — commitment booked against WBS ${lpo.wbsItem?.wbs_code ?? lpo.wbs_id}.`,
+      });
+
+      await queryRunner.commitTransaction();
+      this.logger.log(`[LPO] ${lpo.lpo_number} approved by ${authorizerRole}`);
+      return saved;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Rejects a pending LPO. Rejected commitments are never booked.
+   */
+  async rejectLpo(
+    id: string,
+    tenantId: string,
+    userId: string,
+    authorizerRole: string,
+  ): Promise<LpoEntity> {
+    const lpo = await this.lpoRepository.findOne({
+      where: { id, tenant_id: tenantId },
+      relations: ["wbsItem"],
+    });
+    if (!lpo) {
+      throw new NotFoundException(`LPO with ID "${id}" not found.`);
+    }
+    if (lpo.approval_status !== ApprovalStatus.PENDING_APPROVAL) {
+      throw new BadRequestException(
+        `LPO is not awaiting approval (Current: ${lpo.approval_status}).`,
+      );
+    }
+
+    lpo.approval_status = ApprovalStatus.REJECTED;
+    lpo.status = LpoStatus.CANCELLED;
+    const saved = await this.lpoRepository.save(lpo);
+
+    await this.logAudit(
+      lpo.project_id,
+      tenantId,
+      userId,
+      "LPO_REJECTED",
+      null,
+      null,
+      `LPO ${lpo.lpo_number} (${lpo.vendor_name}) rejected by ${authorizerRole}. No commitment was booked.`,
+    );
+
+    this.logger.warn(
+      `[LPO] ${lpo.lpo_number} rejected by ${authorizerRole}`,
+    );
+    return saved;
+  }
+
+  /**
+   * Records a payment against an approved LPO. Fully-paid LPOs are CLOSED;
+   * partial payments leave the LPO OPEN and the remainder stays committed.
+   */
+  async recordLpoPayment(
+    id: string,
+    paymentDto: RegisterLpoPaymentDto,
+    tenantId: string,
+    userId: string,
+    actorRole: string,
+  ): Promise<LpoEntity> {
+    const lpo = await this.lpoRepository.findOne({
+      where: { id, tenant_id: tenantId },
+      relations: ["wbsItem"],
+    });
+    if (!lpo) {
+      throw new NotFoundException(`LPO with ID "${id}" not found.`);
+    }
+    if (lpo.approval_status !== ApprovalStatus.APPROVED) {
+      throw new BadRequestException(
+        `Only an APPROVED LPO can receive payments (Current: ${lpo.approval_status}).`,
+      );
+    }
+    if (lpo.status === LpoStatus.CANCELLED || lpo.status === LpoStatus.CLOSED) {
+      throw new BadRequestException(
+        `LPO ${lpo.lpo_number} is ${lpo.status} and cannot receive payments.`,
+      );
+    }
+
+    const newPaid = Number(lpo.amount_paid || 0) + Number(paymentDto.amount);
+    if (newPaid > Number(lpo.amount_committed)) {
+      throw new BadRequestException(
+        `Payment of ${paymentDto.amount} would exceed the committed LPO amount of ${lpo.amount_committed}.`,
+      );
+    }
+
+    lpo.amount_paid = newPaid;
+    lpo.status =
+      newPaid >= Number(lpo.amount_committed)
+        ? LpoStatus.CLOSED
+        : lpo.status; // partial payments keep OPEN; UI derives PARTIALLY PAID from amount_paid
+    const saved = await this.lpoRepository.save(lpo);
+
+    await this.logAudit(
+      lpo.project_id,
+      tenantId,
+      userId,
+      "LPO_PAYMENT",
+      lpo.amount_paid - Number(paymentDto.amount),
+      lpo.amount_paid,
+      `Payment of ${paymentDto.amount}${paymentDto.payment_reference ? ` (${paymentDto.payment_reference})` : ""} recorded by ${actorRole} against LPO ${lpo.lpo_number}. ${
+        lpo.status === LpoStatus.CLOSED ? "LPO closed as fully paid." : ""
+      }`,
+    );
+
+    this.logger.log(
+      `[LPO] ${lpo.lpo_number} payment of ${paymentDto.amount} recorded by ${actorRole}`,
+    );
+    return saved;
+  }
+
+  /**
+   * Cancels an OPEN LPO that has no payments. If the LPO was previously
+   * approved, its committed value is released from the WBS line.
+   */
+  async cancelLpo(
+    id: string,
+    tenantId: string,
+    userId: string,
+    actorRole: string,
+  ): Promise<LpoEntity> {
+    const lpo = await this.lpoRepository.findOne({
+      where: { id, tenant_id: tenantId },
+    });
+    if (!lpo) {
+      throw new NotFoundException(`LPO with ID "${id}" not found.`);
+    }
+    if (lpo.status === LpoStatus.CANCELLED) {
+      throw new BadRequestException("LPO is already cancelled.");
+    }
+    if (Number(lpo.amount_paid || 0) > 0) {
+      throw new BadRequestException(
+        "An LPO with payments recorded cannot be cancelled. Close it instead.",
+      );
+    }
+
+    const wasApproved = lpo.approval_status === ApprovalStatus.APPROVED;
+    lpo.status = LpoStatus.CANCELLED;
+    lpo.approval_status =
+      lpo.approval_status === ApprovalStatus.APPROVED
+        ? ApprovalStatus.REJECTED
+        : lpo.approval_status;
+    const saved = await this.lpoRepository.save(lpo);
+
+    // Release the committed amount if it was previously booked
+    if (wasApproved) {
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      try {
+        await queryRunner.manager.decrement(
+          WbsBudgetEntity,
+          { wbs_id: lpo.wbs_id, tenant_id: tenantId },
+          "total_committed_lpo",
+          lpo.amount_committed,
+        );
+        await queryRunner.commitTransaction();
+      } catch (error) {
+        await queryRunner.rollbackTransaction();
+        throw error;
+      } finally {
+        await queryRunner.release();
+      }
+    }
+
+    await this.logAudit(
+      lpo.project_id,
+      tenantId,
+      userId,
+      "LPO_CANCELLED",
+      lpo.amount_committed,
+      0,
+      `LPO ${lpo.lpo_number} (${lpo.vendor_name}) cancelled by ${actorRole}. Committed value released.`,
+    );
+
+    this.logger.warn(
+      `[LPO] ${lpo.lpo_number} cancelled by ${actorRole}`,
+    );
+    return saved;
+  }
+
+  async updateLpo(
+    id: string,
+    updateLpoDto: UpdateLpoDto,
+    tenantId: string,
+    userId: string,
+  ): Promise<LpoEntity> {
+    const lpo = await this.findLpo(id, tenantId);
+    if (lpo.status === LpoStatus.CANCELLED || lpo.status === LpoStatus.CLOSED) {
+      throw new BadRequestException(
+        `LPO is ${lpo.status} and cannot be edited.`,
+      );
+    }
+
+    const previous = { ...lpo };
+    Object.assign(lpo, updateLpoDto);
+    lpo.updated_at = new Date();
+    const saved = await this.lpoRepository.save(lpo);
+
+    const details: string[] = [];
+    if (updateLpoDto.vendor_name !== undefined && updateLpoDto.vendor_name !== previous.vendor_name) {
+      details.push(`vendor ${previous.vendor_name} -> ${updateLpoDto.vendor_name}`);
+    }
+    if (updateLpoDto.expected_delivery_date !== undefined) {
+      details.push("expected delivery date updated");
+    }
+    if (updateLpoDto.description !== undefined) {
+      details.push("description updated");
+    }
+
+    await this.logAudit(
+      saved.project_id,
+      tenantId,
+      userId,
+      "LPO_UPDATED",
+      null,
+      null,
+      `LPO ${saved.lpo_number} updated: ${details.join("; ") || "no material change"}.`,
+    );
+
+    return saved;
+  }
+
   async findInflows(project_id: string, tenantId: string) {
     return this.inflowRepository.find({
       where: { project_id, tenant_id: tenantId },
@@ -96,29 +600,100 @@ export class ProjectsService {
   }
 
   async createInflow(
-    inflowData: Partial<ProjectInflowEntity>,
+    project_id: string,
+    inflowData: CreateInflowDto,
     userId: string,
     tenantId: string,
   ): Promise<ProjectInflowEntity> {
+    await this.findOne(project_id, tenantId);
     const inflow = this.inflowRepository.create({
       ...inflowData,
+      project_id,
       tenant_id: tenantId,
       received_by_user_id: userId,
     });
-    return this.inflowRepository.save(inflow);
+    const saved = await this.inflowRepository.save(inflow);
+
+    await this.logAudit(
+      project_id,
+      tenantId,
+      userId,
+      "INFLOW_CREATED",
+      null,
+      inflowData.amount_received,
+      `Inflow of ${inflowData.amount_received} recorded for milestone "${inflowData.milestone_name}".`,
+    );
+
+    return saved;
   }
 
-  async createLpo(
-    createLpoDto: CreateLpoDto,
-    userId: string,
+  async updateInflow(
+    project_id: string,
+    inflow_id: string,
+    updateInflowDto: UpdateInflowDto,
     tenantId: string,
-  ): Promise<LpoEntity> {
-    const lpo = this.lpoRepository.create({
-      ...createLpoDto,
-      tenant_id: tenantId,
-      created_by_user_id: userId,
+    userId: string,
+  ): Promise<ProjectInflowEntity> {
+    const inflow = await this.inflowRepository.findOne({
+      where: { id: inflow_id, project_id, tenant_id: tenantId },
     });
-    return this.lpoRepository.save(lpo);
+    if (!inflow) {
+      throw new NotFoundException(
+        `Inflow with ID "${inflow_id}" not found for this project.`,
+      );
+    }
+
+    const amountDelta =
+      updateInflowDto.amount_received !== undefined
+        ? Number(updateInflowDto.amount_received) - Number(inflow.amount_received)
+        : 0;
+
+    Object.assign(inflow, updateInflowDto);
+    inflow.received_by_user_id = inflow.received_by_user_id;
+    inflow.updated_at = new Date();
+    const saved = await this.inflowRepository.save(inflow);
+
+    await this.logAudit(
+      project_id,
+      tenantId,
+      userId,
+      "INFLOW_UPDATED",
+      updateInflowDto.amount_received !== undefined
+        ? Number(inflow.amount_received) - amountDelta
+        : null,
+      updateInflowDto.amount_received ?? null,
+      `Inflow "${inflow.milestone_name}" updated by ${userId}${amountDelta !== 0 ? ` (amount delta ${amountDelta}).` : "."}`,
+    );
+
+    return saved;
+  }
+
+  async deleteInflow(
+    project_id: string,
+    inflow_id: string,
+    tenantId: string,
+    userId: string,
+  ): Promise<void> {
+    const inflow = await this.inflowRepository.findOne({
+      where: { id: inflow_id, project_id, tenant_id: tenantId },
+    });
+    if (!inflow) {
+      throw new NotFoundException(
+        `Inflow with ID "${inflow_id}" not found for this project.`,
+      );
+    }
+
+    await this.logAudit(
+      project_id,
+      tenantId,
+      userId,
+      "INFLOW_DELETED",
+      inflow.amount_received,
+      null,
+      `Inflow of ${inflow.amount_received} for milestone "${inflow.milestone_name}" removed by ${userId}.`,
+    );
+
+    await this.inflowRepository.delete({ id: inflow_id, project_id, tenant_id: tenantId });
   }
 
   private _addRollupSubqueries(

@@ -38,7 +38,15 @@ const proxyCircuitBreaker = new CircuitBreaker(5, 30000);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['shared', 'lucide-react'],
+  transpilePackages: ['shared'],
+
+  // Tree-shake icon libraries + reduce cold-compile work. lucide-react ships
+  // pre-transpiled ESM/CJS, so it no longer needs to be in transpilePackages
+  // (previously every fresh page compile re-transpiled its hundreds of icon
+  // modules from source, adding seconds to each cold navigation).
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'react-icons'],
+  },
 
   // ESLint runs as a separate CI step. Do not block production builds with warnings.
   eslint: {
@@ -96,11 +104,14 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   
-  // Development-specific optimizations to reduce memory usage
+  // Development-specific optimizations to reduce memory usage.
+  // NOTE: previous values (maxInactiveAge: 30s, pagesBufferLength: 3) caused
+  // every navigation to trigger a full page recompile (3-15s). Keep pages
+  // resident long enough that navigating away and back is instant.
   ...(process.env.NODE_ENV === 'development' && {
     onDemandEntries: {
-      maxInactiveAge: 30 * 1000, // Keep pages in memory for 30 seconds
-      pagesBufferLength: 3,     // Keep 3 pages in memory
+      maxInactiveAge: 120 * 1000, // Keep pages in memory for 2 minutes
+      pagesBufferLength: 12,      // Keep 12 pages in memory (was 3)
     },
   }),
 };

@@ -358,7 +358,7 @@ export class WbsController {
 
   @Delete("budget-draft/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   async deleteWbsItem(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Query("recursive", new ParseBoolPipe({ optional: true }))
@@ -374,7 +374,10 @@ export class WbsController {
     try {
       await this.wbsService.deleteWbsItem(id, tenantIdFromToken, { recursive });
     } catch (error: any) {
-      if (error instanceof NotFoundException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       throw new InternalServerErrorException(
@@ -429,7 +432,7 @@ export class WbsController {
 
   @Post("budget-draft/batch")
   @HttpCode(HttpStatus.CREATED)
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createDraftBatch(
     @Body() createWbsDtos: CreateWbsBudgetDto[],
@@ -462,7 +465,7 @@ export class WbsController {
   }
 
   @Patch("budget-draft/reorder")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   async reorderBudgets(
     @Body("items") items: { id: string; sort_order: number }[],
     @Req() req: AuthenticatedRequest,
@@ -480,7 +483,7 @@ export class WbsController {
   }
 
   @Patch("budget-draft/:id")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateWbsBudget(
     @Param("id") id: string,
@@ -510,7 +513,7 @@ export class WbsController {
   }
 
   @Get("budget-draft/:id/impact")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   async getBudgetImpactAnalysis(
     @Param("id") id: string,
     @Req() req: AuthenticatedRequest,
@@ -537,7 +540,7 @@ export class WbsController {
   }
 
   @Post("budget-draft/validate")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async validateDraft(
@@ -686,7 +689,7 @@ export class WbsController {
   }
 
   @Patch("expense/live-entry/:id")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateLiveExpenseEntry(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -701,11 +704,12 @@ export class WbsController {
       id,
       updateLiveExpenseDto,
       tenantIdFromToken,
+      (req.user.roles?.[0] as any)?.name ?? req.user.roles?.[0],
     );
   }
 
   @Delete("expense/live-entry/:id")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteLiveExpenseEntry(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -718,7 +722,7 @@ export class WbsController {
   }
 
   @Post("expense/live-entry/batch-delete")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @HttpCode(HttpStatus.OK)
   async deleteLiveExpenseBatch(
     @Body("ids") ids: string[],
@@ -757,7 +761,7 @@ export class WbsController {
   }
 
   @Post("categories")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createCategory(
     @Body() createWbsCategoryDto: CreateWbsCategoryDto,
@@ -785,7 +789,7 @@ export class WbsController {
   }
 
   @Patch("categories/:id")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateCategory(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -817,7 +821,7 @@ export class WbsController {
 
   @Delete("categories/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   async deleteCategory(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Query("forceSoftDelete") forceSoftDeleteRaw: string | undefined,
@@ -963,7 +967,7 @@ export class WbsController {
   }
 
   @Post("templates/apply/:projectId")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async applyTemplate(
     @Param("projectId", new ParseUUIDPipe()) projectId: string,
@@ -991,7 +995,7 @@ export class WbsController {
   }
 
   @Post("import-csv/:projectId")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   async importCsv(
     @Param("projectId", new ParseUUIDPipe()) projectId: string,
     @Body("csvContent") csvContent: string,
@@ -1009,7 +1013,7 @@ export class WbsController {
   }
 
   @Post("import-excel/:projectId")
-  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager)
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
   @UseInterceptors(FileInterceptor("file"))
   async importExcel(
     @Param("projectId", new ParseUUIDPipe()) projectId: string,

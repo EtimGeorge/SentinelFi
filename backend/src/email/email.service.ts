@@ -88,6 +88,26 @@ export interface TrialExpiryWarningContext {
   pricingUrl: string;
 }
 
+export interface WelcomeEmailContext {
+  firstName: string;
+  companyName: string;
+  dashboardUrl: string;
+  pricingUrl: string;
+}
+
+export interface EmailVerificationContext {
+  firstName: string;
+  verificationUrl: string;
+  expiryHours: number;
+}
+
+export interface SubscriptionReactivatedContext {
+  firstName: string;
+  companyName: string;
+  plan: string;
+  dashboardUrl: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -327,5 +347,53 @@ export class EmailService implements OnModuleInit {
     const subject = `⏳ Your SentinelFi® Trial Ends in 3 Days — Don't Lose Access`;
     await this.sendTemplatedEmail(to, subject, "trial-expiry-warning", context);
     this.logger.log(`[EmailService] Trial expiry warning → ${to}`);
+  }
+
+  /**
+   * Free-plan welcome — sent via Resend immediately after provisioning.
+   * Points the admin at the dashboard + upgrade path.
+   */
+  async sendWelcomeEmail(
+    to: string,
+    context: WelcomeEmailContext,
+  ): Promise<void> {
+    const subject = `Welcome to SentinelFi® Free — Your Workspace is Ready`;
+    await this.sendTemplatedEmail(to, subject, "welcome-free", context);
+    this.logger.log(`[EmailService] Welcome (free) → ${to}`);
+  }
+
+  /**
+   * Registration email-verification — magic-link style token URL.
+   * Sent during signup before workspace access is granted.
+   */
+  async sendEmailVerificationEmail(
+    to: string,
+    context: EmailVerificationContext,
+  ): Promise<void> {
+    const subject = `Verify your SentinelFi® email — Action Required`;
+    await this.sendTemplatedEmail(
+      to,
+      subject,
+      "email-verification",
+      context,
+    );
+    this.logger.log(`[EmailService] Verification → ${to}`);
+  }
+
+  /**
+   * Plan activation / reactivation confirmation — paid or free.
+   */
+  async sendSubscriptionReactivatedEmail(
+    to: string,
+    context: SubscriptionReactivatedContext,
+  ): Promise<void> {
+    const subject = `✅ Your SentinelFi® ${context.plan} Workspace is Active Again`;
+    await this.sendTemplatedEmail(
+      to,
+      subject,
+      "subscription-reactivated",
+      context,
+    );
+    this.logger.log(`[EmailService] Reactivation → ${to}`);
   }
 }

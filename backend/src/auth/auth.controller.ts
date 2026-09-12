@@ -244,8 +244,27 @@ export class AuthController {
   @Public()
   @Get("health")
   @HttpCode(HttpStatus.OK)
-  async healthCheck() {
-    return { status: "ok", timestamp: new Date().toISOString() };
+  async healthCheck(): Promise<any> {
+    return { 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+    };
+  }
+
+  @Public()
+  @Get("diagnostics")
+  @HttpCode(HttpStatus.OK)
+  async diagnostics(): Promise<any> {
+    return {
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      redis: process.env.REDIS_URL ? "configured" : "not configured",
+      nodeEnv: process.env.NODE_ENV,
+    };
   }
 
   @Public()

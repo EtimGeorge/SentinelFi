@@ -362,6 +362,39 @@ export const useFinanceCore = () => {
         link.remove();
     };
 
+    const fetchWBSForExpense = useCallback(async (projectId: string) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.get(`/wbs/budget/rollup?projectId=${projectId}`);
+            return res.data || [];
+        } catch (error) {
+            toast.error('Error fetching WBS for expense');
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const createLiveExpense = useCallback(async (data: {
+        wbs_id: string;
+        amount: number;
+        description: string;
+        quantity?: number;
+        days?: number;
+        expense_date: string;
+    }) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.post('/wbs/expense/live-entry', data);
+            toast.success('Expense logged successfully');
+            return res;
+        } catch (error) {
+            toast.error('Failed to log expense');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     return {
         loading,
         fetchFiscalYears,
@@ -390,6 +423,8 @@ export const useFinanceCore = () => {
         downloadInvoicePdf,
         fetchReportBlob,
         downloadBlob,
+        fetchWBSForExpense,
+        createLiveExpense,
     };
 };
 

@@ -89,7 +89,11 @@ export class FinanceCoreService {
   ) {}
 
   private getTenantId(): string {
-    return this.cls.get("tenantId");
+    const tenantId = this.cls.get("tenantId");
+    if (!tenantId) {
+      throw new InternalServerErrorException("Tenant context missing. Request must include a valid tenant.");
+    }
+    return tenantId;
   }
 
   // --- Fiscal Calendar Management ---
@@ -314,11 +318,20 @@ export class FinanceCoreService {
       "estimated_amount",
     );
 
-    queryBuilder.orderBy(`requisition.${sortBy}`, sortOrder);
+    // Validate sortBy to prevent SQL injection and column-not-found errors
+    const validSortColumns = ['created_at', 'updated_at', 'estimated_amount', 'requisition_number', 'status'];
+    const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
+    const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    queryBuilder.orderBy(`requisition.${safeSortBy}`, safeSortOrder);
     queryBuilder.skip((page - 1) * limit).take(limit);
 
-    const [data, total] = await queryBuilder.getManyAndCount();
-    return { data, total };
+    try {
+      const [data, total] = await queryBuilder.getManyAndCount();
+      return { data, total };
+    } catch (err: any) {
+      this.logger.error(`[FinanceCore] Failed to fetch requisitions: ${err.message}`);
+      throw new InternalServerErrorException('Failed to fetch requisitions');
+    }
   }
 
   async createPurchaseOrder(
@@ -512,11 +525,28 @@ export class FinanceCoreService {
       endDate,
       minAmount,
       maxAmount,
+      sortBy = "created_at",
+      sortOrder = "DESC",
     } = dto;
+
+    // Validate sortBy to prevent SQL injection and column-not-found errors
+    const validSortColumns: Record<string, string[]> = {
+      requisition: ['created_at', 'updated_at', 'estimated_amount', 'requisition_number', 'status'],
+      po: ['created_at', 'updated_at', 'committed_amount', 'status'],
+      invoice: ['created_at', 'updated_at', 'amount', 'invoice_number', 'status'],
+    };
+    const validColumns = validSortColumns[alias] || ['created_at'];
+    const safeSortBy = validColumns.includes(sortBy) ? sortBy : 'created_at';
+    const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+    // Apply sort at the end, after all filters
+    // Store for later use
+    (queryBuilder as any)._safeSortBy = safeSortBy;
+    (queryBuilder as any)._safeSortOrder = safeSortOrder;
 
     if (search) {
       queryBuilder.andWhere(
-        `(${alias}.description ILIKE :search OR ${alias}.vendor_name ILIKE :search OR ${alias}.${alias}_number ILIKE :search)`,
+        `(${alias}.description ILIKE :search OR ${alias}.vendor_name ILIKE :search OR ${alias}.requisition_number ILIKE :search)`,
         { search: `%${search}%` },
       );
     }

@@ -60,12 +60,19 @@ import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
     {
       provide: "IAuthCache",
       useFactory: (configService: ConfigService, cacheManager: any) => {
-        const useRedis =
-          configService.get("NODE_ENV") === "production" ||
-          configService.get("USE_REDIS") === "true";
-        return useRedis
-          ? new RedisAuthCache(cacheManager)
-          : new InMemoryAuthCache();
+        try {
+          const useRedis =
+            configService.get("NODE_ENV") === "production" ||
+            configService.get("USE_REDIS") === "true";
+          if (useRedis && cacheManager) {
+            return new RedisAuthCache(cacheManager);
+          }
+          // FIX: Fallback to InMemoryAuthCache when Redis is unavailable or not configured
+          return new InMemoryAuthCache();
+        } catch (error) {
+          // FIX: Graceful fallback if cacheManager injection fails (e.g., Redis DNS failure)
+          return new InMemoryAuthCache();
+        }
       },
       inject: [ConfigService, "CACHE_MANAGER"],
     },

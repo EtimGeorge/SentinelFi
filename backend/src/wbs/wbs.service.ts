@@ -20,6 +20,7 @@ import { WbsBudgetEntity } from "./wbs-budget.entity";
 import { WbsCategoryEntity } from "./wbs-category.entity";
 import { CreateWbsBudgetDto } from "./dto/create-wbs-budget.dto";
 import { UpdateWbsBudgetDto } from "./dto/update-wbs-budget.dto";
+import { LpoEntity } from "../projects/lpo.entity";
 import { LiveExpenseEntity } from "./live-expense.entity";
 import type { CreateLiveExpenseDto } from "./dto/create-live-expense.dto";
 import { UpdateLiveExpenseDto } from "./dto/update-live-expense.dto";
@@ -297,19 +298,61 @@ export class WbsService {
       );
     }
 
+    // --- [GUARD] Approved budgets cannot be destroyed while they carry spend ---
+    if (wbsItem.status === WbsBudgetStatus.APPROVED) {
+      const expenseCount = await this.liveExpenseRepository.count({
+        where: { wbs_id: id, tenant_id: tenant_id },
+      });
+      const lpoCount = await this.dataSource
+        .getRepository(LpoEntity)
+        .count({ where: { wbs_id: id, tenant_id: tenant_id } });
+      if (expenseCount > 0 || lpoCount > 0) {
+        throw new BadRequestException(
+          "CRITICAL_INTEGRITY_BLOCK: This approved WBS line already has expenses or LPO commitments. It cannot be deleted. Recall or archive the budget instead.",
+        );
+      }
+    }
+
+    // --- [GUARD] Child lines require explicit recursive deletion ---
+    const children = await this.findAllChildren(id, tenant_id);
+    const childIds = children.map((child) => child.wbs_id);
+    if (childIds.length > 0 && !options.recursive) {
+      throw new BadRequestException(
+        `WBS item "${wbsItem.wbs_code}" has ${childIds.length} child line(s). Deletion requires the "recursive" flag.`,
+      );
+    }
+
+    // --- [GUARD] Detect dangling financial references before hitting the FK constraint ---
+    const childAndSelf = [id, ...childIds];
+    for (const wbsId of childAndSelf) {
+      const expenseCount = await this.liveExpenseRepository.count({
+        where: { wbs_id: wbsId, tenant_id: tenant_id },
+      });
+      if (expenseCount > 0) {
+        throw new BadRequestException(
+          "CRITICAL_INTEGRITY_BLOCK: One or more lines under this WBS item have posted expense entries. Delete the expenses first, or archive the budget to preserve the financial audit trail.",
+        );
+      }
+      const lpoCount = await this.dataSource
+        .getRepository(LpoEntity)
+        .count({ where: { wbs_id: wbsId, tenant_id: tenant_id } });
+      if (lpoCount > 0) {
+        throw new BadRequestException(
+          "CRITICAL_INTEGRITY_BLOCK: One or more lines under this WBS item have LPO commitments. Delete the LPOs first, or archive the budget to preserve the financial audit trail.",
+        );
+      }
+    }
+
     if (options.recursive) {
-      // Find all children recursively
-      const children = await this.findAllChildren(id, tenant_id);
-      const childIds = children.map((child) => child.wbs_id); // Changed child.id to child.wbs_id
       if (childIds.length > 0) {
         await this.wbsBudgetRepository.delete({
           wbs_id: In(childIds),
           tenant_id: tenant_id,
-        }); // Changed id to wbs_id
+        });
       }
     }
 
-    await this.wbsBudgetRepository.delete({ wbs_id: id, tenant_id: tenant_id }); // Changed id to wbs_id
+    await this.wbsBudgetRepository.delete({ wbs_id: id, tenant_id: tenant_id });
   }
 
   private async findAllChildren(
@@ -854,6 +897,7 @@ export class WbsService {
     id: string,
     updateDto: UpdateLiveExpenseDto,
     tenant_id: string,
+    actorRole?: string,
   ): Promise<LiveExpenseEntity> {
     const liveExpense = await this.liveExpenseRepository.findOne({
       where: { id, tenant_id },
@@ -861,6 +905,64 @@ export class WbsService {
 
     if (!liveExpense) {
       throw new NotFoundException(`Expense ${id} not found.`);
+    }
+
+    // --- [GOVERNANCE RE-CHECK] Edited approved expenses must not silently breach budget ---
+    if (
+      liveExpense.approval_status === ApprovalStatus.APPROVED &&
+      updateDto.amount !== undefined &&
+      Number(updateDto.amount) > Number(liveExpense.amount)
+    ) {
+      const wbsItem = liveExpense.wbs_id
+        ? await this.wbsBudgetRepository.findOne({
+            where: { wbs_id: liveExpense.wbs_id, tenant_id },
+            relations: ["project"],
+          })
+        : null;
+      if (wbsItem) {
+        const committedResults = await this.dataSource.query(
+          `SELECT 
+             (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) FROM lpo WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'APPROVED' AND status <> 'CANCELLED') +
+             (SELECT COALESCE(SUM(amount), 0) FROM live_expense WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
+           AS total`,
+          [wbsItem.wbs_id, tenant_id],
+        );
+        const committedAmount = parseFloat(committedResults[0]?.total || 0);
+        const varianceResult = await this.budgetControlService.validateWbsExpense(
+          wbsItem,
+          updateDto.amount,
+          tenant_id,
+          committedAmount,
+        );
+
+        if (
+          varianceResult.flag !== VarianceFlag.UNAPPROVED_BUDGET_USAGE &&
+          (varianceResult.action === "BLOCK" ||
+            varianceResult.action === "REQUIRE_OVERRIDE")
+        ) {
+          const allowedRoles =
+            varianceResult.action === "BLOCK"
+              ? this.CRITICAL_OVERRIDE_ROLES
+              : this.MAJOR_OVERRIDE_ROLES;
+          const isAuthorized = actorRole && allowedRoles.includes(actorRole);
+          const overrideReason =
+            updateDto.override_reason ?? liveExpense.override_reason;
+
+          if (!isAuthorized || !overrideReason) {
+            throw new BadRequestException({
+              statusCode: 403,
+              errorCode: varianceResult.flag,
+              message: `${varianceResult.message} Adjusting this expense to ${updateDto.amount} would breach the WBS budget.`,
+              requiredRoles: varianceResult.requiredRoles,
+              hint: "Provide an override_reason (and a Finance Manager+ role) to apply the change, or lower the amount.",
+            });
+          }
+          liveExpense.variance_flag = VarianceFlag.OVERRIDE_APPLIED;
+          liveExpense.override_reason = overrideReason;
+        } else if (varianceResult.flag !== VarianceFlag.UNAPPROVED_BUDGET_USAGE) {
+          liveExpense.variance_flag = varianceResult.flag;
+        }
+      }
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -1724,11 +1826,41 @@ export class WbsService {
       queryBuilder.andWhere("liveExpense.user_id = :userId", { userId });
     }
 
-    queryBuilder.orderBy(`liveExpense.${sortBy}`, sortOrder);
+    // Validate sortBy to prevent SQL injection
+    const validSortColumns = ['created_at', 'updated_at', 'amount', 'description', 'expense_date'];
+    const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
+    const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+    queryBuilder.orderBy(`liveExpense.${safeSortBy}`, safeSortOrder);
     queryBuilder.skip((page - 1) * limit).take(limit);
 
-    const [data, total] = await queryBuilder.getManyAndCount();
-    return { data, total };
+    try {
+      const [data, total] = await queryBuilder.getManyAndCount();
+      return { data, total };
+    } catch (err: any) {
+      this.logger.error(
+        `[WBS] Database query failed for live expenses. Error: ${err.message}`,
+      );
+      // Safety Fallback: Retry without sort
+      const fallbackQuery = this.liveExpenseRepository
+        .createQueryBuilder("liveExpense")
+        .where("liveExpense.tenant_id = :tenant_id", { tenant_id });
+
+      if (wbsId) fallbackQuery.andWhere("liveExpense.wbs_id = :wbsId", { wbsId });
+      if (projectId) fallbackQuery.andWhere("liveExpense.project_id = :projectId", { projectId });
+      if (description) fallbackQuery.andWhere("liveExpense.description ILIKE :description", { description: `%${description}%` });
+      if (minAmount) fallbackQuery.andWhere("liveExpense.amount >= :minAmount", { minAmount });
+      if (maxAmount) fallbackQuery.andWhere("liveExpense.amount <= :maxAmount", { maxAmount });
+      if (userId) fallbackQuery.andWhere("liveExpense.user_id = :userId", { userId });
+
+      const [data, total] = await fallbackQuery
+        .orderBy("liveExpense.created_at", "DESC")
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getManyAndCount();
+
+      return { data, total };
+    }
   }
 
   async getWbsBudgetRollup(
@@ -1820,6 +1952,8 @@ export class WbsService {
               SELECT COALESCE(SUM(amount_committed), 0) 
               FROM lpo l
               WHERE l.tenant_id = w.tenant_id 
+              AND l.approval_status = 'APPROVED'
+              AND l.status <> 'CANCELLED'
               AND l.wbs_id IN (
                   WITH RECURSIVE descendants AS (
                       SELECT wbs_id FROM wbs_budget WHERE wbs_id = w.wbs_id

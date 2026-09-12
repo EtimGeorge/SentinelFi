@@ -11,6 +11,8 @@ import {
 import { ProjectEntity } from "./project.entity";
 import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
 import { UserEntity } from "../auth/user.entity";
+import { ApprovalStatus } from "../../../shared/types/approval-status.enum";
+import { VarianceFlag } from "../../../shared/types/variance-flag.enum";
 
 export enum LpoStatus {
   OPEN = "OPEN",
@@ -63,6 +65,19 @@ export class LpoEntity {
     default: LpoStatus.OPEN,
   })
   status!: LpoStatus;
+
+  // --- Approval Governance (mirrors the LiveExpense governance engine) ---
+  // An LPO is a financial commitment. When it would push a WBS line over budget,
+  // it is routed to a PENDING_APPROVAL queue for CFO/Finance authorisation before
+  // the commitment is booked against the budget.
+  @Column({ type: "varchar", length: 50, default: ApprovalStatus.APPROVED })
+  approval_status!: string;
+
+  @Column({ type: "varchar", length: 50, default: VarianceFlag.NO_VARIANCE })
+  variance_flag!: string;
+
+  @Column({ type: "text", nullable: true })
+  override_reason!: string | null;
 
   @Column({ type: "date", nullable: true })
   expected_delivery_date!: Date | null;

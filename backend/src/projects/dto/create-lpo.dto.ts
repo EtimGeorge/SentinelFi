@@ -5,12 +5,15 @@ import {
   IsNumber,
   IsOptional,
   IsDateString,
+  Min,
+  MaxLength,
 } from "class-validator";
 
 export class CreateLpoDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  lpo_number!: string;
+  @MaxLength(100)
+  lpo_number?: string;
 
   @IsUUID()
   @IsNotEmpty()
@@ -28,11 +31,22 @@ export class CreateLpoDto {
   @IsNotEmpty()
   description!: string;
 
-  @IsNumber()
-  @IsNotEmpty()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0.01, { message: "Committed amount must be greater than zero." })
   amount_committed!: number;
 
   @IsDateString()
   @IsOptional()
   expected_delivery_date?: string;
+
+  /**
+   * SENIOR AUTHORIZER OVERRIDE:
+   * Required when an LPO commitment would cause a CRITICAL_VARIANCE on its WBS line.
+   * If provided by CFO/CEO/Admin Director the LPO is approved inline; otherwise it is
+   * routed to the PENDING_APPROVAL queue.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  override_reason?: string;
 }

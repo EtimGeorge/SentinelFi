@@ -31,15 +31,32 @@ import { ConfigService } from "@nestjs/config";
 import * as crypto from "crypto";
 import * as path from "path";
 import { isCorporateEmail } from "@shared/utils/validation";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 
 // ─── Pricing Constants ───────────────────────────────────────────────────────
+// Business model:
+// - free: perpetual, 1 task/day, ad-supported (watch ads to unlock extra tasks)
+// - trial: 14-day full Professional access, no card
+// - professional: $500/mo, 5% off annual ($5,700/yr)
+// - enterprise: custom contracts
 export const PLAN_PRICING = {
+  free: {
+    amount_usd: 0,
+    label: "Free",
+    max_tasks_per_day: 1,
+    has_ads: true,
+  },
   trial: { amount_usd: 0, days: 14, label: "Free Trial" },
-  professional: { amount_usd: 1500, label: "Professional" },
+  professional: { amount_usd: 500, label: "Professional" },
   enterprise: { amount_usd: 0, label: "Enterprise (Contact Sales)" }, // Custom
 };
 
-const ANNUAL_DISCOUNT = 0.15; // 15% off annual
+export const ANNUAL_DISCOUNT = 0.05; // 5% off annual
+
+export const FREE_PLAN_TASK_CAP = 1;
+
+/** Max rewarded (+1 task) unlocks per tenant per day — fraud control. */
+export const MAX_AD_UNLOCKS_PER_DAY = 5;
 
 @Injectable()
 export class BillingService {
@@ -116,7 +133,7 @@ export class BillingService {
         default_currency_code: "USD",
       });
 
-      // Update tenant expires_at
+// Update tenant expires_at
       await queryRunner.manager.update(
         "tenants",
         { tenant_id: tenant.tenant_id },
@@ -126,8 +143,9 @@ export class BillingService {
           plan: "trial",
         },
       );
+      JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
 
-      // 2. Create Subscription
+      // 2. Create Subscription — trial is full-access, ad-free
       const subscription = this.subscriptionRepository.create({
         tenant_id: tenant.tenant_id,
         plan: "trial",
@@ -143,6 +161,10 @@ export class BillingService {
         trial_ends_at: trialEndsAt,
         current_period_start: new Date(),
         current_period_end: trialEndsAt,
+        max_tasks_per_day: null,
+        has_ads: false,
+        ad_unlock_credits: 0,
+        ad_unlock_date: null,
       });
 
       await queryRunner.manager.save(SubscriptionEntity, subscription);
@@ -179,6 +201,121 @@ export class BillingService {
     } catch (err) {
       await queryRunner.rollbackTransaction();
       this.logger.error(`Trial provisioning failed for ${data.email}`, err);
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // ─── FREE PLAN FLOW ─────────────────────────────────────────────────────────
+
+  /**
+   * Instant free-plan provisioning — no payment, no expiry.
+   * Creates tenant + ACTIVE subscription with 1 task/day cap and ads enabled.
+   * Extra tasks unlockable by watching ads (ad_unlock_credits).
+   * Dispatches welcome email via Resend + magic-link via TenantService.
+   */
+  async startFreePlan(data: {
+    email: string;
+    companyName: string;
+    firstName: string;
+    lastName: string;
+  }) {
+    this.logger.log(`Starting free plan for ${data.email}`);
+
+    if (!isCorporateEmail(data.email)) {
+      throw new BadRequestException(
+        "A corporate email address is required for provisioning.",
+      );
+    }
+
+    const existingSub = await this.subscriptionRepository.findOne({
+      where: { admin_email: data.email },
+    });
+    if (existingSub) {
+      throw new BadRequestException(
+        "An account with this email already exists. Please sign in or contact support.",
+      );
+    }
+
+    const schemaName = data.companyName
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/gi, "_")
+      .slice(0, 63);
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const tenant = await this.tenantService.createTenant({
+        name: data.companyName,
+        schema_name: schemaName,
+        admin_email: data.email,
+        plan: "free",
+        admin_first_name: data.firstName,
+        admin_last_name: data.lastName,
+        default_currency_code: "USD",
+      });
+
+      // Free plan never expires — expires_at stays null, tenant stays active
+      await queryRunner.manager.update(
+        "tenants",
+        { tenant_id: tenant.tenant_id },
+        { expires_at: null, is_active: true, plan: "free" },
+      );
+      JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
+
+      const subscription = this.subscriptionRepository.create({
+        tenant_id: tenant.tenant_id,
+        plan: "free",
+        status: SubscriptionStatus.ACTIVE,
+        billing_cycle: BillingCycle.FREE,
+        amount_usd: 0,
+        gateway: "free",
+        admin_email: data.email,
+        company_name: data.companyName,
+        admin_first_name: data.firstName,
+        admin_last_name: data.lastName,
+        base_currency: "USD",
+        trial_ends_at: null,
+        current_period_start: new Date(),
+        current_period_end: null,
+        max_tasks_per_day: FREE_PLAN_TASK_CAP,
+        has_ads: true,
+        ad_unlock_credits: 0,
+        ad_unlock_date: null,
+      });
+
+      await queryRunner.manager.save(SubscriptionEntity, subscription);
+      await queryRunner.commitTransaction();
+
+      // Welcome email (Resend) — async, non-blocking
+      const frontendUrl = this.configService.get<string>(
+        "FRONTEND_URL",
+        "https://sentinelfi.com",
+      );
+      this.emailService
+        .sendWelcomeEmail(data.email, {
+          firstName: data.firstName,
+          companyName: data.companyName,
+          dashboardUrl: `${frontendUrl}/dashboard`,
+          pricingUrl: `${frontendUrl}/landing/pricing`,
+        })
+        .catch((err: Error) =>
+          this.logger.error(
+            `[BILLING] Free-plan welcome email failed: ${err.message}`,
+          ),
+        );
+
+      this.logger.log(`Free plan provisioned for ${data.email}.`);
+      return {
+        message: "Free workspace provisioned. Check your email for access.",
+        tenant_id: tenant.tenant_id,
+      };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`Free plan provisioning failed for ${data.email}`, err);
       throw err;
     } finally {
       await queryRunner.release();
@@ -256,6 +393,10 @@ export class BillingService {
       admin_first_name: data.firstName,
       admin_last_name: data.lastName,
       base_currency: data.baseCurrency || "USD",
+      max_tasks_per_day: null,
+      has_ads: false,
+      ad_unlock_credits: 0,
+      ad_unlock_date: null,
     });
     const savedSub = await this.subscriptionRepository.save(pendingSub);
 
@@ -414,8 +555,9 @@ export class BillingService {
           plan: sub.plan,
         },
       );
+      JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
 
-      // 3. Activate subscription
+      // 3. Activate subscription — paid tiers are ad-free with unlimited tasks
       await queryRunner.manager.update(
         SubscriptionEntity,
         { id: sub.id },
@@ -425,6 +567,10 @@ export class BillingService {
           gateway_reference: gatewayRef || sub.gateway_reference,
           current_period_start: now,
           current_period_end: periodEnd,
+          max_tasks_per_day: null,
+          has_ads: false,
+          ad_unlock_credits: 0,
+          ad_unlock_date: null,
         },
       );
 
@@ -614,6 +760,7 @@ export class BillingService {
             plan: data.plan,
           },
         );
+        JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
       } else {
         this.logger.log(
           `No existing tenant found. Creating new tenant: ${data.companyName}`,
@@ -634,24 +781,30 @@ export class BillingService {
             plan: data.plan,
           },
         );
+        JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
       }
 
+      const isFreeProvision = data.plan === "free";
       const subscription = this.subscriptionRepository.create({
         tenant_id: tenant.tenant_id,
         plan: data.plan,
         status: SubscriptionStatus.ACTIVE,
-        billing_cycle: data.billingCycle,
+        billing_cycle: isFreeProvision ? BillingCycle.FREE : data.billingCycle,
         amount_usd: data.amountUsd,
         gateway: "superadmin",
         admin_email: data.adminEmail,
         company_name: data.companyName,
         current_period_start: now,
-        current_period_end: periodEnd,
+        current_period_end: isFreeProvision ? null : periodEnd,
         payment_proof_text: data.paymentProofText || null,
         offline_bank_reference: data.offlineBankReference || null,
         payment_proof_url: file
           ? `/uploads/billing-receipts/${file.filename}`
           : null,
+        max_tasks_per_day: isFreeProvision ? FREE_PLAN_TASK_CAP : null,
+        has_ads: isFreeProvision,
+        ad_unlock_credits: 0,
+        ad_unlock_date: null,
       });
 
       await queryRunner.manager.save(SubscriptionEntity, subscription);
@@ -735,6 +888,9 @@ export class BillingService {
       cancelled_at: sub.cancelled_at,
       days_remaining: daysRemaining,
       is_expiring_soon: daysRemaining !== null && daysRemaining <= 30,
+      max_tasks_per_day: sub.max_tasks_per_day,
+      has_ads: sub.has_ads,
+      ad_unlock_credits: sub.ad_unlock_credits ?? 0,
     };
   }
 
@@ -744,6 +900,111 @@ export class BillingService {
     });
     if (!sub) throw new NotFoundException("Subscription not found.");
     return { status: sub.status, tenant_id: sub.tenant_id };
+  }
+
+  // ─── REACTIVATION (EXPIRED / CANCELLED / PAUSED → ACTIVE) ───────────────────
+
+  /**
+   * Reactivate an expired/cancelled/paused subscription.
+   * - free → instant reactivation, no payment
+   * - professional/enterprise → routes through processPublicSubscription (new gateway checkout).
+   * Called by the tenant admin from the billing settings / SubscriptionBanner.
+   */
+  async reactivateSubscription(tenantId: string) {
+    const sub = await this.subscriptionRepository.findOne({
+      where: { tenant_id: tenantId },
+      order: { created_at: "DESC" },
+    });
+    if (!sub) throw new NotFoundException("No subscription found for this tenant.");
+
+    if (
+      sub.status === SubscriptionStatus.ACTIVE ||
+      sub.status === SubscriptionStatus.TRIALING
+    ) {
+      return { message: "Subscription is already active.", status: sub.status };
+    }
+
+    // Free tier: instant reactivation, no gateway
+    if (sub.plan === "free") {
+      await this.subscriptionRepository.update(sub.id, {
+        status: SubscriptionStatus.ACTIVE,
+        current_period_start: new Date(),
+        current_period_end: null,
+        max_tasks_per_day: FREE_PLAN_TASK_CAP,
+        has_ads: true,
+      });
+      await this.tenantRepository.update(
+        { tenant_id: tenantId },
+        { is_active: true, plan: "free", expires_at: null },
+      );
+      JwtAuthGuard.invalidateTenantStatus(tenantId);
+
+      const toEmail = sub.admin_email!;
+      this.emailService
+        .sendSubscriptionReactivatedEmail(toEmail, {
+          firstName: sub.admin_first_name || sub.company_name || "there",
+          companyName: sub.company_name || "Your workspace",
+          plan: "free",
+          dashboardUrl: `${this.configService.get<string>("FRONTEND_URL", "https://sentinelfi.com")}/dashboard`,
+        })
+        .catch((e: Error) =>
+          this.logger.error(`[BILLING] Reactivation email failed: ${e.message}`),
+        );
+
+      return { message: "Free plan reactivated.", status: "active" };
+    }
+
+    // Paid tiers: issue a fresh gateway checkout for the same plan
+    return this.processPublicSubscription({
+      email: sub.admin_email!,
+      companyName: sub.company_name!,
+      firstName: sub.admin_first_name || "",
+      lastName: sub.admin_last_name || "",
+      plan: sub.plan,
+      billingCycle:
+        sub.billing_cycle === BillingCycle.ANNUAL
+          ? BillingCycle.ANNUAL
+          : BillingCycle.MONTHLY,
+      gateway: (sub.gateway as PaymentProvider) || PaymentProvider.PAYSTACK,
+      baseCurrency: sub.base_currency || "USD",
+    });
+  }
+
+  /**
+   * Free-tier ad reward: called after the frontend confirms a rewarded-ad
+   * completion. Grants +1 task credit for today (stackable).
+   */
+  async grantAdUnlock(tenantId: string) {
+    const sub = await this.subscriptionRepository.findOne({
+      where: { tenant_id: tenantId },
+      order: { created_at: "DESC" },
+    });
+    if (!sub) throw new NotFoundException("No subscription found.");
+    if (sub.plan !== "free") {
+      throw new BadRequestException("Ad unlocks only apply to the free plan.");
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const isSameDay = sub.ad_unlock_date === today;
+    const usedToday = isSameDay ? (sub.ad_unlock_credits ?? 0) : 0;
+    if (usedToday >= MAX_AD_UNLOCKS_PER_DAY) {
+      throw new BadRequestException(
+        `Daily ad-unlock limit reached (${MAX_AD_UNLOCKS_PER_DAY}/day). Upgrade to Professional for unlimited tasks.`,
+      );
+    }
+    const credits = usedToday + 1;
+
+    await this.subscriptionRepository.update(sub.id, {
+      ad_unlock_credits: credits,
+      ad_unlock_date: today,
+    });
+
+    return {
+      message: "Ad reward applied: +1 task for today.",
+      ad_unlock_credits: credits,
+      tasks_available_today:
+        (sub.max_tasks_per_day ?? FREE_PLAN_TASK_CAP) + credits,
+    };
   }
 
   // ─── SUPERADMIN OVERVIEW ─────────────────────────────────────────────────────

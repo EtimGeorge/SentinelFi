@@ -22,6 +22,7 @@ import { AuthService } from "../auth/auth.service"; // NEW: Import AuthService
 import { InvitationService } from "../auth/invitation.service"; // NEW: Import InvitationService
 
 import { Role } from "@shared/types/role.enum"; // NEW: Import Role enum
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 
 @Injectable()
 export class TenantService {
@@ -327,6 +328,7 @@ export class TenantService {
         from: oldTenant.is_active,
         to: savedTenant.is_active,
       };
+      JwtAuthGuard.invalidateTenantStatus(savedTenant.tenant_id);
     }
 
     if (Object.keys(changes).length > 0) {

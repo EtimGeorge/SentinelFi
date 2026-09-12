@@ -26,6 +26,10 @@ import { AuthenticatedRequest } from "../common/interfaces/request.interface";
 import { ProjectsService } from "./projects.service";
 import { CreateProjectDto } from "./dto/create-project.dto";
 import { CreateLpoDto } from "./dto/create-lpo.dto";
+import { UpdateLpoDto } from "./dto/update-lpo.dto";
+import { RegisterLpoPaymentDto } from "./dto/register-lpo-payment.dto";
+import { CreateInflowDto } from "./dto/create-inflow.dto";
+import { UpdateInflowDto } from "./dto/update-inflow.dto";
 import { UpdateProjectDto } from "./dto/update-project.dto";
 import { GetProjectsDto } from "./dto/get-projects.dto";
 
@@ -76,6 +80,7 @@ export class ProjectsController {
     Role.CFO,
     Role.FinanceManager,
     Role.SuperAdmin,
+    Role.CEO,
   )
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createLpo(
@@ -87,10 +92,13 @@ export class ProjectsController {
         "User not authenticated or tenant ID is missing.",
       );
     }
+    const actorRole =
+      (req.user as any).roles?.[0]?.name ?? (req.user as any).roles?.[0];
     return this.projectsService.createLpo(
       createLpoDto,
       req.user.id,
       req.user.tenant_id,
+      actorRole,
     );
   }
 
@@ -277,6 +285,7 @@ export class ProjectsController {
     Role.CFO,
     Role.FinanceManager,
     Role.SuperAdmin,
+    Role.CEO,
   )
   async getCashFlow(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -306,10 +315,12 @@ export class ProjectsController {
     Role.CFO,
     Role.FinanceManager,
     Role.SuperAdmin,
+    Role.CEO,
   )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createInflow(
     @Param("id", new ParseUUIDPipe()) id: string,
-    @Body() inflowData: any,
+    @Body() createInflowDto: CreateInflowDto,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
@@ -318,7 +329,8 @@ export class ProjectsController {
       );
     }
     return this.projectsService.createInflow(
-      { ...inflowData, project_id: id },
+      id,
+      createInflowDto,
       req.user.id,
       req.user.tenant_id,
     );
@@ -335,6 +347,7 @@ export class ProjectsController {
     Role.CFO,
     Role.FinanceManager,
     Role.SuperAdmin,
+    Role.CEO,
   )
   async getAudits(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -359,6 +372,7 @@ export class ProjectsController {
     Role.CFO,
     Role.FinanceManager,
     Role.SuperAdmin,
+    Role.CEO,
   )
   async getLpos(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -383,6 +397,7 @@ export class ProjectsController {
     Role.CFO,
     Role.FinanceManager,
     Role.SuperAdmin,
+    Role.CEO,
   )
   async getInflows(
     @Param("id", new ParseUUIDPipe()) id: string,
@@ -394,6 +409,286 @@ export class ProjectsController {
       );
     }
     return this.projectsService.findInflows(id, req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/projects/lpos/pending
+   * Permissions: Admin, Finance
+   * Retrieves all LPOs waiting for authorisation (over-budget commitments).
+   */
+  @Get("lpos/pending")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  async getPendingLpos(@Req() req: AuthenticatedRequest) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.findPendingLpos(req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/projects/lpo/:id
+   * Permissions: Admin, Finance
+   */
+  @Get("lpo/:id")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  async getLpo(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.findLpo(id, req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: PATCH /api/v1/projects/lpo/:id
+   * Permissions: Admin, Finance
+   * In-place edit of vendor / description / delivery date on an OPEN LPO.
+   */
+  @Patch("lpo/:id")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async updateLpo(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() updateLpoDto: UpdateLpoDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.updateLpo(
+      id,
+      updateLpoDto,
+      req.user.tenant_id,
+      req.user.id,
+    );
+  }
+
+  /**
+   * API Endpoint: PATCH /api/v1/projects/lpo/:id/approve
+   * Permissions: Admin, Finance (authorising roles)
+   */
+  @Patch("lpo/:id/approve")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  async approveLpo(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    const actorRole =
+      (req.user as any).roles?.[0]?.name ?? (req.user as any).roles?.[0];
+    return this.projectsService.approveLpo(
+      id,
+      req.user.tenant_id,
+      req.user.id,
+      actorRole || "System",
+    );
+  }
+
+  /**
+   * API Endpoint: PATCH /api/v1/projects/lpo/:id/reject
+   * Permissions: Admin, Finance (authorising roles)
+   */
+  @Patch("lpo/:id/reject")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  async rejectLpo(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    const actorRole =
+      (req.user as any).roles?.[0]?.name ?? (req.user as any).roles?.[0];
+    return this.projectsService.rejectLpo(
+      id,
+      req.user.tenant_id,
+      req.user.id,
+      actorRole || "System",
+    );
+  }
+
+  /**
+   * API Endpoint: PATCH /api/v1/projects/lpo/:id/payment
+   * Permissions: Admin, Finance
+   * Records a (partial) payment against an approved LPO.
+   */
+  @Patch("lpo/:id/payment")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async recordLpoPayment(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() paymentDto: RegisterLpoPaymentDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    const actorRole =
+      (req.user as any).roles?.[0]?.name ?? (req.user as any).roles?.[0];
+    return this.projectsService.recordLpoPayment(
+      id,
+      paymentDto,
+      req.user.tenant_id,
+      req.user.id,
+      actorRole || "System",
+    );
+  }
+
+  /**
+   * API Endpoint: PATCH /api/v1/projects/lpo/:id/cancel
+   * Permissions: Admin, Finance
+   * Cancels an OPEN LPO (releases committed value when previously booked).
+   */
+  @Patch("lpo/:id/cancel")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  async cancelLpo(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    const actorRole =
+      (req.user as any).roles?.[0]?.name ?? (req.user as any).roles?.[0];
+    return this.projectsService.cancelLpo(
+      id,
+      req.user.tenant_id,
+      req.user.id,
+      actorRole || "System",
+    );
+  }
+
+  /**
+   * API Endpoint: PATCH /api/v1/projects/:id/inflow/:inflowId
+   * Permissions: Admin, Finance
+   */
+  @Patch(":id/inflow/:inflowId")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async updateInflow(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Param("inflowId", new ParseUUIDPipe()) inflowId: string,
+    @Body() updateInflowDto: UpdateInflowDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.projectsService.updateInflow(
+      id,
+      inflowId,
+      updateInflowDto,
+      req.user.tenant_id,
+      req.user.id,
+    );
+  }
+
+  /**
+   * API Endpoint: DELETE /api/v1/projects/:id/inflow/:inflowId
+   * Permissions: Admin, Finance
+   */
+  @Delete(":id/inflow/:inflowId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  async deleteInflow(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Param("inflowId", new ParseUUIDPipe()) inflowId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    await this.projectsService.deleteInflow(
+      id,
+      inflowId,
+      req.user.tenant_id,
+      req.user.id,
+    );
   }
 
   /**

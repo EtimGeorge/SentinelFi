@@ -30,4 +30,13 @@ export const envValidationSchema = Joi.object({
   // Third Party APIs
   PAYSTACK_SECRET_KEY: Joi.string().optional(),
   RESEND_API_KEY: Joi.string().optional(),
+
+  // Ads (monetization — all optional; 'test' provider when unset)
+  ADS_PROVIDER: Joi.string().valid("test", "adsense", "admanager").optional().default("test"),
+  ADS_ENABLED: Joi.string().valid("true", "false").optional().default("true"),
+  ADSENSE_CLIENT_ID: Joi.string().optional(),
+  ADSENSE_BANNER_SLOT: Joi.string().optional(),
+  // Shared secret for rewarded-network server-side verification (SSV).
+  // Leave unset in dev/test; REQUIRED in production with a real network.
+  ADS_SSV_SECRET: Joi.string().optional(),
 });

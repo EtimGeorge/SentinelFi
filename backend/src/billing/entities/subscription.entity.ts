@@ -15,12 +15,14 @@ export enum SubscriptionStatus {
   ACTIVE = "active",
   EXPIRED = "expired",
   CANCELLED = "cancelled",
+  PAUSED = "paused",
 }
 
 export enum BillingCycle {
   MONTHLY = "monthly",
   ANNUAL = "annual",
   TRIAL = "trial",
+  FREE = "free",
 }
 
 /**
@@ -40,9 +42,25 @@ export class SubscriptionEntity {
   @JoinColumn({ name: "tenant_id" })
   tenant!: TenantEntity;
 
-  /** 'trial' | 'professional' | 'enterprise' */
+  /** 'free' | 'trial' | 'professional' | 'enterprise' */
   @Column({ type: "varchar", length: 50 })
   plan!: string;
+
+  /** Max tasks per day — enforced for free tier (1/day). Null = unlimited. */
+  @Column({ type: "integer", nullable: true })
+  max_tasks_per_day!: number | null;
+
+  /** Whether this subscription shows ads (true for free tier only). */
+  @Column({ type: "boolean", default: false })
+  has_ads!: boolean;
+
+  /** Extra single-day task unlocks earned by watching ads (free tier). */
+  @Column({ type: "integer", default: 0 })
+  ad_unlock_credits!: number;
+
+  /** Date (YYYY-MM-DD) the ad_unlock_credits apply to. Resets daily. */
+  @Column({ type: "varchar", length: 10, nullable: true })
+  ad_unlock_date!: string | null;
 
   @Column({
     type: "enum",

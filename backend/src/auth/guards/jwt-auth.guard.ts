@@ -17,6 +17,20 @@ import { TenantEntity } from "../../tenants/tenant.entity";
 @Injectable()
 export class JwtAuthGuard extends AuthGuard("jwt") {
   private readonly logger = new Logger(JwtAuthGuard.name);
+
+  // Tenant status cache to avoid a public-schema DB query on every authenticated request.
+  // Entries are invalidated explicitly on write (billing/tenant services) so revocation
+  // latency is bounded by invalidation, not by the TTL.
+  private static readonly TENANT_STATUS_CACHE = new Map<
+    string,
+    { is_active: boolean; expires_at: Date | null; storedAt: number }
+  >();
+  private static readonly TENANT_STATUS_TTL_MS = 60 * 1000;
+
+  static invalidateTenantStatus(tenantId: string): void {
+    JwtAuthGuard.TENANT_STATUS_CACHE.delete(tenantId);
+  }
+
   constructor(
     private reflector: Reflector,
     private dataSource: DataSource,
@@ -47,11 +61,28 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
     if (!user?.tenant_id) return true;
 
     try {
-      const tenantRepository = this.dataSource.getRepository(TenantEntity);
-      const tenant = await tenantRepository.findOne({
-        where: { tenant_id: user.tenant_id },
-        select: ["tenant_id", "is_active", "expires_at"],
-      });
+      const cached = JwtAuthGuard.TENANT_STATUS_CACHE.get(user.tenant_id);
+      const isFresh =
+        cached && Date.now() - cached.storedAt < JwtAuthGuard.TENANT_STATUS_TTL_MS;
+
+      let tenant: { is_active: boolean; expires_at: Date | null } | null;
+      if (isFresh && cached) {
+        tenant = cached;
+      } else {
+        const tenantRepository = this.dataSource.getRepository(TenantEntity);
+        tenant = await tenantRepository.findOne({
+          where: { tenant_id: user.tenant_id },
+          select: ["tenant_id", "is_active", "expires_at"],
+        });
+
+        if (tenant) {
+          JwtAuthGuard.TENANT_STATUS_CACHE.set(user.tenant_id, {
+            is_active: tenant.is_active,
+            expires_at: tenant.expires_at,
+            storedAt: Date.now(),
+          });
+        }
+      }
 
       if (!tenant) {
         throw new ForbiddenException("TENANT_NOT_FOUND");

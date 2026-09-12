@@ -47,6 +47,26 @@ export class SubscriptionController {
   }
 
   /**
+   * Start the perpetual free plan (1 task/day, ad-supported).
+   * No payment, no expiry. Welcome email via Resend + magic-link.
+   */
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Post("start-free")
+  @HttpCode(HttpStatus.CREATED)
+  async startFree(
+    @Body()
+    body: {
+      email: string;
+      companyName: string;
+      firstName: string;
+      lastName: string;
+    },
+  ) {
+    return this.billingService.startFreePlan(body);
+  }
+
+  /**
    * Initiate a paid subscription.
    * Returns a payment gateway URL. Tenant created ONLY after webhook confirms payment.
    */
@@ -110,5 +130,27 @@ export class SubscriptionController {
       body.firstName,
       body.lastName,
     );
+  }
+
+  /**
+   * Reactivate an expired/cancelled/paused subscription.
+   * Free → instant. Paid → returns a fresh gateway checkout URL.
+   */
+  @Post("reactivate")
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async reactivate(@Req() req: any) {
+    return this.billingService.reactivateSubscription(req.user.tenant_id);
+  }
+
+  /**
+   * Rewarded-ad callback: grants +1 task credit for today (free plan only).
+   * Frontend calls this after a rewarded ad completes.
+   */
+  @Post("ad-unlock")
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async adUnlock(@Req() req: any) {
+    return this.billingService.grantAdUnlock(req.user.tenant_id);
   }
 }

@@ -10,6 +10,9 @@ import * as path from "path";
 
 // Import all entities that are part of the tenant schema
 import { ProjectEntity } from "../projects/project.entity";
+import { LpoEntity } from "../projects/lpo.entity";
+import { ProjectInflowEntity } from "../projects/project-inflow.entity";
+import { ProjectAuditEntity } from "../projects/project-audit.entity";
 import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
 import { LiveExpenseEntity } from "../wbs/live-expense.entity";
 import { WbsCategoryEntity } from "../wbs/wbs-category.entity";
@@ -93,6 +96,9 @@ export class TenantMigrationService {
       schema: schemaName, // CRITICAL: Dynamically set the schema name
       entities: [
         ProjectEntity,
+        LpoEntity,
+        ProjectInflowEntity,
+        ProjectAuditEntity,
         WbsBudgetEntity,
         LiveExpenseEntity,
         WbsCategoryEntity,

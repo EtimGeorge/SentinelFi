@@ -68,6 +68,7 @@ import { redisStore } from "cache-manager-redis-yet";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { LogSanitizationInterceptor } from "./common/interceptors/log-sanitization.interceptor";
 import { HealthModule } from "./health/health.module";
+import { AdsModule } from "./ads/ads.module";
 import { envValidationSchema } from "./common/config/env-validation.schema";
 
 @Module({
@@ -158,6 +159,7 @@ import { envValidationSchema } from "./common/config/env-validation.schema";
     AiAssistantModule,
     MarketingModule,
     HealthModule,
+    AdsModule,
   ],
   controllers: [],
   providers: [

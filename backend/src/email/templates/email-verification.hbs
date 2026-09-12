@@ -1,0 +1,15 @@
+<h1 style="font-size:26px;font-weight:900;color:#1a202c;margin:0 0 8px;letter-spacing:-0.5px;">Verify your email</h1>
+<p style="color:#718096;font-size:15px;margin:0 0 24px;">Hi <strong>{{firstName}}</strong> — one quick step to secure your SentinelFi® account.</p>
+
+<div class="alert-success">
+  <strong>🔐 Email verification required</strong> — your link expires in <strong>{{expiryHours}} hours</strong>.
+</div>
+
+<div style="text-align:center;margin:28px 0;">
+  <a href="{{verificationUrl}}" class="button">Verify My Email →</a>
+</div>
+
+<p style="color:#a0aec0;font-size:12px;text-align:center;">
+  Button not working? Paste this link in your browser:<br/>
+  <a href="{{verificationUrl}}" style="color:#00A3B5;word-break:break-all;">{{verificationUrl}}</a>
+</p>
