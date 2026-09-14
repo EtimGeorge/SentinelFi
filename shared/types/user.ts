@@ -20,7 +20,10 @@ export interface JwtPayload {
   iat?: number;
   exp?: number;
   jti?: string; // JWT ID — unique per token for revocation/blacklist
+  v?: number; // Token version — incremented on password change / session revocation
   impersonator_id?: string; // ID of the SuperAdmin who is impersonating
+  mfa?: true; // Present only when the token was issued after successful MFA verification
+  mfaChallenge?: boolean; // Marks a short-lived challenge token used for the MFA step
 }
 
 // This is the application-facing User object.

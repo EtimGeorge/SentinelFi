@@ -12,3 +12,19 @@
 - **awesome-design-md** (`.opencode/skills/awesome-design-md/SKILL.md`) - Create a DESIGN.md style baseline BEFORE building UI. Use FIRST when no design draft exists.
 - DESIGN.md is installed at `./DESIGN.md` (linear.app inspiration). Use `Use DESIGN.md as the source of truth for UI decisions` prompt pattern.
 - When user asks to build UI like a known brand or wants consistent typography/colors/spacing, load `awesome-design-md` skill first.
+
+## Design-token guardrail
+
+- The ESLint workspace package `packages/eslint-plugin-sentinelfi` provides `sentinelfi/no-ai-tells`. `frontend/.eslintrc.json` extends `plugin:sentinelfi/recommended`. Canonical source is `packages/eslint-plugin-sentinelfi/index.js` — if a fresh clone fails to resolve the plugin, re-run `npm install` to recreate the workspace symlink.
+- Never introduce raw `shadow-{sm|md|lg|xl|2xl}`, `tracking-widest/wide/wider`, `text-[8px|9px|10px]`, or decorative `bg-gradient-to-*` in app UI. Use DESIGN.md tokens (`elev-*`, `text-*`, `shadow-brand-*`).
+
+## Verification
+
+Before finishing any code task, run (sequentially, not in parallel — parallel tsc/jest can cause phantom parse errors):
+
+```bash
+npx tsc --noEmit                      # frontend
+npx tsc --noEmit -p backend/tsconfig.json   # backend
+npm test --workspace frontend         # jest suite
+npx next lint                         # eslint incl. sentinelfi guardrail
+```

@@ -12,6 +12,8 @@ export interface SettingsEntity {
   auditRetentionDays: number;
   sessionTimeoutMinutes: number;
   enableGlobalMfa: boolean;
+  gracePeriodDays: number;
+  archiveRetentionDays: number;
   // Phase 6 Integrations
   sendgridApiKey?: string | null;
   erpProvider?: string | null;
@@ -32,6 +34,8 @@ export interface UpdateSettingsDto {
   auditRetentionDays?: number;
   sessionTimeoutMinutes?: number;
   enableGlobalMfa?: boolean;
+  gracePeriodDays?: number;
+  archiveRetentionDays?: number;
   // Phase 6 Integrations
   sendgridApiKey?: string;
   erpProvider?: string;
