@@ -111,12 +111,8 @@ interface RouteGuardProps {
 const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
   const router = useRouter();
   const {
-    user,
-    isAuthenticated,
-    isLoading, // Global auth loading state
-    error,
-    refreshUser,
-    getDefaultRoute
+    user, isAuthenticated, isLoading, // Global auth loading state
+    error, refreshUser, getDefaultRoute
   } = useAuth();
 
   const [authorized, setAuthorized] = useState(isAuthenticated); // Initialize based on current auth status
@@ -204,13 +200,12 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
         }
 
         await router.replace({
-          pathname: '/login',
-          query: { returnUrl: router.asPath },
+          pathname: '/login', query: { returnUrl: router.asPath },
         });
         return;
       }
 
-      // 3. Role-Based Access Control — enforce role-specific visible routes
+      // 3. Role-Based Access Control, enforce role-specific visible routes
       const getRoleName = (r: any): string | undefined => {
         return typeof r === 'string' ? r : r?.name;
       };
@@ -233,6 +228,12 @@ const RouteGuard: React.FC<RouteGuardProps> = ({ children }) => {
       if (currentPath.startsWith('/admin') && !hasSuperAdminRole && !isAdminDirector) {
         AuthLogger.warn(`[RouteGuard] Non-AdminDirector blocked from ${currentPath}`);
         await router.replace(getDefaultRoute());
+        return;
+      }
+
+      // Docs are available to every authenticated user (any role, incl. SuperAdmin)
+      if (currentPath === '/docs' || currentPath.startsWith('/docs/')) {
+        setAuthorized(true);
         return;
       }
 

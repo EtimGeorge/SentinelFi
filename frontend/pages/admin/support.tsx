@@ -1,17 +1,9 @@
 ﻿import React, { useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import PageContainer from '../../components/Layout/PageContainer';
 import { 
-  LifeBuoy, 
-  MessageCircle, 
-  FileText, 
-  ExternalLink, 
-  Zap, 
-  ShieldCheck, 
-  Send,
-  Loader2,
-  ArrowRight,
-  Headphones
+  LifeBuoy, MessageCircle, FileText, ExternalLink, Zap, ShieldCheck, Send, Loader2, ArrowRight, Headphones
 } from 'lucide-react';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
@@ -34,8 +26,7 @@ const SupportHub: React.FC = () => {
     setSubmitting(true);
     try {
       await api.post('/messaging/support', {
-        subject,
-        description: message
+        subject, description: message
       });
       addToast('Priority support request dispatched to the Landlord team.', 'success');
       setSuccess(true);
@@ -136,6 +127,7 @@ const SupportHub: React.FC = () => {
                     desc="Deep dives into architecture and API usage."
                     actionText="Browse Docs"
                     color="text-purple-400"
+                    href="/docs"
                   />
                 </div>
               </>
@@ -174,18 +166,30 @@ const SupportHub: React.FC = () => {
 
 // --- Sub-components ---
 
-const SupportOption: React.FC<{ icon: any, title: string, desc: string, actionText: string, color: string }> = ({ icon: Icon, title, desc, actionText, color }) => (
-  <Card className="hover:border-white/10 transition-colors">
-    <div className={`p-3 rounded-xl bg-gray-800/50 w-fit mb-4`}>
-      <Icon className={`w-6 h-6 ${color}`} />
-    </div>
-    <h4 className="text-lg font-bold text-white mb-1">{title}</h4>
-    <p className="text-sm text-gray-400 mb-6">{desc}</p>
-    <button className="text-brand-primary text-sm font-bold flex items-center hover:translate-x-1 transition-transform">
+const SupportOption: React.FC<{ icon: any, title: string, desc: string, actionText: string, color: string, href?: string }> = ({ icon: Icon, title, desc, actionText, color, href }) => {
+  const action = (
+    <span className="text-brand-primary text-sm font-bold flex items-center hover:translate-x-1 transition-transform">
       {actionText} <ArrowRight className="w-4 h-4 ml-1" />
-    </button>
-  </Card>
-);
+    </span>
+  );
+
+  return (
+    <Card className="hover:border-white/10 transition-colors">
+      <div className={`p-3 rounded-xl bg-gray-800/50 w-fit mb-4`}>
+        <Icon className={`w-6 h-6 ${color}`} />
+      </div>
+      <h4 className="text-lg font-bold text-white mb-1">{title}</h4>
+      <p className="text-sm text-gray-400 mb-6">{desc}</p>
+      {href ? (
+        <Link href={href}>{action}</Link>
+      ) : (
+        <button className="cursor-pointer">
+          {action}
+        </button>
+      )}
+    </Card>
+  );
+};
 
 const StatusItem: React.FC<{ label: string, status: string }> = ({ label, status }) => (
   <div className="flex justify-between items-center py-2 border-b border-gray-800">
