@@ -4,9 +4,10 @@ import { SettingsController } from "./settings.controller";
 import { SettingsService } from "./settings.service";
 import { SettingsEntity } from "./settings.entity";
 import { EmailModule } from "../email/email.module";
+import { UserEntity } from "../auth/user.entity";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SettingsEntity]), EmailModule],
+  imports: [TypeOrmModule.forFeature([SettingsEntity, UserEntity]), EmailModule],
   controllers: [SettingsController],
   providers: [SettingsService],
   exports: [SettingsService],

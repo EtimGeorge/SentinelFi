@@ -9,6 +9,7 @@ import { CreateAnnotationDto } from "./dto/create-annotation.dto";
 import { ProjectEntity } from "../projects/project.entity";
 import { LpoEntity, LpoStatus } from "../projects/lpo.entity";
 import { FinancialForensicsService } from "../common/services/financial-forensics.service";
+import { CurrencyService, sumInBase } from "../currency/currency.service";
 
 @Injectable()
 export class DashboardService {
@@ -18,31 +19,84 @@ export class DashboardService {
     @Inject(TENANT_DATA_SOURCE)
     private dataSource: DataSource,
     private forensicsService: FinancialForensicsService,
+    private currencyService: CurrencyService,
   ) {}
+
+  /**
+   * Shared normalization context: tenant base currency + rate map +
+   * warning collector. All monetary aggregations in this service funnel
+   * through it so mixed-currency tenants never get raw cross-currency SUMs.
+   */
+  private async normalizationContext(tenantId: string): Promise<{
+    base: string;
+    rates: Record<string, number>;
+    warnings: Set<string>;
+    toBase: (amount: any, from?: string | null) => number;
+  }> {
+    let base = "USD";
+    try {
+      const rows: any[] = await this.dataSource.query(
+        `SELECT default_currency_code FROM public.tenants WHERE tenant_id = $1`,
+        [tenantId],
+      );
+      if (rows?.[0]?.default_currency_code) {
+        base = String(rows[0].default_currency_code).toUpperCase();
+      }
+    } catch {
+      this.logger.warn(`[DASHBOARD] Tenant base lookup failed, using USD`);
+    }
+    const rates = await this.currencyService.getUsdRateMap();
+    const warnings = new Set<string>();
+    const toBase = (amount: any, from?: string | null): number => {
+      const { total, warnings: w } = sumInBase(
+        [{ amount, currency: from || "USD" }],
+        base,
+        rates,
+      );
+      w.forEach((c) => warnings.add(c));
+      return total;
+    };
+    return { base, rates, warnings, toBase };
+  }
 
   async getTenantSummary(tenantId: string) {
     const budgetRepo = this.dataSource.getRepository(WbsBudgetEntity);
     const expenseRepo = this.dataSource.getRepository(LiveExpenseEntity);
+    const ctx = await this.normalizationContext(tenantId);
 
-    // 1. Total Budgeted: Sum of root-level items (to avoid double counting children)
-    const budgetSumResult = await this.runWithTimeout(
+    // 1. Total Budgeted: root-level items grouped by project currency,
+    // converted to base BEFORE summing (never raw cross-currency SUMs)
+    const budgetRows = await this.runWithTimeout(
       budgetRepo
         .createQueryBuilder("wbs")
-        .select("SUM(wbs.total_cost_budgeted)", "total")
+        .select("COALESCE(p.currency, 'USD')", "currency")
+        .addSelect("SUM(wbs.total_cost_budgeted)", "total")
+        .leftJoin("wbs.project", "p")
         .where("wbs.tenant_id = :tenantId", { tenantId })
         .andWhere("wbs.parent_wbs_id IS NULL")
-        .getRawOne(),
+        .groupBy("p.currency")
+        .getRawMany(),
       10000,
       "getTenantSummary:budgetSum",
     );
 
-    // 2. Total Actual Paid: Sum of all live expenses
-    const expenseSumResult = await this.runWithTimeout(
+    // 2. Total Actual Paid: expenses grouped by owning-project currency.
+    // Expenses join projects directly (some lack a wbs_id — joining via
+    // wbs would silently drop them).
+    const expenseRows = await this.runWithTimeout(
       expenseRepo
         .createQueryBuilder("expense")
-        .select("SUM(expense.amount)", "total")
+        .select("COALESCE(p.currency, 'USD')", "currency")
+        .addSelect("SUM(expense.amount)", "total")
+        .leftJoin(
+          ProjectEntity,
+          "p",
+          "p.project_id = expense.project_id AND p.tenant_id = :tenantId",
+          { tenantId },
+        )
         .where("expense.tenant_id = :tenantId", { tenantId })
-        .getRawOne(),
+        .groupBy("p.currency")
+        .getRawMany(),
       8000, // Slightly shorter to fail fast
       "getTenantSummary:expenseSum",
     );
@@ -61,8 +115,14 @@ export class DashboardService {
       "getTenantSummary:pendingCount",
     );
 
-    const totalBudgeted = parseFloat(budgetSumResult?.total || "0");
-    const totalActualPaid = parseFloat(expenseSumResult?.total || "0");
+    const totalBudgeted = (budgetRows || []).reduce(
+      (s: number, r: any) => s + ctx.toBase(r.total, r.currency),
+      0,
+    );
+    const totalActualPaid = (expenseRows || []).reduce(
+      (s: number, r: any) => s + ctx.toBase(r.total, r.currency),
+      0,
+    );
 
     // Variance is (Actual - Budget) / Budget
     const variancePercentage =
@@ -71,10 +131,12 @@ export class DashboardService {
         : 0;
 
     return {
-      totalBudgeted,
-      totalActualPaid,
+      totalBudgeted: Math.round(totalBudgeted * 100) / 100,
+      totalActualPaid: Math.round(totalActualPaid * 100) / 100,
       pendingApprovals: pendingCount,
       variancePercentage,
+      currency: ctx.base,
+      currencyWarnings: [...ctx.warnings],
     };
   }
 
@@ -123,26 +185,43 @@ export class DashboardService {
     const budgetRepo = this.dataSource.getRepository(WbsBudgetEntity);
     const expenseRepo = this.dataSource.getRepository(LiveExpenseEntity);
     const lpoRepo = this.dataSource.getRepository(LpoEntity);
+    const ctx = await this.normalizationContext(tenantId);
 
-    // 1. Basic Aggregates
+    // 1. Basic Aggregates — grouped by currency, converted to base.
+    // Single-project scopes are still normalized so the response currency
+    // contract (`currency` = base) holds uniformly.
     const budgetQuery = budgetRepo
       .createQueryBuilder("wbs")
-      .select("SUM(wbs.total_cost_budgeted)", "total")
+      .select("COALESCE(p.currency, 'USD')", "currency")
+      .addSelect("SUM(wbs.total_cost_budgeted)", "total")
+      .leftJoin("wbs.project", "p")
       .where("wbs.tenant_id = :tenantId", { tenantId })
-      .andWhere("wbs.parent_wbs_id IS NULL");
+      .andWhere("wbs.parent_wbs_id IS NULL")
+      .groupBy("p.currency");
 
     const expenseQuery = expenseRepo
       .createQueryBuilder("expense")
-      .select("SUM(expense.amount)", "total")
-      .where("expense.tenant_id = :tenantId", { tenantId });
+      .select("COALESCE(p.currency, 'USD')", "currency")
+      .addSelect("SUM(expense.amount)", "total")
+      .leftJoin(
+        ProjectEntity,
+        "p",
+        "p.project_id = expense.project_id AND p.tenant_id = :tenantId",
+        { tenantId },
+      )
+      .where("expense.tenant_id = :tenantId", { tenantId })
+      .groupBy("p.currency");
 
     const lpoQuery = lpoRepo
       .createQueryBuilder("lpo")
-      .select("SUM(lpo.amount_committed)", "total")
+      .select("COALESCE(p.currency, 'USD')", "currency")
+      .addSelect("SUM(lpo.amount_committed)", "total")
+      .leftJoin("lpo.project", "p")
       .where("lpo.tenant_id = :tenantId", { tenantId })
       .andWhere("lpo.status IN (:...lpoStatuses)", {
         lpoStatuses: [LpoStatus.OPEN, LpoStatus.PARTIALLY_PAID],
-      });
+      })
+      .groupBy("p.currency");
 
     if (projectId) {
       budgetQuery.andWhere("wbs.project_id = :projectId", { projectId });
@@ -150,65 +229,96 @@ export class DashboardService {
       lpoQuery.andWhere("lpo.project_id = :projectId", { projectId });
     }
 
-    const budgetSum = await this.runWithTimeout(
-      budgetQuery.getRawOne(),
+    const budgetRows = await this.runWithTimeout(
+      budgetQuery.getRawMany(),
       8000,
       "getExecutiveAnalytics:budgetSum",
     );
-    const expenseSum = await this.runWithTimeout(
-      expenseQuery.getRawOne(),
+    const expenseRows = await this.runWithTimeout(
+      expenseQuery.getRawMany(),
       8000,
       "getExecutiveAnalytics:expenseSum",
     );
-    const lpoSum = await this.runWithTimeout(
-      lpoQuery.getRawOne(),
+    const lpoRows = await this.runWithTimeout(
+      lpoQuery.getRawMany(),
       8000,
       "getExecutiveAnalytics:lpoSum",
     );
 
-    const totalBudgeted = parseFloat(budgetSum?.total || "0");
-    const totalActualPaid = parseFloat(expenseSum?.total || "0");
-    const totalCommittedLPO = parseFloat(lpoSum?.total || "0");
+    const sumRows = (rows: any[]): number =>
+      (rows || []).reduce(
+        (s: number, r: any) => s + ctx.toBase(r.total, r.currency),
+        0,
+      );
+
+    const totalBudgeted = sumRows(budgetRows);
+    const totalActualPaid = sumRows(expenseRows);
+    const totalCommittedLPO = sumRows(lpoRows);
     const variance =
       totalBudgeted > 0
         ? ((totalActualPaid - totalBudgeted) / totalBudgeted) * 100
         : 0;
 
     // 2. Burn Rate & Historical Trend
-    // Fetch last 30 days of spending history
+    // Last 30 days, grouped by date+CURRENCY so mixed-currency days are
+    // converted before merging into single-currency daily points.
     const historyQuery = expenseRepo
       .createQueryBuilder("expense")
       .select("DATE(expense.expense_date)", "date")
+      .addSelect("COALESCE(p.currency, 'USD')", "currency")
       .addSelect("SUM(expense.amount)", "amount")
+      .leftJoin(
+        ProjectEntity,
+        "p",
+        "p.project_id = expense.project_id AND p.tenant_id = :tenantId",
+        { tenantId },
+      )
       .where("expense.tenant_id = :tenantId", { tenantId })
       .andWhere("expense.expense_date >= CURRENT_DATE - INTERVAL '30 days'")
       .groupBy("DATE(expense.expense_date)")
+      .addGroupBy("p.currency")
       .orderBy("DATE(expense.expense_date)", "ASC");
 
     if (projectId) {
       historyQuery.andWhere("expense.project_id = :projectId", { projectId });
     }
 
-    const history = await this.runWithTimeout(
+    const historyRows = await this.runWithTimeout(
       historyQuery.getRawMany(),
       8000,
       "getExecutiveAnalytics:history",
     );
 
+    const historyByDate = new Map<string, number>();
+    for (const h of historyRows || []) {
+      const date = String(h.date).slice(0, 10);
+      historyByDate.set(
+        date,
+        (historyByDate.get(date) || 0) + ctx.toBase(h.amount, h.currency),
+      );
+    }
+    const history = [...historyByDate.entries()]
+      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+      .map(([date, amount]) => ({
+        date,
+        amount: Math.round(amount * 100) / 100,
+      }));
+
     // 3. Predictive Forecasting via Centralized Forensics
+    // (operates on base-normalized totals — ratios are currency-invariant)
     const forensics = this.forensicsService.calculateForensics(
       totalBudgeted,
       totalActualPaid,
       totalCommittedLPO,
-      history.map((h) => ({ date: h.date, amount: parseFloat(h.amount) })),
+      history.map((h) => ({ date: h.date, amount: h.amount })),
     );
 
 
     return {
       overview: {
-        totalBudgeted,
-        totalActualPaid,
-        totalCommittedLPO,
+        totalBudgeted: Math.round(totalBudgeted * 100) / 100,
+        totalActualPaid: Math.round(totalActualPaid * 100) / 100,
+        totalCommittedLPO: Math.round(totalCommittedLPO * 100) / 100,
         variancePercentage: variance,
         burnRatePercentage: forensics.burnRatePercentage,
 
@@ -217,14 +327,13 @@ export class DashboardService {
         riskLevel: forensics.riskLevel,
       },
 
-      history: history.map((h) => ({
-        date: h.date,
-        amount: parseFloat(h.amount),
-      })),
+      history,
       context: {
         projectId: projectId || "ALL",
         type: projectId ? "PROJECT" : "OPERATIONAL_CONSOLIDATED",
       },
+      currency: ctx.base,
+      currencyWarnings: [...ctx.warnings],
     };
   }
 

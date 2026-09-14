@@ -25,20 +25,20 @@ import { TenantEntity } from "../tenants/tenant.entity";
 import { UserEntity } from "../auth/user.entity";
 import { Role } from "shared/types/role.enum";
 import { AssignTenantToUserDto } from "./dto/assign-tenant-to-user.dto";
-import { SettingsEntity } from "../settings/settings.entity";
-import { UpdateSettingsDto } from "../settings/dto/settings.dto";
 import { EmailService } from "../email/email.service";
-import { SendTestEmailDto } from "../settings/dto/send-test-email.dto";
 import { TenantDetailDto } from "./dto/tenant-details.dto";
 import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
 import { LiveExpenseEntity } from "../wbs/live-expense.entity";
 import { AuditLogEntity } from "../audit/audit.entity";
 import { UpdateTenantPlanDto } from "./dto/tenant-plan.dto";
 import { sub } from "date-fns";
-import { JwtService } from "@nestjs/jwt";
 import { JwtPayload } from "@shared/types/user";
 import { AuditService } from "../audit/audit.service";
 import { AuthService } from "../auth/auth.service";
+import { BillingService } from "../billing/billing.service";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { CurrentAdmin } from "../common/decorators/current-admin.decorator";
+import { IMPERSONATION_TOKEN_TTL_SECONDS } from "./constants";
 import * as os from "os";
 import * as bcrypt from "bcryptjs";
 
@@ -51,19 +51,26 @@ export class SuperAdminService {
     private readonly tenantRepository: Repository<TenantEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-    @InjectRepository(SettingsEntity)
-    private readonly settingsRepository: Repository<SettingsEntity>,
     private readonly tenantService: TenantService,
     private readonly emailService: EmailService,
     private readonly auditService: AuditService,
-    private readonly jwtService: JwtService,
     private readonly authService: AuthService,
+    private readonly billingService: BillingService,
     private readonly dataSource: DataSource,
   ) {}
 
-  async createTenant(createTenantDto: CreateTenantDto): Promise<TenantEntity> {
-    // Delegate to the specialized TenantService which handles schema creation and migrations
-    return this.tenantService.createTenant(createTenantDto);
+  async createTenant(
+    createTenantDto: CreateTenantDto,
+    actor?: CurrentAdmin,
+    initialBudgetFile?: Express.Multer.File,
+  ): Promise<TenantEntity> {
+    const tenant = await this.tenantService.createTenant(
+      createTenantDto,
+      initialBudgetFile,
+      actor,
+    );
+    JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
+    return tenant;
   }
 
   async findAllTenants(
@@ -103,6 +110,7 @@ export class SuperAdminService {
   async updateTenant(
     id: string,
     updateTenantDto: UpdateTenantDto,
+    actor?: CurrentAdmin,
   ): Promise<TenantEntity> {
     const tenant = await this.tenantRepository.findOne({
       where: { tenant_id: id },
@@ -111,7 +119,22 @@ export class SuperAdminService {
       throw new NotFoundException(`Tenant with ID ${id} not found.`);
     }
     this.tenantRepository.merge(tenant, updateTenantDto);
-    return this.tenantRepository.save(tenant);
+    const saved = await this.tenantRepository.save(tenant);
+
+    JwtAuthGuard.invalidateTenantStatus(id);
+
+    this.auditService
+      .log(
+        actor?.id ?? "SYSTEM",
+        "TENANT_UPDATED",
+        id,
+        `Tenant ${saved.name} updated by ${actor?.email ?? "SYSTEM"}`,
+        { updateTenantDto },
+        actor?.email ?? "SYSTEM",
+      )
+      .catch(() => {});
+
+    return saved;
   }
 
   async getTenantPlan(tenantId: string): Promise<TenantEntity> {
@@ -138,6 +161,7 @@ export class SuperAdminService {
   async updateTenantPlan(
     tenantId: string,
     updateData: UpdateTenantPlanDto,
+    actor?: CurrentAdmin,
   ): Promise<TenantEntity> {
     const tenant = await this.tenantRepository.findOne({
       where: { tenant_id: tenantId },
@@ -155,14 +179,16 @@ export class SuperAdminService {
     this.tenantRepository.merge(tenant, updateData);
     const saved = await this.tenantRepository.save(tenant);
 
+    JwtAuthGuard.invalidateTenantStatus(tenantId);
+
     this.auditService
       .log(
-        "SYSTEM",
+        actor?.id ?? "SYSTEM",
         "TENANT_PLAN_UPDATED",
         tenantId,
-        `Subscription plan updated for ${tenant.name}`,
+        `Subscription plan updated for ${tenant.name} by ${actor?.email ?? "SYSTEM"}`,
         { updateData },
-        "SYSTEM",
+        actor?.email ?? "SYSTEM",
       )
       .catch(() => {});
 
@@ -213,7 +239,7 @@ export class SuperAdminService {
     // 3. Generate the token using AuthService - strictly limited to 30 minutes for security
     const impersonationToken = await this.authService.generateJwtToken(
       payload,
-      { expiresIn: "1800s" },
+      { expiresIn: `${IMPERSONATION_TOKEN_TTL_SECONDS}s` },
     );
 
     // 4. Log the impersonation action
@@ -238,29 +264,6 @@ export class SuperAdminService {
     );
 
     return impersonationToken;
-  }
-
-  async stopImpersonation(
-    superAdminId: string,
-    impersonatedUserId: string,
-  ): Promise<void> {
-    this.auditService
-      .log(
-        superAdminId,
-        "IMPERSONATION_ENDED",
-        null, // Tenant ID for SuperAdmin stopping impersonation (platform-level)
-        `SuperAdmin (ID: ${superAdminId}) ended impersonation of user (ID: ${impersonatedUserId})`,
-        {
-          impersonatedUserId: impersonatedUserId,
-        },
-        superAdminId, // Acting user email (SuperAdmin's email, or ID as placeholder)
-      )
-      .catch((err) =>
-        this.logger.error(`Failed to log impersonation end: ${err.message}`),
-      );
-    this.logger.log(
-      `SuperAdmin (ID: ${superAdminId}) ended impersonation of user (ID: ${impersonatedUserId})`,
-    );
   }
 
   async impersonateTenant(
@@ -481,23 +484,9 @@ export class SuperAdminService {
   }
 
   async getMmrEstimate(): Promise<{ mrrEstimate: number }> {
-    const pricingMap: Record<string, number> = {
-      basic: 99,
-      premium: 249,
-      enterprise: 999,
-    };
-
-    const tenants = await this.tenantRepository.find({
-      select: ["plan", "price", "is_active"],
-    });
-    const total = tenants.reduce((acc, t) => {
-      if (!t.is_active) return acc;
-      const price = Number(t.price);
-      if (price > 0) return acc + price;
-      return acc + (pricingMap[t.plan?.toLowerCase()] || 0);
-    }, 0);
-
-    return { mrrEstimate: total };
+    // Real revenue from ACTIVE subscriptions (annual normalized to /12).
+    const { mrr_usd } = await this.billingService.getRevenueSummary();
+    return { mrrEstimate: mrr_usd };
   }
 
   async getWbsMetrics(tenantId?: string): Promise<any> {
@@ -602,41 +591,6 @@ export class SuperAdminService {
     }));
   }
 
-  async getBillingOverview(): Promise<any> {
-    const tenants = await this.tenantRepository.find();
-    const activeTenants = tenants.filter((t) => t.is_active);
-    const totalMrr = activeTenants.reduce(
-      (acc, t) => acc + parseFloat((t.price as any) || 0),
-      0,
-    );
-
-    return {
-      overview: {
-        totalMrr,
-        activeSubscriptions: activeTenants.length,
-        pendingInvoices: 0, // In real world, query an Invoices table
-        mrrGrowthPercentage: 12.5, // Placeholder for trend logic
-        subscriptionGrowthPercentage: 8.2,
-      },
-    };
-  }
-
-  async getRecentInvoices(): Promise<any[]> {
-    // Generate virtual invoices based on tenants for demonstration
-    // or query real ones if table exists.
-    const tenants = await this.tenantRepository.find({
-      take: 5,
-      order: { created_at: "DESC" },
-    });
-    return tenants.map((t) => ({
-      id: `INV-${t.tenant_id.split("-")[0].toUpperCase()}`,
-      tenantName: t.name,
-      amount: parseFloat((t.price as any) || 99),
-      date: t.created_at,
-      status: "paid",
-    }));
-  }
-
   async assignTenantToUser(
     assignTenantToUserDto: AssignTenantToUserDto,
   ): Promise<UserEntity> {
@@ -658,59 +612,6 @@ export class SuperAdminService {
     return this.userRepository.save(user);
   }
 
-  async getSuperAdminSettings(): Promise<SettingsEntity> {
-    const settings = await this.settingsRepository.findOne({
-      where: { id: 1 },
-    });
-    if (!settings) {
-      this.logger.log(
-        "No global settings found, creating default settings record.",
-      );
-      const defaultSettings = this.settingsRepository.create({ id: 1 });
-      return this.settingsRepository.save(defaultSettings);
-    }
-    return settings;
-  }
-
-  async updateSuperAdminSettings(
-    updateSettingsDto: UpdateSettingsDto,
-  ): Promise<SettingsEntity> {
-    let settings = await this.settingsRepository.findOne({ where: { id: 1 } });
-    if (!settings) {
-      settings = this.settingsRepository.create({
-        id: 1,
-        ...updateSettingsDto,
-      });
-    } else {
-      this.settingsRepository.merge(settings, updateSettingsDto);
-    }
-    this.logger.log("Global settings updated successfully.");
-    return this.settingsRepository.save(settings);
-  }
-
-  async sendSuperAdminTestEmail(
-    sendTestEmailDto: SendTestEmailDto,
-  ): Promise<{ message: string }> {
-    const { to } = sendTestEmailDto;
-    this.logger.log(`SuperAdmin initiated test email to: ${to}`);
-    try {
-      await this.emailService.sendEmail(
-        to,
-        "Test from SuperAdmin",
-        "This is a test email.",
-      );
-      return { message: "Email sent" };
-    } catch (error) {
-      if (error instanceof Error) {
-        this.logger.error(
-          `Failed to send test email: ${error.message}`,
-          error.stack,
-        );
-      }
-      throw error;
-    }
-  }
-
   private getDateFromPeriod(period: string): Date {
     const now = new Date();
     switch (period) {
@@ -729,7 +630,10 @@ export class SuperAdminService {
 
   // --- NEW TENANT MANAGEMENT ACTIONS ---
 
-  async softDeleteTenant(tenantId: string): Promise<void> {
+  async softDeleteTenant(
+    tenantId: string,
+    actor?: CurrentAdmin,
+  ): Promise<void> {
     const tenant = await this.tenantRepository.findOne({
       where: { tenant_id: tenantId },
     });
@@ -743,18 +647,34 @@ export class SuperAdminService {
     tenant.is_active = false; // Disable access immediately
     await this.tenantRepository.save(tenant);
 
+    JwtAuthGuard.invalidateTenantStatus(tenantId);
+
+    // Revoke every session held by users of the archived tenant so existing
+    // JWTs cannot resurrect access during the cache window.
+    const tenantUsers = await this.userRepository.find({
+      where: { tenant_id: tenantId },
+      select: ["id"],
+    });
+    await Promise.all(
+      tenantUsers.map((u) => this.authService.revokeUserSessions(u.id)),
+    ).catch((err: Error) =>
+      this.logger.error(
+        `Failed to revoke sessions for archived tenant ${tenantId}: ${err.message}`,
+      ),
+    );
+
     this.logger.log(
-      `Tenant ${tenant.name} (${tenantId}) archived by SuperAdmin.`,
+      `Tenant ${tenant.name} (${tenantId}) archived by ${actor?.email ?? "SYSTEM"}.`,
     );
 
     await this.auditService
       .log(
-        "SYSTEM",
+        actor?.id ?? "SYSTEM",
         "TENANT_ARCHIVED",
         tenantId,
-        `Tenant ${tenant.name} was moved to archival state (soft-deleted).`,
+        `Tenant ${tenant.name} was moved to archival state (soft-deleted) by ${actor?.email ?? "SYSTEM"}.`,
         { tenant_name: tenant.name },
-        "SYSTEM",
+        actor?.email ?? "SYSTEM",
       )
       .catch(() => {});
   }
@@ -762,6 +682,7 @@ export class SuperAdminService {
   async resetTenantAdminPassword(
     tenantId: string,
     resetDto: { newPassword: string; reason?: string },
+    actor?: CurrentAdmin,
   ): Promise<void> {
     const tenant = await this.tenantRepository.findOne({
       where: { tenant_id: tenantId },
@@ -781,12 +702,14 @@ export class SuperAdminService {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(resetDto.newPassword, salt);
 
-    // 2. Update user
+    // 2. Update user + revoke all existing sessions (token_version bump)
     adminUser.password_hash = hashedPassword;
     await this.userRepository.save(adminUser);
 
+    await this.authService.revokeUserSessions(adminUser.id);
+
     this.logger.log(
-      `Forced password reset for Tenant Admin ${adminUser.email} (Tenant: ${tenant.name})`,
+      `Forced password reset for Tenant Admin ${adminUser.email} (Tenant: ${tenant.name}) by ${actor?.email ?? "SYSTEM"}`,
     );
 
     // 3. Notify the user
@@ -805,12 +728,12 @@ export class SuperAdminService {
     // 4. Audit Log
     await this.auditService
       .log(
-        "SYSTEM",
+        actor?.id ?? "SYSTEM",
         "TENANT_ADMIN_PASSWORD_RESET",
         adminUser.id,
-        "SuperAdmin forced a password reset for a tenant administrator.",
-        { tenantId, reason: resetDto.reason },
-        "SYSTEM",
+        `SuperAdmin (${actor?.email ?? "SYSTEM"}) forced a password reset for a tenant administrator.`,
+        { tenantId, reason: resetDto.reason, targetAdminEmail: adminUser.email },
+        actor?.email ?? "SYSTEM",
       )
       .catch(() => {});
   }
@@ -862,6 +785,11 @@ export class SuperAdminService {
     }
 
     const saved = await this.userRepository.save(user);
+
+    // Security: password/email changes invalidate every session (incl. current).
+    if (updateDto.newPassword || updateDto.email) {
+      await this.authService.revokeUserSessions(saved.id);
+    }
 
     await this.auditService
       .log(

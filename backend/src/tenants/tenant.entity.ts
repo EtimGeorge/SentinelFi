@@ -40,6 +40,9 @@ export class TenantEntity {
   @Column({ type: "timestamptz", nullable: true })
   expires_at!: Date | null;
 
+  @Column({ type: "timestamptz", nullable: true })
+  grace_period_until?: Date | null;
+
   @Column({ type: "numeric", precision: 10, scale: 2, default: 0 })
   price!: number;
 

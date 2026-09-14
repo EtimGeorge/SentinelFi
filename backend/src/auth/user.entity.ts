@@ -83,4 +83,31 @@ export class UserEntity {
     name: "reset_password_expires",
   })
   resetPasswordExpires?: Date;
+
+  // Session Revocation: bumped on password change / forced reset / admin action
+  @Column({ type: "int", default: 0 })
+  token_version!: number;
+
+  @Column({ type: "timestamptz", nullable: true })
+  password_changed_at?: Date | null;
+
+  // TOTP MFA
+  @Column({ type: "boolean", default: false })
+  mfa_enabled!: boolean;
+
+  @Column({ type: "varchar", nullable: true, select: false })
+  totp_secret?: string | null;
+
+  /** 5 bcrypt-hashed one-time recovery codes. Never stored in plain text. */
+  @Column({
+    type: "text",
+    array: true,
+    nullable: true,
+    name: "mfa_recovery_code_hashes",
+  })
+  mfa_recovery_code_hashes?: string[] | null;
+
+  /** Secret staged during enrollment; promoted to totp_secret on confirm. */
+  @Column({ type: "varchar", nullable: true, name: "totp_pending_secret" })
+  totp_pending_secret?: string | null;
 }

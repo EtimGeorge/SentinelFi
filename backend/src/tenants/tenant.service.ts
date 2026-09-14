@@ -60,6 +60,7 @@ export class TenantService {
   async createTenant(
     createTenantDto: CreateTenantDto,
     initialBudgetFile?: Express.Multer.File,
+    actor?: { id: string; email: string },
   ): Promise<TenantEntity & { admin_password?: string }> {
     const schema_name = (createTenantDto.schema_name || createTenantDto.name)
       .toLowerCase()
@@ -74,7 +75,7 @@ export class TenantService {
     if (existingTenant) {
       this.auditService
         .log(
-          null,
+          actor?.id ?? null,
           "TENANT_CREATION_FAILED",
           null,
           `Conflicting tenant name or schema name: ${createTenantDto.name}/${schema_name}`,
@@ -83,7 +84,7 @@ export class TenantService {
             requestedSchemaName: schema_name,
             reason: "Conflict: Tenant or schema name already exists.",
           },
-          "SYSTEM",
+          actor?.email ?? "SYSTEM",
         )
         .catch((err) =>
           this.logger.error(
@@ -214,7 +215,7 @@ export class TenantService {
 
           this.auditService
             .log(
-              "SYSTEM",
+              actor?.id ?? "SYSTEM",
               "TENANT_CREATED",
               savedTenant.tenant_id,
               `Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`,
@@ -224,7 +225,7 @@ export class TenantService {
                 plan: savedTenant.plan,
                 admin_email: createTenantDto.admin_email,
               },
-              "SYSTEM",
+              actor?.email ?? "SYSTEM",
             )
             .catch((err) =>
               this.logger.error(

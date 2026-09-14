@@ -18,6 +18,10 @@ import { BillingInvoiceEntity } from "./entities/billing-invoice.entity";
 import { BillingOverviewDto } from "./dto/billing-overview.dto";
 import { ProvisionOfflineTenantDto } from "./dto/provision-tenant.dto";
 import { InvoiceDto, InvoiceStatus } from "./dto/invoice.dto";
+import {
+  SubscriptionSummaryDto,
+  SafeSubscriptionDto,
+} from "@shared/types/billing";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { PaymentService } from "../payment/payment.service";
 import { TenantService } from "../tenants/tenant.service";
@@ -50,6 +54,46 @@ export const PLAN_PRICING = {
   professional: { amount_usd: 500, label: "Professional" },
   enterprise: { amount_usd: 0, label: "Enterprise (Contact Sales)" }, // Custom
 };
+
+/**
+ * Single source of truth for monthly-equivalent list pricing.
+ * - trial/free = $0
+ * - professional/basic/premium = list MRR
+ * - enterprise = 0 → fall back to the recorded amount_usd (custom contract)
+ */
+export const PRICE_REGISTRY: Record<string, number> = {
+  trial: 0,
+  free: 0,
+  basic: 99,
+  professional: 500,
+  premium: 249,
+  enterprise: 0,
+};
+
+/**
+ * Monthly-equivalent USD for a subscription.
+ * Annual contracts are normalized to /12 so MRR comparisons are apples-to-apples.
+ * When a recorded amount exists (custom price), it wins; otherwise the registry list price is used.
+ */
+export function effectiveMonthlyUsd(sub: {
+  plan: string;
+  billing_cycle: BillingCycle;
+  amount_usd: number | string | null;
+}): number {
+  const amount = Number(sub.amount_usd) || 0;
+  if (sub.billing_cycle === BillingCycle.ANNUAL) {
+    return amount > 0 ? amount / 12 : 0;
+  }
+  if (
+    sub.billing_cycle === BillingCycle.FREE ||
+    sub.billing_cycle === BillingCycle.TRIAL
+  ) {
+    return 0;
+  }
+  const list = PRICE_REGISTRY[sub.plan?.toLowerCase()] ?? 0;
+  if (list === 0) return amount;
+  return amount > 0 ? amount : list;
+}
 
 export const ANNUAL_DISCOUNT = 0.05; // 5% off annual
 
@@ -655,6 +699,7 @@ export class BillingService {
         dashboardUrl: `${frontendUrl}/dashboard`,
       },
       pdfBuffer,
+      { tenantId: sub.tenant_id ?? null },
     );
 
     // Send workspace provisioned confirmation
@@ -665,7 +710,7 @@ export class BillingService {
       billingCycle: sub.billing_cycle,
       periodEnd: periodEnd.toDateString(),
       dashboardUrl: `${frontendUrl}/dashboard`,
-    });
+    }, { tenantId: sub.tenant_id ?? null });
   }
 
   /**
@@ -1009,39 +1054,116 @@ export class BillingService {
 
   // ─── SUPERADMIN OVERVIEW ─────────────────────────────────────────────────────
 
-  async getAllTenantSubscriptions() {
+  /**
+   * Platform revenue summary — real MRR/ARR derived from ACTIVE subscriptions.
+   * MRR normalizes annual contracts to /12 via the shared PRICE_REGISTRY.
+   */
+  async getRevenueSummary(): Promise<{
+    mrr_usd: number;
+    arr_usd: number;
+    subscription_count: number;
+  }> {
+    const activeSubs = await this.subscriptionRepository.find({
+      where: { status: SubscriptionStatus.ACTIVE },
+    });
+
+    let mrr_usd = 0;
+    let arr_usd = 0;
+    for (const s of activeSubs) {
+      const monthly = effectiveMonthlyUsd(s);
+      mrr_usd += monthly;
+      arr_usd +=
+        s.billing_cycle === BillingCycle.ANNUAL
+          ? Number(s.amount_usd) || 0
+          : monthly * 12;
+    }
+
+    return {
+      mrr_usd: Math.round(mrr_usd * 100) / 100,
+      arr_usd: Math.round(arr_usd * 100) / 100,
+      subscription_count: activeSubs.length,
+    };
+  }
+
+  async getAllTenantSubscriptions(): Promise<{
+    summary: SubscriptionSummaryDto;
+    subscriptions: SafeSubscriptionDto[];
+  }> {
     const subscriptions = await this.subscriptionRepository.find({
       order: { created_at: "DESC" },
     });
 
-    const summary = {
+    const activeSubs = subscriptions.filter(
+      (s) => s.status === SubscriptionStatus.ACTIVE,
+    );
+
+    const mrr_usd = activeSubs.reduce(
+      (acc, s) => acc + effectiveMonthlyUsd(s),
+      0,
+    );
+    const arr_usd = activeSubs.reduce(
+      (acc, s) =>
+        acc +
+        (s.billing_cycle === BillingCycle.ANNUAL
+          ? Number(s.amount_usd) || 0
+          : effectiveMonthlyUsd(s) * 12),
+      0,
+    );
+
+    const summary: SubscriptionSummaryDto = {
       total: subscriptions.length,
-      active: subscriptions.filter(
-        (s) => s.status === SubscriptionStatus.ACTIVE,
-      ).length,
+      active: activeSubs.length,
       trialing: subscriptions.filter(
         (s) => s.status === SubscriptionStatus.TRIALING,
       ).length,
       expired: subscriptions.filter(
         (s) => s.status === SubscriptionStatus.EXPIRED,
       ).length,
-      mrr_usd: subscriptions
-        .filter(
-          (s) =>
-            s.status === SubscriptionStatus.ACTIVE &&
-            s.billing_cycle === BillingCycle.MONTHLY,
-        )
-        .reduce((acc, s) => acc + Number(s.amount_usd), 0),
-      arr_usd: subscriptions
-        .filter(
-          (s) =>
-            s.status === SubscriptionStatus.ACTIVE &&
-            s.billing_cycle === BillingCycle.ANNUAL,
-        )
-        .reduce((acc, s) => acc + Number(s.amount_usd), 0),
+      cancelled: subscriptions.filter(
+        (s) => s.status === SubscriptionStatus.CANCELLED,
+      ).length,
+      paused: subscriptions.filter(
+        (s) => s.status === SubscriptionStatus.PAUSED,
+      ).length,
+      mrr_usd: Math.round(mrr_usd * 100) / 100,
+      arr_usd: Math.round(arr_usd * 100) / 100,
     };
 
-    return { summary, subscriptions };
+    return {
+      summary,
+      subscriptions: subscriptions.map((s) => this.toSafeSubscriptionDto(s)),
+    };
+  }
+
+  /**
+   * Safe projection of a subscription for SuperAdmin consumption.
+   * Excludes PII (admin_email) and payment-evidence fields
+   * (gateway_reference, payment_proof_url/text, offline_bank_reference).
+   */
+  private toSafeSubscriptionDto(
+    s: SubscriptionEntity,
+  ): SafeSubscriptionDto {
+    return {
+      id: s.id,
+      tenant_id: s.tenant_id,
+      plan: s.plan,
+      status: s.status,
+      billing_cycle: s.billing_cycle,
+      amount_usd: Number(s.amount_usd),
+      company_name: s.company_name,
+      admin_first_name: s.admin_first_name,
+      admin_last_name: s.admin_last_name,
+      base_currency: s.base_currency,
+      gateway: s.gateway,
+      current_period_start: s.current_period_start,
+      current_period_end: s.current_period_end,
+      trial_ends_at: s.trial_ends_at,
+      cancelled_at: s.cancelled_at,
+      created_at: s.created_at,
+      max_tasks_per_day: s.max_tasks_per_day,
+      has_ads: s.has_ads,
+      ad_unlock_credits: s.ad_unlock_credits ?? 0,
+    };
   }
 
   // ─── INVOICE (Legacy — Enhanced + real invoice generation) ───────────────────
@@ -1061,9 +1183,10 @@ export class BillingService {
     const pastActive = pastSubscriptions.filter(
       (s) => s.status === SubscriptionStatus.ACTIVE,
     );
-    const pastMrr = pastActive
-      .filter((s) => s.billing_cycle === BillingCycle.MONTHLY)
-      .reduce((acc, s) => acc + Number(s.amount_usd), 0);
+    const pastMrr = pastActive.reduce(
+      (acc, s) => acc + effectiveMonthlyUsd(s),
+      0,
+    );
 
     const mrrGrowthPercentage =
       pastMrr === 0
@@ -1344,6 +1467,7 @@ export class BillingService {
         dashboardUrl: `${frontendUrl}/dashboard`,
       },
       pdfBuffer,
+      { tenantId: subscription.tenant_id ?? null },
     );
   }
 

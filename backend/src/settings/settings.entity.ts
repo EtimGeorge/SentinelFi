@@ -42,6 +42,12 @@ export class SettingsEntity implements ISettingsEntity {
   @Column({ type: "boolean", default: false })
   enableGlobalMfa!: boolean;
 
+  @Column({ type: "integer", default: 0 })
+  gracePeriodDays!: number;
+
+  @Column({ type: "integer", default: 30 })
+  archiveRetentionDays!: number;
+
   @Column({ type: "varchar", nullable: true, select: false })
   sendgridApiKey!: string | null;
 

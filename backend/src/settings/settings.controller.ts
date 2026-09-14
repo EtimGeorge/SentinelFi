@@ -9,6 +9,7 @@ import {
   UsePipes,
   ValidationPipe,
   Post,
+  Req,
 } from "@nestjs/common";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -17,6 +18,7 @@ import { SettingsService } from "./settings.service";
 import { SettingsEntity } from "./settings.entity";
 import { UpdateSettingsDto } from "./dto/settings.dto";
 import { SendTestEmailDto } from "./dto/send-test-email.dto";
+import { AuthenticatedRequest } from "../common/interfaces/authenticated-request.interface";
 
 @Controller("super/settings")
 @UseGuards(RolesGuard)
@@ -34,9 +36,13 @@ export class SettingsController {
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateSettings(
+    @Req() req: AuthenticatedRequest,
     @Body() updateSettingsDto: UpdateSettingsDto,
   ): Promise<SettingsEntity> {
-    return this.settingsService.updateSettings(updateSettingsDto);
+    return this.settingsService.updateSettings(
+      updateSettingsDto,
+      req.user?.id,
+    );
   }
 
   @Post("test-email")

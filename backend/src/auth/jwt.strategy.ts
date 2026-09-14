@@ -85,6 +85,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException("Invalid token: missing user ID");
     }
 
+    // MFA challenge tokens are short-lived and must never be accepted as a
+    // session. Only the MFA verification step may exchange one for a real token.
+    if (payload.mfaChallenge) {
+      this.logger.warn(
+        `[Validate] MFA challenge token rejected for sub ${userId} (jti ${payload.jti})`,
+      );
+      throw new UnauthorizedException(
+        "MFA verification token cannot be used for access. Please complete the verification step.",
+      );
+    }
+
     const jti = (payload as any).jti as string | undefined;
     if (jti && this.tokenBlacklist.isBlacklisted(jti)) {
       this.logger.warn(
@@ -98,9 +109,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     try {
       // 1. Check Cache FIRST (Now uses injected IAuthCache - possibly Redis)
       const cacheKey = `auth_meta:${userId}`;
-      const cachedUser = await this.authCache.get(cacheKey);
+      const cachedUser = (await this.authCache.get(cacheKey)) as
+        | (UserPayload & { tokenVersion?: number })
+        | null;
 
       if (cachedUser) {
+        // Token version guard: a token signed before the user's stored version
+        // (password change / forced reset / admin revocation) is rejected even
+        // on a cache hit. Legacy tokens without `v` are accepted for backward
+        // compatibility but refreshed on next DB path.
+        if (
+          payload.v !== undefined &&
+          cachedUser.tokenVersion !== undefined &&
+          cachedUser.tokenVersion !== payload.v
+        ) {
+          this.logger.warn(
+            `[Validate] Stale token version for ${cachedUser.email} (token v=${payload.v}, db v=${cachedUser.tokenVersion})`,
+          );
+          throw new UnauthorizedException(
+            "Your session was revoked. Please log in again.",
+          );
+        }
         const cacheHitDuration = Date.now() - startTimeTotal;
         this.logger.log(
           `[Validate] [PERF] Cache HIT for ${cachedUser.email} in ${cacheHitDuration}ms`,
@@ -152,7 +181,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           ),
         ];
 
-        const userPayloadToReturn: UserPayload = {
+        const userPayloadToReturn: UserPayload & { tokenVersion?: number } = {
           id: user.id,
           email: user.email,
           roles: simpleRoles,
@@ -162,7 +191,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           last_name: user.last_name,
           is_active: user.is_active,
           tenant_name: user.tenant?.name || null,
+          tokenVersion: user.token_version ?? 0,
         };
+
+        // Strict token-version enforcement on the DB path.
+        if (
+          payload.v !== undefined &&
+          userPayloadToReturn.tokenVersion !== payload.v
+        ) {
+          this.logger.warn(
+            `[Validate] Token version mismatch for ${user.email} (token v=${payload.v}, db v=${userPayloadToReturn.tokenVersion})`,
+          );
+          throw new UnauthorizedException(
+            "Your session was revoked. Please log in again.",
+          );
+        }
 
         const queryDuration = Date.now() - queryStartTime;
         this.logger.log(

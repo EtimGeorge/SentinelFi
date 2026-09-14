@@ -40,6 +40,7 @@ import { CorrelatedLogger } from "../common/logger/correlated-logger";
 import { AcceptInvitationDto } from "./dto/accept-invitation.dto";
 import { ForgotPasswordRequestDto } from "./dto/forgot-password-request.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { VerifyMfaDto } from "./dto/verify-mfa.dto";
 
 /**
  * A more robust response helper to ensure proper HTTP completion and prevent hangs.
@@ -131,6 +132,15 @@ export class AuthController {
         userAgent,
         loginDto.rememberMe || false,
       );
+      if (result.requiresMFA) {
+        ResponseHelper.sendJson(res, HttpStatus.OK, {
+          success: false,
+          requiresMFA: true,
+          mfaToken: result.mfaToken,
+          message: "Two-factor authentication required.",
+        });
+        return;
+      }
       this.setAuthCookie(res, result.accessToken, loginDto.rememberMe || false); // CHANGED: result.access_token to result.accessToken
       ResponseHelper.sendJson(res, HttpStatus.OK, {
         success: true,
@@ -149,6 +159,52 @@ export class AuthController {
           res,
           HttpStatus.INTERNAL_SERVER_ERROR,
           "An unexpected internal error occurred.",
+        );
+      }
+    }
+  }
+
+  @Public()
+  @Post("login/super/mfa-verify")
+  @UseInterceptors(TimeoutInterceptor)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 attempts per minute
+  async verifySuperAdminMfa(
+    @Body() verifyMfaDto: VerifyMfaDto,
+    @Res() res: Response,
+    @Req() req: Request,
+  ): Promise<void> {
+    const ipAddress =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+      req.socket.remoteAddress;
+    const userAgent = req.headers["user-agent"] as string; // Ensure string type
+
+    try {
+      const result = await this.authService.verifySuperAdminMfa(
+        verifyMfaDto.mfaToken,
+        verifyMfaDto.code,
+        ipAddress,
+        userAgent,
+        verifyMfaDto.rememberMe || false,
+      );
+      this.setAuthCookie(res, result.accessToken, verifyMfaDto.rememberMe || false);
+      ResponseHelper.sendJson(res, HttpStatus.OK, {
+        success: true,
+        user: result.user,
+        message: "Login successful",
+      });
+    } catch (error) {
+      this.logger.error(
+        `SuperAdmin MFA verification failed: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      if (error instanceof HttpException) {
+        ResponseHelper.sendError(res, error.getStatus(), error.message);
+      } else {
+        ResponseHelper.sendError(
+          res,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          "An unexpected internal error occurred during MFA verification.",
         );
       }
     }
@@ -179,6 +235,15 @@ export class AuthController {
         loginDto.rememberMe || false,
         loginDto.tenantId,
       );
+      if (result.requiresMFA) {
+        ResponseHelper.sendJson(res, HttpStatus.OK, {
+          success: false,
+          requiresMFA: true,
+          mfaToken: result.mfaToken,
+          message: "Two-factor authentication required.",
+        });
+        return;
+      }
       this.setAuthCookie(res, result.accessToken, loginDto.rememberMe || false); // CHANGED: result.access_token to result.accessToken
       ResponseHelper.sendJson(res, HttpStatus.OK, {
         success: true,

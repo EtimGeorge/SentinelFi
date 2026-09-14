@@ -4,8 +4,10 @@ import { ClientController } from "./client.controller";
 import { TENANT_DATA_SOURCE } from "../database/constants";
 import { DataSource } from "typeorm";
 import { ClientEntity } from "./client.entity";
+import { CurrencyModule } from "../currency/currency.module";
 
 @Module({
+  imports: [CurrencyModule],
   controllers: [ClientController],
   providers: [
     {

@@ -19,11 +19,17 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
   private readonly logger = new Logger(JwtAuthGuard.name);
 
   // Tenant status cache to avoid a public-schema DB query on every authenticated request.
-  // Entries are invalidated explicitly on write (billing/tenant services) so revocation
+  // Entries are invalidated explicitly on write (billing/tenant/superadmin services) so revocation
   // latency is bounded by invalidation, not by the TTL.
   private static readonly TENANT_STATUS_CACHE = new Map<
     string,
-    { is_active: boolean; expires_at: Date | null; storedAt: number }
+    {
+      is_active: boolean;
+      expires_at: Date | null;
+      grace_period_until: Date | null;
+      deleted_at: Date | null;
+      storedAt: number;
+    }
   >();
   private static readonly TENANT_STATUS_TTL_MS = 60 * 1000;
 
@@ -65,20 +71,34 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
       const isFresh =
         cached && Date.now() - cached.storedAt < JwtAuthGuard.TENANT_STATUS_TTL_MS;
 
-      let tenant: { is_active: boolean; expires_at: Date | null } | null;
+      let tenant: {
+        is_active: boolean;
+        expires_at: Date | null;
+        grace_period_until?: Date | null;
+        deleted_at: Date | null;
+      } | null;
       if (isFresh && cached) {
         tenant = cached;
       } else {
         const tenantRepository = this.dataSource.getRepository(TenantEntity);
         tenant = await tenantRepository.findOne({
           where: { tenant_id: user.tenant_id },
-          select: ["tenant_id", "is_active", "expires_at"],
+          select: [
+            "tenant_id",
+            "is_active",
+            "expires_at",
+            "grace_period_until",
+            "deleted_at",
+          ],
+          withDeleted: true, // soft-deleted tenants must be explicitly rejected below
         });
 
         if (tenant) {
           JwtAuthGuard.TENANT_STATUS_CACHE.set(user.tenant_id, {
             is_active: tenant.is_active,
             expires_at: tenant.expires_at,
+            grace_period_until: tenant.grace_period_until ?? null,
+            deleted_at: tenant.deleted_at ?? null,
             storedAt: Date.now(),
           });
         }
@@ -88,19 +108,32 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
         throw new ForbiddenException("TENANT_NOT_FOUND");
       }
 
+      // Soft-deleted (archived) tenants are blocked immediately — the cache hit
+      // path is sealed because deletion invalidates the cache entry on write.
+      if (tenant.deleted_at) {
+        throw new ForbiddenException("TENANT_DELETED");
+      }
+
       if (!tenant.is_active) {
         throw new ForbiddenException("TENANT_SUSPENDED");
       }
 
       if (tenant.expires_at && new Date() > tenant.expires_at) {
-        throw new HttpException(
-          {
-            code: "SUBSCRIPTION_EXPIRED",
-            message: "Your subscription has expired. Please renew to continue.",
-            renewUrl: "/settings/subscription",
-          },
-          HttpStatus.PAYMENT_REQUIRED, // 402
-        );
+        const now = new Date();
+        // Payment grace: expired-but-in-grace tenants stay online so their admin
+        // can reach billing and renew, instead of being hard-locked at 402.
+        const inGrace =
+          tenant.grace_period_until && now <= tenant.grace_period_until;
+        if (!inGrace) {
+          throw new HttpException(
+            {
+              code: "SUBSCRIPTION_EXPIRED",
+              message: "Your subscription has expired. Please renew to continue.",
+              renewUrl: "/settings/subscription",
+            },
+            HttpStatus.PAYMENT_REQUIRED, // 402
+          );
+        }
       }
     } catch (err) {
       // Re-throw known HTTP exceptions (ForbiddenException, HttpException)

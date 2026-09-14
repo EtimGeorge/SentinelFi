@@ -349,13 +349,13 @@ describe("AuthService - REAL Implementation Tests", () => {
       jwtService.sign.mockReturnValue("real-jwt-token");
 
       // ACT & ASSERT
-      const result = await service.login(
+      const result = (await service.login(
         "tenant@example.com",
         "password123",
         "Tenant",
         commonIp,
         commonUa,
-      );
+      )) as { accessToken: string; user: { email: string; tenant_id: string } };
 
       // REAL assertions based on ACTUAL code
       expect(result.accessToken).toBe("real-jwt-token");
@@ -554,10 +554,13 @@ describe("AuthService - REAL Implementation Tests", () => {
         commonUa,
       );
 
-      const [result1, result2] = await Promise.all([
+      const [result1, result2] = (await Promise.all([
         loginPromise1,
         loginPromise2,
-      ]);
+      ])) as [
+        { requiresMFA?: false; accessToken: string; user: { email: string; tenant_id: string } },
+        { requiresMFA?: false; accessToken: string; user: { email: string; tenant_id: string } },
+      ];
 
       // ASSERT: Should get same results
       expect(result1.accessToken).toBe(result2.accessToken);

@@ -12,6 +12,10 @@ import { ProjectEntity } from "../projects/project.entity";
 import { ProjectStatus } from "../projects/enums/project.enum";
 import { CreateClientDto, UpdateClientDto } from "./client.dto";
 import { ClsService } from "nestjs-cls";
+import {
+  CurrencyService,
+  convertWithMap,
+} from "../currency/currency.service";
 
 @Injectable()
 export class ClientService {
@@ -22,6 +26,7 @@ export class ClientService {
     private readonly clientRepository: Repository<ClientEntity>,
     private readonly cls: ClsService,
     private readonly dataSource: DataSource,
+    private readonly currencyService: CurrencyService,
   ) {}
 
   /**
@@ -117,8 +122,38 @@ export class ClientService {
       relations: ["wbsBudgets"],
     });
 
-    // Aggregate health metrics
+    // Currency normalization: each project's budgets are in its own
+    // currency — normalize to tenant base BEFORE any cross-project sum.
+    let baseCurrency = "USD";
+    try {
+      const rows: any[] = await this.dataSource.query(
+        `SELECT default_currency_code FROM public.tenants WHERE tenant_id = $1`,
+        [tenantId],
+      );
+      if (rows?.[0]?.default_currency_code) {
+        baseCurrency = String(rows[0].default_currency_code).toUpperCase();
+      }
+    } catch {
+      this.logger.warn(
+        `[CLIENT] Tenant base currency lookup failed, defaulting to USD`,
+      );
+    }
+    const rates = await this.currencyService.getUsdRateMap();
+    const unconverted = new Set<string>();
+    const toBase = (amount: any, from?: string | null): number => {
+      const { value, converted } = convertWithMap(
+        Number(amount) || 0,
+        from || "USD",
+        baseCurrency,
+        rates,
+      );
+      if (!converted && from) unconverted.add(String(from).toUpperCase());
+      return Math.round(value * 100) / 100;
+    };
+
+    // Aggregate health metrics (ratios stay in native currency — invariant)
     const portfolioMetrics = projects.map((p) => {
+      const currency = (p as any).currency || baseCurrency;
       const totalBudget = p.wbsBudgets.reduce(
         (acc: number, w) => acc + Number(w.total_cost_budgeted),
         0,
@@ -132,12 +167,21 @@ export class ClientService {
         project_id: p.project_id,
         name: p.project_name,
         status: p.status,
+        currency,
         total_budget: totalBudget,
         total_actual: totalActual,
         variance: variance,
         health_index: totalBudget > 0 ? totalActual / totalBudget : 0,
+        // Base-normalized twins for cross-project display/sums
+        total_budget_base: toBase(totalBudget, currency),
+        total_actual_base: toBase(totalActual, currency),
       };
     });
+
+    const overallBase = Math.round(
+      portfolioMetrics.reduce((acc: number, m) => acc + m.total_budget_base, 0) *
+        100,
+    ) / 100;
 
     return {
       ...client,
@@ -145,10 +189,12 @@ export class ClientService {
       total_active_projects: projects.filter(
         (p) => p.status === ProjectStatus.ACTIVE,
       ).length,
-      overall_portfolio_value: portfolioMetrics.reduce(
-        (acc: number, m) => acc + m.total_budget,
-        0,
-      ),
+      overall_portfolio_value: overallBase,
+      // Alias: the frontend ClientDetails interface expects `total_value`
+      // (previously undefined → rendered $0.00)
+      total_value: overallBase,
+      currency: baseCurrency,
+      currencyWarnings: [...unconverted],
     } as any;
   }
 

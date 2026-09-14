@@ -47,6 +47,38 @@ export function convertWithMap(
   return { value: (amount / fromRate) * toRate, converted: true };
 }
 
+export interface NormalizedSum {
+  total: number;
+  warnings: string[];
+}
+
+/**
+ * Sums mixed-currency line items into a base currency. Rows lacking a rate
+ * are added unconverted and reported in `warnings` — aggregations degrade
+ * per-row instead of failing whole requests.
+ */
+export function sumInBase(
+  items: Array<{ amount: any; currency?: string | null }>,
+  baseCurrency: string,
+  rates: Record<string, number>,
+): NormalizedSum {
+  const warnings = new Set<string>();
+  let total = 0;
+  for (const item of items) {
+    const { value, converted } = convertWithMap(
+      Number(item.amount) || 0,
+      item.currency || "USD",
+      baseCurrency,
+      rates,
+    );
+    if (!converted && item.currency) {
+      warnings.add(String(item.currency).toUpperCase());
+    }
+    total += value;
+  }
+  return { total: Math.round(total * 100) / 100, warnings: [...warnings] };
+}
+
 @Injectable()
 export class CurrencyService implements OnModuleInit {
   private readonly logger = new Logger(CurrencyService.name);

@@ -2,12 +2,14 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { SettingsEntity } from "./settings.entity";
 import { UpdateSettingsDto } from "./dto/settings.dto";
 import { EmailService } from "../email/email.service"; // Import EmailService
+import { UserEntity } from "../auth/user.entity";
 
 @Injectable()
 export class SettingsService {
@@ -18,6 +20,8 @@ export class SettingsService {
   constructor(
     @InjectRepository(SettingsEntity)
     private settingsRepository: Repository<SettingsEntity>,
+    @InjectRepository(UserEntity)
+    private userRepository: Repository<UserEntity>,
     private readonly emailService: EmailService,
   ) {}
 
@@ -35,7 +39,27 @@ export class SettingsService {
 
   async updateSettings(
     updateSettingsDto: UpdateSettingsDto,
+    actorUserId?: string,
   ): Promise<SettingsEntity> {
+    // Safety gate: enabling mandatory global MFA requires the acting
+    // administrator to already have MFA on their own account, otherwise the
+    // platform could be locked out with no inactive SuperAdmin able to enroll.
+    if (updateSettingsDto.enableGlobalMfa === true) {
+      if (!actorUserId) {
+        throw new ForbiddenException(
+          "Unable to verify the acting administrator before enabling global MFA.",
+        );
+      }
+      const actor = await this.userRepository.findOne({
+        where: { id: actorUserId },
+      });
+      if (!actor || !actor.mfa_enabled) {
+        throw new ForbiddenException(
+          "Enabling global two-factor authentication requires the acting administrator to have MFA enabled on their own account first.",
+        );
+      }
+    }
+
     let settings = await this.getSettings();
     settings = this.settingsRepository.merge(settings, updateSettingsDto);
     const saved = await this.settingsRepository.save(settings);

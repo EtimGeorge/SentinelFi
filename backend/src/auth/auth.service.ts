@@ -40,6 +40,13 @@ import { EmailService } from "../email/email.service";
 import { IAuthCache } from "./auth-cache";
 import { TokenBlacklistService } from "./token-blacklist.service";
 import { PasswordResetEntity } from "./entities/password-reset.entity";
+import { SettingsEntity } from "../settings/settings.entity";
+import {
+  buildOtpauthUrl,
+  generateRecoveryCodes,
+  generateTotpSecret,
+  verifyTotp,
+} from "./mfa.util";
 
 // Interface for DTOs used within AuthService
 interface AuthCredentialDto {
@@ -47,10 +54,21 @@ interface AuthCredentialDto {
   password: string; // Corrected to match incoming DTO from controller
 }
 
-interface LoginResponse {
-  accessToken: string;
-  user: UserResponseDto;
+export interface MfaStatusResponse {
+  mfaEnabled: boolean;
+  globalMfaRequired: boolean;
+  pendingEnrollment: boolean;
 }
+
+export interface MfaEnrollmentResponse {
+  secret: string;
+  otpauthUrl: string;
+  recoveryCodes: string[];
+}
+
+type LoginResponse =
+  | { requiresMFA?: false; accessToken: string; user: UserResponseDto }
+  | { requiresMFA: true; mfaToken: string };
 
 /**
  * Login attempt deduplication cache.
@@ -349,6 +367,7 @@ export class AuthService {
               .getRepository(UserEntity)
               .createQueryBuilder("user")
               .addSelect("user.password_hash")
+              .addSelect("user.token_version")
               .leftJoinAndSelect("user.tenant", "tenant")
               .leftJoinAndSelect("user.roles", "role")
               .leftJoinAndSelect("role.permissions", "permission")
@@ -420,6 +439,57 @@ export class AuthService {
         `[LOGIN SUCCESS] Authentication passed for ${user.email}.`,
       );
 
+      // 3.1 TOTP MFA challenge for SuperAdmin access
+      if (expectedRoleType === "SuperAdmin") {
+        const globalMfaRequired = await this.isGlobalMfaRequired();
+        if (globalMfaRequired && !user.mfa_enabled) {
+          throw new ForbiddenException(
+            "Two-factor authentication is mandatory for platform administrators, but MFA is not configured for this account. Contact the platform owner.",
+          );
+        }
+        if (user.mfa_enabled) {
+          const challengeJti = crypto.randomUUID();
+          const challengeToken = this.jwtService.sign(
+            {
+              jti: challengeJti,
+              email: user.email,
+              sub: user.id,
+              id: user.id,
+              roles: user.roles.map((role) => role.name as Role),
+              permissions: [
+                ...new Set(
+                  user.roles.flatMap(
+                    (role) => role.permissions?.map((p) => p.name) || [],
+                  ),
+                ),
+              ],
+              tenant_id: user.tenant?.tenant_id ?? null,
+              v: user.token_version ?? 0,
+              mfaChallenge: true,
+            } as Omit<JwtPayload, "iat" | "exp">,
+            { expiresIn: 5 * 60, jwtid: challengeJti },
+          );
+          // NON-BLOCKING: audit the challenge issue
+          this.auditService
+            .log(
+              user.id,
+              "LOGIN_MFA_CHALLENGE",
+              user.tenant_id ?? null,
+              "SuperAdmin password accepted; MFA verification required",
+              { portal_type: expectedRoleType },
+              user.email,
+              ipAddress,
+              userAgent,
+            )
+            .catch((err) =>
+              this.logger.error(
+                `[CID:${getCorrelationId()}] Failed to log MFA challenge for ${email}: ${err.message}`,
+              ),
+            );
+          return { requiresMFA: true, mfaToken: challengeToken };
+        }
+      }
+
       const permissions = [
         ...new Set(
           user.roles.flatMap(
@@ -438,6 +508,7 @@ export class AuthService {
         roles: roleNames,
         permissions: permissions,
         tenant_id: user.tenant?.tenant_id ?? null, // Corrected to tenant_id
+        v: user.token_version ?? 0,
       };
 
       this.logger.debug(
@@ -850,6 +921,46 @@ export class AuthService {
   // ============================================================================
 
   /**
+   * Invalidate all active sessions for a given user by incrementing
+   * token_version and clearing caches. Returns true on success.
+   * Used for: forced password reset, self-service password/email change,
+   * account deactivation, tenant archival.
+   */
+  async revokeUserSessions(userId: string): Promise<boolean> {
+    try {
+      await this.dataSource
+        .getRepository(UserEntity)
+        .createQueryBuilder()
+        .update(UserEntity)
+        .set({
+          token_version: () => '"token_version" + 1',
+          password_changed_at: () => "CURRENT_TIMESTAMP",
+        })
+        .where("id = :id", { id: userId })
+        .execute();
+
+      // Evict cached auth payload so fresh token_version is fetched on next request
+      await this.authCache
+        .delete(`auth_meta:${userId}`)
+        .catch(() => {});
+
+      // Clear bcrypt hash cache entry (email-based key)
+      this.cleanPasswordCacheForUser(userId);
+
+      this.logger.debug(
+        `[SESSION_REVOCATION] All sessions revoked for user ${userId}.`,
+      );
+      return true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `[SESSION_REVOCATION] Failed to revoke sessions for user ${userId}: ${msg}`,
+      );
+      return false;
+    }
+  }
+
+  /**
    * Step 1: Generates a cryptographically random reset token, hashes it,
    * stores the hash in DB, and emails the plaintext token to the user.
    * The plaintext token NEVER touches the database.
@@ -956,7 +1067,13 @@ export class AuthService {
       await queryRunner.manager.update(
         UserEntity,
         { id: user.id },
-        { password_hash: hashedPassword },
+        { password_hash: hashedPassword, password_changed_at: new Date() },
+      );
+      await queryRunner.manager.increment(
+        UserEntity,
+        { id: user.id },
+        "token_version",
+        1,
       );
       await queryRunner.manager.update(
         PasswordResetEntity,
@@ -1543,5 +1660,349 @@ export class AuthService {
     }
 
     return superAdmin;
+  }
+
+  // ============================================================================
+  // TOTP MFA (SuperAdmin)
+  // ============================================================================
+
+  /**
+   * Global MFA policy, read defensively. Never throws — falls back to "off"
+   * so an unavailable settings row cannot brick SuperAdmin login entirely.
+   */
+  private async isGlobalMfaRequired(): Promise<boolean> {
+    try {
+      const settings = await this.dataSource
+        .getRepository(SettingsEntity)
+        .findOne({ where: { id: 1 } });
+      return settings?.enableGlobalMfa ?? false;
+    } catch (error) {
+      this.logger.warn(
+        `[CID:${getCorrelationId()}] Failed to read global MFA setting (fallback: disabled): ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
+  }
+
+  /** Loads a user including hidden/secret MFA columns for self-service flows. */
+  private loadUserForMfa(userId: string): Promise<UserEntity | null> {
+    return RetryableQuery.execute(
+      () =>
+        this.dataSource
+          .getRepository(UserEntity)
+          .createQueryBuilder("user")
+          .addSelect("user.password_hash")
+          .addSelect("user.token_version")
+          .addSelect("user.totp_secret")
+          .addSelect("user.totp_pending_secret")
+          .addSelect("user.mfa_recovery_code_hashes")
+          .leftJoinAndSelect("user.tenant", "tenant")
+          .leftJoinAndSelect("user.roles", "role")
+          .leftJoinAndSelect("role.permissions", "permission")
+          .where("user.id = :id", { id: userId })
+          .getOne(),
+      3,
+      100,
+    );
+  }
+
+  /**
+   * Completes the MFA step of a SuperAdmin login. Accepts either a live TOTP
+   * code or a one-time recovery code (which is consumed on first use).
+   */
+  async verifySuperAdminMfa(
+    mfaToken: string,
+    code: string,
+    ipAddress?: string,
+    userAgent?: string,
+    rememberMe = false,
+  ): Promise<{ accessToken: string; user: UserResponseDto }> {
+    let payload: JwtPayload;
+    try {
+      payload = this.jwtService.verify<JwtPayload>(mfaToken);
+    } catch {
+      throw new UnauthorizedException(
+        "Your verification session has expired. Please sign in again.",
+      );
+    }
+    if (!payload.mfaChallenge || !payload.sub) {
+      throw new UnauthorizedException("Invalid verification session.");
+    }
+
+    const user = await this.loadUserForMfa(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException("Account no longer exists.");
+    }
+    if (!user.is_active) {
+      throw new UnauthorizedException("Your account is inactive.");
+    }
+    if (!user.mfa_enabled || !user.totp_secret) {
+      throw new UnauthorizedException(
+        "Two-factor authentication is not enabled for this account. Please sign in again.",
+      );
+    }
+
+    let usedRecoveryCode: string | null = null;
+    if (!verifyTotp(user.totp_secret, code)) {
+      usedRecoveryCode = await this.consumeRecoveryCode(user, code);
+      if (!usedRecoveryCode) {
+        this.auditService
+          .log(
+            user.id,
+            "LOGIN_MFA_FAILURE",
+            user.tenant_id ?? null,
+            "Invalid MFA code or recovery code during login",
+            { portal_type: "SuperAdmin" },
+            user.email,
+            ipAddress,
+            userAgent,
+          )
+          .catch(() => {});
+        throw new UnauthorizedException(
+          "Invalid verification code. If you are using an authenticator app, check that the device clock is correct.",
+        );
+      }
+      this.auditService
+        .log(
+          user.id,
+          "MFA_RECOVERY_CODE_USED",
+          user.tenant_id ?? null,
+          `Signed in using one-time recovery code ${usedRecoveryCode}`,
+          { portal_type: "SuperAdmin" },
+          user.email,
+          ipAddress,
+          userAgent,
+        )
+        .catch((err) =>
+          this.logger.error(
+            `[CID:${getCorrelationId()}] Failed to log recovery-code usage: ${err.message}`,
+          ),
+        );
+    }
+
+    this.auditService
+      .log(
+        user.id,
+        "LOGIN_MFA_VERIFIED",
+        user.tenant_id ?? null,
+        "SuperAdmin passed MFA verification during login",
+        { portal_type: "SuperAdmin" },
+        user.email,
+        ipAddress,
+        userAgent,
+      )
+      .catch((err) =>
+        this.logger.error(
+          `[CID:${getCorrelationId()}] Failed to log MFA verification: ${err.message}`,
+        ),
+      );
+
+    const permissions = [
+      ...new Set(
+        user.roles.flatMap(
+          (role) => role.permissions?.map((p) => p.name) || [],
+        ),
+      ),
+    ];
+    const roleNames: Role[] = user.roles.map((role) => role.name as Role);
+    const jti = crypto.randomUUID();
+    const payloadToSign: Omit<JwtPayload, "iat" | "exp"> = {
+      jti,
+      email: user.email,
+      sub: user.id,
+      id: user.id,
+      roles: roleNames,
+      permissions,
+      tenant_id: user.tenant?.tenant_id ?? null,
+      v: user.token_version ?? 0,
+      mfa: true,
+    };
+    const accessToken = this.jwtService.sign(payloadToSign, {
+      expiresIn: rememberMe ? 7 * 24 * 60 * 60 : 60 * 60,
+    });
+
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        roles: this.mapRolesToSimpleRoles(user.roles),
+        is_active: user.is_active,
+        tenant_id: user.tenant_id,
+        tenant_name: user.tenant?.name || null,
+      },
+    };
+  }
+
+  /** Validates a candidate recovery code against stored hashes; consumes it on match. */
+  private async consumeRecoveryCode(
+    user: UserEntity,
+    candidate: string,
+  ): Promise<string | null> {
+    const hashes = user.mfa_recovery_code_hashes ?? [];
+    if (hashes.length === 0) return null;
+    const normalized = candidate.trim().toUpperCase();
+    for (const hash of hashes) {
+      const matches = await bcrypt.compare(normalized, hash);
+      if (matches) {
+        await this.dataSource
+          .getRepository(UserEntity)
+          .update(user.id, {
+            mfa_recovery_code_hashes: hashes.filter((h) => h !== hash),
+          });
+        return normalized;
+      }
+    }
+    return null;
+  }
+
+  async getMfaStatus(userId: string): Promise<MfaStatusResponse> {
+    const user = await this.loadUserForMfa(userId);
+    if (!user) throw new NotFoundException("User not found.");
+    const globalMfaRequired = await this.isGlobalMfaRequired();
+    return {
+      mfaEnabled: user.mfa_enabled,
+      globalMfaRequired,
+      pendingEnrollment: Boolean(user.totp_pending_secret),
+    };
+  }
+
+  /**
+   * Starts enrollment: stages a pending TOTP secret, hashes + stores the
+   * recovery codes immediately, and returns the plaintext codes exactly once.
+   */
+  async startMfaEnrollment(
+    userId: string,
+    actorEmail: string,
+  ): Promise<MfaEnrollmentResponse> {
+    const user = await this.loadUserForMfa(userId);
+    if (!user) throw new NotFoundException("User not found.");
+    if (user.mfa_enabled) {
+      throw new ConflictException(
+        "Two-factor authentication is already enabled.",
+      );
+    }
+    const secret = generateTotpSecret();
+    const recoveryCodes = generateRecoveryCodes(5);
+    const recoveryCodeHashes: string[] = [];
+    for (const code of recoveryCodes) {
+      recoveryCodeHashes.push(await bcrypt.hash(code, 10));
+    }
+    await this.dataSource.getRepository(UserEntity).update(user.id, {
+      totp_pending_secret: secret,
+      mfa_recovery_code_hashes: recoveryCodeHashes,
+    });
+    this.auditService
+      .log(
+        user.id,
+        "MFA_ENROLLMENT_STARTED",
+        user.tenant_id ?? null,
+        "SuperAdmin started MFA enrollment (pending secret staged)",
+        {},
+        actorEmail,
+      )
+      .catch((err) =>
+        this.logger.error(
+          `[CID:${getCorrelationId()}] Failed to audit MFA enrollment start: ${err.message}`,
+        ),
+      );
+    return {
+      secret,
+      otpauthUrl: buildOtpauthUrl({
+        account: user.email,
+        issuer: "SentinelFi",
+        secret,
+      }),
+      recoveryCodes,
+    };
+  }
+
+  /** Validates the pending secret with one live TOTP code, then activates MFA. */
+  async confirmMfaEnrollment(
+    userId: string,
+    code: string,
+    actorEmail: string,
+  ): Promise<void> {
+    const user = await this.loadUserForMfa(userId);
+    if (!user) throw new NotFoundException("User not found.");
+    if (user.mfa_enabled) {
+      throw new ConflictException(
+        "Two-factor authentication is already enabled.",
+      );
+    }
+    if (!user.totp_pending_secret) {
+      throw new ConflictException(
+        "No pending MFA enrollment. Start enrollment first.",
+      );
+    }
+    if (!verifyTotp(user.totp_pending_secret, code)) {
+      throw new UnauthorizedException(
+        "Invalid verification code. Check the time on your authenticator app and try again.",
+      );
+    }
+    await this.dataSource.getRepository(UserEntity).update(user.id, {
+      totp_secret: user.totp_pending_secret,
+      totp_pending_secret: null,
+      mfa_enabled: true,
+    });
+    this.auditService
+      .log(
+        user.id,
+        "MFA_ENROLLMENT_CONFIRMED",
+        user.tenant_id ?? null,
+        "SuperAdmin enabled TOTP two-factor authentication",
+        {},
+        actorEmail,
+      )
+      .catch((err) =>
+        this.logger.error(
+          `[CID:${getCorrelationId()}] Failed to audit MFA enrollment confirm: ${err.message}`,
+        ),
+      );
+  }
+
+  /**
+   * Disables MFA after re-verifying the account password. Revokes all existing
+   * sessions so stolen mfa-tagged tokens can no longer be used.
+   */
+  async disableSuperAdminMfa(
+    userId: string,
+    currentPassword: string,
+    actorEmail: string,
+  ): Promise<void> {
+    const user = await this.loadUserForMfa(userId);
+    if (!user) throw new NotFoundException("User not found.");
+    if (!user.password_hash) {
+      throw new UnauthorizedException(
+        "Account configuration error. Please reset your password.",
+      );
+    }
+    if (!(await bcrypt.compare(currentPassword, user.password_hash))) {
+      throw new UnauthorizedException("Invalid password.");
+    }
+    await this.dataSource.getRepository(UserEntity).update(user.id, {
+      mfa_enabled: false,
+      totp_secret: null,
+      totp_pending_secret: null,
+      mfa_recovery_code_hashes: null,
+      token_version: (user.token_version ?? 0) + 1,
+    });
+    this.auditService
+      .log(
+        user.id,
+        "MFA_DISABLED",
+        user.tenant_id ?? null,
+        "SuperAdmin disabled two-factor authentication; all sessions revoked",
+        {},
+        actorEmail,
+      )
+      .catch((err) =>
+        this.logger.error(
+          `[CID:${getCorrelationId()}] Failed to audit MFA disable: ${err.message}`,
+        ),
+      );
   }
 }

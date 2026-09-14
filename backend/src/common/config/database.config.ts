@@ -31,6 +31,7 @@ import { BudgetCategoryEntity } from "../../operational-budgets/budget-category.
 import { OperationalBudgetPeriodAllocationEntity } from "../../operational-budgets/operational-budget-period-allocation.entity";
 import { CEOAnnotationEntity } from "../../dashboard/annotation.entity";
 import { SubscriptionEntity } from "../../billing/entities/subscription.entity";
+import { EmailLogEntity } from "../../email/email-log.entity";
 
 // Enterprise OPEX Entities
 import { FiscalYearEntity } from "../../finance-core/entities/fiscal-year.entity";
@@ -195,6 +196,7 @@ export class DatabaseConfig {
       ConversationMemberEntity,
       NotificationEntity,
       SubscriptionEntity,
+      EmailLogEntity,
     ];
   }
 

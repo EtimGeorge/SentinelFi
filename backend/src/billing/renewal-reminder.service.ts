@@ -85,7 +85,7 @@ export class RenewalReminderService {
           companyName: sub.company_name!,
           trialEndDate: sub.trial_ends_at!.toDateString(),
           pricingUrl: `${frontendUrl}/landing/pricing`,
-        });
+        }, { tenantId: sub.tenant_id ?? null });
         this.logger.log(
           `[CronJob] Trial expiry warning sent to ${sub.admin_email}`,
         );
@@ -163,7 +163,7 @@ export class RenewalReminderService {
           expiryDate: sub.current_period_end!.toDateString(),
           renewalAmountFormatted: renewalAmountUsd.toFixed(2),
           renewUrl: `${frontendUrl}/landing/pricing`,
-        });
+        }, { tenantId: sub.tenant_id ?? null });
         this.logger.log(
           `[CronJob] ${daysOut}-day renewal reminder → ${sub.admin_email}`,
         );
