@@ -17,12 +17,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const Button: React.FC<ButtonProps> = ({
-  className,
-  children,
-  variant = "primary",
-  size = "md",
-  isLoading = false,
-  icon,
+  className, children, variant = "primary", size = "md", isLoading = false, icon,
   ...props
 }) => {
   const baseStyles =
@@ -30,20 +25,14 @@ const Button: React.FC<ButtonProps> = ({
 
   const variantStyles: Record<ButtonVariant, string> = {
     primary:
-      "text-white bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary",
-    secondary:
-      "text-gray-300 bg-gray-700 hover:bg-gray-600 focus:ring-gray-500",
-    outline:
-      "text-gray-300 bg-transparent border border-gray-600 hover:bg-gray-800 focus:ring-gray-500",
-    ghost:
-      "text-gray-400 hover:text-white hover:bg-gray-700 focus:ring-gray-600 border-transparent",
-    danger: "text-white bg-red-600 hover:bg-red-700 focus:ring-red-500",
+      "text-white bg-brand-primary hover:bg-brand-primary/90 focus:ring-brand-primary", secondary:
+      "text-gray-300 bg-gray-700 hover:bg-gray-600 focus:ring-gray-500", outline:
+      "text-gray-300 bg-transparent border border-gray-600 hover:bg-gray-800 focus:ring-gray-500", ghost:
+      "text-gray-400 hover:text-white hover:bg-gray-700 focus:ring-gray-600 border-transparent", danger: "text-white bg-red-600 hover:bg-red-700 focus:ring-red-500",
   };
 
   const sizeStyles: Record<ButtonSize, string> = {
-    sm: "px-2 py-1 text-xs",
-    md: "px-4 py-2 text-sm",
-    lg: "px-6 py-3 text-base",
+    sm: "px-2 py-1 text-xs", md: "px-4 py-2 text-sm", lg: "px-6 py-3 text-base",
   };
 
   const appliedClassName = `${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`;

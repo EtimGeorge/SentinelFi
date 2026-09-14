@@ -37,8 +37,7 @@ const proxyCircuitBreaker = new CircuitBreaker(5, 30000);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  transpilePackages: ['shared'],
+  reactStrictMode: true, transpilePackages: ['shared'],
 
   // Tree-shake icon libraries + reduce cold-compile work. lucide-react ships
   // pre-transpiled ESM/CJS, so it no longer needs to be in transpilePackages
@@ -63,8 +62,7 @@ const nextConfig = {
     const backendUrl = process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1:3001';
     return [
       {
-        source: '/api/v1/:path*',
-        destination: `${backendUrl}/api/v1/:path*`,
+        source: '/api/v1/:path*', destination: `${backendUrl}/api/v1/:path*`,
       },
     ];
   },
@@ -74,10 +72,7 @@ const nextConfig = {
     // Reduce bundle size on the client by stubbing server-only modules
     if (!isServer) {
       config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
+        ...config.resolve.fallback, fs: false, net: false, tls: false,
       };
     }
     
@@ -88,8 +83,7 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/:path*',
-        headers: [
+        source: '/:path*', headers: [
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -100,9 +94,7 @@ const nextConfig = {
   },
 
   // Production build optimizations
-  swcMinify: true,
-  compress: true,
-  poweredByHeader: false,
+  swcMinify: true, compress: true, poweredByHeader: false,
   
   // Development-specific optimizations to reduce memory usage.
   // NOTE: previous values (maxInactiveAge: 30s, pagesBufferLength: 3) caused

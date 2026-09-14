@@ -4,9 +4,7 @@ import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import useToast from '../../store/toastStore';
 import { 
-  Settings, Save, Server, Mail, Shield, Database, 
-  Plug, User as UserIcon, Activity, Key, Globe, 
-  Lock, RefreshCw, AlertTriangle
+  Settings, Save, Server, Mail, Shield, ShieldCheck, Database, Plug, User as UserIcon, Activity, Key, Globe, Lock, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
@@ -15,7 +13,7 @@ import { SettingsEntity, UpdateSettingsDto, SendTestEmailDto } from '@shared/typ
 import useSuperAdminSettings from '../../components/hooks/useSuperAdminSettings';
 import { Spinner } from '../../components/common/Spinner';
 import { AlertCircle } from 'lucide-react';
-import api from '../../lib/api';
+import api, { superAdminMfaApi, SuperAdminMfaStatus, SuperAdminMfaEnrollment } from '../../lib/api';
 import { useAuth } from '../../components/context/AuthContext';
 import { NextPageWithLayout } from '../_app';
 
@@ -33,14 +31,23 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
+    firstName: '', lastName: '', email: '', currentPassword: '', newPassword: '', confirmPassword: ''
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // MFA Self-Service State
+  const [mfaStatus, setMfaStatus] = useState<SuperAdminMfaStatus | null>(null);
+  const [mfaEnrollment, setMfaEnrollment] = useState<SuperAdminMfaEnrollment | null>(null);
+  const [mfaConfirmCode, setMfaConfirmCode] = useState('');
+  const [mfaDisablePassword, setMfaDisablePassword] = useState('');
+  const [mfaLoading, setMfaLoading] = useState(false);
+
+  useEffect(() => {
+    superAdminMfaApi
+      .getStatus()
+      .then(setMfaStatus)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (settings) {
@@ -48,10 +55,7 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
     }
     if (currentUser) {
       setProfileForm(prev => ({
-        ...prev,
-        firstName: currentUser.first_name || '',
-        lastName: currentUser.last_name || '',
-        email: currentUser.email || ''
+        ...prev, firstName: currentUser.first_name || '', lastName: currentUser.last_name || '', email: currentUser.email || ''
       }));
     }
   }, [settings, currentUser]);
@@ -61,23 +65,9 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
     setIsSaving(true);
     try {
       const dto: UpdateSettingsDto = {
-        maintenanceMode: localSettings.maintenanceMode,
-        allowNewRegistrations: localSettings.allowNewRegistrations,
-        defaultUserQuota: localSettings.defaultUserQuota,
-        defaultStorageQuotaGB: localSettings.defaultStorageQuotaGB,
-        smtpServer: localSettings.smtpServer,
-        smtpPort: localSettings.smtpPort,
-        smtpUser: localSettings.smtpUser,
-        smtpPass: localSettings.smtpPass,
-        supportEmail: localSettings.supportEmail,
-        auditRetentionDays: localSettings.auditRetentionDays,
-        sessionTimeoutMinutes: localSettings.sessionTimeoutMinutes,
-        enableGlobalMfa: localSettings.enableGlobalMfa,
+        maintenanceMode: localSettings.maintenanceMode, allowNewRegistrations: localSettings.allowNewRegistrations, defaultUserQuota: localSettings.defaultUserQuota, defaultStorageQuotaGB: localSettings.defaultStorageQuotaGB, smtpServer: localSettings.smtpServer, smtpPort: localSettings.smtpPort, smtpUser: localSettings.smtpUser, smtpPass: localSettings.smtpPass, supportEmail: localSettings.supportEmail, auditRetentionDays: localSettings.auditRetentionDays, sessionTimeoutMinutes: localSettings.sessionTimeoutMinutes, enableGlobalMfa: localSettings.enableGlobalMfa, gracePeriodDays: localSettings.gracePeriodDays, archiveRetentionDays: localSettings.archiveRetentionDays,
         // Phase 6 Integrations
-        sendgridApiKey: localSettings.sendgridApiKey,
-        erpProvider: localSettings.erpProvider,
-        erpApiKey: localSettings.erpApiKey,
-        erpBaseUrl: localSettings.erpBaseUrl,
+        sendgridApiKey: localSettings.sendgridApiKey, erpProvider: localSettings.erpProvider, erpApiKey: localSettings.erpApiKey, erpBaseUrl: localSettings.erpBaseUrl,
       };
       await updateSettings(dto);
       addToast('System settings synchronized successfully.', 'success');
@@ -101,11 +91,7 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
     setIsSavingProfile(true);
     try {
       await api.patch('/super/profile', {
-        firstName: profileForm.firstName,
-        lastName: profileForm.lastName,
-        email: profileForm.email,
-        currentPassword: profileForm.currentPassword,
-        newPassword: profileForm.newPassword || undefined
+        firstName: profileForm.firstName, lastName: profileForm.lastName, email: profileForm.email, currentPassword: profileForm.currentPassword, newPassword: profileForm.newPassword || undefined
       });
       addToast('Your Profile has been updated. You may need to re-login if you changed your email.', 'success');
       setProfileForm(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
@@ -135,6 +121,51 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
 
   const updateConfig = (key: keyof SettingsEntity, value: any) => {
     setLocalSettings(prev => prev ? ({ ...prev, [key]: value }) : null);
+  };
+
+  const handleStartMfaEnrollment = async () => {
+    setMfaLoading(true);
+    try {
+      const result = await superAdminMfaApi.enroll();
+      setMfaEnrollment(result);
+      setMfaConfirmCode('');
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to start MFA enrollment.', 'error');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleConfirmMfaEnrollment = async () => {
+    setMfaLoading(true);
+    try {
+      await superAdminMfaApi.confirm(mfaConfirmCode.trim());
+      addToast('Two-factor authentication enabled successfully.', 'success');
+      setMfaEnrollment(null);
+      setMfaConfirmCode('');
+      setMfaStatus(await superAdminMfaApi.getStatus());
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Invalid verification code. Please try again.', 'error');
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleDisableMfa = async () => {
+    if (!mfaDisablePassword) return;
+    // eslint-disable-next-line no-alert
+    if (!window.confirm('Are you sure you want to disable two-factor authentication? All active sessions will be revoked.')) return;
+    setMfaLoading(true);
+    try {
+      await superAdminMfaApi.disable(mfaDisablePassword);
+      addToast('Two-factor authentication disabled. All sessions revoked.', 'success');
+      setMfaDisablePassword('');
+      setMfaStatus(await superAdminMfaApi.getStatus());
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to disable MFA.', 'error');
+    } finally {
+      setMfaLoading(false);
+    }
   };
 
   if (loading) return (
@@ -311,6 +342,16 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Global Session Idle Timeout (Min)</label>
                             <Input type="number" value={localSettings.sessionTimeoutMinutes} onChange={(e) => updateConfig('sessionTimeoutMinutes', parseInt(e.target.value))} />
                          </div>
+                         <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Grace Period After Expiry (Days)</label>
+                            <Input type="number" value={localSettings.gracePeriodDays} onChange={(e) => updateConfig('gracePeriodDays', Math.max(0, parseInt(e.target.value) || 0))} />
+                            <p className="text-xs text-gray-600 mt-1">Expired tenants stay online until grace ends so their admins can renew.</p>
+                         </div>
+                         <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Archive Retention (Days)</label>
+                            <Input type="number" value={localSettings.archiveRetentionDays} onChange={(e) => updateConfig('archiveRetentionDays', Math.max(0, parseInt(e.target.value) || 0))} />
+                            <p className="text-xs text-gray-600 mt-1">Purge permanently deletes archived tenant data older than this.</p>
+                         </div>
                       </div>
                       <div className="bg-yellow-500/5 border border-yellow-500/10 p-6 rounded-xl">
                          <h4 className="text-yellow-500 font-bold flex items-center mb-4">
@@ -321,16 +362,106 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
                            Changing global security policies will invalidate all active sessions. 
                            Tenants will be required to re-authenticate under the new compliance rules immediately.
                          </p>
-                         <div className="mt-6 flex items-center text-xs text-gray-500 uppercase font-bold  gap-2 opacity-60">
-                            <Lock className="w-3 h-3" />
-                            Immutable Trail Level: High
-                         </div>
-                      </div>
-                   </div>
-                </Card>
-                <div className="flex justify-end">
-                  <Button onClick={handleSaveSettings} disabled={isSaving} variant="danger" className="px-8"><Shield className="w-4 h-4 mr-2" /> Enforce Security Update</Button>
-                </div>
+<div className="mt-6 flex items-center text-xs text-gray-500 uppercase font-bold  gap-2 opacity-60">
+                             <Lock className="w-3 h-3" />
+                             Immutable Trail Level: High
+                          </div>
+                       </div>
+                    </div>
+                 </Card>
+
+                 <Card title="Your Two-Factor Authentication" headerContent={<Key className="w-5 h-5 text-brand-primary" />}>
+                    <div className="space-y-6">
+                       {mfaStatus && (
+                          <div className={`flex items-start gap-3 p-4 rounded-lg ${mfaStatus.mfaEnabled ? 'bg-green-500/5 border border-green-500/10' : 'bg-orange-500/5 border border-orange-500/10'}`}>
+                             {mfaStatus.mfaEnabled
+                               ? <ShieldCheck className="w-5 h-5 flex-shrink-0 text-green-400" />
+                               : <AlertTriangle className="w-5 h-5 flex-shrink-0 text-orange-400" />}
+                             <div>
+                                <p className={`text-sm font-medium ${mfaStatus.mfaEnabled ? 'text-green-400' : 'text-orange-400'}`}>
+                                  {mfaStatus.mfaEnabled ? 'Two-factor authentication is enabled' : 'Two-factor authentication is NOT enabled'}
+                                </p>
+                                {mfaStatus.globalMfaRequired && !mfaStatus.mfaEnabled && (
+                                  <p className="text-xs text-orange-400/80 mt-1">
+                                    Global MFA enforcement is ON — you must enable MFA to continue signing in.
+                                  </p>
+                                )}
+                                {mfaStatus.pendingEnrollment && !mfaStatus.mfaEnabled && (
+                                  <p className="text-xs text-brand-primary mt-1">
+                                    Enrollment is pending — scan and enter a code below to activate.
+                                  </p>
+                                )}
+                             </div>
+                          </div>
+                       )}
+
+                       {mfaEnrollment && (
+                          <div className="bg-blue-500/5 border border-blue-500/10 p-5 rounded-lg space-y-4">
+                             <div>
+                                <h4 className="text-white font-medium flex items-center"><Key className="w-4 h-4 mr-2 text-brand-primary" /> Scan this setup with your authenticator app</h4>
+                                <p className="text-xs text-gray-500 mt-1">Open your authenticator app and scan the QR-equivalent link below, or enter the secret manually.</p>
+                                <div className="mt-3 p-3 bg-gray-900/60 rounded-lg text-sm">
+                                   <p className="text-gray-300 break-all"><span className="text-gray-500 uppercase text-xs font-bold">otpauth:</span> {mfaEnrollment.otpauthUrl}</p>
+                                   <p className="text-gray-300 break-all mt-2"><span className="text-gray-500 uppercase text-xs font-bold">Secret:</span> <span className="font-mono">{mfaEnrollment.secret}</span></p>
+                                </div>
+                             </div>
+                             <div className="bg-red-950/30 border border-red-700/30 p-4 rounded-lg">
+                                <h4 className="text-red-400 font-medium flex items-center mb-3"><AlertTriangle className="w-4 h-4 mr-2" /> Save your recovery codes now</h4>
+                                <p className="text-xs text-gray-400 mb-3">Each code works exactly once. They are your only way back in if you lose your device. Copy them somewhere secure, then confirm below.</p>
+                                <div className="font-mono text-sm bg-gray-900/50 p-4 rounded-lg text-gray-200 space-y-1 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                                   {mfaEnrollment.recoveryCodes.map(code => <div key={code} className="flex items-center gap-2"><Lock className="w-3 h-3 text-gray-600 flex-shrink-0" />{code}</div>)}
+                                </div>
+                             </div>
+                             <div className="flex items-end gap-3">
+                                <div className="flex-1">
+                                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Confirm code from authenticator</label>
+                                   <Input
+                                     value={mfaConfirmCode}
+                                     onChange={(e) => setMfaConfirmCode(e.target.value.replace(/\D/g, ''))}
+                                     maxLength={6}
+                                     placeholder="000000"
+                                     inputMode="numeric"
+                                   />
+                                </div>
+                                <Button onClick={handleConfirmMfaEnrollment} disabled={mfaLoading || mfaConfirmCode.length !== 6}>
+                                  {mfaLoading ? 'Activating...' : 'Activate MFA'}
+                                </Button>
+                             </div>
+                          </div>
+                       )}
+
+                       {mfaEnrollment ? (
+                          <p className="text-xs text-gray-600">Keep this browser tab open until activation completes.</p>
+                       ) : (
+                          <div className="flex items-center justify-end gap-3">
+                             <Button onClick={handleStartMfaEnrollment} disabled={mfaLoading || !!mfaStatus?.mfaEnabled}>
+                               <Key className="w-4 h-4 mr-2" /> {mfaStatus?.pendingEnrollment ? 'Restart Enrollment' : 'Set Up MFA'}
+                             </Button>
+                          </div>
+                       )}
+
+                       {mfaStatus?.mfaEnabled && (
+                          <div className="border-t border-gray-700 pt-4 flex items-end gap-3">
+                             <div className="flex-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Disable MFA — enter current password</label>
+                                <Input
+                                  type="password"
+                                  value={mfaDisablePassword}
+                                  onChange={(e) => setMfaDisablePassword(e.target.value)}
+                                  placeholder="Current password"
+                                />
+                             </div>
+                             <Button variant="danger" onClick={handleDisableMfa} disabled={mfaLoading || !mfaDisablePassword}>
+                               {mfaLoading ? 'Disabling...' : 'Disable MFA'}
+                             </Button>
+                          </div>
+                       )}
+                    </div>
+                 </Card>
+
+                 <div className="flex justify-end">
+                   <Button onClick={handleSaveSettings} disabled={isSaving} variant="danger" className="px-8"><Shield className="w-4 h-4 mr-2" /> Enforce Security Update</Button>
+                 </div>
               </div>
             )}
 

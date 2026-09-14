@@ -32,7 +32,7 @@ const CheckEmailPage: NextPageWithLayout = () => {
 
           <p className="text-gray-400 mb-3 leading-relaxed">
             {isFree
-              ? 'Your free workspace is ready — 1 task/day, ad-supported. We\'ve dispatched a magic-link invitation plus a welcome email (via Resend) to your inbox.'
+              ? 'Your free workspace is ready - 1 task/day, ad-supported. We\'ve dispatched a magic-link invitation plus a welcome email (via Resend) to your inbox.'
               : isTrial
               ? 'Your free trial has been activated. We\'ve dispatched a magic-link invitation to your email address.'
               : 'Payment received. Your workspace is being provisioned and a magic-link invitation will arrive in your inbox shortly.'}
@@ -47,7 +47,7 @@ const CheckEmailPage: NextPageWithLayout = () => {
               { step: '1', text: 'Open the email from SentinelFi' },
               { step: '2', text: 'Click "Accept Invitation" to claim your workspace' },
               { step: '3', text: 'Set your password and complete your profile' },
-              { step: '4', text: 'You\'re in — your sovereign instance is ready' },
+              { step: '4', text: 'You\'re in, your sovereign instance is ready' },
             ].map(({ step, text }) => (
               <div key={step} className="flex items-center gap-3">
                 <div className="w-6 h-6 bg-brand-primary/20 border border-brand-primary/30 rounded-full flex items-center justify-center text-brand-primary font-black text-xs shrink-0">

@@ -10,7 +10,7 @@ interface DisplayAdProps {
 }
 
 /**
- * DisplayAd — passive banner placement.
+ * DisplayAd, passive banner placement.
  * - Production (NEXT_PUBLIC_ADSENSE_CLIENT_ID set): renders the real
  *   AdSense `<ins>` unit; impressions/clicks earn CPM/CPC revenue.
  * - Dev/test (no ID): renders a labeled placeholder so layouts stay intact.
@@ -37,7 +37,7 @@ const DisplayAd: React.FC<DisplayAdProps> = ({ slot, format = 'banner', classNam
           format === 'banner' ? 'h-20' : 'h-64'
         } ${className}`}
       >
-        Ad space — free plan
+        Ad space, free plan
       </div>
     );
   }

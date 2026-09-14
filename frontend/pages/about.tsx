@@ -19,8 +19,7 @@ const AboutPage: NextPageWithLayout = () => {
           <p className="text-xl text-m-text-muted leading-relaxed">
             SentinelFi was born from a simple observation: enterprise project finance is 
             plagued by "Shadow Accounting" and manual auditing friction. We built the 
-            Sentinel system to automate the verification of every capital dollar, 
-            ensuring that project directors can manage with absolute confidence.
+            Sentinel system to automate the verification of every capital dollar, ensuring that project directors can manage with absolute confidence.
           </p>
         </div>
 

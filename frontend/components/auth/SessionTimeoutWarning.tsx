@@ -16,14 +16,11 @@ const SessionTimeoutWarning: React.FC<SessionTimeoutWarningProps> = ({
   const [isVisible, setIsVisible] = useState(false);
 
   const { timeRemaining, isWarningShown, resetTimer, formatTime } = useSessionTimeout({
-    timeout,
-    warningTime,
-    onWarning: () => {
+    timeout, warningTime, onWarning: () => {
       if (isAuthenticated) { // Only show warning if still authenticated
         setIsVisible(true);
       }
-    },
-    onTimeout: () => {
+    }, onTimeout: () => {
       setIsVisible(false);
       // Logout is handled directly by useSessionTimeout hook
     },

@@ -13,7 +13,7 @@ interface SubscriptionInfo {
 }
 
 /**
- * SubscriptionBanner — appears in the protected app header when subscription
+ * SubscriptionBanner, appears in the protected app header when subscription
  * is expiring within 30 days, trialing, or has expired.
  * Designed to be mounted inside LayoutNav.
  */
@@ -28,7 +28,7 @@ const SubscriptionBanner: React.FC = () => {
         const { data } = await api.get('/billing/my-subscription');
         setSubscription(data);
       } catch {
-        // Silently ignore — guard will handle expired tenants with 402
+        // Silently ignore, guard will handle expired tenants with 402
       }
     };
     fetch();
@@ -85,15 +85,11 @@ const SubscriptionBanner: React.FC = () => {
       : 'info';
 
   const colors = {
-    critical: 'bg-red-500/10 border-red-500/30 text-red-300',
-    warning: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',
-    info: 'bg-brand-primary/10 border-brand-primary/30 text-brand-primary',
+    critical: 'bg-red-500/10 border-red-500/30 text-red-300', warning: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300', info: 'bg-brand-primary/10 border-brand-primary/30 text-brand-primary',
   };
 
   const icons = {
-    critical: <AlertTriangle className="w-4 h-4 shrink-0" />,
-    warning: <Clock className="w-4 h-4 shrink-0" />,
-    info: <RefreshCw className="w-4 h-4 shrink-0" />,
+    critical: <AlertTriangle className="w-4 h-4 shrink-0" />, warning: <Clock className="w-4 h-4 shrink-0" />, info: <RefreshCw className="w-4 h-4 shrink-0" />,
   };
 
   return (

@@ -33,32 +33,22 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
   return (
     <>
       <Head>
-        <title>{tutorial.title} — SentinelFi Guide</title>
+        <title>{tutorial.title} - SentinelFi Guide</title>
         <meta name="description" content={tutorial.description} />
       </Head>
 
       <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(160deg, #0B0F1A 0%, #0f0f1a 100%)',
-        color: '#fff',
-        fontFamily: "'Inter', 'Segoe UI', sans-serif",
+        minHeight: '100vh', background: 'linear-gradient(160deg, #0B0F1A 0%, #0f0f1a 100%)', color: '#fff', fontFamily: "'Inter', 'Segoe UI', sans-serif",
       }}>
 
         {/* ── Top Nav ──────────────────────────────────────────────────────── */}
         <nav style={{
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          padding: '14px 24px',
-          display: 'flex', alignItems: 'center', gap: 16,
-          background: 'rgba(11,15,26,0.9)',
-          backdropFilter: 'blur(12px)',
-          position: 'sticky', top: 0, zIndex: 100,
+          borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 16, background: 'rgba(11,15,26,0.9)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100,
         }}>
           <Link
             href="/dashboard"
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              color: 'rgba(255,255,255,0.5)', fontSize: 13, textDecoration: 'none',
-              transition: 'color 0.15s',
+              display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.5)', fontSize: 13, textDecoration: 'none', transition: 'color 0.15s',
             }}
           >
             <ArrowLeft size={14} /> Back to App
@@ -87,13 +77,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                 <button
                   onClick={handleStartTour}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '12px 24px',
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    border: 'none', color: '#fff', borderRadius: 12,
-                    fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                    boxShadow: '0 8px 25px rgba(99,102,241,0.5)',
-                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '12px 24px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 8px 25px rgba(99,102,241,0.5)', transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                   }}
                   onMouseEnter={e => {
                     e.currentTarget.style.transform = 'translateY(-2px)';
@@ -111,13 +95,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
               <Link
                 href={`/${tutorial.pageKey}`}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '12px 24px',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#e2e8f0', borderRadius: 12,
-                  fontSize: 14, fontWeight: 700, textDecoration: 'none',
-                  transition: 'all 0.2s',
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '12px 24px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'all 0.2s',
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
@@ -135,15 +113,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
 
           {/* ── Visual Guide (Video / Image) ───────────────────────────── */}
           <div style={{
-            marginBottom: 56,
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 24,
-            overflow: 'hidden',
-            aspectRatio: '16/9',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            position: 'relative',
-            boxShadow: '0 32px 64px rgba(0,0,0,0.4)',
+            marginBottom: 56, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, overflow: 'hidden', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', boxShadow: '0 32px 64px rgba(0,0,0,0.4)',
           }}>
             {tutorial.videoUrl ? (
               <iframe
@@ -154,10 +124,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
             ) : (
               <div style={{ textAlign: 'center', padding: 40 }}>
                 <div style={{
-                  width: 80, height: 80, borderRadius: '50%',
-                  background: 'rgba(99,102,241,0.1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  margin: '0 auto 20px', color: '#6366f1',
+                  width: 80, height: 80, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: '#6366f1',
                 }}>
                   <Play size={32} />
                 </div>
@@ -170,27 +137,16 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
             )}
             {/* Glossy overlay */}
             <div style={{
-              position: 'absolute', inset: 0, pointerEvents: 'none',
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%)',
+              position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%)',
             }} />
           </div>
 
           {/* ── AI Tutor CTA ─────────────────────────────────────────────── */}
           <div style={{
-            padding: '24px',
-            background: 'linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(14,165,233,0.06) 100%)',
-            border: '1px solid rgba(99,102,241,0.2)',
-            borderRadius: 20,
-            display: 'flex', alignItems: 'center', gap: 20,
-            marginBottom: 56,
-            backdropFilter: 'blur(10px)',
+            padding: '24px', background: 'linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(14,165,233,0.06) 100%)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 20, marginBottom: 56, backdropFilter: 'blur(10px)',
           }}>
             <div style={{
-              width: 52, height: 52, borderRadius: 16,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-              boxShadow: '0 10px 20px rgba(99,102,241,0.3)',
+              width: 52, height: 52, borderRadius: 16, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 10px 20px rgba(99,102,241,0.3)',
             }}>
               <Sparkles size={24} color="#fff" />
             </div>
@@ -217,19 +173,11 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                   <div
                     key={step.id}
                     style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 14,
-                      padding: '14px 16px',
-                      background: 'rgba(255,255,255,0.03)',
-                      border: '1px solid rgba(255,255,255,0.07)',
-                      borderRadius: 10,
+                      display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10,
                     }}
                   >
                     <div style={{
-                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                      background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.3))',
-                      border: '1px solid rgba(99,102,241,0.4)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 700, color: '#a5b4fc',
+                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.3))', border: '1px solid rgba(99,102,241,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#a5b4fc',
                     }}>
                       {i + 1}
                     </div>
@@ -259,21 +207,11 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                   <div
                     key={i}
                     style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 14,
-                      padding: '14px 16px',
-                      background: 'rgba(255,255,255,0.03)',
-                      border: '1px solid rgba(255,255,255,0.07)',
-                      borderLeft: '3px solid rgba(99,102,241,0.5)',
-                      borderRadius: '0 10px 10px 0',
+                      display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderLeft: '3px solid rgba(99,102,241,0.5)', borderRadius: '0 10px 10px 0',
                     }}
                   >
                     <div style={{
-                      width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-                      background: 'rgba(99,102,241,0.2)',
-                      border: '1px solid rgba(99,102,241,0.4)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 10, fontWeight: 700, color: '#a5b4fc',
-                      marginTop: 2,
+                      width: 24, height: 24, borderRadius: '50%', flexShrink: 0, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#a5b4fc', marginTop: 2,
                     }}>
                       {step.number}
                     </div>
@@ -292,20 +230,13 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
               {/* Section Gallery */}
               {section.images && section.images.length > 0 && (
                 <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: section.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
-                  gap: 16,
-                  marginTop: 20,
+                  display: 'grid', gridTemplateColumns: section.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, marginTop: 20,
                 }}>
                   {section.images.map((img, imi) => (
                     <div 
                       key={imi}
                       style={{
-                        borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)',
-                        background: 'rgba(255,255,255,0.02)',
-                        overflow: 'hidden',
-                        position: 'relative',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                        borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden', position: 'relative', boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
                       }}
                     >
                       <img 
@@ -314,10 +245,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                         style={{ width: '100%', display: 'block', height: 'auto', objectFit: 'cover' }}
                       />
                       <div style={{
-                        position: 'absolute', bottom: 0, left: 0, right: 0,
-                        padding: '8px 12px', background: 'rgba(0,0,0,0.6)',
-                        backdropFilter: 'blur(4px)', fontSize: 10, color: '#fff',
-                        fontWeight: 500, borderTop: '1px solid rgba(255,255,255,0.1)',
+                        position: 'absolute', bottom: 0, left: 0, right: 0, padding: '8px 12px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', fontSize: 10, color: '#fff', fontWeight: 500, borderTop: '1px solid rgba(255,255,255,0.1)',
                       }}>
                         Visual Reference for Section {si + 1}
                       </div>
@@ -341,14 +269,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                     key={key}
                     href={`/tutorial/${key}`}
                     style={{
-                      padding: '8px 14px',
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: 8,
-                      fontSize: 12, color: 'rgba(255,255,255,0.6)',
-                      textDecoration: 'none',
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      transition: 'all 0.15s',
+                      padding: '8px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12, color: 'rgba(255,255,255,0.6)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.12)'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
@@ -371,8 +292,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
 export const getStaticPaths: GetStaticPaths = async () => {
   const keys = getAllTutorialKeys();
   return {
-    paths: keys.map(key => ({ params: { page: key } })),
-    fallback: 'blocking',
+    paths: keys.map(key => ({ params: { page: key } })), fallback: 'blocking',
   };
 };
 
@@ -383,10 +303,8 @@ export const getStaticProps: GetStaticProps<TutorialPageProps> = async ({ params
 
   return {
     props: {
-      tutorial,
-      allKeys,
-    },
-    revalidate: 3600,
+      tutorial, allKeys,
+    }, revalidate: 3600,
   };
 };
 

@@ -6,18 +6,7 @@ import Button from '../../../components/common/Button';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
 import {
-  BarChart2,
-  TrendingUp,
-  TrendingDown,
-  Calendar,
-  Filter,
-  Download,
-  AlertTriangle,
-  CheckCircle2,
-  Layers,
-  PieChart,
-  ArrowUpRight,
-  ArrowDownRight
+  BarChart2, TrendingUp, TrendingDown, Calendar, Filter, Download, AlertTriangle, CheckCircle2, Layers, PieChart, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import DataTable from '../../../components/common/DataTable';
 import toast from 'react-hot-toast';
@@ -27,10 +16,7 @@ import { HelpCircle } from 'lucide-react';
 const CorporateAnalyticsPage: React.FC = () => {
   const { convertToDisplay } = useCurrency();
   const {
-    loading,
-    fetchFiscalYears,
-    fetchDepartments,
-    fetchOperationalAnalytics
+    loading, fetchFiscalYears, fetchDepartments, fetchOperationalAnalytics
   } = useFinanceCore();
 
   const [fiscalYears, setFiscalYears] = useState<any[]>([]);
@@ -44,8 +30,7 @@ const CorporateAnalyticsPage: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       const [fy, depts] = await Promise.all([
-        fetchFiscalYears(),
-        fetchDepartments()
+        fetchFiscalYears(), fetchDepartments()
       ]);
       setFiscalYears(fy || []);
       setDepartments(depts.data || []);

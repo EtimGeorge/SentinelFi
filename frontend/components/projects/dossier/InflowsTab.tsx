@@ -28,10 +28,7 @@ interface InflowForm {
 }
 
 const EMPTY_FORM: InflowForm = {
-  milestone_name: '',
-  amount_received: 0,
-  receipt_date: new Date().toISOString().split('T')[0],
-  description: '',
+  milestone_name: '', amount_received: 0, receipt_date: new Date().toISOString().split('T')[0], description: '',
 };
 
 const InflowsTab: React.FC<InflowsTabProps> = ({ project, inflows, onChanged }) => {
@@ -72,8 +69,7 @@ const InflowsTab: React.FC<InflowsTabProps> = ({ project, inflows, onChanged }) 
     setIsSubmittingInflow(true);
     try {
       await api.post(`/projects/${project.project_id}/inflow`, {
-        ...inflowForm,
-        amount_received: Number(inflowForm.amount_received),
+        ...inflowForm, amount_received: Number(inflowForm.amount_received),
       });
       clearInflowData();
       setIsInflowModalOpen(false);
@@ -90,10 +86,7 @@ const InflowsTab: React.FC<InflowsTabProps> = ({ project, inflows, onChanged }) 
   const openEdit = (inflow: InflowData) => {
     setSelectedInflow(inflow);
     setEditForm({
-      milestone_name: inflow.milestone_name,
-      amount_received: Number(inflow.amount_received),
-      receipt_date: String(inflow.receipt_date).slice(0, 10),
-      description: inflow.description,
+      milestone_name: inflow.milestone_name, amount_received: Number(inflow.amount_received), receipt_date: String(inflow.receipt_date).slice(0, 10), description: inflow.description,
     });
     setIsEditOpen(true);
   };
@@ -155,52 +148,29 @@ const InflowsTab: React.FC<InflowsTabProps> = ({ project, inflows, onChanged }) 
             rowKey={inf => inf.id}
             columns={[
               {
-                key: 'milestone',
-                label: 'Milestone',
-                tier: 'P0',
-                get: inf => (
+                key: 'milestone', label: 'Milestone', tier: 'P0', get: inf => (
                   <div>
                     <div className="text-sm font-bold text-white truncate">{inf.milestone_name}</div>
                     {inf.description && <div className="text-xs text-gray-500 truncate lowercase">{inf.description}</div>}
                   </div>
-                ),
-                title: inf => inf.milestone_name,
+                ), title: inf => inf.milestone_name,
               },
               {
-                key: 'amount',
-                label: 'Amount Received',
-                tier: 'P0',
-                cellClassName: 'text-right',
-                get: inf => <span className="text-sm text-right text-green-400 font-mono font-bold">{convertToDisplay(inf.amount_received, currency)}</span>,
+                key: 'amount', label: 'Amount Received', tier: 'P0', cellClassName: 'text-right', get: inf => <span className="text-sm text-right text-green-400 font-mono font-bold">{convertToDisplay(inf.amount_received, currency)}</span>,
               },
               {
-                key: 'date',
-                label: 'Receipt Date',
-                tier: 'P1',
-                get: inf => <span className="text-sm text-gray-400">{new Date(inf.receipt_date).toLocaleDateString()}</span>,
+                key: 'date', label: 'Receipt Date', tier: 'P1', get: inf => <span className="text-sm text-gray-400">{new Date(inf.receipt_date).toLocaleDateString()}</span>,
               },
               {
-                key: 'recordedBy',
-                label: 'Recorded By',
-                tier: 'P2',
-                get: inf => <span className="text-xs text-gray-500">{inf.receivedBy?.email || 'System'}</span>,
+                key: 'recordedBy', label: 'Recorded By', tier: 'P2', get: inf => <span className="text-xs text-gray-500">{inf.receivedBy?.email || 'System'}</span>,
               },
             ]}
             actions={canManageInflow ? [
               {
-                key: 'edit',
-                label: 'Edit',
-                icon: <Edit className="w-4 h-4" />,
-                primary: true,
-                onClick: openEdit,
-                title: 'Edit inflow',
+                key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, primary: true, onClick: openEdit, title: 'Edit inflow',
               },
               {
-                key: 'delete',
-                label: 'Delete',
-                icon: <Trash2 className="w-4 h-4" />,
-                danger: true,
-                onClick: (inf) => { setSelectedInflow(inf); setIsDeleteOpen(true); },
+                key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: (inf) => { setSelectedInflow(inf); setIsDeleteOpen(true); },
               },
             ] : undefined}
           />

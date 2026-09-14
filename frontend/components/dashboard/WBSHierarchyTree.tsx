@@ -25,12 +25,7 @@ interface WBSHierarchyTreeProps {
 
 // Helper component for a single WBS Node
 const WBSNode: React.FC<{
-  node: RollupData,
-  level: number,
-  childNodes: RollupData[],
-  data: RollupData[],
-  onWBSClick?: (wbsId: string, wbsCode: string, description: string) => void,
-  sourceCurrency: string
+  node: RollupData, level: number, childNodes: RollupData[], data: RollupData[], onWBSClick?: (wbsId: string, wbsCode: string, description: string) => void, sourceCurrency: string
 }> = ({ node, level, childNodes, data, onWBSClick, sourceCurrency }) => {
   const { convertToDisplay } = useCurrency();
   const [isExpanded, setIsExpanded] = useState(level === 0);

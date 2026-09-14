@@ -12,11 +12,7 @@ type NextPageWithLayout = NextPage & {
 const ContactPage: NextPageWithLayout = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    company: '',
-    message: '',
-    interests: [] as string[]
+    name: '', email: '', company: '', message: '', interests: [] as string[]
   });
 
   const handleSubmit = async (e: React.FormEvent) => {

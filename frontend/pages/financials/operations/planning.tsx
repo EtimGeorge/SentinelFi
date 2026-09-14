@@ -2,17 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import {
-  Calendar,
-  Settings,
-  Plus,
-  ChevronDown,
-  ChevronUp,
-  ShieldCheck,
-  ShieldAlert,
-  ArrowUpRight,
-  Info,
-  Layers,
-  HelpCircle
+  Calendar, Settings, Plus, ChevronDown, ChevronUp, ShieldCheck, ShieldAlert, ArrowUpRight, Info, Layers, HelpCircle
 } from 'lucide-react';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
@@ -59,12 +49,8 @@ const OpexPlanningPage: React.FC = () => {
     setIsSubmitting(false);
     setIsSummaryModalOpen(false);
     toast.success('Planning cycle submitted for Governance Review', {
-      duration: 4000,
-      icon: '🏛️',
-      style: {
-        background: '#0f172a',
-        color: '#fff',
-        border: '1px solid #1e293b'
+      duration: 4000, icon: '🏛️', style: {
+        background: '#0f172a', color: '#fff', border: '1px solid #1e293b'
       }
     });
     setActiveTab('review');

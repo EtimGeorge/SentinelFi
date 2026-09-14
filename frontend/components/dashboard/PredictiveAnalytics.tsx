@@ -1,15 +1,6 @@
 ﻿import React, { useMemo } from 'react';
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  Legend
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend
 } from 'recharts';
 import { TrendingUp, Calendar, AlertTriangle, Zap } from 'lucide-react';
 import Card from '../common/Card';
@@ -30,12 +21,7 @@ interface PredictiveAnalyticsProps {
 }
 
 const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
-  history,
-  totalBudgeted,
-  totalActualPaid,
-  avgDailySpend,
-  estimatedExhaustionDate,
-  currency
+  history, totalBudgeted, totalActualPaid, avgDailySpend, estimatedExhaustionDate, currency
 }) => {
   const { convertAmount, convertToDisplay, userCurrency } = useCurrency();
 
@@ -46,10 +32,7 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
       const convertedAmt = convertAmount(h.amount, sourceCurrency, userCurrency.code);
       cumulative += convertedAmt;
       return {
-        date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        spend: convertedAmt,
-        cumulative: cumulative,
-        budget: convertAmount(totalBudgeted, sourceCurrency, userCurrency.code)
+        date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), spend: convertedAmt, cumulative: cumulative, budget: convertAmount(totalBudgeted, sourceCurrency, userCurrency.code)
       };
     });
   }, [history, totalBudgeted, currency, userCurrency.code, convertAmount]);

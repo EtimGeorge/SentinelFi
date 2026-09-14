@@ -88,8 +88,7 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
 
 const SuperAdminSidebar: React.FC = () => {
   const {
-    isMobileSidebarOpen, closeMobileSidebar,
-    isDesktopSidebarCollapsed, toggleDesktopSidebar
+    isMobileSidebarOpen, closeMobileSidebar, isDesktopSidebarCollapsed, toggleDesktopSidebar
   } = useUIStore();
   
   // Direct use of the superAdminNavigationMap

@@ -1,43 +1,9 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import {
-  Bot,
-  X,
-  Minus,
-  Send,
-  Paperclip,
-  Sparkles,
-  ChevronDown,
-  RefreshCw,
-  BarChart2,
-  FileText,
-  Zap,
-  BookOpen,
-  AlertTriangle,
-  CheckCircle,
-  Loader,
-  TrendingUp,
-  Calendar,
-  MessageSquare,
-  Trash2,
-  Map,
-  Mic,
-  MicOff,
-  Copy,
-  ChevronRight,
-  TrendingDown,
-  DollarSign,
-  Table,
-  Grid,
-  Image as ImageIcon,
-  Code,
-  Link as LinkIcon,
+  Bot, X, Minus, Send, Paperclip, Sparkles, ChevronDown, RefreshCw, BarChart2, FileText, Zap, BookOpen, AlertTriangle, CheckCircle, Loader, TrendingUp, Calendar, MessageSquare, Trash2, Map, Mic, MicOff, Copy, ChevronRight, TrendingDown, DollarSign, Table, Grid, Image as ImageIcon, Code, Link as LinkIcon,
 } from "lucide-react";
 import {
-  AIChatMessage,
-  AIChatScope,
-  SuggestionChip,
-  ActionChip,
-  RichContent,
+  AIChatMessage, AIChatScope, SuggestionChip, ActionChip, RichContent,
 } from "./types";
 import DataTable from "../../components/common/DataTable";
 
@@ -118,10 +84,7 @@ const RichContentRenderer: React.FC<{ content: RichContent }> = ({
       );
     case "table": {
       const tableColumns = content.headers.map((h, i) => ({
-        key: `col-${i}`,
-        label: h,
-        get: (row: string[]) => row[i] || '',
-        tier: (i === 0 ? 'P0' : i < 3 ? 'P1' : 'P2') as 'P0' | 'P1' | 'P2',
+        key: `col-${i}`, label: h, get: (row: string[]) => row[i] || '', tier: (i === 0 ? 'P0' : i < 3 ? 'P1' : 'P2') as 'P0' | 'P1' | 'P2',
       }));
       return (
         <DataTable
@@ -286,8 +249,7 @@ const AIMessageBubble: React.FC<{
             </button>
             <span className="text-xs text-gray-500 ml-auto">
               {message.timestamp.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
+                hour: "2-digit", minute: "2-digit",
               })}
             </span>
           </div>
@@ -312,20 +274,7 @@ const AIMessageBubble: React.FC<{
 };
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
-  isOpen,
-  isMinimized,
-  onClose,
-  onToggleMinimize,
-  scope,
-  messages,
-  isStreaming,
-  proactiveInsight,
-  onDismissInsight,
-  unreadCount,
-  quickActions,
-  onQuickAction,
-  onSendMessage,
-  onClearHistory,
+  isOpen, isMinimized, onClose, onToggleMinimize, scope, messages, isStreaming, proactiveInsight, onDismissInsight, unreadCount, quickActions, onQuickAction, onSendMessage, onClearHistory,
 }) => {
   const [inputValue, setInputValue] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -338,8 +287,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: "smooth",
+        top: scrollRef.current.scrollHeight, behavior: "smooth",
       });
     }
   }, [messages]);
@@ -379,15 +327,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         if (scope?.projectId) formData.append("project_id", scope.projectId);
 
         const res = await fetch("/api/v1/ai/document/fill-form", {
-          method: "POST",
-          credentials: "include",
-          body: formData,
+          method: "POST", credentials: "include", body: formData,
         });
 
         if (!res.ok) throw new Error();
         const data = await res.json();
         await onSendMessage(
-          `I uploaded "${file.name}" — please summarize what was extracted and suggest next steps.`,
+          `I uploaded "${file.name}" - please summarize what was extracted and suggest next steps.`,
         );
       } catch {
         await onSendMessage(
@@ -402,15 +348,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   );
 
   const pageLabels: Record<string, string> = {
-    dashboard: "Dashboard",
-    wbs: "WBS Budget",
+    dashboard: "Dashboard", wbs: "WBS Budget",
     "capex-dashboard": "CAPEX Dashboard",
-    "opex-dashboard": "OPEX Dashboard",
-    procurement: "P2P Desk",
-    approvals: "Approvals",
-    "budget-draft": "Budget Draft",
-    reporting: "Reports",
-    default: "SentinelFi",
+    "opex-dashboard": "OPEX Dashboard", procurement: "P2P Desk", approvals: "Approvals",
+    "budget-draft": "Budget Draft", reporting: "Reports", default: "SentinelFi",
   };
   const pageLabel = scope?.page
     ? pageLabels[scope.page] || scope.page

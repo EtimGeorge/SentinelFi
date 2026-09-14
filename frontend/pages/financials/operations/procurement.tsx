@@ -7,22 +7,7 @@ import { useCurrency } from '../../../components/context/CurrencyContext';
 import Card from '../../../components/common/Card';
 import Button from '../../../components/common/Button';
 import {
-  FileText,
-  ShoppingCart,
-  Receipt,
-  Plus,
-  Search,
-  Filter,
-  ArrowUpRight,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Package,
-  ArrowRight,
-  Download,
-  Printer,
-  Eye,
-  BrainCircuit
+  FileText, ShoppingCart, Receipt, Plus, Search, Filter, ArrowUpRight, Clock, CheckCircle2, AlertCircle, Package, ArrowRight, Download, Printer, Eye, BrainCircuit
 } from 'lucide-react';
 import Link from 'next/link';
 import Tooltip from '../../../components/common/Tooltip';
@@ -33,18 +18,7 @@ import Select from '../../../components/common/Select';
 
 const P2PDeskPage: React.FC = () => {
   const {
-    loading,
-    fetchRequisitions,
-    fetchPurchaseOrders,
-    fetchInvoices,
-    createPurchaseOrder,
-    fetchDepartments,
-    fetchChartOfAccounts,
-    createRequisition,
-    downloadPurchaseOrderPdf,
-    downloadInvoicePdf,
-    fetchReportBlob,
-    downloadBlob
+    loading, fetchRequisitions, fetchPurchaseOrders, fetchInvoices, createPurchaseOrder, fetchDepartments, fetchChartOfAccounts, createRequisition, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob
   } = useFinanceCore();
   const { convertToDisplay, convertAmount, availableCurrencies } = useCurrency();
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -55,14 +29,7 @@ const P2PDeskPage: React.FC = () => {
   const [costCenters, setCostCenters] = useState<any[]>([]);
   const [glAccounts, setGlAccounts] = useState<any[]>([]);
   const [formData, setFormData] = useState({
-    description: '',
-    estimatedAmount: 0,
-    costCenterId: '',
-    glAccountId: '',
-    vendorName: '',
-    currency: 'USD',
-    exchangeRate: 1.0,
-    requiredByDate: ''
+    description: '', estimatedAmount: 0, costCenterId: '', glAccountId: '', vendorName: '', currency: 'USD', exchangeRate: 1.0, requiredByDate: ''
   });
 
   // PDF Preview State
@@ -132,14 +99,7 @@ const P2PDeskPage: React.FC = () => {
     const res = await fetchRequisitions();
     setRequisitions(res.data || []);
     setFormData({
-      description: '',
-      estimatedAmount: 0,
-      costCenterId: '',
-      glAccountId: '',
-      vendorName: '',
-      currency: 'USD',
-      exchangeRate: 1.0,
-      requiredByDate: ''
+      description: '', estimatedAmount: 0, costCenterId: '', glAccountId: '', vendorName: '', currency: 'USD', exchangeRate: 1.0, requiredByDate: ''
     });
   };
 
@@ -159,10 +119,7 @@ const P2PDeskPage: React.FC = () => {
     const newRate = convertAmount(1, newCurrency, 'USD');
     
     setFormData(prev => ({
-      ...prev,
-      currency: newCurrency,
-      estimatedAmount: Number(newAmount.toFixed(2)),
-      exchangeRate: newRate
+      ...prev, currency: newCurrency, estimatedAmount: Number(newAmount.toFixed(2)), exchangeRate: newRate
     }));
   };
 
@@ -328,8 +285,7 @@ const P2PDeskPage: React.FC = () => {
                   <Select
                     label="Currency"
                     options={availableCurrencies.map(c => ({
-                      value: c.code,
-                      label: `${c.code} - ${c.name}`
+                      value: c.code, label: `${c.code} - ${c.name}`
                     }))}
                     value={formData.currency}
                     onChange={(e) => handleCurrencyChange(e.target.value)}

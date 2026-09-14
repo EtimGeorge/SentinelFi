@@ -34,10 +34,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({ project, expenses, onChanged 
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
-    description: '',
-    amount: 0,
-    expense_date: new Date().toISOString().split('T')[0],
-    wbs_id: ''
+    description: '', amount: 0, expense_date: new Date().toISOString().split('T')[0], wbs_id: ''
   });
 
   const [selectedExpense, setSelectedExpense] = useState<LiveExpense | null>(null);
@@ -60,10 +57,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({ project, expenses, onChanged 
 
   const resetExpenseForm = () => {
     setExpenseForm({
-      description: '',
-      amount: 0,
-      expense_date: new Date().toISOString().split('T')[0],
-      wbs_id: ''
+      description: '', amount: 0, expense_date: new Date().toISOString().split('T')[0], wbs_id: ''
     });
   };
 
@@ -76,13 +70,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({ project, expenses, onChanged 
     setIsSubmittingExpense(true);
     try {
       await api.post('/wbs/expense/live-entry', {
-        wbs_id: expenseForm.wbs_id,
-        project_id: project.project_id,
-        description: expenseForm.description,
-        amount,
-        unit_cost: amount,
-        quantity: 1,
-        expense_date: expenseForm.expense_date || new Date().toISOString().split('T')[0],
+        wbs_id: expenseForm.wbs_id, project_id: project.project_id, description: expenseForm.description, amount, unit_cost: amount, quantity: 1, expense_date: expenseForm.expense_date || new Date().toISOString().split('T')[0],
       });
       clearExpenseData();
       setIsExpenseModalOpen(false);
@@ -108,8 +96,7 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({ project, expenses, onChanged 
     setIsSubmittingCorrection(true);
     try {
       const payload: Record<string, any> = {
-        amount: parseFloat(editExpenseAmount),
-        description: editExpenseDescription,
+        amount: parseFloat(editExpenseAmount), description: editExpenseDescription,
       };
       if (editExpenseOverrideReason.trim()) payload.override_reason = editExpenseOverrideReason.trim();
       await api.patch(`/wbs/expense/live-entry/${selectedExpense.id}`, payload);
@@ -165,30 +152,16 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({ project, expenses, onChanged 
             rowKey={e => String(e.id || e.expense_id || '')}
             columns={[
               {
-                key: 'description',
-                label: 'Description',
-                tier: 'P0',
-                get: e => <span className="text-sm text-white font-medium">{e.description}</span>,
-                title: e => e.description,
+                key: 'description', label: 'Description', tier: 'P0', get: e => <span className="text-sm text-white font-medium">{e.description}</span>, title: e => e.description,
               },
               {
-                key: 'amount',
-                label: 'Amount Paid',
-                tier: 'P0',
-                cellClassName: 'text-right',
-                get: e => <span className="text-sm text-white font-mono font-bold">{convertToDisplay(e.amount, currency)}</span>,
+                key: 'amount', label: 'Amount Paid', tier: 'P0', cellClassName: 'text-right', get: e => <span className="text-sm text-white font-mono font-bold">{convertToDisplay(e.amount, currency)}</span>,
               },
               {
-                key: 'date',
-                label: 'Payment Date',
-                tier: 'P1',
-                get: e => <span className="text-sm text-gray-400">{new Date(e.expense_date).toLocaleDateString()}</span>,
+                key: 'date', label: 'Payment Date', tier: 'P1', get: e => <span className="text-sm text-gray-400">{new Date(e.expense_date).toLocaleDateString()}</span>,
               },
               {
-                key: 'variance',
-                label: 'Variance',
-                tier: 'P2',
-                get: e => (
+                key: 'variance', label: 'Variance', tier: 'P2', get: e => (
                   <span className={`px-2 py-1 text-xs font-bold rounded uppercase ${e.variance_flag ? 'bg-red-900/30 text-red-500 border border-red-800' : 'bg-gray-800 text-gray-500'}`}>
                     {e.variance_flag ? e.variance_flag.replace(/_/g, ' ') : 'NORMAL'}
                   </span>
@@ -197,19 +170,10 @@ const ExpensesTab: React.FC<ExpensesTabProps> = ({ project, expenses, onChanged 
             ]}
             actions={canCorrectExpense ? [
               {
-                key: 'edit',
-                label: 'Edit',
-                icon: <Edit className="w-4 h-4" />,
-                primary: true,
-                onClick: handleEditExpense,
-                title: 'Correct expense',
+                key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, primary: true, onClick: handleEditExpense, title: 'Correct expense',
               },
               {
-                key: 'delete',
-                label: 'Delete',
-                icon: <Trash2 className="w-4 h-4" />,
-                danger: true,
-                onClick: (e) => { setSelectedExpense(e); setIsDeleteExpenseModalOpen(true); },
+                key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: (e) => { setSelectedExpense(e); setIsDeleteExpenseModalOpen(true); },
               },
             ] : undefined}
           />

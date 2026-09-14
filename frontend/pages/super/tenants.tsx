@@ -2,18 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import PageContainer from '../../components/Layout/PageContainer';
 import {
-  Users,
-  Plus,
-  X,
-  Edit3,
-  Loader2,
-  AlertTriangle,
-  Trash2,
-  Search,
-  KeyRound,
-  CreditCard,
-  Activity,
-  CloudUpload
+  Users, Plus, X, Edit3, Loader2, AlertTriangle, Trash2, Search, KeyRound, CreditCard, Activity, CloudUpload
 } from 'lucide-react';
 import DataTable from "../../components/common/DataTable";
 import Card from '../../components/common/Card';
@@ -228,12 +217,8 @@ const ManagePlanModal: React.FC<ManagePlanModalProps> = ({ isOpen, onClose, tena
       const res = await api.get<TenantPlan>(`/super/tenants/${tenantId}/plan`);
       setPlan(res.data);
       setFormData({ // Initialize form with fetched data
-        plan_name: res.data.plan_name,
-        max_users: res.data.max_users,
-        max_storage_gb: res.data.max_storage_gb,
-        expires_at: res.data.expires_at, // Keep as string or convert if needed for input type="date"
-        is_active: res.data.is_active,
-        price: res.data.price,
+        plan_name: res.data.plan_name, max_users: res.data.max_users, max_storage_gb: res.data.max_storage_gb, expires_at: res.data.expires_at, // Keep as string or convert if needed for input type="date"
+        is_active: res.data.is_active, price: res.data.price,
       });
     } catch (e: any) {
       const msg = e.response?.data?.message || e.message;
@@ -268,11 +253,8 @@ const ManagePlanModal: React.FC<ManagePlanModalProps> = ({ isOpen, onClose, tena
     try {
       // Ensure expires_at is correctly formatted for the backend
       const dataToSend = {
-        ...formData,
-        expires_at: formData.expires_at ? new Date(formData.expires_at) : undefined, // Convert back to Date object
-        max_users: Number(formData.max_users),
-        max_storage_gb: Number(formData.max_storage_gb),
-        price: Number(formData.price),
+        ...formData, expires_at: formData.expires_at ? new Date(formData.expires_at) : undefined, // Convert back to Date object
+        max_users: Number(formData.max_users), max_storage_gb: Number(formData.max_storage_gb), price: Number(formData.price),
       };
 
       await api.patch(`/super/tenants/${tenantId}/plan`, dataToSend);
@@ -450,12 +432,8 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
       // ADVANCED: Server-side pagination & Search
       const response = await api.get<{ data: Tenant[], total: number }>('/super/tenants', {
         params: {
-          page: currentPage,
-          limit: ITEMS_PER_PAGE,
-          name: searchTerm,
-          is_active: statusFilter === '' ? undefined : (statusFilter === 'true')
-        },
-        signal
+          page: currentPage, limit: ITEMS_PER_PAGE, name: searchTerm, is_active: statusFilter === '' ? undefined : (statusFilter === 'true')
+        }, signal
       });
       setTenants(response.data.data || []);
       setTotalCount(response.data.total || 0);
@@ -554,8 +532,7 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
     setFormLoading(true);
     try {
       await api.patch(`/super/tenants/${selectedTenantForReset.id}/reset-password`, {
-        newPassword,
-        reason
+        newPassword, reason
       });
       addToast(`Emergency password update for ${selectedTenantForReset.name} successful.`, 'success');
       setShowResetModal(false);

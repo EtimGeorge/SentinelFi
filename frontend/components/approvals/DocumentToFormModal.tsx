@@ -40,11 +40,7 @@ const FILE_TYPES = {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export const DocumentToFormModal: React.FC<DocumentToFormModalProps> = ({
-  isOpen,
-  onClose,
-  targetForm,
-  projectId,
-  onSave,
+  isOpen, onClose, targetForm, projectId, onSave,
 }) => {
   const [step, setStep] = useState<'upload' | 'review' | 'confirm'>('upload');
   const [file, setFile] = useState<File | null>(null);
@@ -133,9 +129,7 @@ export const DocumentToFormModal: React.FC<DocumentToFormModalProps> = ({
       }, 200);
 
       const response = await fetch('/api/v1/ai/document/fill-form', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+        method: 'POST', credentials: 'include', body: formData,
       });
 
       clearInterval(progressInterval);
@@ -397,7 +391,7 @@ export const DocumentToFormModal: React.FC<DocumentToFormModalProps> = ({
                     
                     {field.confidence < 0.7 && (
                       <p className="text-xs text-yellow-400 mt-1 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> Low confidence — please verify
+                        <AlertTriangle className="w-3 h-3" /> Low confidence, please verify
                       </p>
                     )}
                   </div>

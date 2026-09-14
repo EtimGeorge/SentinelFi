@@ -5,17 +5,7 @@ import PageContainer from '../../components/Layout/PageContainer';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import Card from '../../components/common/Card';
 import {
-  User,
-  Shield,
-  Mail,
-  Calendar,
-  ArrowLeft,
-  Activity,
-  UserCheck,
-  Building,
-  Key,
-  Clock,
-  ExternalLink
+  User, Shield, Mail, Calendar, ArrowLeft, Activity, UserCheck, Building, Key, Clock, ExternalLink
 } from 'lucide-react';
 import Link from 'next/link';
 import { Role } from '@shared/types/role.enum';

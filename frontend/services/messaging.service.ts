@@ -57,13 +57,7 @@ export const useMessaging = () => {
         
         // Initialize Socket.io client
         const newSocket = io(wsUrl, {
-            path: '/ws-messaging',
-            transports: ['websocket'],
-            autoConnect: true,
-            reconnection: true,
-            reconnectionAttempts: 10,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
+            path: '/ws-messaging', transports: ['websocket'], autoConnect: true, reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1000, reconnectionDelayMax: 5000,
         });
 
         newSocket.on('connect', () => {
@@ -146,14 +140,13 @@ export const useMessaging = () => {
     const sendMessage = useCallback((conversationId: string, content: string) => {
         if (socket && isConnected) {
             socket.emit('send_message', {
-                conversationId,
-                content
+                conversationId, content
             });
         }
     }, [socket, isConnected]);
 
     const createConversation = async (userIds: string[], name?: string) => {
-        // Resolve any email/username identifiers to UUIDs via tenant directory (defensive – backend also resolves)
+        // Resolve any email/username identifiers to UUIDs via tenant directory (defensive, backend also resolves)
         const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
         let resolvedIds = userIds;
         const hasEmail = userIds.some(id => id.includes('@'));
@@ -173,7 +166,7 @@ export const useMessaging = () => {
         // Filter synthetic SYSTEM and non-UUID/non-email that would 400
         resolvedIds = resolvedIds.filter(id => id !== 'SYSTEM' && (isUuid(id) || id.includes('@')));
         if (resolvedIds.length === 0 && userIds.length > 0) {
-          console.warn('[Messaging] All userIds filtered as synthetic – aborting createConversation');
+          console.warn('[Messaging] All userIds filtered as synthetic, aborting createConversation');
           throw new Error('No valid user identifiers');
         }
         try {
@@ -194,7 +187,7 @@ export const useMessaging = () => {
             if (status === 400) {
               console.warn('[Messaging] Validation failed:', msg);
             } else if (status === 403) {
-              console.warn('[Messaging] Forbidden — cross-tenant or not allowed:', msg);
+              console.warn('[Messaging] Forbidden, cross-tenant or not allowed:', msg);
             } else {
               console.error('Failed to create conversation', error);
             }
@@ -203,15 +196,7 @@ export const useMessaging = () => {
     };
 
     return { 
-        messages, 
-        conversations,
-        sendMessage, 
-        isConnected, 
-        fetchHistory, 
-        fetchConversations,
-        createConversation,
-        activeConversationId,
-        setActiveConversationId
+        messages, conversations, sendMessage, isConnected, fetchHistory, fetchConversations, createConversation, activeConversationId, setActiveConversationId
     };
 };
 

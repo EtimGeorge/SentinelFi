@@ -12,10 +12,7 @@ interface SuperAdminLayoutUIProps {
 const SuperAdminLayoutUI: React.FC<SuperAdminLayoutUIProps> = ({ children }) => {
   // Use the global zustand store for consistent UI state
   const {
-    isDesktopSidebarCollapsed,
-    toggleMobileSidebar,
-    isMobileSidebarOpen,
-    closeMobileSidebar,
+    isDesktopSidebarCollapsed, toggleMobileSidebar, isMobileSidebarOpen, closeMobileSidebar,
   } = useUIStore();
 
   return (

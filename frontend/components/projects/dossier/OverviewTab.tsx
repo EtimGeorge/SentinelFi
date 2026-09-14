@@ -6,39 +6,17 @@ import Card from '../../common/Card';
 import Button from '../../common/Button';
 import { useCurrency } from '../../context/CurrencyContext';
 import {
-  Download,
-  Printer,
-  Layers,
-  AlertCircle,
-  TrendingDown,
-  Zap,
-  ShieldCheck,
-  Plus,
+  Download, Printer, Layers, AlertCircle, TrendingDown, Zap, ShieldCheck, Plus,
 } from 'lucide-react';
 import { WbsBudget } from '@shared/types/wbs';
 import { LiveExpense } from '@shared/types/expense';
 import { ProjectStatus } from '@shared/types/project';
 import { apiErrorMessage } from './errors';
 import {
-  ProjectDetail,
-  CashFlowPoint,
-  DossierTab,
+  ProjectDetail, CashFlowPoint, DossierTab,
 } from './types';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  Cell,
-  PieChart,
-  Pie,
-  Area,
-  ComposedChart,
-  Line,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, PieChart, Pie, Area, ComposedChart, Line,
 } from 'recharts';
 
 interface OverviewTabProps {
@@ -340,9 +318,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, budgets, expenses, c
                 return cashflow.map(cf => {
                   cumulativeOutflow += cf.outflow;
                   return {
-                    name: MONTH_NAMES[cf.month - 1],
-                    budget: convertAmount(project?.total_budgeted_rollup || 0, project?.currency || 'NGN', userCurrency.code),
-                    actual: convertAmount(cumulativeOutflow, project?.currency || 'NGN', userCurrency.code)
+                    name: MONTH_NAMES[cf.month - 1], budget: convertAmount(project?.total_budgeted_rollup || 0, project?.currency || 'NGN', userCurrency.code), actual: convertAmount(cumulativeOutflow, project?.currency || 'NGN', userCurrency.code)
                   };
                 });
               })()}>
@@ -372,10 +348,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, budgets, expenses, c
           <div className="h-[300px] w-full mt-4">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={cashflow.map(cf => ({
-                ...cf,
-                name: MONTH_NAMES[cf.month - 1],
-                inflow: convertAmount(cf.inflow, project?.currency || 'NGN', userCurrency.code),
-                outflow: convertAmount(cf.outflow, project?.currency || 'NGN', userCurrency.code)
+                ...cf, name: MONTH_NAMES[cf.month - 1], inflow: convertAmount(cf.inflow, project?.currency || 'NGN', userCurrency.code), outflow: convertAmount(cf.outflow, project?.currency || 'NGN', userCurrency.code)
               }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
                 <XAxis dataKey="name" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />

@@ -2,13 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import {
-  Calendar,
-  Plus,
-  ArrowLeft,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCcw,
-  ShieldCheck
+  Calendar, Plus, ArrowLeft, CheckCircle2, AlertCircle, RefreshCcw, ShieldCheck
 } from 'lucide-react';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import api from '../../../lib/api';
@@ -183,7 +177,7 @@ const FiscalYearSetupPage: React.FC = () => {
                         <span className="text-xs font-black px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded uppercase">Active</span>
                       </div>
                       <p className="font-mono text-xs text-slate-500 uppercase tracking-tighter">
-                        {new Date(fy.start_date).toLocaleDateString()} — {new Date(fy.end_date).toLocaleDateString()}
+                        {new Date(fy.start_date).toLocaleDateString()} - {new Date(fy.end_date).toLocaleDateString()}
                       </p>
                     </div>
                     <div className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-700 group-hover:text-blue-400 transition cursor-not-allowed">

@@ -4,10 +4,7 @@ import { Megaphone, Play, ArrowRight, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../../lib/api';
 import {
-  getAdsConfig,
-  startRewardedSession,
-  completeRewardedSession,
-  type AdsConfig,
+  getAdsConfig, startRewardedSession, completeRewardedSession, type AdsConfig,
 } from '../../lib/ads';
 import DisplayAd from './DisplayAd';
 import RewardedAdModal from './RewardedAdModal';
@@ -21,7 +18,7 @@ interface MySubscription {
 }
 
 /**
- * FreeTierAdBanner — mounted in the secured layout for free-plan tenants.
+ * FreeTierAdBanner, mounted in the secured layout for free-plan tenants.
  * - Renders nothing for paid/trial tenants (has_ads === false).
  * - Shows a passive DisplayAd unit + a "Watch ad · +1 task" rewarded action.
  * - Reward flow: start session → modal countdown → server-verified complete.
@@ -39,8 +36,7 @@ const FreeTierAdBanner: React.FC = () => {
     (async () => {
       try {
         const [{ data }, cfg] = await Promise.all([
-          api.get('/billing/my-subscription'),
-          getAdsConfig(),
+          api.get('/billing/my-subscription'), getAdsConfig(),
         ]);
         if (!cancelled) {
           setSub(data);
@@ -81,7 +77,7 @@ const FreeTierAdBanner: React.FC = () => {
       );
       toast.success(`+1 task unlocked (${result.tasks_available_today} available today)`);
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Reward failed — watch the full ad.');
+      toast.error(err.response?.data?.message || 'Reward failed, watch the full ad.');
     }
   };
 
@@ -117,7 +113,7 @@ const FreeTierAdBanner: React.FC = () => {
             href="/landing/pricing"
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-black  text-gray-300 transition-all hover:border-white/20 hover:text-white"
           >
-            Remove ads — $500/mo <ArrowRight className="h-3 w-3" />
+            Remove ads - $500/mo <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
       </div>

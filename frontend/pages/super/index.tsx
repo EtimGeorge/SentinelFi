@@ -9,34 +9,11 @@ import useToast from '../../store/toastStore';
 import axios from 'axios';
 // Use explicit imports if barrel fails, but first try to fix the usage
 import {
-    LayoutDashboard,
-    Loader2,
-    Building,
-    Users,
-    Clock,
-    Plus,
-    ArrowRight,
-    Activity,
-    AlertTriangle,
-    Server,
-    TrendingUp,
-    BarChart2,
-    DollarSign,
-    Package,
-    AlertCircle,
-    Shield
+    LayoutDashboard, Loader2, Building, Users, Clock, Plus, ArrowRight, Activity, AlertTriangle, Server, TrendingUp, BarChart2, DollarSign, Package, AlertCircle, Shield
 } from 'lucide-react';
 import Link from 'next/link';
 import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    AreaChart,
-    Area
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
 // --- Interfaces ---
@@ -141,16 +118,9 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
             };
 
             const [tenantRes, tenantCountRes, usersRes, growthRes, wbsRes, mrrRes, opRes, auditRes] = await Promise.all([
-                api.get<{ data: Tenant[], total: number }>('/super/tenants').catch(() => ({ data: { data: [], total: 0 } })),
-                safeGet<{ total: number, active: number }>('/super/analytics/tenant-count', { total: 0, active: 0 }),
-                safeGet<TotalUsersResponse>('/super/analytics/total-users', { total: 0 }),
-                safeGet<{ date: string, count: number }[]>('/super/analytics/tenant-growth?period=30d', []),
-                safeGet<{ total_budget: number, total_spent: number }>('/super/analytics/wbs-metrics', { total_budget: 0, total_spent: 0 }),
-                safeGet<MmrEstimateResponse>('/super/analytics/mrr-estimate', { mrrEstimate: 0 }),
-                safeGet<OperationalBudgetMetrics>('/super/analytics/operational-budget-metrics', {
+                api.get<{ data: Tenant[], total: number }>('/super/tenants').catch(() => ({ data: { data: [], total: 0 } })), safeGet<{ total: number, active: number }>('/super/analytics/tenant-count', { total: 0, active: 0 }), safeGet<TotalUsersResponse>('/super/analytics/total-users', { total: 0 }), safeGet<{ date: string, count: number }[]>('/super/analytics/tenant-growth?period=30d', []), safeGet<{ total_budget: number, total_spent: number }>('/super/analytics/wbs-metrics', { total_budget: 0, total_spent: 0 }), safeGet<MmrEstimateResponse>('/super/analytics/mrr-estimate', { mrrEstimate: 0 }), safeGet<OperationalBudgetMetrics>('/super/analytics/operational-budget-metrics', {
                     totalBudgets: 0, totalBudgetAmount: 0, totalActualSpent: 0, averageBudgetUtilization: 0
-                }),
-                api.get<{ logs: AuditLogEntry[] }>('/admin/audit-logs', { params: { limit: 5 } }).catch(() => ({ data: { logs: [] } }))
+                }), api.get<{ logs: AuditLogEntry[] }>('/admin/audit-logs', { params: { limit: 5 } }).catch(() => ({ data: { logs: [] } }))
             ]);
 
             const tenantsData = tenantRes.data?.data || [];
@@ -163,22 +133,17 @@ const SuperAdminDashboardPage: NextPageWithLayout = () => {
             setGrowthData(growthItems.map(d => ({ ...d, count: Number(d.count) })));
 
             setWbsMetrics({
-                total_budget: Number(wbsRes.total_budget || 0),
-                total_spent: Number(wbsRes.total_spent || 0)
+                total_budget: Number(wbsRes.total_budget || 0), total_spent: Number(wbsRes.total_spent || 0)
             });
 
             setMrrEstimate(Number(mrrRes.mrrEstimate || 0));
             setOpMetrics({
-                totalBudgets: Number(opRes.totalBudgets || 0),
-                totalBudgetAmount: Number(opRes.totalBudgetAmount || 0),
-                totalActualSpent: Number(opRes.totalActualSpent || 0),
-                averageBudgetUtilization: Number(opRes.averageBudgetUtilization || 0)
+                totalBudgets: Number(opRes.totalBudgets || 0), totalBudgetAmount: Number(opRes.totalBudgetAmount || 0), totalActualSpent: Number(opRes.totalActualSpent || 0), averageBudgetUtilization: Number(opRes.averageBudgetUtilization || 0)
             });
 
             // Map audit logs and infer status if missing since it's not stored in DB yet
             setAuditLogs((auditRes.data?.logs || []).map(log => ({
-                ...log,
-                status: log.action.includes('FAILURE') || log.action.includes('ERROR') ? 'failure' : 'success'
+                ...log, status: log.action.includes('FAILURE') || log.action.includes('ERROR') ? 'failure' : 'success'
             })) as any);
 
         } catch (e: any) {

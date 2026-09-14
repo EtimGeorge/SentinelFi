@@ -14,8 +14,7 @@ import { LiveExpense } from "@shared/types/expense";
 import { Project } from "@shared/types/project";
 import toast from 'react-hot-toast';
 import {
-  DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2, Activity,
-  AlertTriangle, TrendingUp, CheckCircle, Target, X
+  DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2, Activity, AlertTriangle, TrendingUp, CheckCircle, Target, X
 } from "lucide-react";
 import Modal from "../../../components/common/Modal";
 import EmptyState from "../../../components/common/EmptyState";
@@ -89,9 +88,7 @@ const ExpenseManagementPage: React.FC = () => {
     expenses.forEach(e => {
       // Convert to user currency before summing for accurate global KPIs
       const amountInUserCurrency = convertAmount(
-        Number(e.amount || 0),
-        e.wbsBudget?.project?.currency || 'NGN',
-        userCurrency.code
+        Number(e.amount || 0), e.wbsBudget?.project?.currency || 'NGN', userCurrency.code
       );
       totalExpenses += amountInUserCurrency;
 
@@ -120,13 +117,7 @@ const ExpenseManagementPage: React.FC = () => {
     setLoading(true);
     try {
       const params: GetLiveExpensesDto = {
-        page, limit,
-        wbsId: wbsIdFilter || undefined,
-        description: descriptionFilter || undefined,
-        varianceFlag: varianceFlagFilter || undefined,
-        startDate: startDateFilter || undefined,
-        endDate: endDateFilter || undefined,
-        projectId: projectIdFilter || undefined,
+        page, limit, wbsId: wbsIdFilter || undefined, description: descriptionFilter || undefined, varianceFlag: varianceFlagFilter || undefined, startDate: startDateFilter || undefined, endDate: endDateFilter || undefined, projectId: projectIdFilter || undefined,
       };
       // Important constraint limit=100 for backend validation rules
       const response = await api.get<{ data: LiveExpense[]; total: number }>("/wbs/expenses", { params });
@@ -150,12 +141,7 @@ const ExpenseManagementPage: React.FC = () => {
     toast('Preparing CSV...', { icon: 'â³' });
     try {
       const params: GetLiveExpensesDto = {
-        wbsId: wbsIdFilter || undefined,
-        description: descriptionFilter || undefined,
-        varianceFlag: varianceFlagFilter || undefined,
-        startDate: startDateFilter || undefined,
-        endDate: endDateFilter || undefined,
-        projectId: projectIdFilter || undefined,
+        wbsId: wbsIdFilter || undefined, description: descriptionFilter || undefined, varianceFlag: varianceFlagFilter || undefined, startDate: startDateFilter || undefined, endDate: endDateFilter || undefined, projectId: projectIdFilter || undefined,
       };
       const response = await api.get(`/wbs/expenses/export`, { params, responseType: "blob" });
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -192,10 +178,7 @@ const ExpenseManagementPage: React.FC = () => {
     setIsSubmittingCorrection(true);
     try {
       await api.patch(`/wbs/expense/live-entry/${selectedExpense.id}`, {
-        amount: parseFloat(editAmount),
-        description: editDescription,
-        quantity: editQuantity ? parseFloat(editQuantity) : undefined,
-        days: editDays ? parseFloat(editDays) : undefined,
+        amount: parseFloat(editAmount), description: editDescription, quantity: editQuantity ? parseFloat(editQuantity) : undefined, days: editDays ? parseFloat(editDays) : undefined,
       });
       toast.success("Expense corrected successfully. Metrics recalibrated.");
       setIsEditModalOpen(false);
@@ -216,8 +199,7 @@ const ExpenseManagementPage: React.FC = () => {
       setIsDeleteModalOpen(false);
       fetchExpenses();
       useToastStore.getState().addUndoToast(
-        'Expense recalled. Budget metrics reverted.',
-        async () => {
+        'Expense recalled. Budget metrics reverted.', async () => {
           try {
             const projectId = deleted.wbsBudget?.project?.project_id || (deleted as any).project_id;
             if (!projectId || !deleted.wbs_id) {
@@ -225,22 +207,14 @@ const ExpenseManagementPage: React.FC = () => {
               return;
             }
             await api.post('/wbs/expense/live-entry', {
-              wbs_id: deleted.wbs_id,
-              project_id: projectId,
-              description: deleted.description,
-              amount: deleted.amount,
-              unit_cost: deleted.unit_cost,
-              quantity: deleted.quantity,
-              days: deleted.days ?? undefined,
-              expense_date: typeof deleted.expense_date === 'string' ? deleted.expense_date : new Date(deleted.expense_date).toISOString().split('T')[0],
+              wbs_id: deleted.wbs_id, project_id: projectId, description: deleted.description, amount: deleted.amount, unit_cost: deleted.unit_cost, quantity: deleted.quantity, days: deleted.days ?? undefined, expense_date: typeof deleted.expense_date === 'string' ? deleted.expense_date : new Date(deleted.expense_date).toISOString().split('T')[0],
             });
             toast.success('Expense restored.');
             fetchExpenses();
           } catch (e: any) {
             toast.error(`Restore failed: ${e.response?.data?.message || e.message}`);
           }
-        },
-        6000,
+        }, 6000,
         'Restore',
       );
     } catch (err: any) {
@@ -341,10 +315,7 @@ const ExpenseManagementPage: React.FC = () => {
                 <DataTable
                   columns={[
                     {
-                      key: 'project',
-                      label: 'Project & WBS',
-                      tier: 'P0',
-                      get: (e: LiveExpense) => (
+                      key: 'project', label: 'Project & WBS', tier: 'P0', get: (e: LiveExpense) => (
                         <>
                           <Link href={`/projects/${e.wbsBudget?.project?.project_id}/overview`} className="text-sm font-bold text-gray-300 hover:text-brand-primary truncate block">
                             {e.wbsBudget?.project?.project_name || "N/A"}
@@ -353,61 +324,34 @@ const ExpenseManagementPage: React.FC = () => {
                             {e.wbsBudget?.wbs_code || "UNMAPPED"}
                           </span>
                         </>
-                      ),
-                      title: (e: LiveExpense) => e.wbsBudget?.project?.project_name || "N/A",
+                      ), title: (e: LiveExpense) => e.wbsBudget?.project?.project_name || "N/A",
                     },
                     {
-                      key: 'amount',
-                      label: 'Amount',
-                      tier: 'P0',
-                      cellClassName: 'text-right',
-                      get: (e: LiveExpense) => (
+                      key: 'amount', label: 'Amount', tier: 'P0', cellClassName: 'text-right', get: (e: LiveExpense) => (
                         <p className="text-sm font-black text-white">{convertToDisplay(e.amount, e.wbsBudget?.project?.currency || 'NGN')}</p>
-                      ),
-                      title: (e: LiveExpense) => convertToDisplay(e.amount, e.wbsBudget?.project?.currency || 'NGN'),
+                      ), title: (e: LiveExpense) => convertToDisplay(e.amount, e.wbsBudget?.project?.currency || 'NGN'),
                     },
                     {
-                      key: 'description',
-                      label: 'Description',
-                      tier: 'P1',
-                      get: (e: LiveExpense) => <span className="text-sm text-gray-300">{e.description}</span>,
-                      title: (e: LiveExpense) => e.description,
+                      key: 'description', label: 'Description', tier: 'P1', get: (e: LiveExpense) => <span className="text-sm text-gray-300">{e.description}</span>, title: (e: LiveExpense) => e.description,
                     },
                     {
-                      key: 'date',
-                      label: 'Date',
-                      tier: 'P1',
-                      get: (e: LiveExpense) => new Date(e.expense_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+                      key: 'date', label: 'Date', tier: 'P1', get: (e: LiveExpense) => new Date(e.expense_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
                     },
                     {
-                      key: 'variance',
-                      label: 'Variance Analysis',
-                      tier: 'P2',
-                      get: (e: LiveExpense) => varianceBadge(e.variance_flag as string),
+                      key: 'variance', label: 'Variance Analysis', tier: 'P2', get: (e: LiveExpense) => varianceBadge(e.variance_flag as string),
                     },
                   ]}
                   rows={expenses}
                   rowKey={(e) => String(e.id || e.expense_id || '')}
                   actions={[
                     {
-                      key: 'view',
-                      label: 'View Dossier',
-                      primary: true,
-                      icon: <Activity className="w-4 h-4" />,
-                      onClick: (e) => router.push(`/financials/projects/expenses?id=${e.id}`),
+                      key: 'view', label: 'View Dossier', primary: true, icon: <Activity className="w-4 h-4" />, onClick: (e) => router.push(`/financials/projects/expenses?id=${e.id}`),
                     },
                     {
-                      key: 'edit',
-                      label: 'Edit',
-                      icon: <Edit className="w-4 h-4" />,
-                      onClick: (e) => openEditModal(e),
+                      key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, onClick: (e) => openEditModal(e),
                     },
                     {
-                      key: 'delete',
-                      label: 'Delete',
-                      danger: true,
-                      icon: <Trash2 className="w-4 h-4" />,
-                      onClick: (e) => openDeleteModal(e),
+                      key: 'delete', label: 'Delete', danger: true, icon: <Trash2 className="w-4 h-4" />, onClick: (e) => openDeleteModal(e),
                     },
                   ]}
                   virtualized

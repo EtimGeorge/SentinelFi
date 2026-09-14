@@ -3,24 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import PageContainer from '../../components/Layout/PageContainer';
 import { 
-  Users, 
-  Plus, 
-  X, 
-  Edit3, 
-  Save, 
-  Loader2, 
-  AlertTriangle, 
-  Trash2, 
-  Search, 
-  KeyRound, 
-  Activity, 
-  CheckCircle2,
-  ShieldAlert,
-  ShieldCheck,
-  UserCheck,
-  UserPlus,
-  RotateCw,
-  UserX
+  Users, Plus, X, Edit3, Save, Loader2, AlertTriangle, Trash2, Search, KeyRound, Activity, CheckCircle2, ShieldAlert, ShieldCheck, UserCheck, UserPlus, RotateCw, UserX
 } from 'lucide-react';
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
@@ -65,27 +48,16 @@ const UserManagementPage: React.FC = () => {
 
   // Form states
   const [createForm, setCreateForm] = useState<ICreateUserPayload>({
-    email: '',
-    username: '',
-    first_name: '',
-    last_name: '',
-    password: '',
-    role: Role.OperationalDirector, // Default role
-    tenant_id: currentUser?.tenant_id || '',
-    is_active: true
+    email: '', username: '', first_name: '', last_name: '', password: '', role: Role.OperationalDirector, // Default role
+    tenant_id: currentUser?.tenant_id || '', is_active: true
   });
 
   const [editForm, setEditForm] = useState<Partial<IUpdateUserPayload>>({
-    email: '',
-    username: '',
-    first_name: '',
-    last_name: '',
-    role: undefined
+    email: '', username: '', first_name: '', last_name: '', role: undefined
   });
 
   const [resetPasswordForm, setResetPasswordForm] = useState({
-    newPassword: '',
-    confirmPassword: ''
+    newPassword: '', confirmPassword: ''
   });
 
   const fetchUsers = useCallback(async () => {
@@ -124,8 +96,7 @@ const UserManagementPage: React.FC = () => {
     setFormLoading(true);
     try {
       const res = await api.patch('/auth/users/batch', {
-        ids: selectedUserIds,
-        update: { is_active: false }
+        ids: selectedUserIds, update: { is_active: false }
       });
       addToast(`Successfully deactivated ${res.data.updated} users.`, 'success');
       setSelectedUserIds([]);
@@ -166,16 +137,12 @@ const UserManagementPage: React.FC = () => {
 
       // Transition to invitation flow
       await api.post('/billing/invite', {
-        email: createForm.email,
-        role: createForm.role,
-        firstName: createForm.first_name,
-        lastName: createForm.last_name,
+        email: createForm.email, role: createForm.role, firstName: createForm.first_name, lastName: createForm.last_name,
       });
       addToast(`Invitation sent to ${createForm.email} successfully.`, 'success');
       setIsCreateModalOpen(false);
       setCreateForm({
-        email: '', username: '', first_name: '', last_name: '', password: '', role: Role.OperationalDirector, 
-        tenant_id: currentUser?.tenant_id || '', is_active: true
+        email: '', username: '', first_name: '', last_name: '', password: '', role: Role.OperationalDirector, tenant_id: currentUser?.tenant_id || '', is_active: true
       });
       fetchUsers();
     } catch (e: any) {

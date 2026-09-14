@@ -75,8 +75,8 @@ const AdminDashboard: React.FC = () => {
 
   const stats: DashboardStat[] = useMemo(() => [
     { 
-      label: 'Operational Liquidity', 
-      value: summary ? convertToDisplay(summary.totalBudgeted) : '---', 
+      label: 'Operational Liquidity',
+      value: summary ? convertToDisplay(summary.totalBudgeted, summary.currency || 'USD') : '---',
       change: 'Active Budget', 
       isPositive: true, 
       icon: Building, 
@@ -100,7 +100,7 @@ const AdminDashboard: React.FC = () => {
     },
     { 
       label: 'Daily Burn Rate', 
-      value: executive?.overview?.avgDailySpend ? convertToDisplay(executive.overview.avgDailySpend) : '---', 
+      value: executive?.overview?.avgDailySpend ? convertToDisplay(executive.overview.avgDailySpend, executive.currency || 'USD') : '---',
       change: 'Avg. Intensity', 
       isPositive: true, 
       icon: Zap, 
@@ -112,7 +112,7 @@ const AdminDashboard: React.FC = () => {
     if (!executive?.history) return [];
     return executive.history.map((h: any) => ({
       name: new Date(h.date).toLocaleDateString('en-US', { weekday: 'short' }),
-      value: convertAmount(h.amount, 'USD', userCurrency.code)
+      value: convertAmount(h.amount, executive.currency || 'USD', userCurrency.code)
     }));
   }, [executive, convertAmount, userCurrency]);
 

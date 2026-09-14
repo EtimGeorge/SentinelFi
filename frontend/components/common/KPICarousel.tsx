@@ -13,14 +13,7 @@ interface KPICardProps {
 }
 
 const KPICard: React.FC<KPICardProps> = ({
-  label,
-  value,
-  subLabel,
-  trend,
-  trendLabel,
-  icon,
-  accentColor = '#0D9488',
-  className = '',
+  label, value, subLabel, trend, trendLabel, icon, accentColor = '#0D9488', className = '',
 }) => {
   return (
     <div
@@ -85,11 +78,7 @@ interface KPICarouselProps {
 }
 
 export const KPICarousel: React.FC<KPICarouselProps> = ({
-  items,
-  showNavArrows = false,
-  autoScroll = false,
-  autoScrollInterval = 5000,
-  className = '',
+  items, showNavArrows = false, autoScroll = false, autoScrollInterval = 5000, className = '',
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -101,8 +90,7 @@ export const KPICarousel: React.FC<KPICarouselProps> = ({
     if (!carouselRef.current) return;
     const itemWidth = 300;
     carouselRef.current.scrollTo({
-      left: index * itemWidth,
-      behavior: 'smooth',
+      left: index * itemWidth, behavior: 'smooth',
     });
     setCurrentIndex(index);
   }, []);

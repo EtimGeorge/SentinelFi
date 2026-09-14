@@ -39,14 +39,8 @@ const AuditLogPage: React.FC = () => {
     setLoading(true);
     try {
       const params = {
-        page: currentPage,
-        limit: ITEMS_PER_PAGE,
-        userId: userSearchTerm, // Backend will search by user ID or email based on this
-        action: actionTypeFilter,
-        targetType: targetTypeFilter,
-        startDate: startDate,
-        endDate: endDate,
-        tenantId: hasAnyRole([Role.SuperAdmin, Role.TechnicalDirector]) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/TechnicalDirector can filter, otherwise undefined means no filter by query param
+        page: currentPage, limit: ITEMS_PER_PAGE, userId: userSearchTerm, // Backend will search by user ID or email based on this
+        action: actionTypeFilter, targetType: targetTypeFilter, startDate: startDate, endDate: endDate, tenantId: hasAnyRole([Role.SuperAdmin, Role.TechnicalDirector]) && tenantIdFilter ? tenantIdFilter : undefined, // SuperAdmin/TechnicalDirector can filter, otherwise undefined means no filter by query param
       };
 
       // If user is Admin, they can only see their own tenant's logs

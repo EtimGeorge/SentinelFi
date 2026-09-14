@@ -9,15 +9,7 @@ import { useAuth } from "../../components/context/AuthContext";
 import { Role } from "@shared/types/role.enum";
 import { toast } from "react-hot-toast";
 import {
-  Clock,
-  CheckCircle,
-  XCircle,
-  ShieldOff,
-  ChevronRight,
-  Building2,
-  Layout,
-  Briefcase,
-  AlertCircle,
+  Clock, CheckCircle, XCircle, ShieldOff, ChevronRight, Building2, Layout, Briefcase, AlertCircle,
 } from "lucide-react";
 import useUIStore from "../../store/uiStore";
 import { useCurrency } from "../../components/context/CurrencyContext";
@@ -37,12 +29,7 @@ const flattenTree = (nodes: WbsTreeNode[]): WbsTreeNode[] =>
 
 /** Roles that are authorized to see and act on the Approval Inbox */
 export const APPROVAL_AUTHORIZED_ROLES: Role[] = [
-  Role.CFO,
-  Role.FinanceManager,
-  Role.AdminDirector,
-  Role.AdminManager,
-  Role.CEO,
-  Role.SuperAdmin,
+  Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager, Role.CEO, Role.SuperAdmin,
   "Admin" as Role, // Legacy fallback
   "Finance" as Role, // Legacy fallback
 ];
@@ -85,8 +72,7 @@ const ApprovalsPage = () => {
 
   /** Semantic WBS sorting logic (e.g., 1.10 comes after 1.9) */
   const sortWbsCodes = (
-    a: string | undefined | null,
-    b: string | undefined | null,
+    a: string | undefined | null, b: string | undefined | null,
   ) => {
     if (!a && !b) return 0;
     if (!a) return 1;
@@ -120,23 +106,7 @@ const ApprovalsPage = () => {
       wbsItems = wbsData.map(
         (item: any) =>
           ({
-            id: item.wbs_id,
-            document_type: "WBS_BUDGET" as const,
-            description: item.description,
-            amount: Number(item.total_cost_budgeted || 0),
-            submitted_by: item.user?.email || "Project Team",
-            submitted_at: item.updated_at || item.created_at,
-            project_id: item.project_id,
-            project_name: item.project?.project_name || "Unassigned Project",
-            project_currency: item.project?.currency || "NGN",
-            category_id: item.category_id,
-            category_name: item.category?.name || "General",
-            quantity: Number(item.quantity_budgeted || 0),
-            uom: item.uom || "Unit",
-            unit_cost: Number(item.unit_cost_budgeted || 0),
-            duration: Number(item.days_budgeted || 0),
-            custom_metadata: item.custom_metadata,
-            wbs_code: item.wbs_code,
+            id: item.wbs_id, document_type: "WBS_BUDGET" as const, description: item.description, amount: Number(item.total_cost_budgeted || 0), submitted_by: item.user?.email || "Project Team", submitted_at: item.updated_at || item.created_at, project_id: item.project_id, project_name: item.project?.project_name || "Unassigned Project", project_currency: item.project?.currency || "NGN", category_id: item.category_id, category_name: item.category?.name || "General", quantity: Number(item.quantity_budgeted || 0), uom: item.uom || "Unit", unit_cost: Number(item.unit_cost_budgeted || 0), duration: Number(item.days_budgeted || 0), custom_metadata: item.custom_metadata, wbs_code: item.wbs_code,
           }) as any,
       );
 
@@ -159,18 +129,9 @@ const ApprovalsPage = () => {
         .map(
           (r: any) =>
             ({
-              id: r.id,
-              document_type: "REQUISITION" as const,
-              description: r.description,
-              amount: Number(r.estimated_amount || 0),
-              submitted_by: r.requester?.first_name
+              id: r.id, document_type: "REQUISITION" as const, description: r.description, amount: Number(r.estimated_amount || 0), submitted_by: r.requester?.first_name
                 ? `${r.requester.first_name} ${r.requester.last_name}`
-                : "Unknown",
-              submitted_at: r.created_at,
-              req_number: r.requisition_number,
-              cost_center_id: r.cost_center_id,
-              cost_center_name: r.costCenter?.name || "Administrative",
-              gl_account_name: r.glAccount?.name || "General Expense",
+                : "Unknown", submitted_at: r.created_at, req_number: r.requisition_number, cost_center_id: r.cost_center_id, cost_center_name: r.costCenter?.name || "Administrative", gl_account_name: r.glAccount?.name || "General Expense",
             }) as any,
         );
     } catch (error: any) {
@@ -186,25 +147,14 @@ const ApprovalsPage = () => {
       overrunItems = overrunsData.map(
         (item: any) =>
           ({
-            id: item.id,
-            document_type: "EXPENSE_OVERRUN" as const,
-            description: `Budget Overrun Override Request${item.override_reason ? `: "${item.override_reason}"` : ""}`,
-            amount: Number(item.amount || 0),
-            submitted_by: item.user?.email || item.user_id || "Unknown User",
-            submitted_at: item.created_at,
-            project_id: item.project?.id || item.wbsBudget?.project_id,
-            project_name:
+            id: item.id, document_type: "EXPENSE_OVERRUN" as const, description: `Budget Overrun Override Request${item.override_reason ? `: "${item.override_reason}"` : ""}`, amount: Number(item.amount || 0), submitted_by: item.user?.email || item.user_id || "Unknown User", submitted_at: item.created_at, project_id: item.project?.id || item.wbsBudget?.project_id, project_name:
               item.project?.project_name ||
               item.wbsBudget?.project?.project_name ||
-              "Unassigned",
-            project_currency:
+              "Unassigned", project_currency:
               item.project?.currency ||
               item.wbsBudget?.project?.currency ||
-              "NGN",
-            wbs_code: item.wbsBudget?.wbs_code || "N/A",
-            custom_metadata: {
-              variance_flag: item.variance_flag,
-              original_date: item.expense_date,
+              "NGN", wbs_code: item.wbsBudget?.wbs_code || "N/A", custom_metadata: {
+              variance_flag: item.variance_flag, original_date: item.expense_date,
             },
           }) as any,
       );
@@ -243,9 +193,7 @@ const ApprovalsPage = () => {
         const pid = item.project_id || "other";
         if (!projectGroups[pid]) {
           projectGroups[pid] = {
-            name: item.project_name || "General Projects",
-            tree: [],
-            allPendingItems: [],
+            name: item.project_name || "General Projects", tree: [], allPendingItems: [],
           };
         }
         projectGroups[pid].allPendingItems.push(item);
@@ -356,8 +304,7 @@ const ApprovalsPage = () => {
       const ccId = item.cost_center_id || "misc";
       if (!groups[ccId]) {
         groups[ccId] = {
-          name: item.cost_center_name || "Miscellaneous Cost Center",
-          items: [],
+          name: item.cost_center_name || "Miscellaneous Cost Center", items: [],
         };
       }
       groups[ccId].items.push(item);
@@ -370,9 +317,7 @@ const ApprovalsPage = () => {
   };
 
   const handleAction = async (
-    id: string,
-    type: string,
-    action: "APPROVE" | "REJECT",
+    id: string, type: string, action: "APPROVE" | "REJECT",
   ) => {
     try {
       if (type === "WBS_BUDGET") {
@@ -408,8 +353,7 @@ const ApprovalsPage = () => {
   };
 
   const handleBulkAction = async (
-    projectId: string,
-    action: "APPROVE" | "REJECT",
+    projectId: string, action: "APPROVE" | "REJECT",
   ) => {
     const items = groupedProjects[projectId].allPendingItems;
 
@@ -430,8 +374,7 @@ const ApprovalsPage = () => {
         : Math.ceil(filteredOverrunItems.length / itemsPerPage);
 
   const paginatedCostCenterKeys = Object.keys(groupedCostCenters).slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
+    (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage,
   );
 
   if (loading || isInitialLoad) {
@@ -552,22 +495,15 @@ const ApprovalsPage = () => {
                     ? []
                     : [
                         {
-                          key: "costCenterId",
-                          label: "Cost Center",
-                          type: "select",
-                          options: Object.entries(groupedCostCenters).map(
+                          key: "costCenterId", label: "Cost Center", type: "select", options: Object.entries(groupedCostCenters).map(
                             ([id, group]) => ({ value: id, label: group.name }),
                           ),
                         },
                         {
-                          key: "minAmount",
-                          label: "Min Value",
-                          type: "number",
+                          key: "minAmount", label: "Min Value", type: "number",
                         },
                         {
-                          key: "maxAmount",
-                          label: "Max Value",
-                          type: "number",
+                          key: "maxAmount", label: "Max Value", type: "number",
                         },
                       ]
                 }
@@ -587,8 +523,7 @@ const ApprovalsPage = () => {
                 <div className="space-y-6">
                   {filteredProjectIds
                     .slice(
-                      (currentPage - 1) * itemsPerPage,
-                      currentPage * itemsPerPage,
+                      (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage,
                     )
                     .map((id) => {
                       const group = groupedProjects[id];
@@ -626,10 +561,8 @@ const ApprovalsPage = () => {
                                 <div className="text-xl font-black text-brand-primary italic">
                                   {formatAmount(
                                     group.allPendingItems.reduce(
-                                      (s, i) => s + i.amount,
-                                      0,
-                                    ),
-                                    group.allPendingItems[0]?.project_currency,
+                                      (s, i) => s + i.amount, 0,
+                                    ), group.allPendingItems[0]?.project_currency,
                                   )}
                                 </div>
                               </div>
@@ -654,11 +587,7 @@ const ApprovalsPage = () => {
                               <DataTable
                                 columns={[
                                   {
-                                    key: "wbs",
-                                    label: "WBS Code",
-                                    tier: "P0",
-                                    minWidth: 160,
-                                    get: (node) => {
+                                    key: "wbs", label: "WBS Code", tier: "P0", minWidth: 160, get: (node) => {
                                       const depth =
                                         (node.wbs_code?.split(".").length ||
                                           1) - 1;
@@ -682,12 +611,7 @@ const ApprovalsPage = () => {
                                     },
                                   },
                                   {
-                                    key: "description",
-                                    label: "Description",
-                                    tier: "P0",
-                                    minWidth: 220,
-                                    title: (node) => node.description,
-                                    get: (node) => (
+                                    key: "description", label: "Description", tier: "P0", minWidth: 220, title: (node) => node.description, get: (node) => (
                                       <div
                                         className={`text-sm font-bold truncate ${node.isPending ? "text-white" : "text-slate-500"}`}
                                       >
@@ -696,23 +620,14 @@ const ApprovalsPage = () => {
                                     ),
                                   },
                                   {
-                                    key: "category",
-                                    label: "Category",
-                                    tier: "P1",
-                                    minWidth: 120,
-                                    get: (node) => (
+                                    key: "category", label: "Category", tier: "P1", minWidth: 120, get: (node) => (
                                       <span className="text-xs font-bold text-slate-400 border border-slate-800 px-2 py-1 rounded uppercase">
                                         {node.category_name}
                                       </span>
                                     ),
                                   },
                                   {
-                                    key: "qty",
-                                    label: "Qty / UOM",
-                                    tier: "P2",
-                                    minWidth: 96,
-                                    cellClassName: "text-center",
-                                    get: (node) => (
+                                    key: "qty", label: "Qty / UOM", tier: "P2", minWidth: 96, cellClassName: "text-center", get: (node) => (
                                       <div className="text-sm text-slate-300 font-black">
                                         {node.quantity}{" "}
                                         <span className="text-xs text-slate-500 uppercase font-bold">
@@ -722,39 +637,24 @@ const ApprovalsPage = () => {
                                     ),
                                   },
                                   {
-                                    key: "unitRate",
-                                    label: "Unit Rate",
-                                    tier: "P2",
-                                    minWidth: 120,
-                                    cellClassName: "text-right font-mono text-xs text-slate-300 whitespace-nowrap",
-                                    get: (node) =>
+                                    key: "unitRate", label: "Unit Rate", tier: "P2", minWidth: 120, cellClassName: "text-right font-mono text-xs text-slate-300 whitespace-nowrap", get: (node) =>
                                       formatAmount(
-                                        node.unit_cost || 0,
-                                        node.project_currency,
+                                        node.unit_cost || 0, node.project_currency,
                                       ),
                                   },
                                   {
-                                    key: "total",
-                                    label: "Total (Commitment)",
-                                    tier: "P0",
-                                    minWidth: 140,
-                                    cellClassName: "text-right",
-                                    get: (node) => (
+                                    key: "total", label: "Total (Commitment)", tier: "P0", minWidth: 140, cellClassName: "text-right", get: (node) => (
                                       <div
                                         className={`text-sm font-black italic whitespace-nowrap ${node.isPending ? "text-brand-primary" : "text-slate-600"}`}
                                       >
                                         {formatAmount(
-                                          node.amount,
-                                          node.project_currency,
+                                          node.amount, node.project_currency,
                                         )}
                                       </div>
                                     ),
                                   },
                                   {
-                                    key: "duration",
-                                    label: "Duration",
-                                    tier: "P3",
-                                    get: (node) => (
+                                    key: "duration", label: "Duration", tier: "P3", get: (node) => (
                                       <span className="px-2 py-1 bg-slate-800 rounded text-xs font-bold text-slate-400">
                                         {node.duration}d
                                       </span>
@@ -765,12 +665,7 @@ const ApprovalsPage = () => {
                                 rowKey={(node) => node.id}
                                 actions={[
                                   {
-                                    key: "approve",
-                                    label: "Approve",
-                                    primary: true,
-                                    icon: <CheckCircle className="w-4 h-4" />,
-                                    visible: (node) => !!node.isPending,
-                                    onClick: (node) =>
+                                    key: "approve", label: "Approve", primary: true, icon: <CheckCircle className="w-4 h-4" />, visible: (node) => !!node.isPending, onClick: (node) =>
                                       handleAction(
                                         node.id,
                                         "WBS_BUDGET",
@@ -778,12 +673,7 @@ const ApprovalsPage = () => {
                                       ),
                                   },
                                   {
-                                    key: "reject",
-                                    label: "Reject",
-                                    danger: true,
-                                    icon: <XCircle className="w-4 h-4" />,
-                                    visible: (node) => !!node.isPending,
-                                    onClick: (node) =>
+                                    key: "reject", label: "Reject", danger: true, icon: <XCircle className="w-4 h-4" />, visible: (node) => !!node.isPending, onClick: (node) =>
                                       handleAction(
                                         node.id,
                                         "WBS_BUDGET",
@@ -795,9 +685,7 @@ const ApprovalsPage = () => {
                                   node.custom_metadata ? (
                                     <pre className="text-xs font-mono text-slate-400 whitespace-pre-wrap break-words bg-brand-dark/40 border border-slate-800 rounded-lg p-3 mt-2 max-h-48 overflow-y-auto">
                                       {JSON.stringify(
-                                        node.custom_metadata,
-                                        null,
-                                        2,
+                                        node.custom_metadata, null, 2,
                                       )}
                                     </pre>
                                   ) : null
@@ -866,65 +754,41 @@ const ApprovalsPage = () => {
                               <DataTable
                                 columns={[
                                   {
-                                    key: "req",
-                                    label: "Req #",
-                                    tier: "P0",
-                                    minWidth: 140,
-                                    title: (item: ApprovalItem) =>
-                                      item.req_number,
-                                    get: (item: ApprovalItem) => (
+                                    key: "req", label: "Req #", tier: "P0", minWidth: 140, title: (item: ApprovalItem) =>
+                                      item.req_number, get: (item: ApprovalItem) => (
                                       <span className="font-mono text-xs font-black text-blue-400 bg-blue-500/10 px-2 py-1 rounded truncate">
                                         {item.req_number}
                                       </span>
                                     ),
                                   },
                                   {
-                                    key: "description",
-                                    label: "Description",
-                                    tier: "P0",
-                                    minWidth: 240,
-                                    title: (item: ApprovalItem) =>
-                                      item.description,
-                                    get: (item: ApprovalItem) => (
+                                    key: "description", label: "Description", tier: "P0", minWidth: 240, title: (item: ApprovalItem) =>
+                                      item.description, get: (item: ApprovalItem) => (
                                       <span className="text-sm font-bold text-white truncate">
                                         {item.description}
                                       </span>
                                     ),
                                   },
                                   {
-                                    key: "gl",
-                                    label: "GL Account",
-                                    tier: "P2",
-                                    minWidth: 120,
-                                    get: (item: ApprovalItem) => (
+                                    key: "gl", label: "GL Account", tier: "P2", minWidth: 120, get: (item: ApprovalItem) => (
                                       <span className="text-xs font-bold text-slate-400 border border-slate-800 px-2 py-1 rounded uppercase truncate">
                                         {item.gl_account_name}
                                       </span>
                                     ),
                                   },
                                   {
-                                    key: "submittedBy",
-                                    label: "Submitted By",
-                                    tier: "P2",
-                                    minWidth: 160,
-                                    title: (item: ApprovalItem) =>
+                                    key: "submittedBy", label: "Submitted By", tier: "P2", minWidth: 160, title: (item: ApprovalItem) =>
                                       `${item.submitted_by} · ${new Date(
                                         item.submitted_at,
-                                      ).toLocaleDateString()}`,
-                                    get: (item: ApprovalItem) => (
+                                      ).toLocaleDateString()}`, get: (item: ApprovalItem) => (
                                       <span className="text-sm font-medium text-slate-400 truncate">
                                         {item.submitted_by}
                                       </span>
                                     ),
                                   },
                                   {
-                                    key: "amount",
-                                    label: "Amount",
-                                    tier: "P1",
-                                    minWidth: 130,
-                                    cellClassName:
-                                      "text-right font-black text-blue-500 whitespace-nowrap",
-                                    get: (item: ApprovalItem) =>
+                                    key: "amount", label: "Amount", tier: "P1", minWidth: 130, cellClassName:
+                                      "text-right font-black text-blue-500 whitespace-nowrap", get: (item: ApprovalItem) =>
                                       formatAmount(item.amount, "NGN"),
                                   },
                                 ]}
@@ -932,11 +796,7 @@ const ApprovalsPage = () => {
                                 rowKey={(item) => item.id}
                                 actions={[
                                   {
-                                    key: "approve",
-                                    label: "Approve",
-                                    primary: true,
-                                    icon: <CheckCircle className="w-4 h-4" />,
-                                    onClick: (item) =>
+                                    key: "approve", label: "Approve", primary: true, icon: <CheckCircle className="w-4 h-4" />, onClick: (item) =>
                                       handleAction(
                                         item.id,
                                         "REQUISITION",
@@ -944,11 +804,7 @@ const ApprovalsPage = () => {
                                       ),
                                   },
                                   {
-                                    key: "reject",
-                                    label: "Reject",
-                                    danger: true,
-                                    icon: <XCircle className="w-4 h-4" />,
-                                    onClick: (item) =>
+                                    key: "reject", label: "Reject", danger: true, icon: <XCircle className="w-4 h-4" />, onClick: (item) =>
                                       handleAction(
                                         item.id,
                                         "REQUISITION",
@@ -980,22 +836,14 @@ const ApprovalsPage = () => {
                     <DataTable
                       columns={[
                         {
-                          key: "initiator",
-                          label: "Initiator / Date",
-                          tier: "P0",
-                          minWidth: 180,
-                          get: (item) => (
+                          key: "initiator", label: "Initiator / Date", tier: "P0", minWidth: 180, get: (item) => (
                             <span className="text-sm font-bold text-slate-300 truncate">
                               {item.submitted_by}
                             </span>
                           ),
                         },
                         {
-                          key: "context",
-                          label: "Context (Project & WBS)",
-                          tier: "P0",
-                          minWidth: 200,
-                          get: (item) => (
+                          key: "context", label: "Context (Project & WBS)", tier: "P0", minWidth: 200, get: (item) => (
                             <div className="min-w-0">
                               <div className="text-sm font-bold text-brand-primary tracking-tight uppercase flex items-center gap-2 truncate">
                                 {item.project_name}
@@ -1017,12 +865,7 @@ const ApprovalsPage = () => {
                           ),
                         },
                         {
-                          key: "reason",
-                          label: "Override Reason",
-                          tier: "P1",
-                          minWidth: 220,
-                          title: (item) => item.description,
-                          get: (item) => (
+                          key: "reason", label: "Override Reason", tier: "P1", minWidth: 220, title: (item) => item.description, get: (item) => (
                             <span className="text-sm text-slate-400 italic font-medium truncate">
                               &quot;
                               {item.description.replace(
@@ -1034,11 +877,7 @@ const ApprovalsPage = () => {
                           ),
                         },
                         {
-                          key: "submittedAt",
-                          label: "Submitted",
-                          tier: "P2",
-                          minWidth: 130,
-                          get: (item) => (
+                          key: "submittedAt", label: "Submitted", tier: "P2", minWidth: 130, get: (item) => (
                             <span className="text-xs text-slate-500 uppercase">
                               {new Date(
                                 item.submitted_at,
@@ -1047,28 +886,18 @@ const ApprovalsPage = () => {
                           ),
                         },
                         {
-                          key: "amount",
-                          label: "Requested Overrun",
-                          tier: "P0",
-                          minWidth: 160,
-                          cellClassName:
-                            "text-right text-lg font-black text-red-400 whitespace-nowrap",
-                          get: (item) =>
+                          key: "amount", label: "Requested Overrun", tier: "P0", minWidth: 160, cellClassName:
+                            "text-right text-lg font-black text-red-400 whitespace-nowrap", get: (item) =>
                             formatAmount(item.amount, item.project_currency),
                         },
                       ]}
                       rows={filteredOverrunItems.slice(
-                        (currentPage - 1) * itemsPerPage,
-                        currentPage * itemsPerPage,
+                        (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage,
                       )}
                       rowKey={(item) => item.id}
                       actions={[
                         {
-                          key: "authorize",
-                          label: "Authorize",
-                          primary: true,
-                          icon: <CheckCircle className="w-4 h-4" />,
-                          onClick: (item) =>
+                          key: "authorize", label: "Authorize", primary: true, icon: <CheckCircle className="w-4 h-4" />, onClick: (item) =>
                             handleAction(
                               item.id,
                               "EXPENSE_OVERRUN",
@@ -1076,11 +905,7 @@ const ApprovalsPage = () => {
                             ),
                         },
                         {
-                          key: "deny",
-                          label: "Deny",
-                          danger: true,
-                          icon: <XCircle className="w-4 h-4" />,
-                          onClick: (item) =>
+                          key: "deny", label: "Deny", danger: true, icon: <XCircle className="w-4 h-4" />, onClick: (item) =>
                             handleAction(
                               item.id,
                               "EXPENSE_OVERRUN",
@@ -1143,9 +968,7 @@ const ApprovalsPage = () => {
 };
 
 const EmptyState = ({
-  icon,
-  title,
-  subtitle,
+  icon, title, subtitle,
 }: {
   icon: React.ReactNode;
   title: string;

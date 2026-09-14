@@ -8,19 +8,7 @@ import Input from '../../../../components/common/Input';
 import { useFinanceCore } from '../../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../../components/context/CurrencyContext';
 import {
-  ArrowLeft,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  FileText,
-  User,
-  Users,
-  Settings,
-  ShieldCheck,
-  Send,
-  DollarSign
+  ArrowLeft, Plus, Trash2, CheckCircle2, Clock, AlertCircle, FileText, User, Users, Settings, ShieldCheck, Send, DollarSign
 } from 'lucide-react';
 import DataTable from '../../../../components/common/DataTable';
 import toast from 'react-hot-toast';
@@ -30,14 +18,7 @@ const PayrollRunDetailsPage: React.FC = () => {
   const { id } = router.query;
   const { convertToDisplay } = useCurrency();
   const {
-    loading,
-    fetchPayrollRunDetails,
-    addPayrollLineItem,
-    approvePayrollRun,
-    postPayrollRun,
-    fetchDepartments,
-    fetchChartOfAccounts,
-    fetchEmployees
+    loading, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchDepartments, fetchChartOfAccounts, fetchEmployees
   } = useFinanceCore();
 
   const [run, setRun] = useState<any>(null);
@@ -64,9 +45,7 @@ const PayrollRunDetailsPage: React.FC = () => {
     if (data) setRun(data.data);
 
     const [depts, accounts, emps] = await Promise.all([
-      fetchDepartments(),
-      fetchChartOfAccounts(),
-      fetchEmployees()
+      fetchDepartments(), fetchChartOfAccounts(), fetchEmployees()
     ]);
     setDepartments(depts.data || []);
     setCoa(accounts.data || []);
@@ -81,11 +60,7 @@ const PayrollRunDetailsPage: React.FC = () => {
     }
 
     const res = await addPayrollLineItem(id as string, {
-      employeeId,
-      costCenterId,
-      glAccountId,
-      itemType,
-      amount
+      employeeId, costCenterId, glAccountId, itemType, amount
     });
 
     if (res) {
@@ -124,10 +99,7 @@ const PayrollRunDetailsPage: React.FC = () => {
   if (!run) return null;
 
   const statusConfig: any = {
-    DRAFT: { label: 'Draft', color: 'text-gray-400', bg: 'bg-gray-800', icon: Clock },
-    REVIEW: { label: 'Reviewing', color: 'text-yellow-400', bg: 'bg-yellow-900/30', icon: AlertCircle },
-    APPROVED: { label: 'Approved', color: 'text-brand-primary', bg: 'bg-brand-primary/10', icon: CheckCircle2 },
-    POSTED: { label: 'Posted', color: 'text-green-400', bg: 'bg-green-900/30', icon: ShieldCheck },
+    DRAFT: { label: 'Draft', color: 'text-gray-400', bg: 'bg-gray-800', icon: Clock }, REVIEW: { label: 'Reviewing', color: 'text-yellow-400', bg: 'bg-yellow-900/30', icon: AlertCircle }, APPROVED: { label: 'Approved', color: 'text-brand-primary', bg: 'bg-brand-primary/10', icon: CheckCircle2 }, POSTED: { label: 'Posted', color: 'text-green-400', bg: 'bg-green-900/30', icon: ShieldCheck },
   };
 
   const currentCfg = statusConfig[run.status] || statusConfig.DRAFT;

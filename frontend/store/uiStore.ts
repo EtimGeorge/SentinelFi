@@ -27,22 +27,10 @@ interface UIState {
 }
 
 const useUIStore = create<UIState>((set, get) => ({
-  isMobileSidebarOpen: false,
-  isDesktopSidebarCollapsed: false,
-  unreadNotificationsCount: 0,
-  socket: null,
-  socketConnected: false,
-  reconnectAttempts: 0, // Initialize
+  isMobileSidebarOpen: false, isDesktopSidebarCollapsed: false, unreadNotificationsCount: 0, socket: null, socketConnected: false, reconnectAttempts: 0, // Initialize
   reconnectTimeoutId: null, // Initialize
 
-  toggleMobileSidebar: () => set((state) => ({ isMobileSidebarOpen: !state.isMobileSidebarOpen })),
-  closeMobileSidebar: () => set({ isMobileSidebarOpen: false }),
-  toggleDesktopSidebar: () => set((state) => ({ isDesktopSidebarCollapsed: !state.isDesktopSidebarCollapsed })),
-  setUnreadNotificationsCount: (count) => set({ unreadNotificationsCount: count }),
-
-  isAiAssistantOpen: false,
-  toggleAiAssistant: () => set((state) => ({ isAiAssistantOpen: !state.isAiAssistantOpen })),
-  setAiAssistantOpen: (isOpen) => set({ isAiAssistantOpen: isOpen }),
+  toggleMobileSidebar: () => set((state) => ({ isMobileSidebarOpen: !state.isMobileSidebarOpen })), closeMobileSidebar: () => set({ isMobileSidebarOpen: false }), toggleDesktopSidebar: () => set((state) => ({ isDesktopSidebarCollapsed: !state.isDesktopSidebarCollapsed })), setUnreadNotificationsCount: (count) => set({ unreadNotificationsCount: count }), isAiAssistantOpen: false, toggleAiAssistant: () => set((state) => ({ isAiAssistantOpen: !state.isAiAssistantOpen })), setAiAssistantOpen: (isOpen) => set({ isAiAssistantOpen: isOpen }),
 
   // REMOVED POLLING MECHANISM
   // fetchUnreadNotificationsCount: async () => {
@@ -77,9 +65,7 @@ const useUIStore = create<UIState>((set, get) => ({
     newSocket.onopen = () => {
       console.log('WebSocket connected');
       set({ 
-        socket: newSocket, 
-        socketConnected: true,
-        reconnectAttempts: 0 // ✅ Reset on successful connection
+        socket: newSocket, socketConnected: true, reconnectAttempts: 0 // ✅ Reset on successful connection
       });
     };
 
@@ -126,9 +112,7 @@ const useUIStore = create<UIState>((set, get) => ({
     };
 
     set({ socket: newSocket }); // Set socket even before it's open
-  },
-
-  disconnectWebSocket: () => {
+  }, disconnectWebSocket: () => {
     const state = get();
     
     // Clear reconnection timeout
@@ -142,10 +126,7 @@ const useUIStore = create<UIState>((set, get) => ({
     }
     
     set({ 
-      socket: null, 
-      socketConnected: false, 
-      unreadNotificationsCount: 0,
-      reconnectAttempts: 0, // Reset attempts on intentional disconnect
+      socket: null, socketConnected: false, unreadNotificationsCount: 0, reconnectAttempts: 0, // Reset attempts on intentional disconnect
       reconnectTimeoutId: null // Clear timeout id
     });
   },

@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import {
-  Bot, X, Minus, Send, Paperclip, Sparkles, ChevronDown, RefreshCw,
-  BarChart2, FileText, Zap, BookOpen, AlertTriangle, CheckCircle, Loader,
-  TrendingUp, Calendar, MessageSquare, Trash2, Map,
+  Bot, X, Minus, Send, Paperclip, Sparkles, ChevronDown, RefreshCw, BarChart2, FileText, Zap, BookOpen, AlertTriangle, CheckCircle, Loader, TrendingUp, Calendar, MessageSquare, Trash2, Map,
 } from 'lucide-react';
 import { useAiAssistant, AiChatMessage, UseAiAssistantOptions } from '../../hooks/useAiAssistant';
 import { AiChatMessageBubble } from './AiChatMessage';
@@ -103,10 +101,7 @@ interface AiAssistantWidgetProps extends UseAiAssistantOptions {
 // ─── Main Widget ──────────────────────────────────────────────────────────────
 
 export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
-  currentPage,
-  projectId,
-  defaultOpen = false,
-  onActionHint,
+  currentPage, projectId, defaultOpen = false, onActionHint,
 }) => {
   const isAiAssistantOpen = useUIStore((state) => state.isAiAssistantOpen);
   const setAiAssistantOpen = useUIStore((state) => state.setAiAssistantOpen);
@@ -143,8 +138,8 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
   const handleToggleGuideMode = useCallback(() => {
     setIsGuideMode(m => {
       if (!m) {
-        // Entering guide mode — send a silent context-setting message
-        ai.sendMessage(`[SYSTEM CONTEXT — DO NOT SHOW TO USER] You are now in UX Guide Mode. ${tutorial.aiTutorPrompt}`);
+        // Entering guide mode, send a silent context-setting message
+        ai.sendMessage(`[SYSTEM CONTEXT - DO NOT SHOW TO USER] You are now in UX Guide Mode. ${tutorial.aiTutorPrompt}`);
       }
       return !m;
     });
@@ -215,16 +210,14 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
       if (projectId) formData.append('project_name', projectId);
 
       const res = await fetch('/api/v1/ai/document/fill-form', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+        method: 'POST', credentials: 'include', body: formData,
       });
 
       if (!res.ok) throw new Error();
       const data = await res.json();
 
       setUploadSuccess(`Extracted ${data.item_count ?? 'data'} from "${file.name}"`);
-      ai.sendMessage(`I uploaded "${file.name}" — please summarize what was extracted and suggest next steps.`);
+      ai.sendMessage(`I uploaded "${file.name}" - please summarize what was extracted and suggest next steps.`);
     } catch {
       ai.sendMessage(`I tried uploading "${file.name}" but something went wrong. Can you help me fill the form manually?`);
     } finally {
@@ -252,33 +245,17 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
           id="sentinel-ai-panel"
           className="sentinelai-widget sentinelai-panel-open"
           style={{
-            position: 'fixed', top: 64, right: 16, zIndex: 9998,
-            width: 400, maxWidth: 'calc(100vw - 32px)',
-            height: isMinimized ? 56 : 620, maxHeight: 'calc(100vh - 140px)',
-            background: 'linear-gradient(160deg, #12121f 0%, #0f0f1a 100%)',
-            border: '1px solid rgba(99,102,241,0.2)',
-            borderRadius: 20,
-            boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1), inset 0 1px 0 rgba(255,255,255,0.06)',
-            display: 'flex', flexDirection: 'column',
-            overflow: 'hidden',
-            transition: 'height 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            position: 'fixed', top: 64, right: 16, zIndex: 9998, width: 400, maxWidth: 'calc(100vw - 32px)', height: isMinimized ? 56 : 620, maxHeight: 'calc(100vh - 140px)', background: 'linear-gradient(160deg, #12121f 0%, #0f0f1a 100%)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 20, boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1), inset 0 1px 0 rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'height 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           {/* ── Header ──────────────────────────────────────────────────── */}
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '14px 16px',
-            background: 'linear-gradient(90deg, rgba(99,102,241,0.15) 0%, rgba(14,165,233,0.08) 100%)',
-            borderBottom: isMinimized ? 'none' : '1px solid rgba(255,255,255,0.06)',
-            flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'linear-gradient(90deg, rgba(99,102,241,0.15) 0%, rgba(14,165,233,0.08) 100%)', borderBottom: isMinimized ? 'none' : '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {/* Animated AI orb */}
               <div className="sentinelai-fab-glow" style={{
-                width: 34, height: 34, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6, #0ea5e9)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 12px rgba(99,102,241,0.5)',
+                width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6, #0ea5e9)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 12px rgba(99,102,241,0.5)',
               }}>
                 <Sparkles size={16} color="#fff" />
               </div>
@@ -290,10 +267,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                   </span>
                   {/* Live indicator */}
                   <span style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: ai.isLoading ? '#f59e0b' : '#22c55e',
-                    boxShadow: `0 0 6px ${ai.isLoading ? '#f59e0b' : '#22c55e'}`,
-                    animation: ai.isLoading ? 'sentinelai-pulse 1s infinite' : 'none',
+                    width: 6, height: 6, borderRadius: '50%', background: ai.isLoading ? '#f59e0b' : '#22c55e', boxShadow: `0 0 6px ${ai.isLoading ? '#f59e0b' : '#22c55e'}`, animation: ai.isLoading ? 'sentinelai-pulse 1s infinite' : 'none',
                   }} />
                 </div>
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.02em' }}>
@@ -306,15 +280,10 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
               {/* Guide Me toggle */}
               <button
                 onClick={handleToggleGuideMode}
-                title={isGuideMode ? 'Exit Guide Mode' : 'Guide Me — UX Tutor Mode'}
+                title={isGuideMode ? 'Exit Guide Mode' : 'Guide Me - UX Tutor Mode'}
                 className="sentinelai-close-btn"
                 style={{
-                  background: isGuideMode ? 'rgba(99,102,241,0.25)' : 'transparent',
-                  border: isGuideMode ? '1px solid rgba(99,102,241,0.5)' : '1px solid transparent',
-                  cursor: 'pointer',
-                  color: isGuideMode ? '#a5b4fc' : 'rgba(255,255,255,0.4)', padding: '4px 8px',
-                  borderRadius: 8, display: 'flex', alignItems: 'center', gap: 4,
-                  transition: 'all 0.15s', fontSize: 10, fontWeight: 600,
+                  background: isGuideMode ? 'rgba(99,102,241,0.25)' : 'transparent', border: isGuideMode ? '1px solid rgba(99,102,241,0.5)' : '1px solid transparent', cursor: 'pointer', color: isGuideMode ? '#a5b4fc' : 'rgba(255,255,255,0.4)', padding: '4px 8px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.15s', fontSize: 10, fontWeight: 600,
                 }}
               >
                 <Map size={12} /> {isGuideMode ? 'Guiding' : 'Guide Me'}
@@ -326,10 +295,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                   title="Clear conversation"
                   className="sentinelai-close-btn"
                   style={{
-                    background: 'transparent', border: 'none', cursor: 'pointer',
-                    color: 'rgba(255,255,255,0.4)', padding: '6px',
-                    borderRadius: 8, display: 'flex', alignItems: 'center',
-                    transition: 'background 0.15s',
+                    background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: '6px', borderRadius: 8, display: 'flex', alignItems: 'center', transition: 'background 0.15s',
                   }}
                 >
                   <Trash2 size={14} />
@@ -341,10 +307,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                 className="sentinelai-close-btn"
                 title={isMinimized ? 'Expand' : 'Minimize'}
                 style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: 'rgba(255,255,255,0.4)', padding: '6px',
-                  borderRadius: 8, display: 'flex', alignItems: 'center',
-                  transition: 'background 0.15s',
+                  background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: '6px', borderRadius: 8, display: 'flex', alignItems: 'center', transition: 'background 0.15s',
                 }}
               >
                 <Minus size={14} />
@@ -355,10 +318,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                 className="sentinelai-close-btn"
                 title="Close"
                 style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: 'rgba(255,255,255,0.5)', padding: '6px',
-                  borderRadius: 8, display: 'flex', alignItems: 'center',
-                  transition: 'background 0.15s',
+                  background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', padding: '6px', borderRadius: 8, display: 'flex', alignItems: 'center', transition: 'background 0.15s',
                 }}
               >
                 <X size={14} />
@@ -374,8 +334,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                 ref={scrollRef}
                 className="sentinelai-scroll"
                 style={{
-                  flex: 1, overflowY: 'auto', padding: '16px 14px',
-                  display: 'flex', flexDirection: 'column', gap: 12,
+                  flex: 1, overflowY: 'auto', padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 12,
                 }}
               >
                 {/* Welcome / Empty State */}
@@ -383,11 +342,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                   <div style={{ textAlign: 'center', padding: '12px 8px' }}>
                     {/* Welcome logo */}
                     <div style={{
-                      width: 52, height: 52, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(14,165,233,0.2))',
-                      border: '1px solid rgba(99,102,241,0.3)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      margin: '0 auto 12px',
+                      width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(14,165,233,0.2))', border: '1px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
                     }}>
                       <Sparkles size={22} style={{ color: '#a5b4fc' }} />
                     </div>
@@ -410,14 +365,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                             }}
                             className="sentinelai-chip"
                             style={{
-                              display: 'flex', alignItems: 'center', gap: 8,
-                              background: 'rgba(14,165,233,0.1)',
-                              border: '1px solid rgba(14,165,233,0.4)',
-                              borderRadius: 20, padding: '8px 16px',
-                              color: '#7dd3fc', fontSize: 12, cursor: 'pointer',
-                              transition: 'all 0.15s', width: '100%', marginBottom: 6,
-                              fontWeight: 700,
-                              justifyContent: 'center',
+                              display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.4)', borderRadius: 20, padding: '8px 16px', color: '#7dd3fc', fontSize: 12, cursor: 'pointer', transition: 'all 0.15s', width: '100%', marginBottom: 6, fontWeight: 700, justifyContent: 'center',
                             }}
                           >
                             <BookOpen size={14} style={{ color: '#0ea5e9' }} />
@@ -429,14 +377,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                               onClick={handleStartInteractiveTour}
                               className="sentinelai-chip"
                               style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                background: 'rgba(234,179,8,0.1)',
-                                border: '1px solid rgba(234,179,8,0.4)',
-                                borderRadius: 20, padding: '8px 16px',
-                                color: '#fbbf24', fontSize: 12, cursor: 'pointer',
-                                transition: 'all 0.15s', width: '100%', marginBottom: 12,
-                                fontWeight: 700,
-                                justifyContent: 'center',
+                                display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.4)', borderRadius: 20, padding: '8px 16px', color: '#fbbf24', fontSize: 12, cursor: 'pointer', transition: 'all 0.15s', width: '100%', marginBottom: 12, fontWeight: 700, justifyContent: 'center',
                               }}
                             >
                               <Map size={14} style={{ color: '#fbbf24' }} />
@@ -452,12 +393,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                           onClick={() => handleQuickAction(action.message)}
                           className="sentinelai-chip"
                           style={{
-                            display: 'flex', alignItems: 'center', gap: 5,
-                            background: 'rgba(99,102,241,0.1)',
-                            border: '1px solid rgba(99,102,241,0.2)',
-                            borderRadius: 20, padding: '6px 10px',
-                            color: '#a5b4fc', fontSize: 11, cursor: 'pointer',
-                            transition: 'all 0.15s',
+                            display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 20, padding: '6px 10px', color: '#a5b4fc', fontSize: 11, cursor: 'pointer', transition: 'all 0.15s',
                           }}
                         >
                           <span style={{ color: '#818cf8' }}>{action.icon}</span>
@@ -482,13 +418,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
               {/* ── Upload success banner ─────────────────────────────────── */}
               {uploadSuccess && (
                 <div style={{
-                  margin: '0 12px',
-                  padding: '8px 12px',
-                  background: 'rgba(34,197,94,0.1)',
-                  border: '1px solid rgba(34,197,94,0.3)',
-                  borderRadius: 8,
-                  fontSize: 11, color: '#86efac',
-                  display: 'flex', alignItems: 'center', gap: 6,
+                  margin: '0 12px', padding: '8px 12px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, fontSize: 11, color: '#86efac', display: 'flex', alignItems: 'center', gap: 6,
                 }}>
                   <CheckCircle size={12} />
                   {uploadSuccess}
@@ -497,16 +427,10 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
 
               {/* ── Input bar ────────────────────────────────────────────── */}
               <div style={{
-                padding: '10px 12px 12px',
-                borderTop: '1px solid rgba(255,255,255,0.06)',
-                flexShrink: 0,
+                padding: '10px 12px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
               }}>
                 <div style={{
-                  display: 'flex', alignItems: 'flex-end', gap: 8,
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 14, padding: '8px 8px 8px 12px',
-                  transition: 'border-color 0.2s',
+                  display: 'flex', alignItems: 'flex-end', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '8px 8px 8px 12px', transition: 'border-color 0.2s',
                 }}>
                   {/* Textarea */}
                   <textarea
@@ -520,10 +444,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                     rows={1}
                     disabled={ai.isLoading}
                     style={{
-                      flex: 1, background: 'transparent', border: 'none',
-                      color: '#fff', fontSize: 13, lineHeight: '20px',
-                      resize: 'none', maxHeight: 100, overflowY: 'auto',
-                      fontFamily: 'inherit', letterSpacing: '-0.01em',
+                      flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: 13, lineHeight: '20px', resize: 'none', maxHeight: 100, overflowY: 'auto', fontFamily: 'inherit', letterSpacing: '-0.01em',
                     }}
                   />
 
@@ -533,10 +454,7 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                     title="Upload a document for AI analysis"
                     disabled={isUploading || ai.isLoading}
                     style={{
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                      color: isUploading ? '#f59e0b' : 'rgba(255,255,255,0.35)',
-                      padding: 6, borderRadius: 8, display: 'flex', alignItems: 'center',
-                      transition: 'color 0.15s', flexShrink: 0,
+                      background: 'transparent', border: 'none', cursor: 'pointer', color: isUploading ? '#f59e0b' : 'rgba(255,255,255,0.35)', padding: 6, borderRadius: 8, display: 'flex', alignItems: 'center', transition: 'color 0.15s', flexShrink: 0,
                     }}
                   >
                     {isUploading ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Paperclip size={16} />}
@@ -556,14 +474,9 @@ export const AiAssistantWidget: React.FC<AiAssistantWidgetProps> = memo(({
                     disabled={!inputValue.trim() || ai.isLoading}
                     className="sentinelai-send-btn"
                     style={{
-                      width: 32, height: 32, borderRadius: 10, border: 'none',
-                      background: inputValue.trim() && !ai.isLoading
+                      width: 32, height: 32, borderRadius: 10, border: 'none', background: inputValue.trim() && !ai.isLoading
                         ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
-                        : 'rgba(255,255,255,0.08)',
-                      cursor: inputValue.trim() && !ai.isLoading ? 'pointer' : 'not-allowed',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: inputValue.trim() && !ai.isLoading ? '#fff' : 'rgba(255,255,255,0.25)',
-                      transition: 'all 0.15s', flexShrink: 0,
+                        : 'rgba(255,255,255,0.08)', cursor: inputValue.trim() && !ai.isLoading ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: inputValue.trim() && !ai.isLoading ? '#fff' : 'rgba(255,255,255,0.25)', transition: 'all 0.15s', flexShrink: 0,
                     }}
                   >
                     {ai.isLoading

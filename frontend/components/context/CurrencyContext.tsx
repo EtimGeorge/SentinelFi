@@ -32,23 +32,11 @@ interface CurrencyContextType {
 }
 
 const DEFAULT_CURRENCY: Currency = {
-  code: 'USD',
-  name: 'US Dollar',
-  symbol: '$',
-  rateToUSD: 1,
-  rate: 1,
+  code: 'USD', name: 'US Dollar', symbol: '$', rateToUSD: 1, rate: 1,
 };
 
 const CurrencyContext = createContext<CurrencyContextType>({
-  userCurrency: DEFAULT_CURRENCY,
-  availableCurrencies: [DEFAULT_CURRENCY],
-  currencies: [DEFAULT_CURRENCY],
-  setUserCurrencyCode: () => { },
-  convertToDisplay: () => '',
-  formatCurrency: () => '',
-  convertAmount: () => 0,
-  convertToUSD: () => 0,
-  isLoading: true,
+  userCurrency: DEFAULT_CURRENCY, availableCurrencies: [DEFAULT_CURRENCY], currencies: [DEFAULT_CURRENCY], setUserCurrencyCode: () => { }, convertToDisplay: () => '', formatCurrency: () => '', convertAmount: () => 0, convertToUSD: () => 0, isLoading: true,
 });
 
 export const useCurrency = () => useContext(CurrencyContext);
@@ -84,8 +72,7 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
         const response = await apiRef.current.get('/currency/supported', { signal: controller.signal });
         if (response.data && response.data.currencies) {
           const currencies: Currency[] = response.data.currencies.map((c: any) => ({
-            ...c,
-            rate: c.rateToUSD || 1
+            ...c, rate: c.rateToUSD || 1
           }));
           setAvailableCurrencies(currencies);
 
@@ -165,8 +152,7 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     if (!showSymbol) {
       return new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
       }).format(convertedAmount);
     }
 
@@ -176,8 +162,7 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
   const formatCurrency = (amount: number, currencyCode: string = 'USD'): string => {
     try {
       return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currencyCode,
+        style: 'currency', currency: currencyCode,
       }).format(amount);
     } catch (e) {
       const currency = availableCurrencies.find(c => c.code === currencyCode);
@@ -195,15 +180,7 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
   return (
     <CurrencyContext.Provider
       value={{
-        userCurrency,
-        availableCurrencies,
-        currencies: availableCurrencies,
-        setUserCurrencyCode,
-        convertToDisplay,
-        formatCurrency,
-        convertAmount,
-        convertToUSD,
-        isLoading,
+        userCurrency, availableCurrencies, currencies: availableCurrencies, setUserCurrencyCode, convertToDisplay, formatCurrency, convertAmount, convertToUSD, isLoading,
       }}
     >
       {children}

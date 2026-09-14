@@ -3,11 +3,7 @@ import Head from 'next/head';
 import SecuredLayout from '../../components/Layout/SecuredLayout';
 import { useRouter } from 'next/router';
 import {
-  Calendar,
-  Plus,
-  ArrowLeft,
-  CheckCircle2,
-  AlertCircle
+  Calendar, Plus, ArrowLeft, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { useFinanceCore } from '../../hooks/useFinanceCore';
 

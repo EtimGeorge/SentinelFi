@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import {
-  BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadialBarChart, RadialBar
+  BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadialBarChart, RadialBar
 } from 'recharts';
 import {
-  TrendingUp, TrendingDown, DollarSign, Briefcase, Activity, Target,
-  CheckCircle, Clock, ChevronDown, RefreshCw, Filter,
-  Building2, Users, ShoppingBag, Layers,
+  TrendingUp, TrendingDown, DollarSign, Briefcase, Activity, Target, CheckCircle, Clock, ChevronDown, RefreshCw, Filter, Building2, Users, ShoppingBag, Layers,
 } from 'lucide-react';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
@@ -38,10 +35,7 @@ const OPEX_PALETTE = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#f59e0b', '#ef4444'];
 
 const KpiCard: React.FC<KpiCardProps> = ({ label, value, sub, trend, icon, accent }) => (
   <div style={{
-    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 14, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 6,
-    boxShadow: '0 0 0 1px rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.3)',
-    position: 'relative', overflow: 'hidden',
+    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 6, boxShadow: '0 0 0 1px rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.3)', position: 'relative', overflow: 'hidden',
   }}>
     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: accent, borderRadius: '14px 14px 0 0' }} />
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -62,8 +56,7 @@ const KpiCard: React.FC<KpiCardProps> = ({ label, value, sub, trend, icon, accen
 
 const ChartCard: React.FC<{ title: string; sub?: string; children: React.ReactNode; style?: React.CSSProperties }> = ({ title, sub, children, style }) => (
   <div style={{
-    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14,
-    padding: 20, display: 'flex', flexDirection: 'column', gap: 12, ...style,
+    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, ...style,
   }}>
     <div style={{ marginBottom: 2 }}>
       <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#fff', letterSpacing: '0.02em' }}>{title}</h3>
@@ -73,7 +66,7 @@ const ChartCard: React.FC<{ title: string; sub?: string; children: React.ReactNo
   </div>
 );
 
-/** Currency-aware tooltip — receives fmt as a closure from the parent. */
+/** Currency-aware tooltip, receives fmt as a closure from the parent. */
 const makeTooltip = (fmt: FmtFn) => ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
@@ -102,7 +95,7 @@ const CapexDashboard: React.FC<CapexDashboardProps> = ({ fetchCapexDashboard, fm
   const [projectList, setProjectList] = useState<ProjectOption[]>([]);
 
   // Response figures are normalized to the backend-declared base currency
-  // (tenant base). Convert FROM that — never from a hardcoded default.
+  // (tenant base). Convert FROM that, never from a hardcoded default.
   const responseCurrency: string =
     (typeof data?.currency === 'string' && data.currency) ||
     (!selectedProject
@@ -180,7 +173,7 @@ const CapexDashboard: React.FC<CapexDashboardProps> = ({ fetchCapexDashboard, fm
 
       {/* Charts Row 1 */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
-        <ChartCard title="WBS Cost Burn by Category" sub="Last 12 months — actual spend categorised by WBS type">
+        <ChartCard title="WBS Cost Burn by Category" sub="Last 12 months, actual spend categorised by WBS type">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={burnChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -305,9 +298,7 @@ const OpexDashboard: React.FC<OpexDashboardProps> = ({ fetchOpexDashboard, fisca
   const deptChartData = Object.values(deptMap).slice(0, 8);
 
   const payrollPieData = (payrollDecomposition || []).map((r: any, i: number) => ({
-    name: (r.item_type as string)?.replace(/_/g, ' '),
-    value: Number(r.total),
-    fill: OPEX_PALETTE[i % OPEX_PALETTE.length],
+    name: (r.item_type as string)?.replace(/_/g, ' '), value: Number(r.total), fill: OPEX_PALETTE[i % OPEX_PALETTE.length],
   }));
 
   const funnelData = [
@@ -454,7 +445,7 @@ const FinancialIntelligencePage: React.FC = () => {
   // ── Currency-awareness: pull from app-wide CurrencyContext ──────────────
   const { convertToDisplay, userCurrency } = useCurrency();
   /**
-   * fmt(n, sourceCurrency?) — converts from sourceCurrency (or userCurrency by default)
+   * fmt(n, sourceCurrency?) - converts from sourceCurrency (or userCurrency by default)
    * to the user's selected display currency, then applies compact notation.
    * Uses Intl.NumberFormat with compact so large numbers stay readable (e.g. ₦2.4M).
    */
@@ -464,10 +455,7 @@ const FinancialIntelligencePage: React.FC = () => {
       : n;
     try {
       return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: userCurrency.code,
-        notation: 'compact',
-        maximumFractionDigits: 1,
+        style: 'currency', currency: userCurrency.code, notation: 'compact', maximumFractionDigits: 1,
       }).format(isNaN(converted) ? n : converted);
     } catch {
       // Fallback if the browser doesn't support a given currency code
@@ -505,7 +493,7 @@ const FinancialIntelligencePage: React.FC = () => {
             <div>
               <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>Financial Intelligence</h1>
               <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-                Executive-level CAPEX &amp; OPEX oversight — live from database &nbsp;·&nbsp;
+                Executive-level CAPEX &amp; OPEX oversight, live from database &nbsp;·&nbsp;
                 <span style={{ color: '#6366f1' }}>{userCurrency.code} ({userCurrency.symbol})</span>
               </p>
             </div>
@@ -533,7 +521,7 @@ const FinancialIntelligencePage: React.FC = () => {
           </p>
         </div>
 
-        {/* AI Narrative Panel — auto-analyzes the current dashboard */}
+        {/* AI Narrative Panel, auto-analyzes the current dashboard */}
         <AiNarrativePanel scope={activeTab} />
 
         {/* Dashboard content */}

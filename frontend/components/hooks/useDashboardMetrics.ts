@@ -12,6 +12,9 @@ export interface DashboardMetrics {
   avgDailySpend?: number;
   estimatedExhaustionDate?: string | null;
   history?: { date: string; amount: number }[];
+  /** Tenant base currency figures are normalized to (backend-declared). */
+  currency?: string;
+  currencyWarnings?: string[];
 }
 
 export interface ActivityLog {
@@ -69,6 +72,9 @@ export function useDashboardMetrics(): DashboardState {
         ...executiveData.overview,
         history: executiveData.history,
         pendingApprovals: summaryRes.data.pendingApprovals,
+        // Declared source currency — consumers must convert FROM this
+        currency: executiveData.currency || summaryRes.data?.currency || undefined,
+        currencyWarnings: executiveData.currencyWarnings || [],
       });
       setActivities(activityRes.data.logs || activityRes.data.data || []);
     } catch (err: any) {

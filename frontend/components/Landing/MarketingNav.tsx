@@ -2,9 +2,14 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { Menu, X, ArrowRight } from 'lucide-react';
+import { Menu, X, ArrowRight, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { MARKETING_NAV_LINKS, MARKETING_ACTIONS } from './marketingContent';
+import { trackMarketingEvent } from './marketingAnalytics';
 
+// Spacing system (NN/g + Stripe Atlas + Linear/Vercel synthesis):
+// menu gutters gap-7 (28px) at lg, action group gap-3 (12px),
+// hamburger is mobile-only (below lg); desktop keeps the full header.
 const MarketingNav: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -12,120 +17,119 @@ const MarketingNav: React.FC = () => {
   const router = useRouter();
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
-    window.addEventListener('scroll', handleScroll);
+    const handleScroll = () => setScrolled(window.scrollY > 16);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navLinks = [
-    { name: 'Features', href: '/landing/features' },
-    { name: 'Workflows', href: '/landing/workflows' },
-    { name: 'Success Stories', href: '/landing/testimonials' },
-    { name: 'Pricing', href: '/landing/pricing' },
-    { name: 'About', href: '/about' },
-  ];
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
+  useEffect(() => {
+    const close = () => setIsOpen(false);
+    router.events.on('routeChangeStart', close);
+    return () => router.events.off('routeChangeStart', close);
+  }, [router.events]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const isActive = (href: string) =>
+    router.pathname === href || (href !== '/' && router.pathname.startsWith(href));
+
+  // Header CTA instrumentation — same event bus as the hero so trial-vs-tour
+  // can be compared per headline variant in one place.
+  const trackHeaderCta = (cta: string, destination: string) => () => {
+    trackMarketingEvent('marketing.cta_click', { cta, destination });
+  };
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 bg-brand-dark ${
-      scrolled ? 'bg-opacity-90 backdrop-blur-xl border-b border-white/5 py-3' : 'bg-opacity-0 py-6'
+    <header className={`fixed inset-x-0 top-0 z-50 border-b transition-all duration-300 ${
+      scrolled ? 'border-white/10 bg-brand-dark/90 shadow-elev-md backdrop-blur-xl' : 'border-transparent bg-brand-dark/60 backdrop-blur-md'
     }`}>
-      <div className="container mx-auto px-6 flex justify-between items-center">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="relative w-20 h-20 p-2 bg-brand-darker border border-white/10 rounded-xl group-hover:border-brand-primary/50 transition-all duration-500 shadow-2xl">
-            <Image 
-              src="/SentinelFi Logo Concept-bg-remv-logo-only.png" 
-              alt="SentinelFi Logo" 
-              fill
-              sizes="(max-width: 768px) 100vw, 200px"
-              className="object-contain p-1 group-hover:scale-110 transition-transform duration-500"
-            />
-            {/* Subtle Glow */}
-            <div className="absolute inset-0 bg-brand-primary/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
-          </div>
-          <span className="text-2xl font-black tracking-tighter text-white uppercase font-sora active:text-white group-hover:tracking-normal transition-all duration-500">
-            SENTINEL<span className="text-orange-500">FI</span>
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-bold focus:text-brand-dark">
+        Skip to content
+      </a>
+      <nav aria-label="Primary" className={`mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 transition-all duration-300 lg:px-6 ${scrolled ? 'h-16' : 'h-[72px]'}`}>
+        <Link href="/" className="group flex min-w-0 shrink-0 items-center gap-2.5" aria-label="SentinelFi home">
+          <span className="relative block h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-brand-darker p-1 transition-colors group-hover:border-brand-primary/50">
+            <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="" fill sizes="40px" className="object-contain" priority />
+          </span>
+          <span className="hidden min-w-0 flex-col leading-none min-[400px]:flex">
+            <span className="text-lg font-black uppercase text-white">Sentinel<span className="text-orange-500">Fi</span></span>
+            <span className="hidden text-xs font-semibold normal-case text-slate-400 xl:block">Capital assurance platform</span>
           </span>
         </Link>
 
-        {/* Desktop Links */}
-        <div className="hidden lg:flex items-center gap-10">
-          {navLinks.map((link) => (
-            <Link 
-              key={link.name} 
-              href={link.href}
-              className={`nav-item-animated ${
-                router.pathname === link.href ? 'text-white' : ''
-              }`}
-            >
-              {link.name}
-              {router.pathname === link.href && (
-                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-brand-primary shadow-[0_0_15px_rgba(13,148,136,0.8)]" />
-              )}
-            </Link>
+        <ul className="hidden min-w-0 flex-1 items-center justify-center gap-4 px-2 lg:flex xl:gap-7" role="list">
+          {MARKETING_NAV_LINKS.map((link) => (
+            <li key={link.href} className="shrink-0">
+              <Link href={link.href} aria-current={isActive(link.href) ? 'page' : undefined} title={link.description} className={`nav-item-animated whitespace-nowrap lg:text-[0.72rem] xl:text-[0.8rem] ${isActive(link.href) ? 'is-active' : ''}`}>
+                {link.label}
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
 
-        {/* CTAs */}
-        <div className="hidden lg:flex items-center gap-6">
+        <div className="hidden shrink-0 items-center gap-2 lg:flex xl:gap-3">
           {user ? (
-            <Link href="/dashboard" className="m-button-premium text-[10px] py-3 px-8">
-              ENTER WORKSPACE <ArrowRight className="w-4 h-4" />
+            <Link href={MARKETING_ACTIONS.workspace.href} onClick={trackHeaderCta('header-workspace', MARKETING_ACTIONS.workspace.href)} data-cta="header-workspace" className="m-button-primary m-button-sm">
+              {MARKETING_ACTIONS.workspace.label} <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           ) : (
             <>
-              <Link href="/login" className="text-xs font-black uppercase tracking-widest text-slate-300 hover:text-white transition-colors">
-                Login
+              <Link href={MARKETING_ACTIONS.signIn.href} onClick={trackHeaderCta('header-signin', MARKETING_ACTIONS.signIn.href)} data-cta="header-signin" className="inline-flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-sm font-semibold text-slate-300 transition-colors hover:text-white xl:px-3">
+                <LogIn className="h-4 w-4" aria-hidden />{MARKETING_ACTIONS.signIn.label}
               </Link>
-              <Link href="/landing/pricing" className="m-button-premium text-[10px] py-3 px-8">
-                GET STARTED
+              <span className="hidden h-5 w-px bg-white/10 lg:block xl:block" aria-hidden />
+              <Link href={MARKETING_ACTIONS.tertiary.href} onClick={trackHeaderCta('header-talk', MARKETING_ACTIONS.tertiary.href)} data-cta="header-talk" className="inline-flex min-h-[40px] items-center whitespace-nowrap rounded-md px-1.5 text-sm font-semibold text-slate-300 transition-colors hover:text-white xl:px-3">
+                {MARKETING_ACTIONS.tertiary.label}
+              </Link>
+              <Link href={MARKETING_ACTIONS.primary.href} onClick={trackHeaderCta('header-start-trial', MARKETING_ACTIONS.primary.href)} data-cta="header-start-trial" className="m-button-primary m-button-sm">
+                {MARKETING_ACTIONS.primary.label} <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
             </>
           )}
         </div>
 
-        {/* Mobile Toggle */}
-        <button 
-          className="lg:hidden p-2 text-white hover:text-brand-primary transition-colors"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {isOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
+        <button type="button" className="tap-target inline-flex h-11 w-11 items-center justify-center rounded-md text-white transition-colors hover:text-brand-primary lg:hidden" onClick={() => setIsOpen(!isOpen)} aria-expanded={isOpen} aria-controls="marketing-mobile-menu" aria-label={isOpen ? 'Close menu' : 'Open menu'}>
+          {isOpen ? <X className="h-6 w-6" aria-hidden /> : <Menu className="h-6 w-6" aria-hidden />}
         </button>
-      </div>
+      </nav>
 
-      {/* Mobile Menu */}
-      <div className={`lg:hidden absolute top-full left-0 right-0 bg-brand-dark/95 backdrop-blur-2xl border-b border-white/5 transition-all duration-500 ease-in-out overflow-hidden ${
-        isOpen ? 'max-h-[600px] opacity-100 py-8' : 'max-h-0 opacity-0 py-0'
-      }`}>
-        <div className="container mx-auto px-6 flex flex-col gap-8">
-          {navLinks.map((link, idx) => (
-            <Link 
-              key={link.name} 
-              href={link.href}
-              onClick={() => setIsOpen(false)}
-              className="text-2xl font-black uppercase tracking-widest text-slate-300 hover:text-brand-primary transition-all flex items-center justify-between group"
-              style={{ transitionDelay: `${idx * 50}ms` }}
-            >
-              <span className="font-sora">{link.name}</span>
-              <ArrowRight className="w-5 h-5 opacity-0 group-hover:opacity-100 -translate-x-4 group-hover:translate-x-0 transition-all" />
+      <div id="marketing-mobile-menu" className={`overflow-hidden border-t border-white/5 bg-brand-dark/95 backdrop-blur-2xl transition-all duration-300 lg:hidden ${isOpen ? 'max-h-[80vh] overflow-y-auto opacity-100' : 'max-h-0 opacity-0'}`}>
+        <nav aria-label="Mobile" className="mx-auto flex max-w-7xl flex-col gap-1 px-6 py-6">
+          {MARKETING_NAV_LINKS.map((link) => (
+            <Link key={link.href} href={link.href} onClick={() => setIsOpen(false)} aria-current={isActive(link.href) ? 'page' : undefined} className={`flex min-h-[48px] items-center justify-between rounded-lg px-3 text-base font-bold transition-colors ${isActive(link.href) ? 'bg-white/5 text-white' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+              <span>{link.label}<span className="mt-0.5 block text-xs font-normal text-slate-500">{link.description}</span></span>
+              <ArrowRight className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
             </Link>
           ))}
-          <div className="h-px bg-white/5 w-full" />
+          <div className="my-4 h-px w-full bg-white/5" />
           {user ? (
-            <Link href="/dashboard" className="m-button-premium w-full text-center">
-              ENTER WORKSPACE <ArrowRight className="w-5 h-5" />
+            <Link href={MARKETING_ACTIONS.workspace.href} onClick={trackHeaderCta('mobile-workspace', MARKETING_ACTIONS.workspace.href)} data-cta="mobile-workspace" className="m-button-primary w-full justify-center">
+              {MARKETING_ACTIONS.workspace.label} <ArrowRight className="h-5 w-5" aria-hidden />
             </Link>
           ) : (
-            <div className="flex flex-col gap-6">
-              <Link href="/login" className="text-center py-4 text-slate-300 font-black uppercase tracking-widest">Login</Link>
-              <Link href="/landing/pricing" className="m-button-premium w-full text-center">GET STARTED</Link>
+            <div className="flex flex-col gap-3">
+              <Link href={MARKETING_ACTIONS.primary.href} onClick={trackHeaderCta('mobile-start-trial', MARKETING_ACTIONS.primary.href)} data-cta="mobile-start-trial" className="m-button-primary w-full justify-center">
+                {MARKETING_ACTIONS.primary.label} <ArrowRight className="h-5 w-5" aria-hidden />
+              </Link>
+              <div className="grid grid-cols-2 gap-3">
+                <Link href={MARKETING_ACTIONS.signIn.href} onClick={trackHeaderCta('mobile-signin', MARKETING_ACTIONS.signIn.href)} data-cta="mobile-signin" className="inline-flex min-h-[48px] items-center justify-center rounded-md border border-white/10 text-sm font-bold uppercase text-slate-300">{MARKETING_ACTIONS.signIn.label}</Link>
+                <Link href={MARKETING_ACTIONS.tertiary.href} onClick={trackHeaderCta('mobile-talk', MARKETING_ACTIONS.tertiary.href)} data-cta="mobile-talk" className="inline-flex min-h-[48px] items-center justify-center rounded-md border border-white/10 text-sm font-bold uppercase text-slate-300">{MARKETING_ACTIONS.tertiary.label}</Link>
+              </div>
             </div>
           )}
-        </div>
+        </nav>
       </div>
-    </nav>
+    </header>
   );
 };
 

@@ -110,6 +110,19 @@
   transform: scaleX(1);
 }
 
+.nav-item-animated.is-active {
+  color: #ffffff;
+}
+
+.nav-item-animated.is-active::after {
+  transform: scaleX(1);
+}
+
+.m-button-sm {
+  padding: 0.6rem 1.25rem;
+  font-size: 0.8rem;
+}
+
 .gradient-text {
   background: linear-gradient(105deg, #ffffff 0%, #d7f8f2 40%, #5eead4 100%);
   -webkit-background-clip: text;

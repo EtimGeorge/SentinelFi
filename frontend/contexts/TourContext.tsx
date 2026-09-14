@@ -1,10 +1,5 @@
 import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useRef,
-  ReactNode,
+  createContext, useContext, useState, useCallback, useRef, ReactNode,
 } from 'react';
 import { TourStep, getTutorial } from '../lib/tutorial-content';
 
@@ -27,7 +22,7 @@ interface TourContextValue extends TourState {
   startStepById: (pageKey: string, stepId: string) => void;
   currentStep: TourStep | null;
   totalSteps: number;
-  progress: number; // 0–100
+  progress: number; // 0-100
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -48,11 +43,7 @@ export const TourProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // localStorage not available (SSR)
     }
     return {
-      isActive: false,
-      pageKey: '',
-      steps: [],
-      currentIndex: 0,
-      completedTours,
+      isActive: false, pageKey: '', steps: [], currentIndex: 0, completedTours,
     };
   });
 
@@ -66,11 +57,7 @@ export const TourProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const tutorial = getTutorial(pageKey);
     if (!tutorial.tourSteps.length) return;
     setState(s => ({
-      ...s,
-      isActive: true,
-      pageKey,
-      steps: tutorial.tourSteps,
-      currentIndex: 0,
+      ...s, isActive: true, pageKey, steps: tutorial.tourSteps, currentIndex: 0,
     }));
   }, []);
 
@@ -87,7 +74,7 @@ export const TourProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const nextStep = useCallback(() => {
     setState(s => {
       if (s.currentIndex >= s.steps.length - 1) {
-        // Last step — end the tour
+        // Last step, end the tour
         const newCompleted = s.completedTours.includes(s.pageKey)
           ? s.completedTours
           : [...s.completedTours, s.pageKey];
@@ -100,15 +87,13 @@ export const TourProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const prevStep = useCallback(() => {
     setState(s => ({
-      ...s,
-      currentIndex: Math.max(0, s.currentIndex - 1),
+      ...s, currentIndex: Math.max(0, s.currentIndex - 1),
     }));
   }, []);
 
   const skipToStep = useCallback((index: number) => {
     setState(s => ({
-      ...s,
-      currentIndex: Math.min(index, s.steps.length - 1),
+      ...s, currentIndex: Math.min(index, s.steps.length - 1),
     }));
   }, []);
 
@@ -118,11 +103,7 @@ export const TourProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (stepIndex === -1) return;
 
     setState(s => ({
-      ...s,
-      isActive: true,
-      pageKey,
-      steps: tutorial.tourSteps,
-      currentIndex: stepIndex,
+      ...s, isActive: true, pageKey, steps: tutorial.tourSteps, currentIndex: stepIndex,
     }));
   }, []);
 
@@ -135,16 +116,7 @@ export const TourProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <TourContext.Provider value={{
-      ...state,
-      startTour,
-      nextStep,
-      prevStep,
-      endTour,
-      skipToStep,
-      startStepById,
-      currentStep,
-      totalSteps,
-      progress,
+      ...state, startTour, nextStep, prevStep, endTour, skipToStep, startStepById, currentStep, totalSteps, progress,
     }}>
       {children}
     </TourContext.Provider>

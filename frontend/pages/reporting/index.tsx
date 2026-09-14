@@ -2,16 +2,7 @@ import React from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import {
-  BarChart2,
-  TrendingUp,
-  PieChart,
-  FileText,
-  ChevronRight,
-  Activity,
-  Shield,
-  LayoutDashboard,
-  Zap,
-  Lock
+  BarChart2, TrendingUp, PieChart, FileText, ChevronRight, Activity, Shield, LayoutDashboard, Zap, Lock
 } from 'lucide-react';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -19,40 +10,16 @@ import Card from '../../components/common/Card';
 const ReportingIndexPage: React.FC = () => {
   const modules = [
     {
-      title: 'Variance Intelligence',
-      subtitle: 'Fiscal Deviation Analysis',
-      description: 'Advanced monitoring of budgeted vs actual expenditures with AI anomaly detection.',
-      icon: BarChart2,
-      path: '/reporting/variance',
-      iconColor: 'bg-brand-primary/15 text-brand-primary',
-      badge: 'Real-time'
+      title: 'Variance Intelligence', subtitle: 'Fiscal Deviation Analysis', description: 'Advanced monitoring of budgeted vs actual expenditures with AI anomaly detection.', icon: BarChart2, path: '/reporting/variance', iconColor: 'bg-brand-primary/15 text-brand-primary', badge: 'Real-time'
     },
     {
-      title: 'CAPEX Performance',
-      subtitle: 'Capital Asset Utilization',
-      description: 'Deep insights into project budgets, WBS rollout progress, and capital efficiency.',
-      icon: TrendingUp,
-      path: '/reporting/capex',
-      iconColor: 'bg-alert-positive/15 text-alert-positive',
-      badge: 'Audit-ready'
+      title: 'CAPEX Performance', subtitle: 'Capital Asset Utilization', description: 'Deep insights into project budgets, WBS rollout progress, and capital efficiency.', icon: TrendingUp, path: '/reporting/capex', iconColor: 'bg-alert-positive/15 text-alert-positive', badge: 'Audit-ready'
     },
     {
-      title: 'OPEX Efficiency',
-      subtitle: 'Operational Burn Rates',
-      description: 'Professional oversight of departmental spending and cost-center optimization.',
-      icon: PieChart,
-      path: '/reporting/opex',
-      iconColor: 'bg-alert-warning/15 text-alert-warning',
-      badge: 'Compliance'
+      title: 'OPEX Efficiency', subtitle: 'Operational Burn Rates', description: 'Professional oversight of departmental spending and cost-center optimization.', icon: PieChart, path: '/reporting/opex', iconColor: 'bg-alert-warning/15 text-alert-warning', badge: 'Compliance'
     },
     {
-      title: 'Digital Archive',
-      subtitle: 'DCS Vault & Integrity',
-      description: 'Access the Document Control System for cryptographically secured report history.',
-      icon: FileText,
-      path: '/reporting/archive',
-      iconColor: 'bg-alert-critical/15 text-alert-critical',
-      badge: 'Secured'
+      title: 'Digital Archive', subtitle: 'DCS Vault & Integrity', description: 'Access the Document Control System for cryptographically secured report history.', icon: FileText, path: '/reporting/archive', iconColor: 'bg-alert-critical/15 text-alert-critical', badge: 'Secured'
     }
   ];
 

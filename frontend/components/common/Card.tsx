@@ -15,20 +15,16 @@ interface CardProps {
 }
 
 const variantMap: Record<CardVariant, string> = {
-  // Standard content surface — hairline border, subtle drop shadow
+  // Standard content surface, hairline border, subtle drop shadow
   default: 'border border-gray-700/60 bg-gray-800/80 shadow-elev-sm',
-  // Floating surfaces — modals, dropdowns, popovers
+  // Floating surfaces, modals, dropdowns, popovers
   elevated: 'border border-gray-600/40 bg-gray-800 shadow-elev-lg',
-  // Inline sections inside larger cards — border only, no shadow
+  // Inline sections inside larger cards, border only, no shadow
   flat: 'border border-gray-700 bg-gray-800/40 shadow-none',
 };
 
 const accentMap: Record<CardAccent, string> = {
-  none: 'border-l-2 border-transparent',
-  primary: 'border-l-2 border-brand-primary',
-  secondary: 'border-l-2 border-brand-secondary',
-  alert: 'border-l-2 border-alert-critical',
-  positive: 'border-l-2 border-alert-positive',
+  none: 'border-l-2 border-transparent', primary: 'border-l-2 border-brand-primary', secondary: 'border-l-2 border-brand-secondary', alert: 'border-l-2 border-alert-critical', positive: 'border-l-2 border-alert-positive',
 };
 
 /**
@@ -37,18 +33,11 @@ const accentMap: Record<CardAccent, string> = {
  * - `elevated`: floating surfaces that must separate from content (modals/popovers)
  * - `flat`: inline sections inside another container (border only)
  *
- * Distinction between cards comes from border + background + accent — never
+ * Distinction between cards comes from border + background + accent, never
  * from decorative gradients or heavy shadows.
  */
 const Card: React.FC<CardProps> = ({
-  children,
-  title,
-  subtitle,
-  className = '',
-  headerContent,
-  variant = 'default',
-  accent = 'none',
-  noPadding,
+  children, title, subtitle, className = '', headerContent, variant = 'default', accent = 'none', noPadding,
 }) => {
   const paddingClass = noPadding ? '' : 'p-4 sm:p-5';
 

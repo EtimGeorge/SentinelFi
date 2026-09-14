@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 
-// Edge RBAC — supplements client RouteGuard (P0 fix). Reads httpOnly cookie set by backend.
+// Edge RBAC - supplements client RouteGuard (P0 fix). Reads httpOnly cookie set by backend.
 // PUBLIC_ROUTES mirrors AuthContext.PUBLIC_ROUTES but edge-evaluated (no React).
 const PUBLIC_PATTERNS: RegExp[] = [
   /^\/$/,
@@ -35,7 +35,7 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PATTERNS.some((re) => re.test(pathname));
 }
 
-// Minimal JWT payload decode (no verify — verified by backend). Only for role hint to avoid leaking /super shell.
+// Minimal JWT payload decode (no verify, verified by backend). Only for role hint to avoid leaking /super shell.
 function decodeJwtPayload(token: string): any | null {
   try {
     const parts = token.split('.');
@@ -77,7 +77,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Super/admin prefix check — best-effort edge block; backend is authoritative (TenantAccessGuard/RolesGuard)
+  // Super/admin prefix check, best-effort edge block; backend is authoritative (TenantAccessGuard/RolesGuard)
   const payload = decodeJwtPayload(token);
   if (SUPER_PREFIX.test(pathname) && !hasSuperAdminRole(payload)) {
     const url = request.nextUrl.clone();

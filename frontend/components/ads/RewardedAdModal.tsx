@@ -9,24 +9,21 @@ interface RewardedAdModalProps {
 }
 
 /**
- * RewardedAdModal — the watch-to-earn gate.
+ * RewardedAdModal, the watch-to-earn gate.
  *
  * WHO SETS THE SECONDS?
  * - `requiredSeconds` comes from the server (GET /ads/config →
  *   REWARD_REQUIRED_SECONDS, default 15s) which mirrors what the ad
- *   network requires for a paid completed view (15–30s typical).
- * - The Close button is locked until the countdown finishes — closing
+ *   network requires for a paid completed view (15-30s typical).
+ * - The Close button is locked until the countdown finishes, closing
  *   early = no reward (the server also enforces elapsed time, so even
  *   a tampered client can't claim credit).
  * - In `test` provider mode this renders a simulated creative; with a
- *   real network, swap the body for the network's rewarded player SDK —
+ *   real network, swap the body for the network's rewarded player SDK - 
  *   the countdown + onComplete contract stays identical.
  */
 const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
-  requiredSeconds,
-  provider,
-  onComplete,
-  onClose,
+  requiredSeconds, provider, onComplete, onClose,
 }) => {
   const [elapsed, setElapsed] = useState(0);
   const done = elapsed >= requiredSeconds;
@@ -86,7 +83,7 @@ const RewardedAdModal: React.FC<RewardedAdModalProps> = ({
           <p className="text-xs text-gray-500">
             {done
               ? 'Tap below to claim +1 task for today.'
-              : `Keep watching — reward unlocks in ${remaining}s`}
+              : `Keep watching, reward unlocks in ${remaining}s`}
           </p>
         </div>
 

@@ -12,8 +12,7 @@ describe('toCsv', () => {
       [
         { name: 'A', amount: 5, note: 'x' },
         { name: 'B', amount: 6, note: 'y' },
-      ],
-      columns,
+      ], columns,
     );
     expect(csv).toBe('Name,Amount,Note\r\nA,5,x\r\nB,6,y');
   });

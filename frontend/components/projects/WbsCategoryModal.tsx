@@ -22,9 +22,7 @@ interface WbsCategoryModalProps {
 }
 
 export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
-  isOpen,
-  onClose,
-  onSuccess
+  isOpen, onClose, onSuccess
 }) => {
   const [categories, setCategories] = useState<WBSCategory[]>([]);
   const [loading, setLoading] = useState(false);
@@ -36,10 +34,7 @@ export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
     usageCount: number;
   } | null>(null);
   const [newCat, setNewCat] = useState({
-    name: '',
-    code: '',
-    description: '',
-    parent_id: ''
+    name: '', code: '', description: '', parent_id: ''
   });
 
   const fetchCategories = async () => {
@@ -63,10 +58,7 @@ export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
     setLoading(true);
     try {
       await api.post('/wbs/categories', {
-        name: newCat.name.trim(),
-        code: newCat.code.trim() || null,
-        description: newCat.description.trim() || null,
-        parent_id: newCat.parent_id || null  // empty string becomes null
+        name: newCat.name.trim(), code: newCat.code.trim() || null, description: newCat.description.trim() || null, parent_id: newCat.parent_id || null  // empty string becomes null
       });
       toast.success('Category created successfully');
       setNewCat({ name: '', code: '', description: '', parent_id: '' });
@@ -94,11 +86,9 @@ export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
     } catch (error: any) {
       const data = error.response?.data;
       if (data?.requiresSoftDeleteConfirmation) {
-        // Backend says category is in use — show confirmation dialog
+        // Backend says category is in use, show confirmation dialog
         setDeleteConfirm({
-          id,
-          name,
-          usageCount: data.usageCount || 0
+          id, name, usageCount: data.usageCount || 0
         });
       } else {
         toast.error(data?.message || 'Failed to delete');
@@ -270,7 +260,7 @@ export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
                 onChange={e => setNewCat({ ...newCat, parent_id: e.target.value })}
                 className="flex-grow bg-gray-900/80 border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-brand-primary/50 outline-none transition"
               >
-                <option value="">— Top Level (Root Category) —</option>
+                <option value="">- Top Level (Root Category) -</option>
                 {renderCategoryOptions(null)}
               </select>
               <Button variant="primary" onClick={handleAdd} disabled={loading || !newCat.name.trim()}>
@@ -325,7 +315,7 @@ export const WbsCategoryModal: React.FC<WbsCategoryModalProps> = ({
                   &quot;{deleteConfirm.name}&quot; is used in <span className="text-amber-400 font-bold">{deleteConfirm.usageCount}</span> budget item(s).
                 </p>
                 <p className="text-gray-400 text-xs">
-                  Hard deletion is blocked to protect historical financial data. You can <strong>deactivate</strong> this category instead — it will remain linked to existing budgets but won&apos;t appear in new budget dropdowns.
+                  Hard deletion is blocked to protect historical financial data. You can <strong>deactivate</strong> this category instead, it will remain linked to existing budgets but won&apos;t appear in new budget dropdowns.
                 </p>
               </div>
             </div>

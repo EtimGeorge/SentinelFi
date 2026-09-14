@@ -15,8 +15,7 @@ import { WbsBudget } from '@shared/types/wbs';
 import { Project } from '@shared/types/project';
 import toast from 'react-hot-toast';
 import {
-  ArrowLeft, Download, Printer, Search, FileDown, Layers, Target,
-  FileSpreadsheet, ArrowUpRight, ArrowDownRight, Activity, Settings2, Edit2, Send, RotateCcw
+  ArrowLeft, Download, Printer, Search, FileDown, Layers, Target, FileSpreadsheet, ArrowUpRight, ArrowDownRight, Activity, Settings2, Edit2, Send, RotateCcw
 } from 'lucide-react';
 
 interface PreviewKPIs {
@@ -28,22 +27,12 @@ interface PreviewKPIs {
 
 /** Roles that can submit/edit project budgets */
 const SUBMIT_AUTHORIZED_ROLES: Role[] = [
-  Role.CFO,
-  Role.FinanceManager,
-  Role.AdminDirector,
-  Role.AdminManager,
-  Role.AssignedProjectUser,
-  Role.CEO,
+  Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager, Role.AssignedProjectUser, Role.CEO,
 ];
 
 /** Roles that can approve/reject budget items */
 const APPROVE_AUTHORIZED_ROLES: Role[] = [
-  Role.CFO,
-  Role.FinanceManager,
-  Role.AdminDirector,
-  Role.AdminManager,
-  Role.CEO,
-  Role.SuperAdmin,
+  Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager, Role.CEO, Role.SuperAdmin,
 ];
 
 const ProjectBudgetPreviewPage: React.FC = () => {

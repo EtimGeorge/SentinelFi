@@ -17,6 +17,7 @@ import { Spinner } from '../../components/common/Spinner';
 import DataTable from "../../components/common/DataTable";
 import { InvoiceDto, InvoiceStatus } from 'shared/types/billing';
 import { toast } from 'react-hot-toast';
+import api from '../../lib/api';
 
 interface StatCardProps {
   title: string;
@@ -65,8 +66,26 @@ const SuperAdminBillingPage: NextPageWithLayout = () => {
   const { data, loading, error } = useSuperAdminBilling();
   const { convertToDisplay } = useCurrency(); // Hook
 
-  const handleDownload = (invoiceId: string) => {
-    toast.success(`Secure downlink established for ${invoiceId}`);
+  const handleDownload = async (invoiceId: string) => {
+    try {
+      const res = await api.get(
+        `/super/billing/invoices/${invoiceId}/download`,
+        { responseType: 'blob' },
+      );
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sentinelfi-invoice-${invoiceId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('Invoice PDF downloaded.');
+    } catch (err: any) {
+      toast.error(
+        err.response?.data?.message || 'Failed to download invoice.',
+      );
+    }
   };
 
   return (
@@ -97,7 +116,7 @@ const SuperAdminBillingPage: NextPageWithLayout = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard
                 title="Consolidated MRR"
-                value={convertToDisplay(data.overview.totalMrr)}
+                value={convertToDisplay(data.overview.totalMrr, 'USD')}
                 icon={<DollarSign className="w-6 h-6 text-green-400" />}
                 change={`${data.overview.mrrGrowthPercentage}% Velocity`}
                 changeColor="text-green-400"
@@ -111,7 +130,7 @@ const SuperAdminBillingPage: NextPageWithLayout = () => {
               />
               <StatCard
                 title="Platform ARPU"
-                value={convertToDisplay(data.overview.totalMrr / (data.overview.activeSubscriptions || 1))}
+                value={convertToDisplay(data.overview.totalMrr / (data.overview.activeSubscriptions || 1), 'USD')}
                 icon={<TrendingUp className="w-6 h-6 text-purple-400" />}
               />
             </div>
@@ -168,7 +187,7 @@ const SuperAdminBillingPage: NextPageWithLayout = () => {
                 className="mt-4"
                 columns={[
                   { key: 'tenant', label: 'Tenant Entity', tier: 'P0', get: (inv) => <span className="text-white">{inv.tenantName}</span>, title: (inv) => inv.tenantName },
-                  { key: 'amount', label: 'Amount', tier: 'P0', get: (inv) => <span className="font-mono text-white">{convertToDisplay(inv.amount)}</span>, title: (inv) => convertToDisplay(inv.amount) },
+                  { key: 'amount', label: 'Amount', tier: 'P0', get: (inv) => <span className="font-mono text-white">{convertToDisplay(inv.amount, 'USD')}</span>, title: (inv) => convertToDisplay(inv.amount, 'USD') },
                   { key: 'trace', label: 'Trace ID', tier: 'P1', get: (inv) => <span className="font-mono text-brand-primary">{inv.id}</span>, title: (inv) => inv.id },
                   { key: 'status', label: 'Status', tier: 'P1', get: (inv) => (
                     <div className="flex items-center">
@@ -181,7 +200,7 @@ const SuperAdminBillingPage: NextPageWithLayout = () => {
                 rows={data.invoices}
                 rowKey={(inv) => inv.id}
                 actions={[
-                  { key: 'detail', label: 'Detail', icon: <Download className="w-4 h-4" />, onClick: (inv) => handleDownload(inv.id), primary: true, title: 'Detail' },
+                  { key: 'detail', label: 'Download Invoice', icon: <Download className="w-4 h-4" />, onClick: (inv) => handleDownload(inv.id), primary: true, title: 'Download PDF invoice for this transaction' },
                 ]}
               />
             </Card>

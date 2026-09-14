@@ -14,9 +14,7 @@ interface AiChatMessageBubbleProps {
  * loading animation, and copy-to-clipboard.
  */
 export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({ 
-  message, 
-  onQuickAction,
-  onActionHint 
+  message, onQuickAction, onActionHint 
 }) => {
   const [copied, setCopied] = useState(false);
   const isAssistant = message.role === 'assistant';
@@ -36,18 +34,12 @@ export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({
         style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}
       >
         <div style={{
-          width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <Sparkles size={12} color="#fff" />
         </div>
         <div style={{
-          padding: '10px 14px',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: '4px 16px 16px 16px',
-          display: 'flex', alignItems: 'center', gap: 2,
+          padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px 16px 16px 16px', display: 'flex', alignItems: 'center', gap: 2,
         }}>
           <span className="sentinelai-dot" />
           <span className="sentinelai-dot" />
@@ -63,11 +55,7 @@ export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({
       <div
         className="sentinelai-msg-appear"
         style={{
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,0.06)',
-          border: '1px solid rgba(239,68,68,0.2)',
-          borderRadius: 12,
-          display: 'flex', alignItems: 'flex-start', gap: 8,
+          padding: '10px 14px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 8,
         }}
       >
         <AlertTriangle size={14} style={{ color: '#f87171', flexShrink: 0, marginTop: 1 }} />
@@ -86,21 +74,12 @@ export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({
         style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'flex-end' }}
       >
         <div style={{
-          maxWidth: '82%',
-          padding: '10px 13px',
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.15))',
-          border: '1px solid rgba(99,102,241,0.25)',
-          borderRadius: '16px 4px 16px 16px',
-          fontSize: 13, color: '#e0e7ff', lineHeight: 1.5,
-          wordBreak: 'break-word',
+          maxWidth: '82%', padding: '10px 13px', background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.15))', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '16px 4px 16px 16px', fontSize: 13, color: '#e0e7ff', lineHeight: 1.5, wordBreak: 'break-word',
         }}>
           {message.content}
         </div>
         <div style={{
-          width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-          background: 'rgba(255,255,255,0.1)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <User size={13} color="rgba(255,255,255,0.7)" />
         </div>
@@ -113,10 +92,7 @@ export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({
     <div className="sentinelai-msg-appear" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
       {/* Avatar */}
       <div style={{
-        width: 26, height: 26, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: '0 2px 8px rgba(99,102,241,0.4)',
+        width: 26, height: 26, borderRadius: '50%', flexShrink: 0, marginTop: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(99,102,241,0.4)',
       }}>
         <Sparkles size={12} color="#fff" />
       </div>
@@ -125,12 +101,7 @@ export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({
         {/* Main content bubble */}
         <div
           style={{
-            padding: '10px 13px',
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '4px 16px 16px 16px',
-            position: 'relative',
-            maxWidth: '100%',
+            padding: '10px 13px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px 16px 16px 16px', position: 'relative', maxWidth: '100%',
           }}
         >
           {/* Rendered content */}
@@ -141,11 +112,7 @@ export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({
             onClick={handleCopy}
             title="Copy response"
             style={{
-              position: 'absolute', top: 6, right: 6,
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              color: 'rgba(255,255,255,0.25)', padding: 3, borderRadius: 4,
-              display: 'flex', alignItems: 'center',
-              transition: 'color 0.15s',
+              position: 'absolute', top: 6, right: 6, background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.25)', padding: 3, borderRadius: 4, display: 'flex', alignItems: 'center', transition: 'color 0.15s',
             }}
             onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.25)')}
@@ -168,11 +135,7 @@ export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({
                 onClick={() => onActionHint?.(hint.action)}
                 className="sentinelai-action-btn"
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)',
-                  borderRadius: 8, padding: '5px 10px',
-                  color: '#a5b4fc', fontSize: 11, cursor: 'pointer',
-                  transition: 'background 0.15s',
+                  display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '5px 10px', color: '#a5b4fc', fontSize: 11, cursor: 'pointer', transition: 'background 0.15s',
                 }}
               >
                 <ChevronRight size={10} />
@@ -195,12 +158,7 @@ export const AiChatMessageBubble: React.FC<AiChatMessageBubbleProps> = memo(({
                   onClick={() => onQuickAction?.(suggestion)}
                   className="sentinelai-chip"
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                    borderRadius: 8, padding: '6px 10px',
-                    color: 'rgba(255,255,255,0.6)', fontSize: 11, cursor: 'pointer',
-                    textAlign: 'left', transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,0.6)', fontSize: 11, cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
                   }}
                 >
                   <ChevronRight size={10} style={{ color: '#818cf8', flexShrink: 0 }} />
@@ -295,8 +253,7 @@ function renderInline(text: string): React.ReactNode {
       // Inline code
       parts.push(
         <code key={key++} style={{
-          background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.2)',
-          borderRadius: 4, padding: '1px 5px', fontSize: 11, color: '#a5b4fc', fontFamily: 'monospace',
+          background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 4, padding: '1px 5px', fontSize: 11, color: '#a5b4fc', fontFamily: 'monospace',
         }}>{match[5]}</code>
       );
     }

@@ -1,22 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
-  PieChart,
-  Download,
-  FileText,
-  Loader2,
-  TrendingDown,
-  TrendingUp,
-  AlertTriangle,
-  Calendar,
-  Printer,
-  Filter,
-  RefreshCw,
-  Lock,
-  Shield,
-  ChevronDown,
-  ChevronRight,
-  Layers
+  PieChart, Download, FileText, Loader2, TrendingDown, TrendingUp, AlertTriangle, Calendar, Printer, Filter, RefreshCw, Lock, Shield, ChevronDown, ChevronRight, Layers
 } from 'lucide-react';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -64,15 +49,11 @@ interface OpexRollupResult {
 }
 
 const statusColors: Record<string, string> = {
-  OVERRUN: 'text-red-500',
-  AT_RISK: 'text-amber-500',
-  HEALTHY: 'text-emerald-600',
+  OVERRUN: 'text-red-500', AT_RISK: 'text-amber-500', HEALTHY: 'text-emerald-600',
 };
 
 const statusBg: Record<string, string> = {
-  OVERRUN: 'bg-red-50 border-red-100',
-  AT_RISK: 'bg-amber-50 border-amber-100',
-  HEALTHY: 'bg-emerald-50 border-emerald-100',
+  OVERRUN: 'bg-red-50 border-red-100', AT_RISK: 'bg-amber-50 border-amber-100', HEALTHY: 'bg-emerald-50 border-emerald-100',
 };
 
 const OpexEfficiencyPage: React.FC = () => {
@@ -140,18 +121,11 @@ const OpexEfficiencyPage: React.FC = () => {
       const loadId = toast.loading(`Preparing ${exportFormat.toUpperCase()} OPEX report...`);
 
       const exportContext = {
-        currencyRate: userCurrency.rate,
-        currencySymbol: userCurrency.symbol,
-        tenantName: user?.tenant_name || '',
-        projectName: 'Operational Overview',
-        projectMap: {}
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: 'Operational Overview', projectMap: {}
       };
 
       const response = await api.post('/reporting/generate', {
-        type: 'OPEX_EFFICIENCY',
-        format: exportFormat,
-        context: exportContext,
-        filters: { interval }
+        type: 'OPEX_EFFICIENCY', format: exportFormat, context: exportContext, filters: { interval }
       }, { responseType: 'blob' });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -174,19 +148,11 @@ const OpexEfficiencyPage: React.FC = () => {
       const loadId = toast.loading('Archiving OPEX audit in DCS...');
 
       const exportContext = {
-        currencyRate: userCurrency.rate,
-        currencySymbol: userCurrency.symbol,
-        tenantName: user?.tenant_name || '',
-        projectName: 'Operational Overview',
-        projectMap: {}
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: 'Operational Overview', projectMap: {}
       };
 
       await api.post('/reporting/generate', {
-        type: 'OPEX_EFFICIENCY',
-        format: 'pdf',
-        pushToDcs: true,
-        context: exportContext,
-        filters: { interval }
+        type: 'OPEX_EFFICIENCY', format: 'pdf', pushToDcs: true, context: exportContext, filters: { interval }
       });
       toast.success('OPEX Intelligence pushed to DCS.', { id: loadId });
     } catch (error) {
@@ -203,7 +169,7 @@ const OpexEfficiencyPage: React.FC = () => {
       <Head><title>OPEX Efficiency Intelligence | SentinelFi</title></Head>
       <PageContainer
         title="OPEX Efficiency Intelligence"
-        subtitle="Operational expenditure overview across all budgets and cost categories — sourced from live expense data."
+        subtitle="Operational expenditure overview across all budgets and cost categories, sourced from live expense data."
         headerContent={<PieChart className="w-8 h-8 text-brand-primary" />}
       >
         <div className="flex flex-col lg:flex-row gap-8">

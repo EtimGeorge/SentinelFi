@@ -4,19 +4,7 @@ import Head from 'next/head';
 import Image from 'next/image';
 import Link from 'next/link';
 import { 
-  ShieldCheck, 
-  ShieldAlert, 
-  Loader2, 
-  CheckCircle2, 
-  User, 
-  KeyRound, 
-  ArrowRight,
-  UserPlus,
-  Mail,
-  Building2,
-  Lock,
-  Eye,
-  EyeOff
+  ShieldCheck, ShieldAlert, Loader2, CheckCircle2, User, KeyRound, ArrowRight, UserPlus, Mail, Building2, Lock, Eye, EyeOff
 } from 'lucide-react';
 import { apiClient } from '../../lib/api';
 import Button from '../../components/common/Button';
@@ -43,9 +31,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
   } | null>(null);
 
   const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    confirmPassword: '',
+    username: '', password: '', confirmPassword: '',
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -92,9 +78,7 @@ const AcceptInvitationPage: NextPageWithLayout = () => {
     setIsSubmitting(true);
     try {
       await apiClient.post('/auth/invitation/accept', {
-        token,
-        password: formData.password,
-        username: formData.username || undefined,
+        token, password: formData.password, username: formData.username || undefined,
       });
       setSuccess(true);
       // Auto redirect after 3 seconds

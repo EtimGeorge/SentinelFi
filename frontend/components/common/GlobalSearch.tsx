@@ -1,25 +1,8 @@
 import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  useMemo,
+  useState, useEffect, useCallback, useRef, useMemo,
 } from "react";
 import {
-  Search,
-  X,
-  ChevronRight,
-  FileText,
-  DollarSign,
-  Briefcase,
-  Users,
-  Building2,
-  BarChart2,
-  AlertTriangle,
-  Zap,
-  FolderOpen,
-  LayoutDashboard,
-  Settings,
+  Search, X, ChevronRight, FileText, DollarSign, Briefcase, Users, Building2, BarChart2, AlertTriangle, Zap, FolderOpen, LayoutDashboard, Settings,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { apiClient } from "../../lib/api";
@@ -54,131 +37,60 @@ interface SearchGroup {
 
 const SEARCH_GROUPS: SearchGroup[] = [
   {
-    label: "Projects",
-    icon: <FolderOpen className="w-4 h-4" />,
-    results: [],
-    color: "text-brand-primary",
+    label: "Projects", icon: <FolderOpen className="w-4 h-4" />, results: [], color: "text-brand-primary",
   },
   {
-    label: "Budgets & WBS",
-    icon: <DollarSign className="w-4 h-4" />,
-    results: [],
-    color: "text-brand-secondary",
+    label: "Budgets & WBS", icon: <DollarSign className="w-4 h-4" />, results: [], color: "text-brand-secondary",
   },
   {
-    label: "Expenses",
-    icon: <Zap className="w-4 h-4" />,
-    results: [],
-    color: "text-alert-critical",
+    label: "Expenses", icon: <Zap className="w-4 h-4" />, results: [], color: "text-alert-critical",
   },
   {
-    label: "Procurement (P2P)",
-    icon: <Briefcase className="w-4 h-4" />,
-    results: [],
-    color: "text-opx-cyan",
+    label: "Procurement (P2P)", icon: <Briefcase className="w-4 h-4" />, results: [], color: "text-opx-cyan",
   },
   {
-    label: "Reports & Analytics",
-    icon: <BarChart2 className="w-4 h-4" />,
-    results: [],
-    color: "text-alert-positive",
+    label: "Reports & Analytics", icon: <BarChart2 className="w-4 h-4" />, results: [], color: "text-alert-positive",
   },
   {
-    label: "Pages & Actions",
-    icon: <LayoutDashboard className="w-4 h-4" />,
-    results: [],
-    color: "text-gray-400",
+    label: "Pages & Actions", icon: <LayoutDashboard className="w-4 h-4" />, results: [], color: "text-gray-400",
   },
 ];
 
 const PAGE_RESULTS: SearchResult[] = [
   {
-    type: "page",
-    id: "dashboard",
-    title: "Dashboard",
-    subtitle: "Executive overview",
-    href: "/dashboard/home",
-    icon: <LayoutDashboard className="w-4 h-4" />,
+    type: "page", id: "dashboard", title: "Dashboard", subtitle: "Executive overview", href: "/dashboard/home", icon: <LayoutDashboard className="w-4 h-4" />,
   },
   {
-    type: "page",
-    id: "financial-intelligence",
-    title: "Financial Intelligence",
-    subtitle: "CAPEX/OPEX analytics",
-    href: "/financials/intelligence",
-    icon: <BarChart2 className="w-4 h-4" />,
+    type: "page", id: "financial-intelligence", title: "Financial Intelligence", subtitle: "CAPEX/OPEX analytics", href: "/financials/intelligence", icon: <BarChart2 className="w-4 h-4" />,
   },
   {
-    type: "page",
-    id: "wbs",
-    title: "WBS Manager",
-    subtitle: "Hierarchical cost structure",
-    href: "/financials/projects/wbs",
-    icon: <FolderOpen className="w-4 h-4" />,
+    type: "page", id: "wbs", title: "WBS Manager", subtitle: "Hierarchical cost structure", href: "/financials/projects/wbs", icon: <FolderOpen className="w-4 h-4" />,
   },
   {
-    type: "page",
-    id: "budgets",
-    title: "Budget Management",
-    subtitle: "View & approve budgets",
-    href: "/financials/projects/budgets",
-    icon: <DollarSign className="w-4 h-4" />,
+    type: "page", id: "budgets", title: "Budget Management", subtitle: "View & approve budgets", href: "/financials/projects/budgets", icon: <DollarSign className="w-4 h-4" />,
   },
   {
-    type: "page",
-    id: "expenses",
-    title: "Expense Management",
-    subtitle: "Live expense tracking",
-    href: "/financials/projects/expenses",
-    icon: <Zap className="w-4 h-4" />,
+    type: "page", id: "expenses", title: "Expense Management", subtitle: "Live expense tracking", href: "/financials/projects/expenses", icon: <Zap className="w-4 h-4" />,
   },
   {
-    type: "page",
-    id: "procurement",
-    title: "P2P Desk",
-    subtitle: "Requisitions → PO → Invoice",
-    href: "/financials/operations/procurement",
-    icon: <Briefcase className="w-4 h-4" />,
+    type: "page", id: "procurement", title: "P2P Desk", subtitle: "Requisitions → PO → Invoice", href: "/financials/operations/procurement", icon: <Briefcase className="w-4 h-4" />,
   },
   {
-    type: "page",
-    id: "approvals",
-    title: "Approvals Hub",
-    subtitle: "Pending approvals",
-    href: "/financials/approvals",
-    icon: <AlertTriangle className="w-4 h-4" />,
+    type: "page", id: "approvals", title: "Approvals Hub", subtitle: "Pending approvals", href: "/financials/approvals", icon: <AlertTriangle className="w-4 h-4" />,
   },
   {
-    type: "page",
-    id: "reporting",
-    title: "Reporting",
-    subtitle: "Variance & performance",
-    href: "/reporting",
-    icon: <FileText className="w-4 h-4" />,
+    type: "page", id: "reporting", title: "Reporting", subtitle: "Variance & performance", href: "/reporting", icon: <FileText className="w-4 h-4" />,
   },
   {
-    type: "page",
-    id: "projects",
-    title: "Project Portfolio",
-    subtitle: "All projects overview",
-    href: "/financials/projects",
-    icon: <Briefcase className="w-4 h-4" />,
+    type: "page", id: "projects", title: "Project Portfolio", subtitle: "All projects overview", href: "/financials/projects", icon: <Briefcase className="w-4 h-4" />,
   },
   {
-    type: "page",
-    id: "settings",
-    title: "Settings",
-    subtitle: "User & tenant settings",
-    href: "/settings",
-    icon: <Settings className="w-4 h-4" />,
+    type: "page", id: "settings", title: "Settings", subtitle: "User & tenant settings", href: "/settings", icon: <Settings className="w-4 h-4" />,
   },
 ];
 
 const GROUP_KEYWORDS: Record<string, string[]> = {
-  projects: ["project", "portfolio"],
-  budgets: ["budget", "wbs", "capex", "cost structure"],
-  expenses: ["expense", "spend", "actual", "variance", "log expense"],
-  procurement: [
+  projects: ["project", "portfolio"], budgets: ["budget", "wbs", "capex", "cost structure"], expenses: ["expense", "spend", "actual", "variance", "log expense"], procurement: [
     "procurement",
     "requisition",
     "purchase order",
@@ -186,16 +98,14 @@ const GROUP_KEYWORDS: Record<string, string[]> = {
     "invoice",
     "p2p",
     "vendor",
-  ],
-  reports: [
+  ], reports: [
     "report",
     "analytics",
     "variance",
     "forecast",
     "performance",
     "intelligence",
-  ],
-  pages: ["dashboard", "settings", "approval", "approvals"],
+  ], pages: ["dashboard", "settings", "approval", "approvals"],
 };
 
 const useIsMobile = () => {
@@ -237,8 +147,7 @@ export const GlobalSearch: React.FC = () => {
     );
 
     const groupedResults = SEARCH_GROUPS.map((group) => ({
-      ...group,
-      results: [] as SearchResult[],
+      ...group, results: [] as SearchResult[],
     }));
 
     pageMatches.forEach((page) => {
@@ -266,11 +175,9 @@ export const GlobalSearch: React.FC = () => {
           [
             apiClient.get(
               "/projects?search=" + encodeURIComponent(q) + "&limit=5",
-            ),
-            apiClient.get(
+            ), apiClient.get(
               "/wbs/budgets?search=" + encodeURIComponent(q) + "&limit=5",
-            ),
-            apiClient.get(
+            ), apiClient.get(
               "/wbs/expenses?search=" + encodeURIComponent(q) + "&limit=5",
             ),
           ],
@@ -281,12 +188,7 @@ export const GlobalSearch: React.FC = () => {
             projectsRes.value.data?.projects || projectsRes.value || [];
           groupedResults[0].results.push(
             ...projects.map((p: any) => ({
-              type: "project" as const,
-              id: p.project_id,
-              title: p.project_name,
-              subtitle: p.description || "Project",
-              href: `/projects/${p.project_id}/overview`,
-              icon: <FolderOpen className="w-4 h-4" />,
+              type: "project" as const, id: p.project_id, title: p.project_name, subtitle: p.description || "Project", href: `/projects/${p.project_id}/overview`, icon: <FolderOpen className="w-4 h-4" />,
             })),
           );
         }
@@ -295,12 +197,7 @@ export const GlobalSearch: React.FC = () => {
           const budgets = budgetsRes.value.data || budgetsRes.value || [];
           groupedResults[1].results.push(
             ...budgets.map((b: any) => ({
-              type: "budget" as const,
-              id: b.wbs_id,
-              title: `${b.wbs_code} - ${b.description}`,
-              subtitle: `Budget: ${b.total_cost_budgeted} | Status: ${b.status}`,
-              href: `/financials/projects/budgets?id=${b.wbs_id}`,
-              icon: <DollarSign className="w-4 h-4" />,
+              type: "budget" as const, id: b.wbs_id, title: `${b.wbs_code} - ${b.description}`, subtitle: `Budget: ${b.total_cost_budgeted} | Status: ${b.status}`, href: `/financials/projects/budgets?id=${b.wbs_id}`, icon: <DollarSign className="w-4 h-4" />,
             })),
           );
         }
@@ -309,12 +206,7 @@ export const GlobalSearch: React.FC = () => {
           const expenses = expensesRes.value.data || expensesRes.value || [];
           groupedResults[2].results.push(
             ...expenses.map((e: any) => ({
-              type: "expense" as const,
-              id: e.id,
-              title: e.description,
-              subtitle: `Amount: ${e.amount} | ${e.variance_flag}`,
-              href: `/financials/projects/expenses?id=${e.id}`,
-              icon: <Zap className="w-4 h-4" />,
+              type: "expense" as const, id: e.id, title: e.description, subtitle: `Amount: ${e.amount} | ${e.variance_flag}`, href: `/financials/projects/expenses?id=${e.id}`, icon: <Zap className="w-4 h-4" />,
             })),
           );
         }
@@ -365,8 +257,7 @@ export const GlobalSearch: React.FC = () => {
       if (!isOpen) return;
 
       const totalResults = results.reduce(
-        (sum, g) => sum + g.results.length,
-        0,
+        (sum, g) => sum + g.results.length, 0,
       );
       if (totalResults === 0) return;
 

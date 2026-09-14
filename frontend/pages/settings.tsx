@@ -9,30 +9,7 @@ import { useCurrency } from '../components/context/CurrencyContext';
 import { useSecuredApi } from '../components/hooks/useSecuredApi';
 import { toast } from 'react-hot-toast';
 import {
-  Settings,
-  Users,
-  Plug,
-  Shield,
-  CreditCard,
-  Bell,
-  Globe,
-  Mail,
-  Link as LinkIcon,
-  ToggleLeft,
-  ToggleRight,
-  RefreshCw,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Server,
-  Zap,
-  Clock,
-  Activity,
-  Database,
-  Eye,
-  EyeOff,
-  ChevronRight,
-  Save,
+  Settings, Users, Plug, Shield, CreditCard, Bell, Globe, Mail, Link as LinkIcon, ToggleLeft, ToggleRight, RefreshCw, CheckCircle, XCircle, AlertTriangle, Server, Zap, Clock, Activity, Database, Eye, EyeOff, ChevronRight, Save,
 } from 'lucide-react';
 
 // â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -198,8 +175,7 @@ const SettingsPage: React.FC = () => {
   // User preference state (independent of tenant settings)
   const { updateProfile } = useAuth();
   const [personalInfo, setPersonalInfo] = useState({
-    first_name: user?.first_name || '',
-    last_name: user?.last_name || '',
+    first_name: user?.first_name || '', last_name: user?.last_name || '',
   });
   const [selectedCurrency, setSelectedCurrency] = useState(userCurrency.code);
 
@@ -225,8 +201,7 @@ const SettingsPage: React.FC = () => {
     setLoadingSettings(true);
     try {
       const [settingsRes, tenantRes] = await Promise.all([
-        api.get('/settings'),
-        api.get('/admin/tenants/my').catch(() => ({ data: null }))
+        api.get('/settings'), api.get('/admin/tenants/my').catch(() => ({ data: null }))
       ]);
       setSettings(settingsRes.data);
       if (tenantRes.data) {
@@ -290,9 +265,7 @@ const SettingsPage: React.FC = () => {
     setIsSaving(true);
     try {
       await api.patch('/admin/tenants/my/branding', {
-        brandLogoBase64,
-        brandPrimaryColorHex,
-        companyAddress
+        brandLogoBase64, brandPrimaryColorHex, companyAddress
       });
       toast.success('Branding updated successfully.');
     } catch (err: any) {
@@ -328,8 +301,7 @@ const SettingsPage: React.FC = () => {
     setIsSaving(true);
     try {
       await api.patch('/settings', {
-        useCustomSmtp: settings?.useCustomSmtp,
-        smtpConfig: { server: smtpServer, port: Number(smtpPort), user: smtpUser, pass: smtpPass, from: smtpFrom, useTls: smtpTls },
+        useCustomSmtp: settings?.useCustomSmtp, smtpConfig: { server: smtpServer, port: Number(smtpPort), user: smtpUser, pass: smtpPass, from: smtpFrom, useTls: smtpTls },
         ...(sendgridKey ? { sendgridApiKey: sendgridKey } : {}),
       });
       toast.success('Email integration saved.');
@@ -342,8 +314,7 @@ const SettingsPage: React.FC = () => {
     setIsSaving(true);
     try {
       await api.patch('/settings', {
-        isApiEnabled: settings?.isApiEnabled,
-        erpConfig: { provider: erpProvider, baseUrl: erpBaseUrl, apiKey: erpApiKey },
+        isApiEnabled: settings?.isApiEnabled, erpConfig: { provider: erpProvider, baseUrl: erpBaseUrl, apiKey: erpApiKey },
       });
       toast.success('ERP integration saved.');
       await fetchSettings();
@@ -636,24 +607,16 @@ const SettingsPage: React.FC = () => {
           <div className="space-y-3">
             {[
               {
-                step: '1',
-                title: 'Obtain your ERP API credentials',
-                desc: 'In your ERP admin panel, generate an API key or OAuth 2.0 client credential with read/write access to Purchase Orders, Invoices, and Chart of Accounts.',
+                step: '1', title: 'Obtain your ERP API credentials', desc: 'In your ERP admin panel, generate an API key or OAuth 2.0 client credential with read/write access to Purchase Orders, Invoices, and Chart of Accounts.',
               },
               {
-                step: '2',
-                title: 'Enter your ERP Base URL',
-                desc: 'This is typically your ERP\'s REST API root, e.g. https://my.sap.com/api/v2 or https://odoo.company.com/jsonrpc. Confirm with your ERP vendor.',
+                step: '2', title: 'Enter your ERP Base URL', desc: 'This is typically your ERP\'s REST API root, e.g. https://my.sap.com/api/v2 or https://odoo.company.com/jsonrpc. Confirm with your ERP vendor.',
               },
               {
-                step: '3',
-                title: 'Save and test the connection',
-                desc: 'Click "Save ERP Config", then enable the API toggle and click "Test Connection". SentinelFi will probe the endpoint and report the HTTP status code.',
+                step: '3', title: 'Save and test the connection', desc: 'Click "Save ERP Config", then enable the API toggle and click "Test Connection". SentinelFi will probe the endpoint and report the HTTP status code.',
               },
               {
-                step: '4',
-                title: 'Verify sync is live',
-                desc: 'Once connected, SentinelFi will sync P2P Purchase Orders and approvals with your ERP on a scheduled basis. Check the Audit Log for WEBHOOK_ERP_SYNC events.',
+                step: '4', title: 'Verify sync is live', desc: 'Once connected, SentinelFi will sync P2P Purchase Orders and approvals with your ERP on a scheduled basis. Check the Audit Log for WEBHOOK_ERP_SYNC events.',
               },
             ].map(({ step, title, desc }) => (
               <div key={step} className="flex gap-3">
@@ -997,12 +960,7 @@ const SettingsPage: React.FC = () => {
   );
 
   const tabContent: Record<TabId, () => React.ReactNode> = {
-    preferences: renderPreferences,
-    integrations: renderIntegrations,
-    notifications: renderNotifications,
-    security: renderSecurity,
-    subscription: renderSubscription,
-    team: renderTeam,
+    preferences: renderPreferences, integrations: renderIntegrations, notifications: renderNotifications, security: renderSecurity, subscription: renderSubscription, team: renderTeam,
   };
 
   return (

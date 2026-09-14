@@ -1,18 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Search,
-  Filter,
-  Truck,
-  FileText,
-  DollarSign,
-  CheckCircle,
-  AlertTriangle,
-  Clock,
-  MoreHorizontal,
-  RotateCcw,
+  ChevronLeft, ChevronRight, Plus, Search, Filter, Truck, FileText, DollarSign, CheckCircle, AlertTriangle, Clock, MoreHorizontal, RotateCcw,
 } from "lucide-react";
 import { useFinanceCore } from "../../hooks/useFinanceCore";
 import { useCurrency } from "../../components/context/CurrencyContext";
@@ -51,16 +39,10 @@ interface Stage {
 
 const STAGES: Stage[] = [
   {
-    id: "REQUISITION",
-    label: "Requisitions",
-    icon: FileText,
-    color: "#6366f1",
+    id: "REQUISITION", label: "Requisitions", icon: FileText, color: "#6366f1",
   },
   {
-    id: "PURCHASE_ORDER",
-    label: "Purchase Orders",
-    icon: Truck,
-    color: "#0ea5e9",
+    id: "PURCHASE_ORDER", label: "Purchase Orders", icon: Truck, color: "#0ea5e9",
   },
   { id: "INVOICE", label: "Invoices", icon: FileText, color: "#f59e0b" },
   { id: "PAYMENT", label: "Payments", icon: DollarSign, color: "#22c55e" },
@@ -71,27 +53,13 @@ const STATUS_CONFIG: Record<
   { label: string; color: string; bg: string }
 > = {
   PENDING_APPROVAL: {
-    label: "Pending",
-    color: "text-yellow-400",
-    bg: "bg-yellow-900/30",
-  },
-  APPROVED: {
-    label: "Approved",
-    color: "text-green-400",
-    bg: "bg-green-900/30",
-  },
-  REJECTED: { label: "Rejected", color: "text-red-400", bg: "bg-red-900/30" },
-  ISSUED: { label: "Issued", color: "text-blue-400", bg: "bg-blue-900/30" },
-  RECEIVED: {
-    label: "Received",
-    color: "text-purple-400",
-    bg: "bg-purple-900/30",
-  },
-  PAID: { label: "Paid", color: "text-green-400", bg: "bg-green-900/30" },
-  PARTIAL: {
-    label: "Partial",
-    color: "text-yellow-400",
-    bg: "bg-yellow-900/30",
+    label: "Pending", color: "text-yellow-400", bg: "bg-yellow-900/30",
+  }, APPROVED: {
+    label: "Approved", color: "text-green-400", bg: "bg-green-900/30",
+  }, REJECTED: { label: "Rejected", color: "text-red-400", bg: "bg-red-900/30" }, ISSUED: { label: "Issued", color: "text-blue-400", bg: "bg-blue-900/30" }, RECEIVED: {
+    label: "Received", color: "text-purple-400", bg: "bg-purple-900/30",
+  }, PAID: { label: "Paid", color: "text-green-400", bg: "bg-green-900/30" }, PARTIAL: {
+    label: "Partial", color: "text-yellow-400", bg: "bg-yellow-900/30",
   },
 };
 
@@ -105,18 +73,11 @@ interface KanbanColumnProps {
 }
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({
-  stage,
-  items,
-  onItemClick,
-  onStageAction,
-  isLoading,
-  convertToDisplay,
+  stage, items, onItemClick, onStageAction, isLoading, convertToDisplay,
 }) => {
   const StatusBadge = ({ status }: { status: string }) => {
     const config = STATUS_CONFIG[status] || {
-      label: status,
-      color: "text-gray-400",
-      bg: "bg-gray-800",
+      label: status, color: "text-gray-400", bg: "bg-gray-800",
     };
     return (
       <span
@@ -135,7 +96,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
             <stage.icon className="w-5 h-5" style={{ color: stage.color }} />
             <h3 className="font-bold text-white">{stage.label}</h3>
             <span className="px-2 py-0.5 bg-gray-700 rounded-full text-xs font-bold text-gray-400">
-              —
+               -
             </span>
           </div>
         </div>
@@ -251,72 +212,35 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
 
 export const P2PKanban: React.FC = () => {
   const {
-    fetchRequisitions,
-    fetchPurchaseOrders,
-    fetchInvoices,
-    createPurchaseOrder,
+    fetchRequisitions, fetchPurchaseOrders, fetchInvoices, createPurchaseOrder,
   } = useFinanceCore();
   const { convertToDisplay } = useCurrency();
 
   const [items, setItems] = useState<Record<string, P2PItem[]>>({
-    REQUISITION: [],
-    PURCHASE_ORDER: [],
-    INVOICE: [],
-    PAYMENT: [],
+    REQUISITION: [], PURCHASE_ORDER: [], INVOICE: [], PAYMENT: [],
   });
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<P2PItem | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [filters, setFilters] = useState({
-    search: "",
-    vendor: "",
-    costCenter: "",
+    search: "", vendor: "", costCenter: "",
   });
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [reqs, pos, invs] = await Promise.all([
-        fetchRequisitions(),
-        fetchPurchaseOrders(),
-        fetchInvoices(),
+        fetchRequisitions(), fetchPurchaseOrders(), fetchInvoices(),
       ]);
 
       setItems({
         REQUISITION: (reqs.data || []).map((r: any) => ({
-          ...r,
-          stage: "REQUISITION" as const,
-          description: r.description,
-          amount: r.estimated_amount,
-          currency: r.currency,
-          vendor_name: r.vendor_name,
-          cost_center_name: r.costCenter?.name,
-          status: r.status,
-          created_at: r.created_at,
-        })),
-        PURCHASE_ORDER: (pos.data || []).map((p: any) => ({
-          ...p,
-          stage: "PURCHASE_ORDER" as const,
-          description: p.requisition?.description,
-          amount: p.committed_amount,
-          currency: p.currency,
-          vendor_name: p.vendor_name,
-          cost_center_name: p.requisition?.costCenter?.name,
-          status: p.status,
-          created_at: p.created_at,
-        })),
-        INVOICE: (invs.data || []).map((i: any) => ({
-          ...i,
-          stage: "INVOICE" as const,
-          description: i.description,
-          amount: i.amount,
-          currency: i.currency,
-          vendor_name: i.vendor_name,
-          cost_center_name: i.costCenter?.name,
-          status: i.status,
-          created_at: i.invoice_date,
-        })),
-        PAYMENT: [],
+          ...r, stage: "REQUISITION" as const, description: r.description, amount: r.estimated_amount, currency: r.currency, vendor_name: r.vendor_name, cost_center_name: r.costCenter?.name, status: r.status, created_at: r.created_at,
+        })), PURCHASE_ORDER: (pos.data || []).map((p: any) => ({
+          ...p, stage: "PURCHASE_ORDER" as const, description: p.requisition?.description, amount: p.committed_amount, currency: p.currency, vendor_name: p.vendor_name, cost_center_name: p.requisition?.costCenter?.name, status: p.status, created_at: p.created_at,
+        })), INVOICE: (invs.data || []).map((i: any) => ({
+          ...i, stage: "INVOICE" as const, description: i.description, amount: i.amount, currency: i.currency, vendor_name: i.vendor_name, cost_center_name: i.costCenter?.name, status: i.status, created_at: i.invoice_date,
+        })), PAYMENT: [],
       });
     } catch (e) {
       console.error("Failed to load P2P data:", e);

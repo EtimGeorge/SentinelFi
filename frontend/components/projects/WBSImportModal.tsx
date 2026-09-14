@@ -13,10 +13,7 @@ interface WBSImportModalProps {
 }
 
 export const WBSImportModal: React.FC<WBSImportModalProps> = ({
-  isOpen,
-  onClose,
-  projectId,
-  onSuccess
+  isOpen, onClose, projectId, onSuccess
 }) => {
   const [csvContent, setCsvContent] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);

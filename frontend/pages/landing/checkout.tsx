@@ -22,22 +22,11 @@ interface Rate {
 
 const PLAN_CONFIG: Record<string, { name: string; monthly_usd: number; annual_usd: number; description: string }> = {
   free: {
-    name: 'Free',
-    monthly_usd: 0,
-    annual_usd: 0,
-    description: 'Forever free. 1 task/day, ad-supported. Watch ads to unlock extras.',
-  },
-  trial: {
-    name: 'Free 14-Day Trial',
-    monthly_usd: 0,
-    annual_usd: 0,
-    description: 'Full Professional access. No credit card required.',
-  },
-  professional: {
-    name: 'Professional',
-    monthly_usd: 500,
-    annual_usd: 500 * 12 * 0.95,
-    description: 'Billed securely via Paystack or PayPal. 5% off annual.',
+    name: 'Free', monthly_usd: 0, annual_usd: 0, description: 'Forever free. 1 task/day, ad-supported. Watch ads to unlock extras.',
+  }, trial: {
+    name: 'Free 14-Day Trial', monthly_usd: 0, annual_usd: 0, description: 'Full Professional access. No credit card required.',
+  }, professional: {
+    name: 'Professional', monthly_usd: 500, annual_usd: 500 * 12 * 0.95, description: 'Billed securely via Paystack or PayPal. 5% off annual.',
   },
 };
 
@@ -51,11 +40,7 @@ const CheckoutPage: NextPageWithLayout = () => {
   const [localRate, setLocalRate] = useState<Rate>({ code: 'USD', symbol: '$', rateToUSD: 1 });
   const [supportedCurrencies, setSupportedCurrencies] = useState<Rate[]>([]);
   const [formData, setFormData] = useState({
-    companyName: '',
-    email: '',
-    firstName: '',
-    lastName: '',
-    baseCurrency: 'USD',
+    companyName: '', email: '', firstName: '', lastName: '', baseCurrency: 'USD',
   });
 
   const planConfig = PLAN_CONFIG[plan as string] || null;
@@ -99,14 +84,14 @@ const CheckoutPage: NextPageWithLayout = () => {
     setLoading(true);
     try {
       if (isTrial) {
-        // Trial flow — no gateway redirect
+        // Trial flow, no gateway redirect
         await api.post('/billing/start-trial', formData);
         router.push('/auth/check-email?reason=trial');
         return;
       }
 
       if (isFree) {
-        // Free flow — no gateway redirect, perpetual workspace
+        // Free flow, no gateway redirect, perpetual workspace
         await api.post('/billing/start-free', formData);
         router.push('/auth/check-email?reason=free');
         return;
@@ -114,10 +99,7 @@ const CheckoutPage: NextPageWithLayout = () => {
 
       // Paid flow
       const response = await api.post('/billing/process-public-subscription', {
-        ...formData,
-        plan,
-        billingCycle,
-        gateway,
+        ...formData, plan, billingCycle, gateway,
       });
 
       if (response.data.authorization_url) {
@@ -151,7 +133,7 @@ const CheckoutPage: NextPageWithLayout = () => {
               {isFree ? (
                 <>
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-xs font-black uppercase tracking-widest mb-4">
-                    <Globe className="w-3 h-3" /> Free Forever — No Credit Card Required
+                    <Globe className="w-3 h-3" /> Free Forever - No Credit Card Required
                   </div>
                   <h1 className="text-4xl font-black font-sora text-white mb-2">Start Your Free Workspace</h1>
                   <p className="text-gray-400">1 task/day, ad-supported. Watch ads to unlock extras. Magic-link dispatched to your inbox within 60 seconds.</p>
@@ -159,7 +141,7 @@ const CheckoutPage: NextPageWithLayout = () => {
               ) : isTrial ? (
                 <>
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full text-green-400 text-xs font-black uppercase tracking-widest mb-4">
-                    <Zap className="w-3 h-3" /> Free Trial — No Credit Card Required
+                    <Zap className="w-3 h-3" /> Free Trial - No Credit Card Required
                   </div>
                   <h1 className="text-4xl font-black font-sora text-white mb-2">Start Your 14-Day Trial</h1>
                   <p className="text-gray-400">Full Professional access. Magic-link dispatched to your inbox within 60 seconds.</p>
@@ -231,7 +213,7 @@ const CheckoutPage: NextPageWithLayout = () => {
                 </div>
               </div>
 
-              {/* Gateway selection — paid only */}
+              {/* Gateway selection, paid only */}
               {!isNoPayment && (
                 <div className="p-8 glass-card space-y-4">
                   <h3 className="text-sm font-black uppercase tracking-widest text-gray-400">Payment Gateway</h3>

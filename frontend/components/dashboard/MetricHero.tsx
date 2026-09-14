@@ -20,17 +20,11 @@ interface MetricHeroProps {
 }
 
 /**
- * Primary dashboard metric — the largest, heaviest-weighted number on the page.
+ * Primary dashboard metric, the largest, heaviest-weighted number on the page.
  * Supports drill-down (whole card clickable), sparkline, and goal progress.
  */
 const MetricHero: React.FC<MetricHeroProps> = ({
-  label,
-  value,
-  period,
-  trend,
-  progress,
-  anomaly,
-  onInteractiveElementClick,
+  label, value, period, trend, progress, anomaly, onInteractiveElementClick,
 }) => {
   const progressPct = progress ? Math.min(100, (progress.current / Math.max(1, progress.target)) * 100) : null;
   const trendPositive = trend ? trend.value >= 0 : null;
@@ -108,7 +102,7 @@ const MetricHero: React.FC<MetricHeroProps> = ({
         type="button"
         onClick={onInteractiveElementClick}
         className="flex min-w-0 flex-col rounded-lg border border-gray-700/60 bg-gray-800/80 p-5 text-left shadow-elev-sm transition-shadow duration-200 hover:shadow-elev-md sm:flex-row sm:items-center sm:gap-6"
-        aria-label={`${label} — click to view breakdown`}
+        aria-label={`${label} - click to view breakdown`}
       >
         {inner}
       </button>

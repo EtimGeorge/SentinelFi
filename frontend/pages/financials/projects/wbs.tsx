@@ -3,10 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import PageContainer from '../../../components/Layout/PageContainer';
 import {
-  TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle,
-  ChevronRight, ChevronDown, Layers, MessageSquare,
-  CheckCircle, Clock, XCircle, Send, DollarSign, Tag, Database, Upload,
-  ArrowUp, ArrowDown, Download, BrainCircuit, Eye, FileText, Zap, FileSpreadsheet
+  TrendingUp, Plus, Trash2, Edit3, Save, X, AlertTriangle, ChevronRight, ChevronDown, Layers, MessageSquare, CheckCircle, Clock, XCircle, Send, DollarSign, Tag, Database, Upload, ArrowUp, ArrowDown, Download, BrainCircuit, Eye, FileText, Zap, FileSpreadsheet
 } from 'lucide-react';
 import PdfPreviewModal from '../../../components/modals/PdfPreviewModal';
 import Button from '../../../components/common/Button';
@@ -64,10 +61,7 @@ interface ContractValidation {
 }
 
 export const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
-  draft: { label: 'Draft', icon: Edit3, color: 'text-gray-400', bg: 'bg-gray-700/50' },
-  pending: { label: 'Pending', icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
-  approved: { label: 'Approved', icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30' },
-  rejected: { label: 'Rejected', icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30' },
+  draft: { label: 'Draft', icon: Edit3, color: 'text-gray-400', bg: 'bg-gray-700/50' }, pending: { label: 'Pending', icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-900/30' }, approved: { label: 'Approved', icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30' }, rejected: { label: 'Rejected', icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30' },
 };
 
 const WBSManagerPage: React.FC = () => {
@@ -150,17 +144,7 @@ const WBSManagerPage: React.FC = () => {
     node?: WBSItem;
   } | null>(null);
   const [formData, setFormData] = useState({
-    code: '',
-    description: '',
-    unit_cost: 0,
-    quantity: 1,
-    days: 1,
-    uom: '',
-    total: 0,
-    projectId: '',
-    categoryId: '',
-    parent_wbs_id: '' as string | null,
-    metadata: [] as { key: string; value: string }[],
+    code: '', description: '', unit_cost: 0, quantity: 1, days: 1, uom: '', total: 0, projectId: '', categoryId: '', parent_wbs_id: '' as string | null, metadata: [] as { key: string; value: string }[],
   });
 
   // Auto-save setup
@@ -333,17 +317,7 @@ const WBSManagerPage: React.FC = () => {
   const handleAction = (type: 'add' | 'edit', parentId: string | null = null, node?: WBSItem) => {
     setActionNode({ type, parentId, node });
     setFormData({
-      code: node?.wbs_code || (parentId ? (items.find(i => i.wbs_id === parentId)?.wbs_code || '') + '.' : ''),
-      description: node?.description || '',
-      unit_cost: node?.unit_cost_budgeted || 0,
-      quantity: node?.quantity_budgeted || 1,
-      days: node?.days_budgeted || 1,
-      uom: node?.uom || '',
-      total: node?.total_cost_budgeted || 0,
-      projectId: node?.project_id || (parentId ? (items.find(i => i.wbs_id === parentId))?.project_id : (selectedProjectId !== 'all' ? selectedProjectId : '')),
-      categoryId: node?.category_id || '',
-      parent_wbs_id: node?.parent_wbs_id || parentId || null,
-      metadata: node?.custom_metadata ? Object.entries(node.custom_metadata).map(([key, value]) => ({ key, value: String(value) })) : [],
+      code: node?.wbs_code || (parentId ? (items.find(i => i.wbs_id === parentId)?.wbs_code || '') + '.' : ''), description: node?.description || '', unit_cost: node?.unit_cost_budgeted || 0, quantity: node?.quantity_budgeted || 1, days: node?.days_budgeted || 1, uom: node?.uom || '', total: node?.total_cost_budgeted || 0, projectId: node?.project_id || (parentId ? (items.find(i => i.wbs_id === parentId))?.project_id : (selectedProjectId !== 'all' ? selectedProjectId : '')), categoryId: node?.category_id || '', parent_wbs_id: node?.parent_wbs_id || parentId || null, metadata: node?.custom_metadata ? Object.entries(node.custom_metadata).map(([key, value]) => ({ key, value: String(value) })) : [],
     });
   };
 
@@ -358,8 +332,7 @@ const WBSManagerPage: React.FC = () => {
 
   const addMetadataRow = () => {
     setFormData(prev => ({
-      ...prev,
-      metadata: [...prev.metadata, { key: '', value: '' }]
+      ...prev, metadata: [...prev.metadata, { key: '', value: '' }]
     }));
   };
 
@@ -391,17 +364,7 @@ const WBSManagerPage: React.FC = () => {
     try {
       if (actionNode?.type === 'add') {
         await api.post('/wbs/budget-draft', {
-          wbs_code: formData.code,
-          description: formData.description,
-          unit_cost_budgeted: formData.unit_cost,
-          quantity_budgeted: formData.quantity,
-          days_budgeted: formData.days,
-          uom: formData.uom,
-          total_cost_budgeted: formData.total,
-          parent_wbs_id: formData.parent_wbs_id,
-          project_id: formData.projectId || (selectedProjectId !== 'all' ? selectedProjectId : null),
-          category_id: formData.categoryId || null,
-          custom_metadata: formData.metadata.reduce((acc, curr) => {
+          wbs_code: formData.code, description: formData.description, unit_cost_budgeted: formData.unit_cost, quantity_budgeted: formData.quantity, days_budgeted: formData.days, uom: formData.uom, total_cost_budgeted: formData.total, parent_wbs_id: formData.parent_wbs_id, project_id: formData.projectId || (selectedProjectId !== 'all' ? selectedProjectId : null), category_id: formData.categoryId || null, custom_metadata: formData.metadata.reduce((acc, curr) => {
             if (curr.key.trim()) acc[curr.key.trim()] = curr.value;
             return acc;
           }, {} as Record<string, any>),
@@ -409,16 +372,7 @@ const WBSManagerPage: React.FC = () => {
         toast.success('WBS item created');
       } else if (actionNode?.type === 'edit' && actionNode.node) {
         await api.patch(`/wbs/budget-draft/${actionNode.node.wbs_id}`, {
-          wbs_code: formData.code,
-          description: formData.description,
-          unit_cost_budgeted: formData.unit_cost,
-          quantity_budgeted: formData.quantity,
-          days_budgeted: formData.days,
-          uom: formData.uom,
-          total_cost_budgeted: formData.total,
-          parent_wbs_id: formData.parent_wbs_id,
-          category_id: formData.categoryId || null,
-          custom_metadata: formData.metadata.reduce((acc, curr) => {
+          wbs_code: formData.code, description: formData.description, unit_cost_budgeted: formData.unit_cost, quantity_budgeted: formData.quantity, days_budgeted: formData.days, uom: formData.uom, total_cost_budgeted: formData.total, parent_wbs_id: formData.parent_wbs_id, category_id: formData.categoryId || null, custom_metadata: formData.metadata.reduce((acc, curr) => {
             if (curr.key.trim()) acc[curr.key.trim()] = curr.value;
             return acc;
           }, {} as Record<string, any>),
@@ -899,8 +853,7 @@ const WBSManagerPage: React.FC = () => {
                             if (!newCategoryName.trim()) return;
                             try {
                               const res = await api.post<WBSCategory>('/wbs/categories', {
-                                name: newCategoryName.trim(),
-                                parent_id: null
+                                name: newCategoryName.trim(), parent_id: null
                               });
                               toast.success(`Category "${newCategoryName}" created`);
                               setFormData(prev => ({ ...prev, categoryId: res.data.id }));
@@ -1034,7 +987,7 @@ const WBSManagerPage: React.FC = () => {
                   <div className="p-2 bg-brand-primary/10 border border-brand-primary/30 rounded text-center">
                     <p className="text-xs text-gray-400 uppercase font-bold">Auto-Computed Total ({userCurrency.code})</p>
                     <p className="text-xl font-black text-brand-primary">{convertToDisplay(formData.total, projectCurrencyMap[formData.projectId || selectedProjectId] || 'NGN')}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">unit cost Ã— quantity Ã— days</p>
+                    <p className="text-xs text-gray-500 mt-0.5">unit cost Ã- quantity Ã- days</p>
                   </div>
 
                   <div className="flex space-x-2 pt-2">

@@ -4,18 +4,7 @@ import Head from 'next/head';
 import Image from 'next/image';
 import Link from 'next/link';
 import { 
-  ShieldCheck, 
-  Loader2, 
-  CheckCircle2, 
-  User, 
-  KeyRound, 
-  ArrowRight,
-  UserPlus,
-  Mail,
-  Zap,
-  Lock,
-  Eye,
-  EyeOff
+  ShieldCheck, Loader2, CheckCircle2, User, KeyRound, ArrowRight, UserPlus, Mail, Zap, Lock, Eye, EyeOff
 } from 'lucide-react';
 import { apiClient } from '../../lib/api';
 import Button from '../../components/common/Button';
@@ -39,11 +28,7 @@ const SetupPage: NextPageWithLayout = () => {
 
   const [email, setEmail] = useState('');
   const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    username: '',
-    password: '',
-    confirmPassword: '',
+    first_name: '', last_name: '', username: '', password: '', confirmPassword: '',
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -77,11 +62,7 @@ const SetupPage: NextPageWithLayout = () => {
       // Assuming a backend endpoint exists to handle first-time tenant setup.
       // If not, we'll need to create it. For now, hitting /auth/setup-tenant.
       await apiClient.post('/auth/setup-tenant', {
-        email,
-        password: formData.password,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        username: formData.username || undefined,
+        email, password: formData.password, first_name: formData.first_name, last_name: formData.last_name, username: formData.username || undefined,
       });
       
       setSuccess(true);

@@ -2,11 +2,7 @@ import { useState, useEffect, type FC } from "react";
 import Link from "next/link";
 import { useAuth, Role } from "../context/AuthContext";
 import {
-  Bell,
-  Menu,
-  User as UserIcon,
-  LogOut,
-  Sparkles,
+  Bell, Menu, User as UserIcon, LogOut, Sparkles,
 } from "lucide-react";
 import Tooltip from "../common/Tooltip";
 import { apiClient } from "../../lib/api";

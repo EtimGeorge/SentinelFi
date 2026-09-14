@@ -21,12 +21,7 @@ interface WBSDraftForm {
 }
 
 const initialFormState: WBSDraftForm = {
-  parent_wbs_id: null,
-  wbs_code: '',
-  description: '',
-  unit_cost_budgeted: 0,
-  quantity_budgeted: 1,
-  duration_days_budgeted: null,
+  parent_wbs_id: null, wbs_code: '', description: '', unit_cost_budgeted: 0, quantity_budgeted: 1, duration_days_budgeted: null,
 };
 
 const BudgetDraftingPage: React.FC = () => {
@@ -71,8 +66,7 @@ const BudgetDraftingPage: React.FC = () => {
   // Helper for Quantity Stepper
   const handleQuantityChange = (delta: number) => {
     setFormData(prev => ({
-      ...prev,
-      quantity_budgeted: Math.max(0.01, (prev.quantity_budgeted || 0) + delta),
+      ...prev, quantity_budgeted: Math.max(0.01, (prev.quantity_budgeted || 0) + delta),
     }));
   };
 
@@ -83,11 +77,7 @@ const BudgetDraftingPage: React.FC = () => {
     // setSuccess(null); // Removed, using toast
     
     const dataToSend = {
-      ...formData,
-      unit_cost_budgeted: formData.unit_cost_budgeted || 0,
-      quantity_budgeted: formData.quantity_budgeted || 0,
-      parent_wbs_id: formData.parent_wbs_id === '' ? null : formData.parent_wbs_id, 
-      duration_days_budgeted: formData.duration_days_budgeted || undefined
+      ...formData, unit_cost_budgeted: formData.unit_cost_budgeted || 0, quantity_budgeted: formData.quantity_budgeted || 0, parent_wbs_id: formData.parent_wbs_id === '' ? null : formData.parent_wbs_id, duration_days_budgeted: formData.duration_days_budgeted || undefined
     };
 
     try {

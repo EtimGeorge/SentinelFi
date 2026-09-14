@@ -34,9 +34,7 @@ const Breadcrumbs: React.FC = () => {
     // Always add home/dashboard as root
     const rootPath = isSuperAdmin ? '/super' : '/dashboard/home';
     items.push({
-      label: 'Home',
-      path: rootPath,
-      isLast: pathSegments.length === 0
+      label: 'Home', path: rootPath, isLast: pathSegments.length === 0
     });
     seenPaths.add(rootPath);
 
@@ -86,10 +84,7 @@ const Breadcrumbs: React.FC = () => {
       }
 
       items.push({
-        label,
-        path: currentPath,
-        isLast,
-        item: navItem
+        label, path: currentPath, isLast, item: navItem
       });
     });
 

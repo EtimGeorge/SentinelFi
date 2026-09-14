@@ -1,21 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
-  BarChart2,
-  Download,
-  FileText,
-  Loader2,
-  TrendingUp,
-  AlertCircle,
-  Calendar,
-  Printer,
-  Search,
-  Filter,
-  ChevronRight,
-  RefreshCw,
-  Projector,
-  Lock,
-  Shield
+  BarChart2, Download, FileText, Loader2, TrendingUp, AlertCircle, Calendar, Printer, Search, Filter, ChevronRight, RefreshCw, Projector, Lock, Shield
 } from 'lucide-react';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -112,10 +98,7 @@ const CapexPerformancePage: React.FC = () => {
         : 1;
 
       setStats({
-        totalBudget,
-        totalActual,
-        projects: projectCount,
-        items: data
+        totalBudget, totalActual, projects: projectCount, items: data
       });
     } catch (error) {
       toast.error('Failed to load CAPEX intelligence');
@@ -130,20 +113,12 @@ const CapexPerformancePage: React.FC = () => {
       const loadId = toast.loading(`Preparing ${format.toUpperCase()} report...`);
 
       const exportContext = {
-        currencyRate: userCurrency.rate,
-        currencySymbol: userCurrency.symbol,
-        tenantName: user?.tenant_name || '',
-        projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '',
-        projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
       };
 
       const response = await api.post('/reporting/generate', {
-        type: 'CAPEX_SUMMARY',
-        format: format,
-        context: exportContext,
-        filters: {
-          projectId: selectedProjectId === 'all' ? undefined : selectedProjectId,
-          interval: interval
+        type: 'CAPEX_SUMMARY', format: format, context: exportContext, filters: {
+          projectId: selectedProjectId === 'all' ? undefined : selectedProjectId, interval: interval
         }
       }, { responseType: 'blob' });
 
@@ -171,19 +146,11 @@ const CapexPerformancePage: React.FC = () => {
       const loadId = toast.loading('Synchronizing CAPEX report with DCS...');
 
       const exportContext = {
-        currencyRate: userCurrency.rate,
-        currencySymbol: userCurrency.symbol,
-        tenantName: user?.tenant_name || '',
-        projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '',
-        projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
       };
 
       await api.post('/reporting/generate', {
-        type: 'CAPEX_SUMMARY',
-        format: 'pdf',
-        pushToDcs: true,
-        context: exportContext,
-        filters: { projectId: selectedProjectId === 'all' ? undefined : selectedProjectId, interval }
+        type: 'CAPEX_SUMMARY', format: 'pdf', pushToDcs: true, context: exportContext, filters: { projectId: selectedProjectId === 'all' ? undefined : selectedProjectId, interval }
       });
       toast.success('CAPEX Intelligence successfully pushed to DCS.', { id: loadId });
     } catch (error) {

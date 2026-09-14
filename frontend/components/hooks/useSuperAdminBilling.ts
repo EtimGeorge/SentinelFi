@@ -25,14 +25,12 @@ const useSuperAdminBilling = () => {
       setError(null);
       try {
         const [overviewRes, invoicesRes] = await Promise.all([
-          api.get('/super/billing/overview', { signal: controller.signal }),
-          api.get('/super/billing/invoices', { signal: controller.signal }),
+          api.get('/super/billing/overview', { signal: controller.signal }), api.get('/super/billing/invoices', { signal: controller.signal }),
         ]);
 
         if (!controller.signal.aborted) {
           setData({
-            overview: overviewRes.data,
-            invoices: invoicesRes.data,
+            overview: overviewRes.data, invoices: invoicesRes.data,
           });
         }
       } catch (err: any) {

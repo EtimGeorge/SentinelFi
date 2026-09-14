@@ -14,30 +14,17 @@ interface ToastWithUndoProps {
 }
 
 const variantStyles: Record<string, string> = {
-  success: 'bg-green-900/40 border-green-700/50 text-green-300',
-  warning: 'bg-yellow-900/40 border-yellow-700/50 text-yellow-300',
-  error: 'bg-red-900/40 border-red-700/50 text-red-300',
-  info: 'bg-blue-900/40 border-blue-700/50 text-blue-300',
+  success: 'bg-green-900/40 border-green-700/50 text-green-300', warning: 'bg-yellow-900/40 border-yellow-700/50 text-yellow-300', error: 'bg-red-900/40 border-red-700/50 text-red-300', info: 'bg-blue-900/40 border-blue-700/50 text-blue-300',
 };
 
 const variantIcons: Record<string, React.ReactNode> = {
-  success: <CheckCircle className="w-5 h-5" />,
-  warning: <AlertTriangle className="w-5 h-5" />,
-  error: <XCircle className="w-5 h-5" />,
-  info: <Info className="w-5 h-5" />,
+  success: <CheckCircle className="w-5 h-5" />, warning: <AlertTriangle className="w-5 h-5" />, error: <XCircle className="w-5 h-5" />, info: <Info className="w-5 h-5" />,
 };
 
 import { CheckCircle, AlertTriangle, XCircle, Info } from 'lucide-react';
 
 export const ToastWithUndo: React.FC<ToastWithUndoProps> = ({
-  message,
-  onUndo,
-  onDismiss,
-  duration = 5000,
-  variant = 'success',
-  undoLabel = 'Undo',
-  isOpen,
-  onClose,
+  message, onUndo, onDismiss, duration = 5000, variant = 'success', undoLabel = 'Undo', isOpen, onClose,
 }) => {
   const [progress, setProgress] = useState(100);
   const [isExiting, setIsExiting] = useState(false);

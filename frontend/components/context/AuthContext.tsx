@@ -26,6 +26,19 @@ export class AuthLogger {
   }
 }
 
+/**
+ * Thrown when the backend responds with `requiresMFA: true`. Carries the
+ * short-lived challenge token so the login page can start the MFA step.
+ */
+export class MfaChallengeError extends Error {
+  mfaToken: string;
+  constructor(mfaToken: string) {
+    super('Two-factor authentication required.');
+    this.name = 'MfaChallengeError';
+    this.mfaToken = mfaToken;
+  }
+}
+
 // ============================================================================
 // TYPES & INTERFACES
 // ============================================================================
@@ -51,11 +64,8 @@ export interface User {
 
 // NEW: Auth State Enum
 export enum AuthState {
-  INITIALIZING = 'INITIALIZING',
-  AUTHENTICATED = 'AUTHENTICATED',
-  SYNCING = 'SYNCING', // Verified session but re-checking in background
-  UNAUTHENTICATED = 'UNAUTHENTICATED',
-  ERROR = 'ERROR',
+  INITIALIZING = 'INITIALIZING', AUTHENTICATED = 'AUTHENTICATED', SYNCING = 'SYNCING', // Verified session but re-checking in background
+  UNAUTHENTICATED = 'UNAUTHENTICATED', ERROR = 'ERROR',
 }
 
 interface AuthContextType {
@@ -68,6 +78,7 @@ interface AuthContextType {
   isSyncing: boolean; // NEW: Background verification status
   error: Error | null;
   login: (uid: string, password: string, role: Role, tenantId?: string) => Promise<void>;
+  verifyMfa: (mfaToken: string, code: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: (silent?: boolean) => Promise<void>; 
   updateProfile: (data: Partial<User>) => Promise<void>; // NEW: Profile update
@@ -287,6 +298,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const payload: any = { email: uid, password };
       if (role !== Role.SuperAdmin && tenantId?.trim()) payload.tenantId = tenantId.trim();
       const raw = await apiClient.post<any>(endpoint, payload);
+
+      // Backend sent an MFA challenge instead of a session — surface it.
+      if (raw && raw.requiresMFA) {
+        if (!raw.mfaToken) throw new Error('Two-factor authentication required, but no challenge was returned.');
+        AuthLogger.info(`MFA challenge issued for ${uid}`);
+        throw new MfaChallengeError(raw.mfaToken);
+      }
+
       // Backend sends { success, user, message } - handle both wrapped and direct shapes
       const returnedUser = (raw as any)?.user ?? (raw as any)?.data?.user ?? raw;
       AuthLogger.success(`Authenticated as ${uid} - response keys: ${Object.keys(raw || {}).join(',')}`);
@@ -312,8 +331,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         AuthLogger.warn('BroadcastChannel not supported for sync');
       }
     } catch (err: any) {
+      if (err instanceof MfaChallengeError) {
+        throw err; // Preserve the challenge token; not a failed attempt
+      }
       rateLimiterRef.current.recordAttempt(uid);
       const message = err.response?.data?.message || err.message || 'Login failed';
+      throw new Error(message);
+    } finally {
+      loginInProgressRef.current = false;
+      setIsLoading(false);
+    }
+  }, []);
+
+  const verifyMfa = useCallback(async (mfaToken: string, code: string, rememberMe?: boolean) => {
+    if (loginInProgressRef.current) throw new Error('Login already in progress.');
+    loginInProgressRef.current = true;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const raw = await apiClient.post<any>('/auth/login/super/mfa-verify', { mfaToken, code, rememberMe });
+      const returnedUser = (raw as any)?.user ?? (raw as any)?.data?.user ?? raw;
+      if (!returnedUser?.id) {
+        throw new Error('MFA verified but no user returned');
+      }
+      setUser(returnedUser as User);
+      SessionStorage.save(returnedUser as User);
+      AuthLogger.success(`MFA verified for ${returnedUser.email}`);
+      try {
+        const channel = new BroadcastChannel('sentinelfi_auth_sync');
+        channel.postMessage({ type: 'LOGIN', user: returnedUser });
+        channel.close();
+      } catch (e) {
+        AuthLogger.warn('BroadcastChannel not supported for sync');
+      }
+    } catch (err: any) {
+      const message = err.response?.data?.message || err.message || 'MFA verification failed';
       throw new Error(message);
     } finally {
       loginInProgressRef.current = false;
@@ -668,31 +720,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return {
-      user,
-      authState: currentAuthState,
-      isAuthenticated: !!user,
-      isInitialized,
-      isInitialLoad: !isInitialized,
-      isLoading,
-      isSyncing,
-      error,
-      login,
-      logout,
-      refreshUser,
-      updateProfile, // Exposed here
-      getPrimaryRole,
-      getDefaultRoute,
-      stopImpersonation,
-      isImpersonating,
-      isOnline,
-      hasRole,
-      hasAnyRole,
-      hasPermission,
+      user, authState: currentAuthState, isAuthenticated: !!user, isInitialized, isInitialLoad: !isInitialized, isLoading, isSyncing, error, login, verifyMfa, logout, refreshUser, updateProfile, // Exposed here
+      getPrimaryRole, getDefaultRoute, stopImpersonation, isImpersonating, isOnline, hasRole, hasAnyRole, hasPermission,
     };
   }, [
-    user, isInitialized, isSyncing, isLoading, error, isOnline,
-    login, logout, refreshUser, getPrimaryRole, getDefaultRoute,
-    stopImpersonation, isImpersonating, hasRole, hasAnyRole, hasPermission
+    user, isInitialized, isSyncing, isLoading, error, isOnline, login, verifyMfa, logout, refreshUser, getPrimaryRole, getDefaultRoute, stopImpersonation, isImpersonating, hasRole, hasAnyRole, hasPermission
   ]);
 
 
@@ -766,52 +798,40 @@ export const PUBLIC_ROUTES = [
 // Role configuration constants - matches UI_UX_REDESIGN_PLAN.md Section 2.1
 export const ROLE_CONFIG: Record<Role, RoleConfig> = {
   [Role.SuperAdmin]: { 
-    defaultRoute: '/super', 
-    visible: ['/super', '/super/tenants', '/super/analytics', '/super/audit-log', '/super/billing', '/super/settings'] 
+    defaultRoute: '/super', visible: ['/super', '/super/tenants', '/super/analytics', '/super/audit-log', '/super/billing', '/super/settings'] 
   },
   [Role.CEO]: { 
-    defaultRoute: '/dashboard/home', 
-    visible: ['/dashboard/home', '/financials/intelligence', '/reporting', '/settings'] 
+    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/intelligence', '/reporting', '/settings'] 
   },
   [Role.CFO]: { 
-    defaultRoute: '/financials/intelligence', 
-    visible: ['/financials/intelligence', '/dashboard/home', '/reporting', '/financials/approvals'] 
+    defaultRoute: '/financials/intelligence', visible: ['/financials/intelligence', '/dashboard/home', '/reporting', '/financials/approvals'] 
   },
   [Role.AdminDirector]: { 
-    defaultRoute: '/dashboard/home', 
-    visible: ['/dashboard/home', '/financials/intelligence', '/reporting', '/settings', '/admin', '/admin/users', '/admin/clients', '/admin/audit-log', '/admin/support'] 
+    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/intelligence', '/reporting', '/settings', '/admin', '/admin/users', '/admin/clients', '/admin/audit-log', '/admin/support'] 
   },
   [Role.FinanceManager]: { 
-    defaultRoute: '/financials/projects/wbs?filter=pending&assigned=true', 
-    visible: ['/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses', '/financials/approvals', '/dashboard/home', '/financials/intelligence'] 
+    defaultRoute: '/financials/projects/wbs?filter=pending&assigned=true', visible: ['/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses', '/financials/approvals', '/dashboard/home', '/financials/intelligence'] 
   },
   [Role.OperationalDirector]: { 
-    defaultRoute: '/financials/operations/procurement', 
-    visible: ['/financials/operations/procurement', '/financials/operations/payroll', '/financials/operations/manage', '/financials/projects', '/dashboard/home'] 
+    defaultRoute: '/financials/operations/procurement', visible: ['/financials/operations/procurement', '/financials/operations/payroll', '/financials/operations/manage', '/financials/projects', '/dashboard/home'] 
   },
   [Role.TechnicalDirector]: { 
-    defaultRoute: '/dashboard/home', 
-    visible: ['/dashboard/home', '/financials/intelligence', '/financials/projects', '/financials/operations', '/admin', '/reporting'] 
+    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/intelligence', '/financials/projects', '/financials/operations', '/admin', '/reporting'] 
   },
   [Role.AdminManager]: { 
-    defaultRoute: '/dashboard/home', 
-    visible: ['/dashboard/home', '/admin', '/admin/users', '/admin/clients', '/admin/support', '/financials/projects'] 
+    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/admin', '/admin/users', '/admin/clients', '/admin/support', '/financials/projects'] 
   },
   [Role.ProjectManager]: { 
-    defaultRoute: '/dashboard/home', 
-    visible: ['/dashboard/home', '/financials/projects', '/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses'] 
+    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/projects', '/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses'] 
   },
   [Role.FinanceOfficer]: { 
-    defaultRoute: '/financials/projects/wbs?filter=pending&assigned=true', 
-    visible: ['/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses', '/financials/approvals'] 
+    defaultRoute: '/financials/projects/wbs?filter=pending&assigned=true', visible: ['/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses', '/financials/approvals'] 
   },
   [Role.AdminOfficer]: { 
-    defaultRoute: '/dashboard/home', 
-    visible: ['/dashboard/home', '/financials/projects', '/admin/clients'] 
+    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/projects', '/admin/clients'] 
   },
   [Role.AssignedProjectUser]: { 
-    defaultRoute: '/financials/expenses/new?mode=expense', 
-    visible: ['/financials/expenses/new', '/financials/projects/expenses', '/financials/projects/wbs'] 
+    defaultRoute: '/financials/expenses/new?mode=expense', visible: ['/financials/expenses/new', '/financials/projects/expenses', '/financials/projects/wbs'] 
   },
 };
 

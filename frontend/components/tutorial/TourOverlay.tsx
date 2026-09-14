@@ -40,7 +40,7 @@ export const TourOverlay: React.FC = () => {
     setIsCentered(false);
     const el = document.querySelector(step.targetSelector);
     if (!el) {
-      // Element not found — fallback to centered
+      // Element not found, fallback to centered
       setIsCentered(true);
       return;
     }
@@ -48,10 +48,7 @@ export const TourOverlay: React.FC = () => {
     const r = el.getBoundingClientRect();
     const PADDING = 8;
     const newRect = {
-      top: r.top - PADDING + window.scrollY,
-      left: r.left - PADDING,
-      width: r.width + PADDING * 2,
-      height: r.height + PADDING * 2,
+      top: r.top - PADDING + window.scrollY, left: r.left - PADDING, width: r.width + PADDING * 2, height: r.height + PADDING * 2,
     };
     setRect(newRect);
 
@@ -130,8 +127,7 @@ export const TourOverlay: React.FC = () => {
       <div
         aria-hidden
         style={{
-          position: 'fixed', inset: 0, zIndex: 9990,
-          pointerEvents: 'none',
+          position: 'fixed', inset: 0, zIndex: 9990, pointerEvents: 'none',
         }}
       >
         {!isCentered && (
@@ -174,8 +170,7 @@ export const TourOverlay: React.FC = () => {
 
         {isCentered && (
           <div style={{
-            position: 'absolute', inset: 0,
-            background: 'rgba(0,0,0,0.72)',
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)',
           }} />
         )}
       </div>
@@ -190,26 +185,12 @@ export const TourOverlay: React.FC = () => {
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          position: isCentered ? 'fixed' : 'fixed',
-          top: isCentered ? '50%' : `${popoverPos.top}px`,
-          left: isCentered ? '50%' : `${popoverPos.left}px`,
-          transform: isCentered ? 'translate(-50%, -50%)' : 'none',
-          zIndex: 9992,
-          width: 340,
-          background: 'linear-gradient(160deg, #12121f, #0f0f1a)',
-          border: '1px solid rgba(99,102,241,0.35)',
-          borderRadius: 16,
-          boxShadow: '0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.15)',
-          overflow: 'hidden',
-          fontFamily: "'Inter', 'Segoe UI', sans-serif",
+          position: isCentered ? 'fixed' : 'fixed', top: isCentered ? '50%' : `${popoverPos.top}px`, left: isCentered ? '50%' : `${popoverPos.left}px`, transform: isCentered ? 'translate(-50%, -50%)' : 'none', zIndex: 9992, width: 340, background: 'linear-gradient(160deg, #12121f, #0f0f1a)', border: '1px solid rgba(99,102,241,0.35)', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.15)', overflow: 'hidden', fontFamily: "'Inter', 'Segoe UI', sans-serif",
         }}
       >
         {/* Header */}
         <div style={{
-          padding: '12px 14px',
-          background: 'linear-gradient(90deg, rgba(99,102,241,0.15), rgba(14,165,233,0.08))',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 14px', background: 'linear-gradient(90deg, rgba(99,102,241,0.15), rgba(14,165,233,0.08))', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <span style={{ fontSize: 11, color: '#818cf8', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
             Step {tour.currentIndex + 1} of {tour.totalSteps}
@@ -219,8 +200,7 @@ export const TourOverlay: React.FC = () => {
               href={`/tutorial/${tour.pageKey}`}
               onClick={tour.endTour}
               style={{
-                fontSize: 10, color: 'rgba(255,255,255,0.4)', textDecoration: 'none',
-                display: 'flex', alignItems: 'center', gap: 3,
+                fontSize: 10, color: 'rgba(255,255,255,0.4)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3,
               }}
             >
               <Map size={10} /> Full Guide
@@ -228,8 +208,7 @@ export const TourOverlay: React.FC = () => {
             <button
               onClick={tour.endTour}
               style={{
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                color: 'rgba(255,255,255,0.4)', padding: '2px', lineHeight: 0,
+                background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: '2px', lineHeight: 0,
               }}
               title="Close tour (Esc)"
             >
@@ -249,23 +228,17 @@ export const TourOverlay: React.FC = () => {
 
           {/* Progress bar */}
           <div style={{
-            marginTop: 14, height: 3, borderRadius: 99,
-            background: 'rgba(255,255,255,0.08)',
+            marginTop: 14, height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.08)',
           }}>
             <div style={{
-              height: '100%', borderRadius: 99,
-              width: `${tour.progress}%`,
-              background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
-              transition: 'width 0.3s ease',
+              height: '100%', borderRadius: 99, width: `${tour.progress}%`, background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', transition: 'width 0.3s ease',
             }} />
           </div>
         </div>
 
         {/* Footer Controls */}
         <div style={{
-          padding: '10px 14px 14px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 8,
+          padding: '10px 14px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
         }}>
           {/* Try it link */}
           {step.actionHref ? (
@@ -273,10 +246,7 @@ export const TourOverlay: React.FC = () => {
               href={step.actionHref}
               onClick={tour.endTour}
               style={{
-                fontSize: 11, fontWeight: 600, color: '#a5b4fc',
-                textDecoration: 'none', padding: '5px 10px',
-                background: 'rgba(99,102,241,0.15)', borderRadius: 8,
-                border: '1px solid rgba(99,102,241,0.3)',
+                fontSize: 11, fontWeight: 600, color: '#a5b4fc', textDecoration: 'none', padding: '5px 10px', background: 'rgba(99,102,241,0.15)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.3)',
               }}
             >
               {step.actionLabel ?? 'Try it →'}
@@ -291,9 +261,7 @@ export const TourOverlay: React.FC = () => {
               <button
                 onClick={tour.prevStep}
                 style={{
-                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                  color: 'rgba(255,255,255,0.6)', borderRadius: 8, cursor: 'pointer',
-                  padding: '5px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 3,
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', borderRadius: 8, cursor: 'pointer', padding: '5px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 3,
                 }}
               >
                 <ChevronLeft size={12} /> Prev
@@ -302,10 +270,7 @@ export const TourOverlay: React.FC = () => {
             <button
               onClick={tour.nextStep}
               style={{
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                border: 'none', color: '#fff', borderRadius: 8, cursor: 'pointer',
-                padding: '5px 12px', fontSize: 12, fontWeight: 600,
-                display: 'flex', alignItems: 'center', gap: 3,
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', color: '#fff', borderRadius: 8, cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3,
               }}
             >
               {tour.currentIndex === tour.totalSteps - 1 ? 'Done ✓' : (<>Next <ChevronRight size={12} /></>)}

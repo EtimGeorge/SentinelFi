@@ -19,10 +19,7 @@ interface WBSApplyTemplateModalProps {
 }
 
 export const WBSApplyTemplateModal: React.FC<WBSApplyTemplateModalProps> = ({
-  isOpen,
-  onClose,
-  projectId,
-  onSuccess
+  isOpen, onClose, projectId, onSuccess
 }) => {
   const [templates, setTemplates] = useState<WbsTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);

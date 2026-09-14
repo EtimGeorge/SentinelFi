@@ -10,17 +10,7 @@ interface HistoryTabProps {
 }
 
 const CHANGE_TYPE_STYLES: Record<string, string> = {
-  CONTRACT_VALUE_CHANGE: 'bg-blue-900/20 text-blue-400',
-  LPO_CREATED: 'bg-teal-900/20 text-teal-400',
-  LPO_PENDING_APPROVAL: 'bg-yellow-900/20 text-yellow-400',
-  LPO_APPROVED: 'bg-green-900/20 text-green-400',
-  LPO_REJECTED: 'bg-red-900/20 text-red-400',
-  LPO_PAYMENT: 'bg-emerald-900/20 text-emerald-400',
-  LPO_CANCELLED: 'bg-orange-900/20 text-orange-400',
-  LPO_UPDATED: 'bg-gray-800 text-gray-400',
-  INFLOW_CREATED: 'bg-purple-900/20 text-purple-400',
-  INFLOW_UPDATED: 'bg-purple-900/20 text-purple-400',
-  INFLOW_DELETED: 'bg-rose-900/20 text-rose-400',
+  CONTRACT_VALUE_CHANGE: 'bg-blue-900/20 text-blue-400', LPO_CREATED: 'bg-teal-900/20 text-teal-400', LPO_PENDING_APPROVAL: 'bg-yellow-900/20 text-yellow-400', LPO_APPROVED: 'bg-green-900/20 text-green-400', LPO_REJECTED: 'bg-red-900/20 text-red-400', LPO_PAYMENT: 'bg-emerald-900/20 text-emerald-400', LPO_CANCELLED: 'bg-orange-900/20 text-orange-400', LPO_UPDATED: 'bg-gray-800 text-gray-400', INFLOW_CREATED: 'bg-purple-900/20 text-purple-400', INFLOW_UPDATED: 'bg-purple-900/20 text-purple-400', INFLOW_DELETED: 'bg-rose-900/20 text-rose-400',
 };
 
 const HistoryTab: React.FC<HistoryTabProps> = ({ project, audits }) => {

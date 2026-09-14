@@ -54,29 +54,18 @@ export const AiNarrativePanel: React.FC<AiNarrativePanelProps> = memo(({ scope, 
 
   return (
     <div style={{
-      background: 'rgba(255,255,255,0.03)',
-      border: '1px solid rgba(99,102,241,0.2)',
-      borderRadius: 16,
-      overflow: 'hidden',
-      marginBottom: 20,
+      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 16, overflow: 'hidden', marginBottom: 20,
     }}>
       {/* ── Panel Header ────────────────────────────────────────────────────── */}
       <div
         style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 18px',
-          background: 'linear-gradient(90deg, rgba(99,102,241,0.12) 0%, rgba(14,165,233,0.06) 100%)',
-          borderBottom: narrative && isExpanded ? '1px solid rgba(255,255,255,0.06)' : 'none',
-          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: 'linear-gradient(90deg, rgba(99,102,241,0.12) 0%, rgba(14,165,233,0.06) 100%)', borderBottom: narrative && isExpanded ? '1px solid rgba(255,255,255,0.06)' : 'none', cursor: 'pointer',
         }}
         onClick={() => narrative && setIsExpanded(e => !e)}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
-            width: 30, height: 30, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 10px rgba(99,102,241,0.4)',
+            width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 10px rgba(99,102,241,0.4)',
           }}>
             <Sparkles size={14} color="#fff" />
           </div>
@@ -99,11 +88,7 @@ export const AiNarrativePanel: React.FC<AiNarrativePanelProps> = memo(({ scope, 
             onClick={(e) => { e.stopPropagation(); loadAnalysis(); }}
             disabled={isLoading}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)',
-              borderRadius: 8, padding: '6px 12px',
-              color: '#a5b4fc', fontSize: 11, cursor: isLoading ? 'not-allowed' : 'pointer',
-              opacity: isLoading ? 0.7 : 1, transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 8, padding: '6px 12px', color: '#a5b4fc', fontSize: 11, cursor: isLoading ? 'not-allowed' : 'pointer', opacity: isLoading ? 0.7 : 1, transition: 'all 0.15s',
             }}
           >
             <RefreshCw size={11} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
@@ -122,9 +107,7 @@ export const AiNarrativePanel: React.FC<AiNarrativePanelProps> = memo(({ scope, 
       {/* ── Loading state ────────────────────────────────────────────────────── */}
       {isLoading && (
         <div style={{
-          padding: '24px 18px',
-          display: 'flex', alignItems: 'center', gap: 12,
-          color: 'rgba(255,255,255,0.5)', fontSize: 12,
+          padding: '24px 18px', display: 'flex', alignItems: 'center', gap: 12, color: 'rgba(255,255,255,0.5)', fontSize: 12,
         }}>
           <span className="sentinelai-dot" /><span className="sentinelai-dot" /><span className="sentinelai-dot" />
           <span>Analyzing financial data…</span>
@@ -149,8 +132,7 @@ export const AiNarrativePanel: React.FC<AiNarrativePanelProps> = memo(({ scope, 
               <div key={key}>
                 {/* Section header */}
                 <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  marginBottom: 7,
+                  display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7,
                 }}>
                   <span style={{ color }}>{icon}</span>
                   <span style={{ fontSize: 10, fontWeight: 700, color, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -159,9 +141,7 @@ export const AiNarrativePanel: React.FC<AiNarrativePanelProps> = memo(({ scope, 
                 </div>
                 {/* Section content */}
                 <div style={{
-                  fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.65,
-                  paddingLeft: 19, borderLeft: `2px solid ${color}22`,
-                  whiteSpace: 'pre-wrap',
+                  fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, paddingLeft: 19, borderLeft: `2px solid ${color}22`, whiteSpace: 'pre-wrap',
                 }}>
                   {content}
                 </div>
@@ -171,8 +151,7 @@ export const AiNarrativePanel: React.FC<AiNarrativePanelProps> = memo(({ scope, 
 
           {/* Timestamp footer */}
           <div style={{
-            paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)',
-            fontSize: 10, color: 'rgba(255,255,255,0.2)',
+            paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: 10, color: 'rgba(255,255,255,0.2)',
           }}>
             AI analysis • {scopeLabel} • {narrative.generatedAt ? new Date(narrative.generatedAt).toLocaleString() : 'Just now'}
           </div>

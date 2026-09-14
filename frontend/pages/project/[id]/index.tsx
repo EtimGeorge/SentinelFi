@@ -13,8 +13,7 @@ import { useCurrency } from '../../../components/context/CurrencyContext';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import toast from 'react-hot-toast';
 import {
-  DollarSign, Zap, ArrowLeft, ChevronRight, Plus, Minus, Save, X, AlertTriangle,
-  CheckCircle, Clock, Trash2, FileText, Upload, Download, Eye, Zap as ZapIcon
+  DollarSign, Zap, ArrowLeft, ChevronRight, Plus, Minus, Save, X, AlertTriangle, CheckCircle, Clock, Trash2, FileText, Upload, Download, Eye, Zap as ZapIcon
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -61,8 +60,7 @@ const ProjectExpensePage: React.FC = () => {
     if (!projectId) return;
     try {
       const [projRes, wbsRes] = await Promise.all([
-        api.get(`/projects/${projectId}`),
-        fetchWBSForExpense(projectId as string),
+        api.get(`/projects/${projectId}`), fetchWBSForExpense(projectId as string),
       ]);
       setProject(projRes.data);
       setWbsItems(wbsRes.data || []);
@@ -87,12 +85,7 @@ const ProjectExpensePage: React.FC = () => {
     setIsSubmitting(true);
     try {
       await createLiveExpense({
-        wbs_id: selectedWbsId,
-        amount: parseFloat(amount),
-        description,
-        quantity: parseFloat(quantity) || 1,
-        days: parseFloat(days) || 1,
-        expense_date: new Date().toISOString().split('T')[0],
+        wbs_id: selectedWbsId, amount: parseFloat(amount), description, quantity: parseFloat(quantity) || 1, days: parseFloat(days) || 1, expense_date: new Date().toISOString().split('T')[0],
       });
       toast.success('Expense logged successfully');
       setAmount('');
@@ -197,8 +190,7 @@ const ProjectExpensePage: React.FC = () => {
                       options={[
                         { value: '', label: 'Select WBS item...' },
                         ...wbsItems.map(item => ({
-                          value: item.wbs_id,
-                          label: `[${item.wbs_code}] ${item.description} (${item.category_name})`,
+                          value: item.wbs_id, label: `[${item.wbs_code}] ${item.description} (${item.category_name})`,
                         })),
                       ]}
                       className="w-full"
@@ -305,79 +297,50 @@ const ProjectExpensePage: React.FC = () => {
               <DataTable
                 columns={[
                   {
-                    key: 'wbs_code',
-                    label: 'WBS Code',
-                    get: (item: WBSItem) => (
+                    key: 'wbs_code', label: 'WBS Code', get: (item: WBSItem) => (
                       <span className="font-mono text-xs font-bold text-brand-primary">{item.wbs_code}</span>
-                    ),
-                    tier: 'P0' as const,
+                    ), tier: 'P0' as const,
                   },
                   {
-                    key: 'description',
-                    label: 'Description',
-                    get: (item: WBSItem) => (
+                    key: 'description', label: 'Description', get: (item: WBSItem) => (
                       <span className="text-sm text-white truncate max-w-xs">{item.description}</span>
-                    ),
-                    tier: 'P0' as const,
+                    ), tier: 'P0' as const,
                   },
                   {
-                    key: 'category',
-                    label: 'Category',
-                    get: (item: WBSItem) => (
+                    key: 'category', label: 'Category', get: (item: WBSItem) => (
                       <span className="text-xs text-gray-400">{item.category_name}</span>
-                    ),
-                    tier: 'P1' as const,
+                    ), tier: 'P1' as const,
                   },
                   {
-                    key: 'budgeted',
-                    label: 'Budgeted',
-                    get: (item: WBSItem) => (
+                    key: 'budgeted', label: 'Budgeted', get: (item: WBSItem) => (
                       <span className="font-mono text-white">{convertToDisplay(item.total_cost_budgeted, projectCurrency)}</span>
-                    ),
-                    tier: 'P1' as const,
-                    cellClassName: 'text-right',
+                    ), tier: 'P1' as const, cellClassName: 'text-right',
                   },
                   {
-                    key: 'spent',
-                    label: 'Spent',
-                    get: (item: WBSItem) => (
+                    key: 'spent', label: 'Spent', get: (item: WBSItem) => (
                       <span className="font-mono text-gray-300">{convertToDisplay(item.total_paid_rollup, projectCurrency)}</span>
-                    ),
-                    tier: 'P1' as const,
-                    cellClassName: 'text-right',
+                    ), tier: 'P1' as const, cellClassName: 'text-right',
                   },
                   {
-                    key: 'committed',
-                    label: 'Committed',
-                    get: (item: WBSItem) => (
+                    key: 'committed', label: 'Committed', get: (item: WBSItem) => (
                       <span className="font-mono text-gray-400">{convertToDisplay(item.total_committed_lpo, projectCurrency)}</span>
-                    ),
-                    tier: 'P2' as const,
-                    cellClassName: 'text-right',
+                    ), tier: 'P2' as const, cellClassName: 'text-right',
                   },
                   {
-                    key: 'remaining',
-                    label: 'Remaining',
-                    get: (item: WBSItem) => {
+                    key: 'remaining', label: 'Remaining', get: (item: WBSItem) => {
                       const remaining = item.total_cost_budgeted - item.total_paid_rollup - item.total_committed_lpo;
                       return <span className="font-bold text-white">{convertToDisplay(remaining, projectCurrency)}</span>;
-                    },
-                    tier: 'P2' as const,
-                    cellClassName: 'text-center',
+                    }, tier: 'P2' as const, cellClassName: 'text-center',
                   },
                   {
-                    key: 'status',
-                    label: 'Status',
-                    get: (item: WBSItem) => {
+                    key: 'status', label: 'Status', get: (item: WBSItem) => {
                       const variance = getVarianceInfo(item);
                       return (
                         <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${variance.bg} ${variance.color} border`}>
                           {variance.label}
                         </span>
                       );
-                    },
-                    tier: 'P2' as const,
-                    cellClassName: 'text-center',
+                    }, tier: 'P2' as const, cellClassName: 'text-center',
                   },
                 ]}
                 rows={wbsItems}

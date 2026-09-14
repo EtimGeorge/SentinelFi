@@ -54,7 +54,7 @@ const BudgetGrid: React.FC<BudgetGridProps> = ({ budgetId }) => {
     fetchGrid();
   }, [fetchGrid]);
 
-  // Debounced Save — stores amounts in native currency (no USD conversion)
+  // Debounced Save, stores amounts in native currency (no USD conversion)
   const saveCell = useCallback(
     debounce(async (categoryId: string, monthIndex: number, amount: number) => {
       setSavingMsg('Saving...');
@@ -63,10 +63,7 @@ const BudgetGrid: React.FC<BudgetGridProps> = ({ budgetId }) => {
         const dateStr = date.toISOString().split('T')[0];
 
         await api.post('/operational-budgets/allocation', {
-          operational_budget_category_id: categoryId,
-          period_date: dateStr,
-          amount,
-          period_type: 'MONTHLY'
+          operational_budget_category_id: categoryId, period_date: dateStr, amount, period_type: 'MONTHLY'
         });
         setSavingMsg('All changes saved');
         setTimeout(() => setSavingMsg(''), 2000);
@@ -78,7 +75,7 @@ const BudgetGrid: React.FC<BudgetGridProps> = ({ budgetId }) => {
   );
 
   const handleCellChange = (lineIndex: number, monthIndex: number, val: string) => {
-    // Store amounts in native currency — no USD conversion
+    // Store amounts in native currency, no USD conversion
     const amount = parseFloat(val) || 0;
     saveCell(lines[lineIndex].operational_budget_category_id, monthIndex, amount);
   };

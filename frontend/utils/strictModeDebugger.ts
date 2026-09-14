@@ -54,17 +54,12 @@ class StrictModeDebugger {
         {
           previousUnmount: existing.unmountTime 
             ? `${Date.now() - existing.unmountTime}ms ago`
-            : 'never',
-          totalMounts: existing.mountCount,
+            : 'never', totalMounts: existing.mountCount,
         }
       );
     } else {
       const lifecycle: ComponentLifecycle = {
-        componentName,
-        mountTime: Date.now(),
-        mountCount: 1,
-        effectRuns: 1,
-        cleanupRuns: 0,
+        componentName, mountTime: Date.now(), mountCount: 1, effectRuns: 1, cleanupRuns: 0,
       };
       
       this.lifecycles.set(componentName, lifecycle);
@@ -88,8 +83,7 @@ class StrictModeDebugger {
           `%c[${componentName}] ❌ UNMOUNT after ${mountDuration}ms`,
           'color: #f44336; font-weight: bold;',
           {
-            mountCount: lifecycle.mountCount,
-            cleanupRuns: lifecycle.cleanupRuns,
+            mountCount: lifecycle.mountCount, cleanupRuns: lifecycle.cleanupRuns,
           }
         );
       }
@@ -102,8 +96,7 @@ class StrictModeDebugger {
 
     console.log(
       `%c[${componentName}] 🔵 Effect "${effectName}" running`,
-      'color: #2196f3;',
-      deps ? { dependencies: deps } : {}
+      'color: #2196f3;', deps ? { dependencies: deps } : {}
     );
 
     return () => {
@@ -121,9 +114,7 @@ class StrictModeDebugger {
   } {
     if (!this.enabled) {
       return {
-        start: () => {},
-        complete: () => {},
-        fail: () => {},
+        start: () => {}, complete: () => {}, fail: () => {},
       };
     }
 
@@ -136,20 +127,17 @@ class StrictModeDebugger {
           `%c[${componentName}] ⏱️ Async "${operationName}" started`,
           'color: #9c27b0;'
         );
-      },
-      complete: () => {
+      }, complete: () => {
         const duration = Date.now() - startTime;
         console.log(
           `%c[${componentName}] ✅ Async "${operationName}" completed in ${duration}ms`,
           'color: #4caf50;'
         );
-      },
-      fail: (error: unknown) => {
+      }, fail: (error: unknown) => {
         const duration = Date.now() - startTime;
         console.error(
           `%c[${componentName}] ❌ Async "${operationName}" failed after ${duration}ms`,
-          'color: #f44336;',
-          error
+          'color: #f44336;', error
         );
       },
     };
@@ -170,11 +158,7 @@ class StrictModeDebugger {
         `%c${componentName}`,
         'font-weight: bold;',
         {
-          status,
-          mounts: lifecycle.mountCount,
-          effects: lifecycle.effectRuns,
-          cleanups: lifecycle.cleanupRuns,
-          lifetime: `${totalLifetime}ms`,
+          status, mounts: lifecycle.mountCount, effects: lifecycle.effectRuns, cleanups: lifecycle.cleanupRuns, lifetime: `${totalLifetime}ms`,
         }
       );
     });
@@ -249,10 +233,7 @@ export function useStrictModeDebug(componentName: string): void {
 }
 
 export function useEffectDebug(
-  componentName: string,
-  effectName: string,
-  effect: React.EffectCallback,
-  deps?: React.DependencyList
+  componentName: string, effectName: string, effect: React.EffectCallback, deps?: React.DependencyList
 ): void {
   if (process.env.NODE_ENV !== 'development') {
     // In production, just run the normal effect
@@ -278,9 +259,7 @@ export function useEffectDebug(
 
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   (window as any).debugStrictMode = {
-    summary: () => strictModeDebugger.printSummary(),
-    issues: () => strictModeDebugger.detectStrictModeIssues(),
-    reset: () => strictModeDebugger.reset(),
+    summary: () => strictModeDebugger.printSummary(), issues: () => strictModeDebugger.detectStrictModeIssues(), reset: () => strictModeDebugger.reset(),
   };
 
   console.log(

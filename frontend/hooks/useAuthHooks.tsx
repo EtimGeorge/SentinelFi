@@ -77,18 +77,7 @@ export const useRoleGuard = (options: UseRoleGuardOptions = {}) => {
 
     checkAuthorization();
   }, [
-    isAuthenticated, 
-    user, 
-    hasAnyRole, 
-    hasPermission, 
-    router, 
-    requiredRoles, 
-    requiredPermissions,
-    fallbackPath,
-    onUnauthorized,
-    onCheckComplete,
-    isInitialized,
-    isLoading,
+    isAuthenticated, user, hasAnyRole, hasPermission, router, requiredRoles, requiredPermissions, fallbackPath, onUnauthorized, onCheckComplete, isInitialized, isLoading,
   ]);
 
   return { isAuthorized, isChecking };
@@ -110,8 +99,7 @@ export const useSessionTimeout = (options: UseSessionTimeoutOptions = {}) => {
   const {
     timeout = 30 * 60 * 1000, // 30 minutes default
     warningTime = 5 * 60 * 1000, // 5 minutes warning
-    onTimeout,
-    onWarning,
+    onTimeout, onWarning,
   } = options;
 
   const [timeRemaining, setTimeRemaining] = useState(timeout);
@@ -185,10 +173,7 @@ export const useSessionTimeout = (options: UseSessionTimeoutOptions = {}) => {
 
 
   return {
-    timeRemaining,
-    isWarningShown,
-    resetTimer,
-    formatTime: useCallback(() => {
+    timeRemaining, isWarningShown, resetTimer, formatTime: useCallback(() => {
       const totalSeconds = Math.floor(timeRemaining / 1000);
       const minutes = Math.floor(totalSeconds / 60);
       const seconds = totalSeconds % 60;
@@ -208,9 +193,7 @@ interface RequirePermissionProps {
 }
 
 export const RequirePermission: React.FC<RequirePermissionProps> = ({
-  permission,
-  fallback = null,
-  children,
+  permission, fallback = null, children,
 }) => {
   const { hasPermission, isInitialized, isLoading } = useAuth();
   const [canAccess, setCanAccess] = useState(false);
@@ -230,9 +213,7 @@ interface RequireRoleProps {
 }
 
 export const RequireRole: React.FC<RequireRoleProps> = ({
-  role,
-  fallback = null,
-  children,
+  role, fallback = null, children,
 }) => {
   const { hasAnyRole, hasRole, isInitialized, isLoading } = useAuth();
   const [canAccess, setCanAccess] = useState(false);
@@ -288,8 +269,7 @@ interface UseActivityLoggerOptions {
 export const useActivityLogger = (options: UseActivityLoggerOptions = {}) => {
   const { user } = useAuth();
   const {
-    events = ['click', 'scroll', 'keypress'],
-    throttle = 5000, // default 5 seconds
+    events = ['click', 'scroll', 'keypress'], throttle = 5000, // default 5 seconds
     onActivity,
   } = options;
 

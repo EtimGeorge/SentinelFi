@@ -7,15 +7,7 @@ import Input from '../../../../components/common/Input';
 import { useFinanceCore } from '../../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../../components/context/CurrencyContext';
 import {
-  Users,
-  Plus,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  TrendingUp,
-  FileText,
-  ArrowRight
+  Users, Plus, Calendar, CheckCircle2, Clock, AlertCircle, TrendingUp, FileText, ArrowRight
 } from 'lucide-react';
 import DataTable from '../../../../components/common/DataTable';
 import { useRouter } from 'next/router';
@@ -25,11 +17,7 @@ const PayrollDeskPage: React.FC = () => {
   const router = useRouter();
   const { convertToDisplay } = useCurrency();
   const {
-    loading,
-    fetchPayrollRuns,
-    fetchPayrollKPIs,
-    createPayrollRun,
-    fetchFiscalYears
+    loading, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchFiscalYears
   } = useFinanceCore();
 
   const [runs, setRuns] = useState<any[]>([]);
@@ -48,9 +36,7 @@ const PayrollDeskPage: React.FC = () => {
 
   const loadData = async () => {
     const [runsData, fyData, kpiData] = await Promise.all([
-      fetchPayrollRuns(),
-      fetchFiscalYears(),
-      fetchPayrollKPIs()
+      fetchPayrollRuns(), fetchFiscalYears(), fetchPayrollKPIs()
     ]);
     setRuns(runsData || []);
     setFiscalYears(fyData || []);
@@ -65,9 +51,7 @@ const PayrollDeskPage: React.FC = () => {
     }
 
     const res = await createPayrollRun({
-      runIdentifier,
-      fiscalPeriodId,
-      runDate
+      runIdentifier, fiscalPeriodId, runDate
     });
 
     if (res) {
@@ -78,10 +62,7 @@ const PayrollDeskPage: React.FC = () => {
   };
 
   const statusConfig: any = {
-    DRAFT: { label: 'Draft', color: 'text-gray-400', bg: 'bg-gray-800', icon: Clock },
-    REVIEW: { label: 'In Review', color: 'text-yellow-400', bg: 'bg-yellow-900/30', icon: AlertCircle },
-    APPROVED: { label: 'Approved', color: 'text-brand-primary', bg: 'bg-brand-primary/10', icon: CheckCircle2 },
-    POSTED: { label: 'Posted', color: 'text-green-400', bg: 'bg-green-900/30', icon: CheckCircle2 },
+    DRAFT: { label: 'Draft', color: 'text-gray-400', bg: 'bg-gray-800', icon: Clock }, REVIEW: { label: 'In Review', color: 'text-yellow-400', bg: 'bg-yellow-900/30', icon: AlertCircle }, APPROVED: { label: 'Approved', color: 'text-brand-primary', bg: 'bg-brand-primary/10', icon: CheckCircle2 }, POSTED: { label: 'Posted', color: 'text-green-400', bg: 'bg-green-900/30', icon: CheckCircle2 },
   };
 
   return (

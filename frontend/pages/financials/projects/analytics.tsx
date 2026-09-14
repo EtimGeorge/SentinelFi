@@ -8,34 +8,10 @@ import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useAiAssistant } from '../../../hooks/useAiAssistant';
 import { useCurrency } from '../../../components/context/CurrencyContext';
 import {
-  BarChart3,
-  RefreshCw,
-  Download,
-  FileText,
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-  Target,
-  ShoppingBag,
-  Activity,
-  Briefcase,
-  Sparkles,
-  ChevronDown,
-  CircleDollarSign,
+  BarChart3, RefreshCw, Download, FileText, AlertTriangle, TrendingUp, TrendingDown, Wallet, Target, ShoppingBag, Activity, Briefcase, Sparkles, ChevronDown, CircleDollarSign,
 } from 'lucide-react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  Legend,
-  ResponsiveContainer,
-  ComposedChart,
-  Line,
-  Area,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, ComposedChart, Line, Area,
 } from 'recharts';
 import toast from 'react-hot-toast';
 
@@ -84,9 +60,7 @@ interface CapexData {
 }
 
 const RAG_HEX: Record<string, string> = {
-  OK: '#22c55e',
-  WARNING: '#f59e0b',
-  CRITICAL: '#ef4444',
+  OK: '#22c55e', WARNING: '#f59e0b', CRITICAL: '#ef4444',
 };
 
 const CATEGORY_PALETTE = ['#0d9488', '#6366f1', '#f59e0b', '#ef4444', '#8b5cf6', '#22c55e', '#38bdf8', '#f472b6'];
@@ -130,7 +104,7 @@ const ChartTooltip: React.FC<any> = ({ active, payload, label, formatter }) => {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 /**
- * Project Analytics — per-project financial drill-down.
+ * Project Analytics, per-project financial drill-down.
  *
  * Differs from /financials/intelligence (portfolio overview) by design:
  * - project-first: selector defaults to a single project, all sections rescope
@@ -139,7 +113,7 @@ const ChartTooltip: React.FC<any> = ({ active, payload, label, formatter }) => {
  *   explicitly labelled as extrapolation, not prediction
  * - CSV export + per-project PDF report download + AI variance briefing
  *
- * Data: GET /wbs/capex-intelligence (no new backend endpoints — reuse).
+ * Data: GET /wbs/capex-intelligence (no new backend endpoints, reuse).
  */
 const ProjectAnalyticsPage: React.FC = () => {
   const router = useRouter();
@@ -157,7 +131,7 @@ const ProjectAnalyticsPage: React.FC = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-  // All figures arrive normalized to data.currency (tenant base) — convert
+  // All figures arrive normalized to data.currency (tenant base) - convert
   // from that DECLARED source, never from the display currency.
   const sourceCurrency = data?.currency || 'USD';
   const fmt = useCallback(
@@ -176,7 +150,7 @@ const ProjectAnalyticsPage: React.FC = () => {
   /**
    * Normalizes the capex-intelligence payload. The codebase is inconsistent
    * about envelopes (some controllers wrap in { data }), and error filters
-   * can return truthy non-data shapes — so validate before accepting.
+   * can return truthy non-data shapes, so validate before accepting.
    */
   const normalize = (res: any): CapexData | null => {
     if (!res || typeof res !== 'object') return null;
@@ -184,22 +158,10 @@ const ProjectAnalyticsPage: React.FC = () => {
     if (!payload || typeof payload !== 'object' || !payload.kpis) return null;
     return {
       kpis: {
-        totalPortfolioValue: num(payload.kpis.totalPortfolioValue),
-        activeProjects: num(payload.kpis.activeProjects),
-        avgUtilization: num(payload.kpis.avgUtilization),
-        totalBudgeted: num(payload.kpis.totalBudgeted),
-        totalActual: num(payload.kpis.totalActual),
-        totalLpoCommitments: num(payload.kpis.totalLpoCommitments),
-        remainingBudget: num(payload.kpis.remainingBudget),
-      },
-      monthlyBurnByCategory: Array.isArray(payload.monthlyBurnByCategory)
+        totalPortfolioValue: num(payload.kpis.totalPortfolioValue), activeProjects: num(payload.kpis.activeProjects), avgUtilization: num(payload.kpis.avgUtilization), totalBudgeted: num(payload.kpis.totalBudgeted), totalActual: num(payload.kpis.totalActual), totalLpoCommitments: num(payload.kpis.totalLpoCommitments), remainingBudget: num(payload.kpis.remainingBudget),
+      }, monthlyBurnByCategory: Array.isArray(payload.monthlyBurnByCategory)
         ? payload.monthlyBurnByCategory
-        : [],
-      portfolioHeatMap: Array.isArray(payload.portfolioHeatMap) ? payload.portfolioHeatMap : [],
-      topCostOverruns: Array.isArray(payload.topCostOverruns) ? payload.topCostOverruns : [],
-      projectList: Array.isArray(payload.projectList) ? payload.projectList : [],
-      currency: typeof payload.currency === 'string' ? payload.currency.toUpperCase() : 'USD',
-      currencyWarnings: Array.isArray(payload.currencyWarnings) ? payload.currencyWarnings : [],
+        : [], portfolioHeatMap: Array.isArray(payload.portfolioHeatMap) ? payload.portfolioHeatMap : [], topCostOverruns: Array.isArray(payload.topCostOverruns) ? payload.topCostOverruns : [], projectList: Array.isArray(payload.projectList) ? payload.projectList : [], currency: typeof payload.currency === 'string' ? payload.currency.toUpperCase() : 'USD', currencyWarnings: Array.isArray(payload.currencyWarnings) ? payload.currencyWarnings : [],
     };
   };
 
@@ -218,7 +180,7 @@ const ProjectAnalyticsPage: React.FC = () => {
           setLoadError(null);
           setFetchedAt(new Date());
         } else if (res) {
-          // Truthy but wrong shape (envelope drift / filter output) — never crash
+          // Truthy but wrong shape (envelope drift / filter output) - never crash
           setLoadError('The analytics service returned an unexpected response shape. Please refresh or contact support.');
         }
         // res === null: hook already toasted the failure; empty state covers it
@@ -249,12 +211,7 @@ const ProjectAnalyticsPage: React.FC = () => {
     const committed = num(data.kpis.totalLpoCommitments);
     const exposed = actual + committed;
     return {
-      budgeted,
-      actual,
-      committed,
-      exposed,
-      exposurePct: budgeted > 0 ? (exposed / budgeted) * 100 : 0,
-      headroom: budgeted - exposed,
+      budgeted, actual, committed, exposed, exposurePct: budgeted > 0 ? (exposed / budgeted) * 100 : 0, headroom: budgeted - exposed,
     };
   }, [data]);
 
@@ -303,9 +260,7 @@ const ProjectAnalyticsPage: React.FC = () => {
       const monthTotal = burnChartData.categories.reduce((s, c) => s + num(row[c]), 0);
       cumulative += monthTotal;
       return {
-        month: row.month as string,
-        actual: Math.round(cumulative),
-        planned: Math.round((budgeted / Math.max(n, 1)) * (i + 1)),
+        month: row.month as string, actual: Math.round(cumulative), planned: Math.round((budgeted / Math.max(n, 1)) * (i + 1)),
       };
     });
   }, [data, exposure, burnChartData]);
@@ -313,11 +268,7 @@ const ProjectAnalyticsPage: React.FC = () => {
   const projectBars = useMemo(() => {
     if (!data) return [];
     return (data.portfolioHeatMap || []).map((p) => ({
-      name: p.name.length > 18 ? `${p.name.slice(0, 17)}…` : p.name,
-      fullName: p.name,
-      Budgeted: num(p.total_budgeted),
-      Actual: num(p.total_actual),
-      Committed: num(p.total_committed),
+      name: p.name.length > 18 ? `${p.name.slice(0, 17)}…` : p.name, fullName: p.name, Budgeted: num(p.total_budgeted), Actual: num(p.total_actual), Committed: num(p.total_committed),
     }));
   }, [data]);
 
@@ -333,14 +284,8 @@ const ProjectAnalyticsPage: React.FC = () => {
       const exp = a + c;
       const safe = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
       return [
-        safe(p.name),
-        b.toFixed(2),
-        a.toFixed(2),
-        c.toFixed(2),
-        exp.toFixed(2),
-        b > 0 ? ((exp / b) * 100).toFixed(1) : '0.0',
-        (a - b).toFixed(2),
-        p.rag_status,
+        safe(p.name), b.toFixed(2), a.toFixed(2), c.toFixed(2), exp.toFixed(2), b > 0 ? ((exp / b) * 100).toFixed(1) : '0.0',
+        (a - b).toFixed(2), p.rag_status,
       ].join(',');
     });
     const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
@@ -379,13 +324,10 @@ const ProjectAnalyticsPage: React.FC = () => {
     setAiLoading(true);
     try {
       const [analysis, narrative] = await Promise.all([
-        analyzeDashboard('capex', selectedProject || undefined),
-        generateNarrative({
-          reportType: 'variance',
-          projectName: selectedProject
+        analyzeDashboard('capex', selectedProject || undefined), generateNarrative({
+          reportType: 'variance', projectName: selectedProject
             ? (data?.projectList.find((p) => p.id === selectedProject)?.name ?? selectedProject)
-            : 'Full portfolio',
-          currency: 'USD',
+            : 'Full portfolio', currency: 'USD',
         }),
       ]);
       const text =
@@ -403,39 +345,19 @@ const ProjectAnalyticsPage: React.FC = () => {
   const varianceColumns: DataColumn<HeatRow>[] = useMemo(
     () => [
       {
-        key: 'project',
-        label: 'Project',
-        tier: 'P0',
-        get: (r) => <span className="font-semibold text-white">{r.name}</span>,
-        title: (r) => r.name,
+        key: 'project', label: 'Project', tier: 'P0', get: (r) => <span className="font-semibold text-white">{r.name}</span>, title: (r) => r.name,
       },
       {
-        key: 'budgeted',
-        label: 'Budgeted',
-        tier: 'P0',
-        cellClassName: 'text-right font-mono',
-        get: (r) => fmt(num(r.total_budgeted)),
+        key: 'budgeted', label: 'Budgeted', tier: 'P0', cellClassName: 'text-right font-mono', get: (r) => fmt(num(r.total_budgeted)),
       },
       {
-        key: 'actual',
-        label: 'Actual',
-        tier: 'P0',
-        cellClassName: 'text-right font-mono',
-        get: (r) => fmt(num(r.total_actual)),
+        key: 'actual', label: 'Actual', tier: 'P0', cellClassName: 'text-right font-mono', get: (r) => fmt(num(r.total_actual)),
       },
       {
-        key: 'committed',
-        label: 'LPO Committed',
-        tier: 'P1',
-        cellClassName: 'text-right font-mono',
-        get: (r) => fmt(num(r.total_committed)),
+        key: 'committed', label: 'LPO Committed', tier: 'P1', cellClassName: 'text-right font-mono', get: (r) => fmt(num(r.total_committed)),
       },
       {
-        key: 'exposure',
-        label: 'Exposure %',
-        tier: 'P1',
-        cellClassName: 'text-right font-mono',
-        get: (r) => {
+        key: 'exposure', label: 'Exposure %', tier: 'P1', cellClassName: 'text-right font-mono', get: (r) => {
           const b = num(r.total_budgeted);
           const pct = b > 0 ? ((num(r.total_actual) + num(r.total_committed)) / b) * 100 : 0;
           return (
@@ -446,11 +368,7 @@ const ProjectAnalyticsPage: React.FC = () => {
         },
       },
       {
-        key: 'variance',
-        label: 'Variance',
-        tier: 'P1',
-        cellClassName: 'text-right font-mono',
-        get: (r) => {
+        key: 'variance', label: 'Variance', tier: 'P1', cellClassName: 'text-right font-mono', get: (r) => {
           const v = num(r.total_actual) - num(r.total_budgeted);
           return (
             <span className={v > 0 ? 'text-red-400' : 'text-green-400'}>
@@ -460,10 +378,7 @@ const ProjectAnalyticsPage: React.FC = () => {
         },
       },
       {
-        key: 'rag',
-        label: 'RAG',
-        tier: 'P0',
-        get: (r) => (
+        key: 'rag', label: 'RAG', tier: 'P0', get: (r) => (
           <span
             className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black"
             style={{ color: RAG_HEX[r.rag_status] || '#fff', background: `${RAG_HEX[r.rag_status] || '#6366f1'}1f` }}
@@ -479,15 +394,10 @@ const ProjectAnalyticsPage: React.FC = () => {
   const varianceActions: DataAction<HeatRow>[] = useMemo(
     () => [
       {
-        key: 'open',
-        label: 'Open project hub',
-        primary: true,
-        onClick: (r) => router.push('/financials/projects'),
+        key: 'open', label: 'Open project hub', primary: true, onClick: (r) => router.push('/financials/projects'),
       },
       {
-        key: 'wbs',
-        label: 'Open in WBS Designer',
-        onClick: (r) => router.push(`/financials/projects/wbs?projectId=${r.id}`),
+        key: 'wbs', label: 'Open in WBS Designer', onClick: (r) => router.push(`/financials/projects/wbs?projectId=${r.id}`),
       },
     ],
     [router],
@@ -543,7 +453,7 @@ const ProjectAnalyticsPage: React.FC = () => {
             <BarChart3 className="h-10 w-10 text-gray-600" />
             <p className="text-sm text-gray-400">No projects found for this tenant yet.</p>
             <p className="max-w-sm text-xs text-gray-600">
-              Create a project in the Project Hub first — analytics appear here once budgets and expenses exist.
+              Create a project in the Project Hub first, analytics appear here once budgets and expenses exist.
             </p>
           </div>
         </PageContainer>
@@ -561,7 +471,7 @@ const ProjectAnalyticsPage: React.FC = () => {
 
       <PageContainer
         title="Project Analytics"
-        subtitle={`Budget vs actuals, commitment exposure and runway — ${scopeLabel}.`}
+        subtitle={`Budget vs actuals, commitment exposure and runway - ${scopeLabel}.`}
         headerContent={
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-800/50 p-1">
@@ -607,7 +517,7 @@ const ProjectAnalyticsPage: React.FC = () => {
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 text-xs text-yellow-300">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
-              No exchange rate for <span className="font-mono font-bold">{data.currencyWarnings.join(', ')}</span> —
+              No exchange rate for <span className="font-mono font-bold">{data.currencyWarnings.join(', ')}</span> - 
               affected figures are summed unconverted. Treat cross-currency totals as approximate until rates refresh.
             </span>
           </div>
@@ -621,7 +531,7 @@ const ProjectAnalyticsPage: React.FC = () => {
           <KpiCard label="LPO Committed" value={fmt(num(data.kpis.totalLpoCommitments))} icon={<ShoppingBag size={16} />} accent="#ef4444" sub="not yet disbursed" />
           <KpiCard
             label="Exposure"
-            value={exposure ? `${exposure.exposurePct.toFixed(1)}%` : '—'}
+            value={exposure ? `${exposure.exposurePct.toFixed(1)}%` : '-'}
             icon={<AlertTriangle size={16} />}
             accent={exposure && exposure.exposurePct > 90 ? '#ef4444' : '#f59e0b'}
             sub={exposure ? `${fmt(exposure.headroom)} headroom` : undefined}
@@ -639,7 +549,7 @@ const ProjectAnalyticsPage: React.FC = () => {
         {/* ── Runway forecast (linear extrapolation) ──────────── */}
         <Card
           title="Runway Forecast"
-          subtitle="Linear extrapolation from the last 3 active spend months — planning signal, not a prediction."
+          subtitle="Linear extrapolation from the last 3 active spend months, planning signal, not a prediction."
           accent={forecast && forecast.monthsLeft < 3 ? 'alert' : 'none'}
           className="mb-4"
         >
@@ -668,7 +578,7 @@ const ProjectAnalyticsPage: React.FC = () => {
           ) : (
             <p className="text-xs text-gray-500">
               {exposure && exposure.headroom <= 0
-                ? 'Headroom exhausted — actual + commitments already meet or exceed budget.'
+                ? 'Headroom exhausted, actual + commitments already meet or exceed budget.'
                 : 'Not enough spend history to project runway yet.'}
             </p>
           )}
@@ -792,7 +702,7 @@ const ProjectAnalyticsPage: React.FC = () => {
         {/* ── AI briefing ─────────────────────────────────────── */}
         <Card
           title="AI Variance Briefing"
-          subtitle="Generated on demand from live figures — review before relying on it."
+          subtitle="Generated on demand from live figures, review before relying on it."
           headerContent={
             <button
               onClick={handleAiBrief}
@@ -808,7 +718,7 @@ const ProjectAnalyticsPage: React.FC = () => {
             <p className="whitespace-pre-line text-sm leading-relaxed text-gray-300">{aiBrief}</p>
           ) : (
             <p className="text-xs text-gray-500">
-              Produces an executive narrative over the current scope — overruns, exposure and runway.
+              Produces an executive narrative over the current scope, overruns, exposure and runway.
             </p>
           )}
         </Card>

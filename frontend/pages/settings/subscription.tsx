@@ -48,12 +48,7 @@ const SubscriptionSettingsPage: React.FC = () => {
       // Create a pending subscription matching current plan/cycle and go to gateway
       const { data } = await api.post('/billing/process-public-subscription', {
         companyName: user?.tenant_name || 'My Company', // Fallback if missing
-        email: user?.email,
-        firstName: user?.first_name || '',
-        lastName: user?.last_name || '',
-        plan: sub.plan,
-        billingCycle: sub.billing_cycle,
-        gateway: sub.gateway || 'paystack', // Default to Paystack if null (like in trial)
+        email: user?.email, firstName: user?.first_name || '', lastName: user?.last_name || '', plan: sub.plan, billingCycle: sub.billing_cycle, gateway: sub.gateway || 'paystack', // Default to Paystack if null (like in trial)
       });
       if (data.authorization_url) {
         window.location.href = data.authorization_url;

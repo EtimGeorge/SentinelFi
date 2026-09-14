@@ -17,7 +17,7 @@ import axios from 'axios';
  * CRITICAL FIX: The previous implementation aborted the controller on releaseSignal()
  * when refCount hit 0. This canceled in-flight requests AFTER they completed, causing
  * race conditions and spurious AbortError exceptions. The fix: releaseSignal() only
- * decrements the count — it never auto-aborts. Call forceAbort() explicitly when
+ * decrements the count, it never auto-aborts. Call forceAbort() explicitly when
  * you need to cancel pending requests.
  */
 export class SmartAbortController {
@@ -36,7 +36,7 @@ export class SmartAbortController {
   releaseSignal(): void {
     if (this.refCount > 0) {
       this.refCount--;
-      // NEVER auto-abort on release — the request may have already completed.
+      // NEVER auto-abort on release, the request may have already completed.
       // Auto-aborting caused spurious errors on completed requests.
       // The controller will be garbage collected naturally.
       // Call forceAbort() explicitly when you need to cancel pending requests.
@@ -108,9 +108,7 @@ export class CircuitBreaker {
   private halfOpenRequests = 0;
 
   constructor(
-    private readonly maxFailures: number = 3,
-    private readonly resetTimeoutMs: number = 30000,
-    private readonly halfOpenMaxRequests: number = 2
+    private readonly maxFailures: number = 3, private readonly resetTimeoutMs: number = 30000, private readonly halfOpenMaxRequests: number = 2
   ) {}
 
   async execute<T>(action: () => Promise<T>): Promise<T> {

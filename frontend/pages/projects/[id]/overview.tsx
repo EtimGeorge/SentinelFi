@@ -5,33 +5,14 @@ import Link from 'next/link';
 import api from '../../../lib/api';
 import PageContainer from '../../../components/Layout/PageContainer';
 import {
-    ArrowLeft,
-    Layers,
-    Briefcase,
-    DollarSign,
-    ShieldCheck,
-    CreditCard,
-    History,
-    Zap,
-    Check
+    ArrowLeft, Layers, Briefcase, DollarSign, ShieldCheck, CreditCard, History, Zap, Check
 } from 'lucide-react';
 import { WbsBudget } from '@shared/types/wbs';
 import { LiveExpense } from '@shared/types/expense';
 import { ProjectStatus } from '@shared/types/project';
 import { useBreadcrumbs } from '../../../components/context/BreadcrumbContext';
 import {
-    OverviewTab,
-    BudgetTab,
-    ExpensesTab,
-    LpoTab,
-    InflowsTab,
-    HistoryTab,
-    DossierTab,
-    ProjectDetail,
-    CashFlowPoint,
-    LpoData,
-    InflowData,
-    AuditLog,
+    OverviewTab, BudgetTab, ExpensesTab, LpoTab, InflowsTab, HistoryTab, DossierTab, ProjectDetail, CashFlowPoint, LpoData, InflowData, AuditLog,
 } from '../../../components/projects/dossier';
 
 const COMPREHENSIVE_LIMIT = 500;
@@ -81,12 +62,7 @@ const ProjectOverviewPage: React.FC = () => {
         };
 
         await Promise.all([
-            optional<CashFlowPoint[]>(`/projects/${id}/cashflow`, setCashflow),
-            optional<{ data: WbsBudget[]; total: number }>(`/wbs/budgets?projectId=${id}&limit=${COMPREHENSIVE_LIMIT}`, (data) => setBudgets(data.data)),
-            optional<{ data: LiveExpense[]; total: number }>(`/wbs/expenses?projectId=${id}&limit=${COMPREHENSIVE_LIMIT}`, (data) => setExpenses(data.data)),
-            optional<LpoData[]>(`/projects/${id}/lpos`, setLpos),
-            optional<InflowData[]>(`/projects/${id}/inflows`, setInflowsRaw),
-            optional<AuditLog[]>(`/projects/${id}/audits`, setAudits),
+            optional<CashFlowPoint[]>(`/projects/${id}/cashflow`, setCashflow), optional<{ data: WbsBudget[]; total: number }>(`/wbs/budgets?projectId=${id}&limit=${COMPREHENSIVE_LIMIT}`, (data) => setBudgets(data.data)), optional<{ data: LiveExpense[]; total: number }>(`/wbs/expenses?projectId=${id}&limit=${COMPREHENSIVE_LIMIT}`, (data) => setExpenses(data.data)), optional<LpoData[]>(`/projects/${id}/lpos`, setLpos), optional<InflowData[]>(`/projects/${id}/inflows`, setInflowsRaw), optional<AuditLog[]>(`/projects/${id}/audits`, setAudits),
         ]);
         setLoading(false);
     }, [id]);

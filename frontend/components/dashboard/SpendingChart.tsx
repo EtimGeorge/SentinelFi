@@ -24,10 +24,7 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ data, sourceCurrency = 'N
     const level1Data = data.filter(item => !item.parent_wbs_id);
 
     return level1Data.map(item => ({
-      name: `${item.wbs_code} ${item.description.substring(0, 15)}...`,
-      Budget: convertAmount(Number(item.total_cost_budgeted), sourceCurrency, userCurrency.code),
-      Spent: convertAmount(Number(item.total_paid_rollup), sourceCurrency, userCurrency.code),
-      color: getWBSColor(item.wbs_code),
+      name: `${item.wbs_code} ${item.description.substring(0, 15)}...`, Budget: convertAmount(Number(item.total_cost_budgeted), sourceCurrency, userCurrency.code), Spent: convertAmount(Number(item.total_paid_rollup), sourceCurrency, userCurrency.code), color: getWBSColor(item.wbs_code),
     }));
   }, [data, sourceCurrency, userCurrency.code, convertAmount]);
 

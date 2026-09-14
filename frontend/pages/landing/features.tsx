@@ -2,25 +2,7 @@ import React from 'react';
 import MarketingLayout from '../../components/Landing/MarketingLayout';
 import Link from 'next/link';
 import {
-  ArrowRight,
-  ShieldCheck,
-  Zap,
-  Cpu,
-  BarChart3,
-  Users,
-  Lock,
-  Globe,
-  Database,
-  CreditCard,
-  Mail,
-  Receipt,
-  KeyRound,
-  CheckCircle2,
-  FileText,
-  TrendingUp,
-  Activity,
-  PieChart,
-  Crown,
+  ArrowRight, ShieldCheck, Zap, Cpu, BarChart3, Users, Lock, Globe, Database, CreditCard, Mail, Receipt, KeyRound, CheckCircle2, FileText, TrendingUp, Activity, PieChart, Crown,
 } from 'lucide-react';
 import { NextPage } from 'next';
 
@@ -112,7 +94,7 @@ const FeaturesPage: NextPageWithLayout = () => {
             </h1>
             <p className="text-xl text-slate-300 leading-relaxed mx-auto max-w-2xl">
               From WBS enforcement to AI forensics, from your first magic-link email to automated 
-              subscription billing — this is the entire SentinelFi operating system in one place.
+              subscription billing, this is the entire SentinelFi operating system in one place.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mt-10">
               <Link href="/landing/pricing" className="m-button-primary text-lg px-10 py-5">
@@ -126,8 +108,8 @@ const FeaturesPage: NextPageWithLayout = () => {
         </div>
       </section>
 
-      {/* Quick anchor nav */}
-      <section className="border-b border-white/5 bg-brand-dark/60 backdrop-blur-md sticky top-20 z-30">
+      {/* Quick anchor nav — sticky below the 72px fixed header (~56px tall bar) */}
+      <section aria-label="Platform sections" className="border-b border-white/5 bg-brand-dark/60 backdrop-blur-md sticky top-[72px] z-30">
         <div className="container mx-auto px-6 py-4 flex flex-wrap justify-center gap-3 text-xs font-black uppercase tracking-widest">
           {[
             ['#capex', 'CAPEX & Revenue'],
@@ -152,8 +134,8 @@ const FeaturesPage: NextPageWithLayout = () => {
         </div>
       </section>
 
-      {/* Financial Operations Modules */}
-      <section id="capex" className="py-24 container mx-auto px-6 scroll-mt-40">
+      {/* Financial Operations Modules — anchor ids verified: hero deep-links #ai and #approvals land here */}
+      <section id="capex" className="py-24 container mx-auto px-6 scroll-mt-44">
         <div className="mb-14">
           <p className="text-xs font-black uppercase tracking-[0.35em] text-brand-primary mb-3">01 · Capital Projects</p>
           <h2 className="text-4xl md:text-5xl font-black m-heading text-white mb-4">CAPEX & Revenue Engine</h2>
@@ -192,7 +174,7 @@ const FeaturesPage: NextPageWithLayout = () => {
             <p className="text-xs font-black uppercase tracking-[0.35em] text-alert-critical mb-3">02 · Operational Spend</p>
             <h2 className="text-4xl md:text-5xl font-black m-heading text-white mb-4">OPEX, Payroll & Recurring Costs</h2>
             <p className="text-lg text-slate-400 max-w-2xl leading-relaxed">
-              Operational budgets, payroll batches, and recurring lines — the everyday money that must never drift from plan.
+              Operational budgets, payroll batches, and recurring lines, the everyday money that must never drift from plan.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -226,7 +208,7 @@ const FeaturesPage: NextPageWithLayout = () => {
           <p className="text-xs font-black uppercase tracking-[0.35em] text-brand-secondary mb-3">03 · Purchase-to-Pay</p>
           <h2 className="text-4xl md:text-5xl font-black m-heading text-white mb-4">Procurement & P2P</h2>
           <p className="text-lg text-slate-400 max-w-2xl leading-relaxed">
-            The full purchase-to-pay lifecycle on a kanban canvas — from requisition to cleared payment.
+            The full purchase-to-pay lifecycle on a kanban canvas, from requisition to cleared payment.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -294,7 +276,7 @@ const FeaturesPage: NextPageWithLayout = () => {
           <p className="text-xs font-black uppercase tracking-[0.35em] text-brand-secondary mb-3">05 · Intelligence</p>
           <h2 className="text-4xl md:text-5xl font-black m-heading text-white mb-4">Sentinel-AI Forensics & Assistant</h2>
           <p className="text-lg text-slate-400 max-w-2xl leading-relaxed">
-            An always-on financial intelligence layer that scans, flags, and explains — plus a chat assistant that works inside your workspace.
+            An always-on financial intelligence layer that scans, flags, and explains, plus a chat assistant that works inside your workspace.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -357,7 +339,7 @@ const FeaturesPage: NextPageWithLayout = () => {
         </div>
       </section>
 
-      {/* Business Layer — Billing, Subscriptions, Payments, Email */}
+      {/* Business Layer - Billing, Subscriptions, Payments, Email */}
       <section className="py-24 container mx-auto px-6 scroll-mt-40" id="subscriptions">
         <div className="text-center mb-16 max-w-3xl mx-auto">
           <p className="text-xs font-black uppercase tracking-[0.4em] text-brand-secondary mb-4">The Business Layer</p>
@@ -365,7 +347,7 @@ const FeaturesPage: NextPageWithLayout = () => {
             Billing, Subscriptions, <span className="gradient-text-purple">Payments & Email</span>
           </h2>
           <p className="text-lg text-slate-400 leading-relaxed">
-            How SentinelFi is sold, billed, paid for, and how your team gets access — start to finish.
+            How SentinelFi is sold, billed, paid for, and how your team gets access, start to finish.
           </p>
         </div>
 
@@ -377,10 +359,10 @@ const FeaturesPage: NextPageWithLayout = () => {
             title="Subscriptions & Plans"
             desc="A simple, transparent commercial model with a no-risk entry path."
             points={[
-              '14-day free trial — full Professional access, no credit card',
+              '14-day free trial, full Professional access, no credit card',
               'One Professional plan: $1,500/mo or $15,300/yr (15% saved)',
               'Enterprise custom contracts with on-premise option',
-              'Embargo on unpaid workspaces — renew instantly to restore access',
+              'Embargo on unpaid workspaces, renew instantly to restore access',
             ]}
             href="/landing/pricing"
           />
@@ -417,7 +399,7 @@ const FeaturesPage: NextPageWithLayout = () => {
             color="text-alert-positive"
             label="Experience"
             title="Email & Access Delivery"
-            desc="Passwordless by design — your inbox is the front door."
+            desc="Passwordless by design, your inbox is the front door."
             points={[
               'Magic-link onboarding dispatched within 60 seconds',
               'Provisioning emails for paid and trial workspaces',
@@ -457,7 +439,7 @@ const FeaturesPage: NextPageWithLayout = () => {
             See it on your <span className="gradient-text">own books.</span>
           </h2>
           <p className="text-xl text-slate-300 max-w-2xl mx-auto mb-12 leading-relaxed">
-            Every feature you just read is live in the workspaces we provision daily. Start your 14-day trial — no credit card, no email games.
+            Every feature you just read is live in the workspaces we provision daily. Start your 14-day trial, no credit card, no email games.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
             <Link href="/landing/pricing" className="m-button-primary text-xl px-12 py-6">
@@ -474,7 +456,7 @@ const FeaturesPage: NextPageWithLayout = () => {
 };
 
 FeaturesPage.getLayout = (page: React.ReactElement) => {
-  return <MarketingLayout title="Features | SentinelFi — Complete Platform Catalogue">{page}</MarketingLayout>;
+  return <MarketingLayout title="Features | SentinelFi - Complete Platform Catalogue">{page}</MarketingLayout>;
 };
 
 export default FeaturesPage;

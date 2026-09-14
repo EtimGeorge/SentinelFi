@@ -8,8 +8,7 @@ import Button from '../../../components/common/Button';
 import Input from '../../../components/common/Input';
 import Modal from '../../../components/common/Modal';
 import {
-  DollarSign, Settings, LayoutGrid, List, RefreshCcw,
-  Briefcase, Activity, CheckCircle, Target, Trash2, Edit, AlertTriangle, Search, ChevronDown
+  DollarSign, Settings, LayoutGrid, List, RefreshCcw, Briefcase, Activity, CheckCircle, Target, Trash2, Edit, AlertTriangle, Search, ChevronDown
 } from 'lucide-react';
 import DataTable from '../../../components/common/DataTable';
 import CategoryManager from '../../../components/budgets/CategoryManager';
@@ -99,8 +98,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
     setIsSubmittingCorrection(true);
     try {
       await api.patch(`/operational-budgets/expense/${selectedExpense.operational_expense_id}`, {
-        amount: parseFloat(editAmount),
-        item_description: editDescription,
+        amount: parseFloat(editAmount), item_description: editDescription,
       });
       toast.success("Expense corrected. Budget metrics updated.");
       setIsEditModalOpen(false);

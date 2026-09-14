@@ -71,16 +71,7 @@ const ProjectsPage: React.FC = () => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    project_name: '',
-    rfq_number: '',
-    client_id: '',
-    currency: 'NGN',
-    contract_value: 0,
-    contingency_percent: 5,
-    vat_rate: 7.5,
-    wht_rate: 5,
-    sow_details: '',
-    wbs_template_id: '',
+    project_name: '', rfq_number: '', client_id: '', currency: 'NGN', contract_value: 0, contingency_percent: 5, vat_rate: 7.5, wht_rate: 5, sow_details: '', wbs_template_id: '',
   });
   const [isNewClient, setIsNewClient] = useState(false);
   const [newClientName, setNewClientName] = useState('');
@@ -185,9 +176,7 @@ const ProjectsPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const payload = {
-        ...formData,
-        client_id: !!formData.client_id && !isNewClient ? formData.client_id : undefined,
-        client_name: isNewClient ? newClientName : undefined,
+        ...formData, client_id: !!formData.client_id && !isNewClient ? formData.client_id : undefined, client_name: isNewClient ? newClientName : undefined,
       };
 
       console.log('[handleCreateProject] Sending payload to /projects:', payload);
@@ -213,16 +202,7 @@ const ProjectsPage: React.FC = () => {
       setIsModalOpen(false);
       setStep(1);
       setFormData({
-        project_name: '',
-        rfq_number: '',
-        client_id: '',
-        currency: 'NGN',
-        contract_value: 0,
-        contingency_percent: 5,
-        vat_rate: 7.5,
-        wht_rate: 5,
-        sow_details: '',
-        wbs_template_id: '',
+        project_name: '', rfq_number: '', client_id: '', currency: 'NGN', contract_value: 0, contingency_percent: 5, vat_rate: 7.5, wht_rate: 5, sow_details: '', wbs_template_id: '',
       });
 
       toast.success(`Project "${newProject.project_name}" initialized successfully!`);
@@ -291,9 +271,7 @@ const ProjectsPage: React.FC = () => {
     projects.forEach(p => {
       // Convert individual project value to user currency before summing
       const valueInUserCurrency = convertAmount(
-        Number(p.contract_value || 0),
-        p.currency || 'NGN',
-        userCurrency.code
+        Number(p.contract_value || 0), p.currency || 'NGN', userCurrency.code
       );
       totalContractValue += valueInUserCurrency;
       if (parseFloat(p.variance_pct || '0') > 2) atRiskCount++;

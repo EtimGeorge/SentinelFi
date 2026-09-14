@@ -33,8 +33,7 @@ const RegisterPage: React.FC = () => {
       // As per requirement, roles are assigned by Admin/IT lead.
       // So, this frontend will register with a default role (e.g., 'Assigned Project User').
       await api.post('/auth/register', { 
-        email, 
-        password,
+        email, password,
         // Default role for self-registration. Admin can change later.
         // Role enum needs to be available client-side if we wanted to pick one.
         // For now, assume backend assigns a default for self-registration.

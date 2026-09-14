@@ -17,10 +17,7 @@ interface KpiCardProps {
 }
 
 const toneStyles: Record<KpiTone, { badge: string; dot: string }> = {
-  neutral: { badge: 'bg-gray-700/60 text-gray-200', dot: 'bg-gray-400' },
-  positive: { badge: 'bg-alert-positive/15 text-alert-positive', dot: 'bg-alert-positive' },
-  warning: { badge: 'bg-alert-warning/15 text-alert-warning', dot: 'bg-alert-warning' },
-  critical: { badge: 'bg-alert-critical/15 text-alert-critical', dot: 'bg-alert-critical' },
+  neutral: { badge: 'bg-gray-700/60 text-gray-200', dot: 'bg-gray-400' }, positive: { badge: 'bg-alert-positive/15 text-alert-positive', dot: 'bg-alert-positive' }, warning: { badge: 'bg-alert-warning/15 text-alert-warning', dot: 'bg-alert-warning' }, critical: { badge: 'bg-alert-critical/15 text-alert-critical', dot: 'bg-alert-critical' },
 };
 
 const KpiCard: React.FC<KpiCardProps> = ({ label, value, icon, tone = 'neutral', footer, trend }) => {

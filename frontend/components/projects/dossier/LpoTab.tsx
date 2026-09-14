@@ -12,14 +12,7 @@ import { useCurrency } from "../../context/CurrencyContext";
 import { useAuth } from "../../context/AuthContext";
 import { Role } from "../../../../shared/types/role.enum";
 import {
-  Plus,
-  ShieldCheck,
-  Check,
-  X,
-  CreditCard,
-  Trash2,
-  Edit,
-  AlertTriangle,
+  Plus, ShieldCheck, Check, X, CreditCard, Trash2, Edit, AlertTriangle,
 } from "lucide-react";
 import { apiErrorMessage } from "./errors";
 import { ProjectDetail, LpoData, WbsRollupNode } from "./types";
@@ -40,45 +33,28 @@ interface CreateLpoForm {
 }
 
 const EMPTY_CREATE_FORM: CreateLpoForm = {
-  wbs_id: "",
-  vendor_name: "",
-  description: "",
-  amount_committed: 0,
-  expected_delivery_date: "",
-  override_reason: "",
+  wbs_id: "", vendor_name: "", description: "", amount_committed: 0, expected_delivery_date: "", override_reason: "",
 };
 
 const APPROVAL_BADGES: Record<string, { label: string; cls: string }> = {
   PENDING_APPROVAL: {
-    label: "Awaiting Approval",
-    cls: "bg-yellow-900/20 text-yellow-400 border-yellow-800",
-  },
-  APPROVED: {
-    label: "Approved",
-    cls: "bg-green-900/20 text-green-400 border-green-800",
-  },
-  REJECTED: {
-    label: "Rejected",
-    cls: "bg-red-900/20 text-red-400 border-red-800",
+    label: "Awaiting Approval", cls: "bg-yellow-900/20 text-yellow-400 border-yellow-800",
+  }, APPROVED: {
+    label: "Approved", cls: "bg-green-900/20 text-green-400 border-green-800",
+  }, REJECTED: {
+    label: "Rejected", cls: "bg-red-900/20 text-red-400 border-red-800",
   },
 };
 
 const STATUS_BADGES: Record<string, { label: string; cls: string }> = {
   CANCELLED: {
-    label: "Cancelled",
-    cls: "bg-red-900/20 text-red-400 border-red-800",
-  },
-  CLOSED: {
-    label: "Closed",
-    cls: "bg-green-900/20 text-green-400 border-green-800",
-  },
-  PARTIALLY_PAID: {
-    label: "Partially Paid",
-    cls: "bg-blue-900/20 text-blue-400 border-blue-800",
-  },
-  OPEN: {
-    label: "Open",
-    cls: "bg-yellow-900/20 text-yellow-400 border-yellow-800",
+    label: "Cancelled", cls: "bg-red-900/20 text-red-400 border-red-800",
+  }, CLOSED: {
+    label: "Closed", cls: "bg-green-900/20 text-green-400 border-green-800",
+  }, PARTIALLY_PAID: {
+    label: "Partially Paid", cls: "bg-blue-900/20 text-blue-400 border-blue-800",
+  }, OPEN: {
+    label: "Open", cls: "bg-yellow-900/20 text-yellow-400 border-yellow-800",
   },
 };
 
@@ -88,18 +64,11 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
   const currency = project.currency || "NGN";
 
   const canManage = hasAnyRole([
-    Role.AdminDirector,
-    Role.AdminManager,
-    Role.CFO,
-    Role.FinanceManager,
-    Role.SuperAdmin,
-    Role.CEO,
+    Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.SuperAdmin, Role.CEO,
   ]);
 
   const {
-    autoSave: autoSaveLpo,
-    restoreData: restoreLpo,
-    clearData: clearLpoData,
+    autoSave: autoSaveLpo, restoreData: restoreLpo, clearData: clearLpoData,
   } = useFormAutoSave(`project-${project.project_id}-lpo`);
 
   // --- Create modal state ---
@@ -123,9 +92,7 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [editLpo, setEditLpo] = useState<LpoData | null>(null);
   const [editForm, setEditForm] = useState({
-    vendor_name: "",
-    description: "",
-    expected_delivery_date: "",
+    vendor_name: "", description: "", expected_delivery_date: "",
   });
 
   // --- Confirm modal state (reject / cancel) ---
@@ -194,11 +161,7 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
     setIsSubmittingCreate(true);
     try {
       const payload: Record<string, any> = {
-        project_id: project.project_id,
-        wbs_id: createForm.wbs_id,
-        vendor_name: createForm.vendor_name.trim(),
-        description: createForm.description.trim(),
-        amount_committed: Number(createForm.amount_committed),
+        project_id: project.project_id, wbs_id: createForm.wbs_id, vendor_name: createForm.vendor_name.trim(), description: createForm.description.trim(), amount_committed: Number(createForm.amount_committed),
       };
       if (createForm.expected_delivery_date)
         payload.expected_delivery_date = createForm.expected_delivery_date;
@@ -265,9 +228,7 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
   const openEdit = (lpo: LpoData) => {
     setEditLpo(lpo);
     setEditForm({
-      vendor_name: lpo.vendor_name,
-      description: lpo.description,
-      expected_delivery_date: lpo.expected_delivery_date
+      vendor_name: lpo.vendor_name, description: lpo.description, expected_delivery_date: lpo.expected_delivery_date
         ? String(lpo.expected_delivery_date).slice(0, 10)
         : "",
     });
@@ -361,28 +322,17 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
             rowKey={(lpo) => lpo.id}
             columns={[
               {
-                key: "lpo_number",
-                label: "LPO #",
-                tier: "P0",
-                get: (lpo) => (
+                key: "lpo_number", label: "LPO #", tier: "P0", get: (lpo) => (
                   <span className="text-sm font-bold text-brand-primary font-mono">{lpo.lpo_number}</span>
-                ),
-                title: (lpo) => lpo.lpo_number,
+                ), title: (lpo) => lpo.lpo_number,
               },
               {
-                key: "committed",
-                label: "Committed",
-                tier: "P0",
-                cellClassName: "text-right",
-                get: (lpo) => (
+                key: "committed", label: "Committed", tier: "P0", cellClassName: "text-right", get: (lpo) => (
                   <span className="text-sm text-white font-mono font-bold">{convertToDisplay(lpo.amount_committed, currency)}</span>
                 ),
               },
               {
-                key: "vendor",
-                label: "Vendor",
-                tier: "P1",
-                get: (lpo) => (
+                key: "vendor", label: "Vendor", tier: "P1", get: (lpo) => (
                   <div>
                     <div className="text-sm text-gray-300 truncate">{lpo.vendor_name}</div>
                     {lpo.expected_delivery_date && (
@@ -391,14 +341,10 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
                       </div>
                     )}
                   </div>
-                ),
-                title: (lpo) => lpo.vendor_name,
+                ), title: (lpo) => lpo.vendor_name,
               },
               {
-                key: "raised",
-                label: "Raised",
-                tier: "P1",
-                get: (lpo) => (
+                key: "raised", label: "Raised", tier: "P1", get: (lpo) => (
                   <div className="text-xs text-gray-500 leading-tight">
                     {lpo.created_at ? new Date(lpo.created_at).toLocaleDateString() : ""}
                     <div>{lpo.createdBy?.email || "System"}</div>
@@ -406,36 +352,22 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
                 ),
               },
               {
-                key: "wbs",
-                label: "WBS",
-                tier: "P1",
-                get: (lpo) => (
+                key: "wbs", label: "WBS", tier: "P1", get: (lpo) => (
                   <span className="text-sm text-gray-400 font-mono">{lpo.wbsItem?.wbs_code || lpo.wbs_id?.slice(0, 8) || "â€”"}</span>
                 ),
               },
               {
-                key: "paid",
-                label: "Paid",
-                tier: "P2",
-                cellClassName: "text-right",
-                get: (lpo) => (
+                key: "paid", label: "Paid", tier: "P2", cellClassName: "text-right", get: (lpo) => (
                   <span className="text-sm text-green-400 font-mono">{convertToDisplay(lpo.amount_paid, currency)}</span>
                 ),
               },
               {
-                key: "balance",
-                label: "Balance",
-                tier: "P2",
-                cellClassName: "text-right",
-                get: (lpo) => (
+                key: "balance", label: "Balance", tier: "P2", cellClassName: "text-right", get: (lpo) => (
                   <span className="text-sm text-yellow-400 font-mono">{convertToDisplay(Number(lpo.amount_committed) - Number(lpo.amount_paid), currency)}</span>
                 ),
               },
               {
-                key: "approval",
-                label: "Approval",
-                tier: "P2",
-                get: (lpo) => {
+                key: "approval", label: "Approval", tier: "P2", get: (lpo) => {
                   const approval = APPROVAL_BADGES[lpo.approval_status || "APPROVED"] || APPROVAL_BADGES.APPROVED;
                   return (
                     <span className={`px-2 py-1 text-xs font-bold rounded capitalize border ${approval.cls}`}>
@@ -445,10 +377,7 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
                 },
               },
               {
-                key: "status",
-                label: "Status",
-                tier: "P2",
-                get: (lpo) => {
+                key: "status", label: "Status", tier: "P2", get: (lpo) => {
                   const status = STATUS_BADGES[paymentStatus(lpo)] || STATUS_BADGES.OPEN;
                   return (
                     <span className={`px-2 py-1 text-xs font-bold rounded capitalize border ${status.cls}`}>
@@ -460,44 +389,19 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
             ]}
             actions={canManage ? [
               {
-                key: "approve",
-                label: "Approve & book commitment",
-                icon: <Check className="w-4 h-4" />,
-                primary: true,
-                onClick: handleApprove,
-                visible: (lpo) => lpo.approval_status === "PENDING_APPROVAL" && lpo.status !== "CANCELLED",
+                key: "approve", label: "Approve & book commitment", icon: <Check className="w-4 h-4" />, primary: true, onClick: handleApprove, visible: (lpo) => lpo.approval_status === "PENDING_APPROVAL" && lpo.status !== "CANCELLED",
               },
               {
-                key: "payment",
-                label: "Record payment",
-                icon: <CreditCard className="w-4 h-4" />,
-                primary: true,
-                onClick: openPayment,
-                visible: (lpo) => lpo.approval_status === "APPROVED" && lpo.status !== "CANCELLED" && lpo.status !== "CLOSED",
+                key: "payment", label: "Record payment", icon: <CreditCard className="w-4 h-4" />, primary: true, onClick: openPayment, visible: (lpo) => lpo.approval_status === "APPROVED" && lpo.status !== "CANCELLED" && lpo.status !== "CLOSED",
               },
               {
-                key: "edit",
-                label: "Edit details",
-                icon: <Edit className="w-4 h-4" />,
-                primary: true,
-                onClick: openEdit,
-                visible: (lpo) => lpo.status !== "CLOSED" && lpo.status !== "CANCELLED",
+                key: "edit", label: "Edit details", icon: <Edit className="w-4 h-4" />, primary: true, onClick: openEdit, visible: (lpo) => lpo.status !== "CLOSED" && lpo.status !== "CANCELLED",
               },
               {
-                key: "reject",
-                label: "Reject",
-                icon: <X className="w-4 h-4" />,
-                danger: true,
-                onClick: (lpo) => setConfirmAction({ type: "reject", lpo }),
-                visible: (lpo) => lpo.approval_status === "PENDING_APPROVAL" && lpo.status !== "CANCELLED",
+                key: "reject", label: "Reject", icon: <X className="w-4 h-4" />, danger: true, onClick: (lpo) => setConfirmAction({ type: "reject", lpo }), visible: (lpo) => lpo.approval_status === "PENDING_APPROVAL" && lpo.status !== "CANCELLED",
               },
               {
-                key: "cancel",
-                label: "Cancel LPO",
-                icon: <Trash2 className="w-4 h-4" />,
-                danger: true,
-                onClick: (lpo) => setConfirmAction({ type: "cancel", lpo }),
-                visible: (lpo) => lpo.status !== "CLOSED" && lpo.status !== "CANCELLED" && Number(lpo.amount_paid) === 0,
+                key: "cancel", label: "Cancel LPO", icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: (lpo) => setConfirmAction({ type: "cancel", lpo }), visible: (lpo) => lpo.status !== "CLOSED" && lpo.status !== "CANCELLED" && Number(lpo.amount_paid) === 0,
               },
             ] : undefined}
           />
@@ -603,8 +507,7 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
               value={createForm.amount_committed}
               onChange={(e) => {
                 const updated = {
-                  ...createForm,
-                  amount_committed: parseFloat(e.target.value),
+                  ...createForm, amount_committed: parseFloat(e.target.value),
                 };
                 setCreateForm(updated);
                 autoSaveLpo(updated);
@@ -616,8 +519,7 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
               value={createForm.expected_delivery_date}
               onChange={(e) => {
                 const updated = {
-                  ...createForm,
-                  expected_delivery_date: e.target.value,
+                  ...createForm, expected_delivery_date: e.target.value,
                 };
                 setCreateForm(updated);
                 autoSaveLpo(updated);
@@ -632,8 +534,7 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
               value={createForm.override_reason}
               onChange={(e) => {
                 const updated = {
-                  ...createForm,
-                  override_reason: e.target.value,
+                  ...createForm, override_reason: e.target.value,
                 };
                 setCreateForm(updated);
                 autoSaveLpo(updated);
@@ -679,8 +580,7 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
             <span className="text-yellow-400 font-mono font-bold">
               {convertToDisplay(
                 Number(paymentLpo?.amount_committed || 0) -
-                  Number(paymentLpo?.amount_paid || 0),
-                currency,
+                  Number(paymentLpo?.amount_paid || 0), currency,
               )}
             </span>
           </p>
@@ -749,8 +649,7 @@ const LpoTab: React.FC<LpoTabProps> = ({ project, lpos, onChanged }) => {
             value={editForm.expected_delivery_date}
             onChange={(e) =>
               setEditForm({
-                ...editForm,
-                expected_delivery_date: e.target.value,
+                ...editForm, expected_delivery_date: e.target.value,
               })
             }
           />

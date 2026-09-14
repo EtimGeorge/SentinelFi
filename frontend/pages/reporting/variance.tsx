@@ -1,23 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
-  BarChart3,
-  TrendingDown,
-  TrendingUp,
-  AlertTriangle,
-  Loader2,
-  FileDown,
-  Printer,
-  SlidersHorizontal,
-  Filter,
-  RefreshCw,
-  Projector,
-  Calendar,
-  Lock,
-  Shield,
-  Download,
-  FileText,
-  ChevronRight
+  BarChart3, TrendingDown, TrendingUp, AlertTriangle, Loader2, FileDown, Printer, SlidersHorizontal, Filter, RefreshCw, Projector, Calendar, Lock, Shield, Download, FileText, ChevronRight
 } from 'lucide-react';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -33,10 +17,7 @@ import useGlobalStore from '../../store/globalStore';
 import { format } from 'date-fns';
 
 enum VarianceStatus {
-  All = 'All',
-  Positive = 'Positive',
-  Negative = 'Negative',
-  Major = 'Major',
+  All = 'All', Positive = 'Positive', Negative = 'Negative', Major = 'Major',
 }
 
 interface LiveExpenseException {
@@ -74,8 +55,7 @@ const VarianceReportPage: React.FC = () => {
   const fetchInitialData = async () => {
     try {
       const [projResp, alertsResp] = await Promise.all([
-        api.get('/projects?limit=100'),
-        api.get('/wbs/exceptions')
+        api.get('/projects?limit=100'), api.get('/wbs/exceptions')
       ]);
       setProjects(projResp.data.projects || projResp.data.data || []);
       setMajorVarianceAlerts(alertsResp.data || []);
@@ -155,21 +135,12 @@ const VarianceReportPage: React.FC = () => {
       const loadId = toast.loading(`Preparing ${format.toUpperCase()} variance report...`);
 
       const exportContext = {
-        currencyRate: userCurrency.rate,
-        currencySymbol: userCurrency.symbol,
-        tenantName: user?.tenant_name || '',
-        projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '',
-        projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
       };
 
       const response = await api.post('/reporting/generate', {
-        type: 'VARIANCE_ANALYSIS',
-        format: format,
-        context: exportContext,
-        filters: {
-          projectId: selectedProjectId === 'all' ? undefined : selectedProjectId,
-          interval: interval,
-          varianceStatus: varianceFilter
+        type: 'VARIANCE_ANALYSIS', format: format, context: exportContext, filters: {
+          projectId: selectedProjectId === 'all' ? undefined : selectedProjectId, interval: interval, varianceStatus: varianceFilter
         }
       }, { responseType: 'blob' });
 
@@ -193,19 +164,11 @@ const VarianceReportPage: React.FC = () => {
       const loadId = toast.loading('Archiving variance intelligence in DCS...');
 
       const exportContext = {
-        currencyRate: userCurrency.rate,
-        currencySymbol: userCurrency.symbol,
-        tenantName: user?.tenant_name || '',
-        projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '',
-        projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
       };
 
       await api.post('/reporting/generate', {
-        type: 'VARIANCE_ANALYSIS',
-        format: 'pdf',
-        pushToDcs: true,
-        context: exportContext,
-        filters: { projectId: selectedProjectId === 'all' ? undefined : selectedProjectId, interval }
+        type: 'VARIANCE_ANALYSIS', format: 'pdf', pushToDcs: true, context: exportContext, filters: { projectId: selectedProjectId === 'all' ? undefined : selectedProjectId, interval }
       });
       toast.success('Verification complete. Variance intelligence pushed to DCS.', { id: loadId });
     } catch (error) {

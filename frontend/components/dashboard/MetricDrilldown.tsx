@@ -23,13 +23,7 @@ interface MetricDrilldownProps {
  * Used for the "click the primary number for the breakdown" pattern.
  */
 const MetricDrilldown: React.FC<MetricDrilldownProps> = ({
-  isOpen,
-  onClose,
-  title,
-  subtitle,
-  history,
-  sourceCurrency,
-  footer,
+  isOpen, onClose, title, subtitle, history, sourceCurrency, footer,
 }) => {
   const { convertAmount, convertToDisplay, userCurrency } = useCurrency();
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -37,8 +31,7 @@ const MetricDrilldown: React.FC<MetricDrilldownProps> = ({
   const series = useMemo(() => {
     const src = sourceCurrency || 'NGN';
     return history.map((h) => ({
-      date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      value: convertAmount(h.amount, src, userCurrency.code),
+      date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), value: convertAmount(h.amount, src, userCurrency.code),
     }));
   }, [history, sourceCurrency, userCurrency.code, convertAmount]);
 

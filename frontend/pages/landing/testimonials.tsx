@@ -15,58 +15,22 @@ interface Testimonial {
 
 const testimonials: Testimonial[] = [
   {
-    quote: "SentinelFi's AI forensics engine identified a 12% budget discrepancy in one of our sub-contractor invoices within 48 hours of deployment. Our previous system would have taken 3 audit cycles to surface the same issue.",
-    author: "Engr. Abdullahi Musa",
-    role: "CFO",
-    company: "Meridian Capital Infrastructure",
-    industry: "Energy & Infrastructure",
-    result: "₦840M",
-    resultLabel: "Saved in audit cycle 1"
+    quote: "SentinelFi's AI forensics engine identified a 12% budget discrepancy in one of our sub-contractor invoices within 48 hours of deployment. Our previous system would have taken 3 audit cycles to surface the same issue.", author: "Engr. Abdullahi Musa", role: "CFO", company: "Meridian Capital Infrastructure", industry: "Energy & Infrastructure", result: "₦840M", resultLabel: "Saved in audit cycle 1"
   },
   {
-    quote: "The multi-tenant architecture is genuinely sovereign. We run separate project portfolios for three government ministries, each completely isolated. Our compliance team finally has the segregation proof they've been asking for.",
-    author: "Dr. Chinyere Okafor",
-    role: "Director, Digital Transformation",
-    company: "Federal Ministry of Works",
-    industry: "Government & Public Sector",
-    result: "100%",
-    resultLabel: "Audit compliance achieved"
+    quote: "The multi-tenant architecture is genuinely sovereign. We run separate project portfolios for three government ministries, each completely isolated. Our compliance team finally has the segregation proof they've been asking for.", author: "Dr. Chinyere Okafor", role: "Director, Digital Transformation", company: "Federal Ministry of Works", industry: "Government & Public Sector", result: "100%", resultLabel: "Audit compliance achieved"
   },
   {
-    quote: "We evaluated 4 platforms before SentinelFi. Nothing else combined WBS enforcement, live cost tracking, and AI analysis in a single sovereign instance. The ROI became visible in the first quarter.",
-    author: "Mr. Taiwo Adeyemi",
-    role: "Project Director",
-    company: "TerraForm Construction Holdings",
-    industry: "Construction & Real Estate",
-    result: "3.2x",
-    resultLabel: "Project oversight efficiency"
+    quote: "We evaluated 4 platforms before SentinelFi. Nothing else combined WBS enforcement, live cost tracking, and AI analysis in a single sovereign instance. The ROI became visible in the first quarter.", author: "Mr. Taiwo Adeyemi", role: "Project Director", company: "TerraForm Construction Holdings", industry: "Construction & Real Estate", result: "3.2x", resultLabel: "Project oversight efficiency"
   },
   {
-    quote: "Our forensic analysis team no longer spends 60% of their time manually cross-referencing invoices. SentinelFi's automated verification layer handles the routine checks while our analysts focus on strategic risk.",
-    author: "Amaka Eze",
-    role: "Head of Internal Audit",
-    company: "Omega Financial Group",
-    industry: "Financial Services",
-    result: "60%",
-    resultLabel: "Reduction in manual audit time"
+    quote: "Our forensic analysis team no longer spends 60% of their time manually cross-referencing invoices. SentinelFi's automated verification layer handles the routine checks while our analysts focus on strategic risk.", author: "Amaka Eze", role: "Head of Internal Audit", company: "Omega Financial Group", industry: "Financial Services", result: "60%", resultLabel: "Reduction in manual audit time"
   },
   {
-    quote: "Implementation was smoother than any enterprise platform we've adopted. The magic-link provisioning meant our 47-person team was operational in under 2 hours. The WBS templates for oil & gas projects are remarkably comprehensive.",
-    author: "Kolade Rasheed",
-    role: "VP Operations",
-    company: "Brixstone Energy Services",
-    industry: "Oil & Gas",
-    result: "2 hrs",
-    resultLabel: "Full team onboarding time"
+    quote: "Implementation was smoother than any enterprise platform we've adopted. The magic-link provisioning meant our 47-person team was operational in under 2 hours. The WBS templates for oil & gas projects are remarkably comprehensive.", author: "Kolade Rasheed", role: "VP Operations", company: "Brixstone Energy Services", industry: "Oil & Gas", result: "2 hrs", resultLabel: "Full team onboarding time"
   },
   {
-    quote: "The currency awareness module was a game-changer for our cross-border infrastructure projects. Managing budgets across NGN, USD, GBP and EUR simultaneously, with live conversion, was something no competitor offered.",
-    author: "Ms. Folasade Bankole",
-    role: "International Projects CFO",
-    company: "AfriLink Construction",
-    industry: "Pan-African Infrastructure",
-    result: "4",
-    resultLabel: "Currencies managed in real-time"
+    quote: "The currency awareness module was a game-changer for our cross-border infrastructure projects. Managing budgets across NGN, USD, GBP and EUR simultaneously, with live conversion, was something no competitor offered.", author: "Ms. Folasade Bankole", role: "International Projects CFO", company: "AfriLink Construction", industry: "Pan-African Infrastructure", result: "4", resultLabel: "Currencies managed in real-time"
   }
 ];
 
@@ -96,7 +60,7 @@ const TestimonialsPage: NextPageWithLayout = () => {
               Trusted by <span className="text-brand-primary">Industry Leaders</span>
             </h1>
             <p className="text-lg text-gray-400 leading-relaxed">
-              From government ministries to multinational infrastructure boards — organizations that demand financial accountability trust SentinelFi.
+              From government ministries to multinational infrastructure boards, organizations that demand financial accountability trust SentinelFi.
             </p>
           </div>
 
@@ -189,7 +153,7 @@ const TestimonialsPage: NextPageWithLayout = () => {
           {/* CTA */}
           <div className="text-center">
             <Link href="/landing/pricing" className="inline-flex items-center gap-3 px-10 py-5 bg-brand-primary text-white font-black rounded-2xl hover:bg-brand-primary/90 transition-all hover:scale-105 hover:shadow-[0_20px_40px_rgba(13,148,136,0.3)] uppercase tracking-widest font-sora text-sm">
-              Join These Leaders — Get Started
+              Join These Leaders - Get Started
             </Link>
           </div>
         </div>

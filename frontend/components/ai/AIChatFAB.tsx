@@ -1,34 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Bot,
-  X,
-  Minus,
-  Send,
-  Paperclip,
-  Sparkles,
-  ChevronDown,
-  RefreshCw,
-  BarChart2,
-  FileText,
-  Zap,
-  BookOpen,
-  AlertTriangle,
-  CheckCircle,
-  Loader,
-  TrendingUp,
-  Calendar,
-  MessageSquare,
-  Trash2,
-  Map,
-  Mic,
-  MicOff,
+  Bot, X, Minus, Send, Paperclip, Sparkles, ChevronDown, RefreshCw, BarChart2, FileText, Zap, BookOpen, AlertTriangle, CheckCircle, Loader, TrendingUp, Calendar, MessageSquare, Trash2, Map, Mic, MicOff,
 } from "lucide-react";
 import { useAIChat } from "../../hooks/useAIChat";
 import {
-  AIChatMessage,
-  AIChatScope,
-  SuggestionChip,
-  ActionChip,
+  AIChatMessage, AIChatScope, SuggestionChip, ActionChip,
 } from "./types";
 import { ChatPanel } from "./ChatPanel";
 import { ChatSheet } from "./ChatSheet";
@@ -58,142 +34,90 @@ const PAGE_QUICK_ACTIONS: Record<
 > = {
   dashboard: [
     {
-      label: "Portfolio summary",
-      icon: <BarChart2 size={12} />,
-      prompt: "Give me a financial health summary of our full portfolio.",
+      label: "Portfolio summary", icon: <BarChart2 size={12} />, prompt: "Give me a financial health summary of our full portfolio.",
     },
     {
-      label: "Top overruns",
-      icon: <AlertTriangle size={12} />,
-      prompt: "Show me the projects with the worst cost overruns.",
+      label: "Top overruns", icon: <AlertTriangle size={12} />, prompt: "Show me the projects with the worst cost overruns.",
     },
     {
-      label: "How to use",
-      icon: <BookOpen size={12} />,
-      prompt: "How do I use SentinelFi to track project budgets?",
+      label: "How to use", icon: <BookOpen size={12} />, prompt: "How do I use SentinelFi to track project budgets?",
     },
-  ],
-  wbs: [
+  ], wbs: [
     {
-      label: "Explain WBS",
-      icon: <BookOpen size={12} />,
-      prompt: "Explain what the WBS budget structure is and how to use it.",
+      label: "Explain WBS", icon: <BookOpen size={12} />, prompt: "Explain what the WBS budget structure is and how to use it.",
     },
     {
-      label: "Top variants",
-      icon: <TrendingUp size={12} />,
-      prompt: "Which WBS items have the highest cost variance right now?",
+      label: "Top variants", icon: <TrendingUp size={12} />, prompt: "Which WBS items have the highest cost variance right now?",
     },
     {
-      label: "Log expense guide",
-      icon: <Zap size={12} />,
-      prompt: "How do I log a live expense against a WBS item?",
+      label: "Log expense guide", icon: <Zap size={12} />, prompt: "How do I log a live expense against a WBS item?",
     },
   ],
   "capex-dashboard": [
     {
-      label: "Portfolio health",
-      icon: <BarChart2 size={12} />,
-      prompt:
+      label: "Portfolio health", icon: <BarChart2 size={12} />, prompt:
         "Give me an executive summary of our current CAPEX portfolio health.",
     },
     {
-      label: "Forecast exhaustion",
-      icon: <Calendar size={12} />,
-      prompt:
+      label: "Forecast exhaustion", icon: <Calendar size={12} />, prompt:
         "Forecast when our budget will be exhausted at the current burn rate.",
     },
     {
-      label: "Explain overruns",
-      icon: <AlertTriangle size={12} />,
-      prompt: "Which projects are over budget and by how much?",
+      label: "Explain overruns", icon: <AlertTriangle size={12} />, prompt: "Which projects are over budget and by how much?",
     },
   ],
   "opex-dashboard": [
     {
-      label: "Dept breakdown",
-      icon: <BarChart2 size={12} />,
-      prompt:
+      label: "Dept breakdown", icon: <BarChart2 size={12} />, prompt:
         "Which departments are spending the most vs their allocated budget?",
     },
     {
-      label: "Budget runway",
-      icon: <TrendingUp size={12} />,
-      prompt: "Explain my OPEX budget runway and what I should watch out for.",
+      label: "Budget runway", icon: <TrendingUp size={12} />, prompt: "Explain my OPEX budget runway and what I should watch out for.",
     },
     {
-      label: "Payroll insight",
-      icon: <Zap size={12} />,
-      prompt: "Give me a summary of recent payroll cost decomposition.",
+      label: "Payroll insight", icon: <Zap size={12} />, prompt: "Give me a summary of recent payroll cost decomposition.",
     },
-  ],
-  procurement: [
+  ], procurement: [
     {
-      label: "P2P status",
-      icon: <FileText size={12} />,
-      prompt:
+      label: "P2P status", icon: <FileText size={12} />, prompt:
         "Show me the current status of all requisitions, POs, and invoices.",
     },
     {
-      label: "Overdue items",
-      icon: <AlertTriangle size={12} />,
-      prompt: "Which P2P items are overdue and need attention?",
+      label: "Overdue items", icon: <AlertTriangle size={12} />, prompt: "Which P2P items are overdue and need attention?",
     },
     {
-      label: "Create requisition",
-      icon: <Zap size={12} />,
-      prompt: "Guide me through creating a new requisition.",
+      label: "Create requisition", icon: <Zap size={12} />, prompt: "Guide me through creating a new requisition.",
     },
-  ],
-  approvals: [
+  ], approvals: [
     {
-      label: "Pending count",
-      icon: <FileText size={12} />,
-      prompt: "How many items are pending my approval and what are they?",
+      label: "Pending count", icon: <FileText size={12} />, prompt: "How many items are pending my approval and what are they?",
     },
     {
-      label: "High value items",
-      icon: <TrendingUp size={12} />,
-      prompt: "Show me the highest value items awaiting approval.",
+      label: "High value items", icon: <TrendingUp size={12} />, prompt: "Show me the highest value items awaiting approval.",
     },
     {
-      label: "Approval guide",
-      icon: <BookOpen size={12} />,
-      prompt: "What is the approval workflow for budget drafts?",
+      label: "Approval guide", icon: <BookOpen size={12} />, prompt: "What is the approval workflow for budget drafts?",
     },
   ],
   "budget-draft": [
     {
-      label: "How to submit",
-      icon: <CheckCircle size={12} />,
-      prompt: "What are the steps to submit a budget draft for approval?",
+      label: "How to submit", icon: <CheckCircle size={12} />, prompt: "What are the steps to submit a budget draft for approval?",
     },
     {
-      label: "Explain DOA",
-      icon: <BookOpen size={12} />,
-      prompt: "Explain the Delegation of Authority (DOA) approval process.",
+      label: "Explain DOA", icon: <BookOpen size={12} />, prompt: "Explain the Delegation of Authority (DOA) approval process.",
     },
     {
-      label: "Draft from doc",
-      icon: <FileText size={12} />,
-      prompt: "How do I auto-fill a budget draft from an uploaded document?",
+      label: "Draft from doc", icon: <FileText size={12} />, prompt: "How do I auto-fill a budget draft from an uploaded document?",
     },
-  ],
-  default: [
+  ], default: [
     {
-      label: "Portfolio summary",
-      icon: <BarChart2 size={12} />,
-      prompt: "Give me a financial health summary of our full portfolio.",
+      label: "Portfolio summary", icon: <BarChart2 size={12} />, prompt: "Give me a financial health summary of our full portfolio.",
     },
     {
-      label: "Top overruns",
-      icon: <AlertTriangle size={12} />,
-      prompt: "Show me the projects with the worst cost overruns.",
+      label: "Top overruns", icon: <AlertTriangle size={12} />, prompt: "Show me the projects with the worst cost overruns.",
     },
     {
-      label: "How to use",
-      icon: <BookOpen size={12} />,
-      prompt: "How do I use SentinelFi to track project budgets?",
+      label: "How to use", icon: <BookOpen size={12} />, prompt: "How do I use SentinelFi to track project budgets?",
     },
   ],
 };
@@ -202,14 +126,7 @@ export const AIChatFAB: React.FC = () => {
   const isOpen = useUIStore((state) => state.isAiAssistantOpen);
   const setIsOpen = useUIStore((state) => state.setAiAssistantOpen);
   const {
-    messages,
-    scope,
-    isStreaming,
-    proactiveInsight,
-    unreadCount,
-    sendMessage,
-    clearHistory,
-    dismissProactiveInsight,
+    messages, scope, isStreaming, proactiveInsight, unreadCount, sendMessage, clearHistory, dismissProactiveInsight,
   } = useAIChat();
 
   const [isMinimized, setIsMinimized] = useState(false);
@@ -252,15 +169,10 @@ export const AIChatFAB: React.FC = () => {
   }, [proactiveInsight, isOpen]);
 
   const pageLabels: Record<string, string> = {
-    dashboard: "Dashboard",
-    wbs: "WBS Budget",
+    dashboard: "Dashboard", wbs: "WBS Budget",
     "capex-dashboard": "CAPEX Dashboard",
-    "opex-dashboard": "OPEX Dashboard",
-    procurement: "P2P Desk",
-    approvals: "Approvals",
-    "budget-draft": "Budget Draft",
-    reporting: "Reports",
-    default: "SentinelFi",
+    "opex-dashboard": "OPEX Dashboard", procurement: "P2P Desk", approvals: "Approvals",
+    "budget-draft": "Budget Draft", reporting: "Reports", default: "SentinelFi",
   };
 
   const pageLabel = pageLabels[currentPage] || pageLabels["default"];

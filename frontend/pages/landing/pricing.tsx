@@ -82,70 +82,35 @@ const CurrencySelector: React.FC<{
 const formatInCurrency = (usdAmount: number, currency: CurrencyRate) => {
   const converted = usdAmount * currency.rateToUSD;
   return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency.code,
-    maximumFractionDigits: 0,
+    style: 'currency', currency: currency.code, maximumFractionDigits: 0,
   }).format(converted);
 };
 
 // ─── Plan Data ────────────────────────────────────────────────────────────────
 const PLANS = [
   {
-    key: 'free',
-    name: 'Free',
-    icon: <Globe className="w-7 h-7" />,
-    price_usd_monthly: 0,
-    price_usd_annual: 0,
-    badge: null,
-    featured: false,
-    color: 'gray-400',
-    description: 'Forever free. 1 task/day, ad-supported. Watch ads to unlock extras.',
-    features: [
+    key: 'free', name: 'Free', icon: <Globe className="w-7 h-7" />, price_usd_monthly: 0, price_usd_annual: 0, badge: null, featured: false, color: 'gray-400', description: 'Forever free. 1 task/day, ad-supported. Watch ads to unlock extras.', features: [
       '1 task per day included',
       'Watch ads to unlock extra tasks',
       'Core WBS & reporting (limited)',
       '1 tenant instance',
       'Community support',
-      'Ads on some features — upgrade removes all ads',
-    ],
-    cta: 'Start for Free',
-    ctaHref: () => `/landing/checkout?plan=free`,
-    note: 'Free forever — no credit card required',
-    freeTier: true,
+      'Ads on some features, upgrade removes all ads',
+    ], cta: 'Start for Free', ctaHref: () => `/landing/checkout?plan=free`, note: 'Free forever, no credit card required', freeTier: true,
   },
   {
-    key: 'trial',
-    name: 'Free Trial',
-    icon: <Zap className="w-7 h-7" />,
-    price_usd_monthly: 0,
-    price_usd_annual: 0,
-    badge: null,
-    featured: false,
-    color: 'teal',
-    description: '14 days of full Professional access. No credit card required.',
-    features: [
+    key: 'trial', name: 'Free Trial', icon: <Zap className="w-7 h-7" />, price_usd_monthly: 0, price_usd_annual: 0, badge: null, featured: false, color: 'teal', description: '14 days of full Professional access. No credit card required.', features: [
       'Full AI Forensics Engine',
       'WBS Structure Enforcement',
       'Multi-Tenant Access (up to 3)',
       'All Reporting Modules',
       'Priority Email Support',
       'Automatic expiry after 14 days',
-    ],
-    cta: 'Start Free Trial',
-    ctaHref: (cycle: BillingCycle) => `/landing/checkout?plan=trial`,
-    note: 'No credit card required',
+    ], cta: 'Start Free Trial', ctaHref: (cycle: BillingCycle) => `/landing/checkout?plan=trial`, note: 'No credit card required',
   },
   {
-    key: 'professional',
-    name: 'Professional',
-    icon: <Shield className="w-7 h-7" />,
-    price_usd_monthly: MONTHLY_USD,
-    price_usd_annual: ANNUAL_USD / 12, // Monthly equivalent when billed annually
-    badge: 'Most Popular',
-    featured: true,
-    color: 'brand-primary',
-    description: 'Full-power financial governance for serious infrastructure teams. $500/mo, 5% off annual.',
-    features: [
+    key: 'professional', name: 'Professional', icon: <Shield className="w-7 h-7" />, price_usd_monthly: MONTHLY_USD, price_usd_annual: ANNUAL_USD / 12, // Monthly equivalent when billed annually
+    badge: 'Most Popular', featured: true, color: 'brand-primary', description: 'Full-power financial governance for serious infrastructure teams. $500/mo, 5% off annual.', features: [
       'Everything in Free Trial',
       '3 Sovereign Tenant Instances',
       'Unlimited tasks & AI Forensic Scans',
@@ -153,24 +118,13 @@ const PLANS = [
       'Automated Invoice Verification',
       'Custom Domain Mapping',
       'Paystack & PayPal Gateways',
-      'No ads — clean workspace',
+      'No ads, clean workspace',
       'Priority 24/7 Support',
-    ],
-    cta: 'Go Professional',
-    ctaHref: (cycle: BillingCycle) => `/landing/checkout?plan=professional&cycle=${cycle}`,
-    note: 'Charged in USD via secure gateway — 5% off annual',
+    ], cta: 'Go Professional', ctaHref: (cycle: BillingCycle) => `/landing/checkout?plan=professional&cycle=${cycle}`, note: 'Charged in USD via secure gateway - 5% off annual',
   },
   {
-    key: 'enterprise',
-    name: 'Enterprise',
-    icon: <Crown className="w-7 h-7" />,
-    price_usd_monthly: null, // Custom
-    price_usd_annual: null,
-    badge: null,
-    featured: false,
-    color: 'yellow-500',
-    description: 'Unlimited power for global infrastructure boards and governments.',
-    features: [
+    key: 'enterprise', name: 'Enterprise', icon: <Crown className="w-7 h-7" />, price_usd_monthly: null, // Custom
+    price_usd_annual: null, badge: null, featured: false, color: 'yellow-500', description: 'Unlimited power for global infrastructure boards and governments.', features: [
       'Unlimited Global Tenancies',
       'On-Premise Deployment Option',
       'Dedicated Governance Engineer',
@@ -178,10 +132,7 @@ const PLANS = [
       'White-Label Intelligence Portal',
       'Full Audit Transparency Log',
       'SLA-backed 99.99% Uptime',
-    ],
-    cta: 'Contact Sales',
-    ctaHref: () => '/contact',
-    note: 'Custom pricing',
+    ], cta: 'Contact Sales', ctaHref: () => '/contact', note: 'Custom pricing',
   },
 ];
 
@@ -196,14 +147,11 @@ const PricingPage: NextPageWithLayout = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('annual');
   const [currencies, setCurrencies] = useState<CurrencyRate[]>([]);
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyRate>({
-    code: 'USD',
-    symbol: '$',
-    name: 'US Dollar',
-    rateToUSD: 1,
+    code: 'USD', symbol: '$', name: 'US Dollar', rateToUSD: 1,
   });
   const [ratesLoading, setRatesLoading] = useState(true);
 
-  // Fetch live exchange rates — public endpoint, no auth required
+  // Fetch live exchange rates, public endpoint, no auth required
   useEffect(() => {
     const fetchRates = async () => {
       try {
@@ -220,7 +168,7 @@ const PricingPage: NextPageWithLayout = () => {
           } catch (_) {}
         }
       } catch (err) {
-        // Silently fall back to USD only — pricing still works
+        // Silently fall back to USD only, pricing still works
         console.warn('Could not fetch live currency rates for pricing page');
       } finally {
         setRatesLoading(false);
@@ -405,7 +353,7 @@ const PricingPage: NextPageWithLayout = () => {
 };
 
 PricingPage.getLayout = (page: React.ReactElement) => {
-  return <MarketingLayout title="Pricing | SentinelFi — Professional Financial Intelligence">{page}</MarketingLayout>;
+  return <MarketingLayout title="Pricing | SentinelFi - Professional Financial Intelligence">{page}</MarketingLayout>;
 };
 
 export default PricingPage;

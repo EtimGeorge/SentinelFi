@@ -5,16 +5,11 @@ module.exports = {
     '**/*.{js,jsx,ts,tsx}',
     '!**/*.d.ts',
     '!**/node_modules/**',
-  ],
-  coverageThreshold: {
+  ], coverageThreshold: {
     global: {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70,
+      branches: 70, functions: 70, lines: 70, statements: 70,
     },
-  },
-  moduleNameMapper: {
+  }, moduleNameMapper: {
     // Handle CSS imports (with CSS modules)
     // https://jestjs.io/docs/webpack#mocking-css-modules
     '^.+\.module\.(css|sass|scss)$': 'identity-obj-proxy',
@@ -34,18 +29,12 @@ module.exports = {
     '^next/image$': '<rootDir>/__mocks__/next/image.js',
     '^next/link$': '<rootDir>/__mocks__/next/link.js',
     '^@shared/(.*)$': '<rootDir>/../shared/$1', // Add this line
-  },
-  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/'],
-  testEnvironment: 'jsdom',
-  transform: {
+  }, testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/'], testEnvironment: 'jsdom', transform: {
     // Use babel-jest to transpile tests with the Next.js babel preset.
     // You can also use @swc/jest for SWC support.
     '^.+\.(js|jsx|ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }],
-  },
-  transformIgnorePatterns: [
+  }, transformIgnorePatterns: [
     '/node_modules/',
     '^.+\.module\.(css|sass|scss)$',
-  ],
-  moduleDirectories: ['node_modules', '<rootDir>/../node_modules'],
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  ], moduleDirectories: ['node_modules', '<rootDir>/../node_modules'], setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
 };

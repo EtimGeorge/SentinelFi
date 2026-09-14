@@ -5,16 +5,7 @@ import PageContainer from '../../components/Layout/PageContainer';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import Card from '../../components/common/Card';
 import {
-  DollarSign,
-  ArrowLeft,
-  Layers,
-  TrendingUp,
-  AlertCircle,
-  FileText,
-  Clock,
-  Briefcase,
-  ExternalLink,
-  Tag
+  DollarSign, ArrowLeft, Layers, TrendingUp, AlertCircle, FileText, Clock, Briefcase, ExternalLink, Tag
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCurrency } from '../../components/context/CurrencyContext';

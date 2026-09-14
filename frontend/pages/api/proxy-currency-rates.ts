@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
     const { data } = await axios.get(`${backendUrl}/currency/supported`, { timeout: 5000 });
 
-    // Cache for 5 minutes — exchange rates don't change frequently
+    // Cache for 5 minutes, exchange rates don't change frequently
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
     return res.status(200).json(data);
   } catch (err) {

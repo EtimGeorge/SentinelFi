@@ -16,8 +16,7 @@ import { WbsBudget } from '@shared/types/wbs';
 import { Project } from '@shared/types/project';
 import toast from 'react-hot-toast';
 import {
-  ArrowLeft, Download, Printer, Search, FileDown, Layers, Target,
-  FileSpreadsheet, ArrowUpRight, ArrowDownRight, Activity, Settings2, Edit2, Send, RotateCcw
+  ArrowLeft, Download, Printer, Search, FileDown, Layers, Target, FileSpreadsheet, ArrowUpRight, ArrowDownRight, Activity, Settings2, Edit2, Send, RotateCcw
 } from 'lucide-react';
 
 interface PreviewKPIs {
@@ -29,22 +28,12 @@ interface PreviewKPIs {
 
 /** Roles that can submit project budgets or edit line items (matches backend @Roles on PATCH /wbs/project/:id/submit) */
 const SUBMIT_AUTHORIZED_ROLES: Role[] = [
-  Role.CFO,
-  Role.FinanceManager,
-  Role.AdminDirector,
-  Role.AdminManager,
-  Role.AssignedProjectUser,
-  Role.CEO,
+  Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager, Role.AssignedProjectUser, Role.CEO,
 ];
 
 /** Roles that can approve/reject budget items (matches backend @Roles on PATCH /wbs/budget-draft/:id/status) */
 const APPROVE_AUTHORIZED_ROLES: Role[] = [
-  Role.CFO,
-  Role.FinanceManager,
-  Role.AdminDirector,
-  Role.AdminManager,
-  Role.CEO,
-  Role.SuperAdmin,
+  Role.CFO, Role.FinanceManager, Role.AdminDirector, Role.AdminManager, Role.CEO, Role.SuperAdmin,
 ];
 
 const ProjectBudgetPreviewPage: React.FC = () => {
@@ -81,11 +70,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<WbsBudgetExtended | null>(null);
   const [editFormData, setEditFormData] = useState({
-    description: '',
-    quantity: 0,
-    uom: '',
-    days: 0,
-    unit_cost: 0
+    description: '', quantity: 0, uom: '', days: 0, unit_cost: 0
   });
 
   useEffect(() => {
@@ -262,11 +247,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
   const handleInlineEdit = (item: WbsBudgetExtended) => {
     setEditingItem(item);
     setEditFormData({
-      description: item.description,
-      quantity: Number(item.quantity_budgeted) || 0,
-      uom: item.uom || 'EA',
-      days: Number(item.days_budgeted) || 0,
-      unit_cost: Number(item.unit_cost_budgeted) || 0
+      description: item.description, quantity: Number(item.quantity_budgeted) || 0, uom: item.uom || 'EA', days: Number(item.days_budgeted) || 0, unit_cost: Number(item.unit_cost_budgeted) || 0
     });
     setIsEditModalOpen(true);
   };
@@ -278,11 +259,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       await api.patch(`/wbs/budget-draft/${editingItem.wbs_id}`, {
-        description: editFormData.description,
-        quantity_budgeted: editFormData.quantity,
-        uom: editFormData.uom,
-        days_budgeted: editFormData.days,
-        unit_cost_budgeted: editFormData.unit_cost
+        description: editFormData.description, quantity_budgeted: editFormData.quantity, uom: editFormData.uom, days_budgeted: editFormData.days, unit_cost_budgeted: editFormData.unit_cost
       });
       toast.success('Item updated successfully');
       setIsEditModalOpen(false);
@@ -299,9 +276,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
     const currency = project?.currency || 'NGN';
     return [
       {
-        key: 'wbs',
-        label: groupBy === 'flat' ? 'WBS Structure & Description' : 'WBS Structure & Description',
-        get: (item: WbsBudgetExtended) => {
+        key: 'wbs', label: groupBy === 'flat' ? 'WBS Structure & Description' : 'WBS Structure & Description', get: (item: WbsBudgetExtended) => {
           const wbsColor = getWBSColor(item.wbs_code.split('.')[0]);
           const isParent = previewRows.hasChildren.has(item.wbs_id);
           const level = previewRows.levels.get(item.wbs_id) || 0;
@@ -358,85 +333,51 @@ const ProjectBudgetPreviewPage: React.FC = () => {
               )}
             </div>
           );
-        },
-        tier: 'P0' as const,
-        minWidth: 220,
+        }, tier: 'P0' as const, minWidth: 220,
       },
       ...(visibleCols.qty ? [{
-        key: 'qty',
-        label: 'Qty',
-        get: (item: WbsBudgetExtended) => {
+        key: 'qty', label: 'Qty', get: (item: WbsBudgetExtended) => {
           const isParent = groupBy !== 'flat' && previewRows.hasChildren.has(item.wbs_id);
           return <span className="text-xs text-gray-400 font-mono">{!isParent ? (item.quantity_budgeted || 1) : ''}</span>;
-        },
-        tier: 'P2' as const,
-        cellClassName: 'text-right',
-        minWidth: 70,
+        }, tier: 'P2' as const, cellClassName: 'text-right', minWidth: 70,
       }] : []),
       ...(visibleCols.uom ? [{
-        key: 'uom',
-        label: 'UoM',
-        get: (item: WbsBudgetExtended) => {
+        key: 'uom', label: 'UoM', get: (item: WbsBudgetExtended) => {
           const isParent = groupBy !== 'flat' && previewRows.hasChildren.has(item.wbs_id);
           return <span className="text-xs text-gray-400 font-mono uppercase">{!isParent ? (item.uom || 'EA') : ''}</span>;
-        },
-        tier: 'P2' as const,
-        cellClassName: 'text-right',
-        minWidth: 60,
+        }, tier: 'P2' as const, cellClassName: 'text-right', minWidth: 60,
       }] : []),
       ...(visibleCols.days ? [{
-        key: 'days',
-        label: 'Days',
-        get: (item: WbsBudgetExtended) => {
+        key: 'days', label: 'Days', get: (item: WbsBudgetExtended) => {
           const isParent = groupBy !== 'flat' && previewRows.hasChildren.has(item.wbs_id);
           return <span className="text-xs text-gray-400 font-mono">{!isParent ? (item.days_budgeted || 'â€”') : ''}</span>;
-        },
-        tier: 'P2' as const,
-        cellClassName: 'text-right',
-        minWidth: 56,
+        }, tier: 'P2' as const, cellClassName: 'text-right', minWidth: 56,
       }] : []),
       ...(visibleCols.rate ? [{
-        key: 'rate',
-        label: 'Unit Rate',
-        get: (item: WbsBudgetExtended) => {
+        key: 'rate', label: 'Unit Rate', get: (item: WbsBudgetExtended) => {
           const isParent = groupBy !== 'flat' && previewRows.hasChildren.has(item.wbs_id);
           return <span className="text-xs text-gray-400 font-mono">{!isParent ? convertToDisplay(item.unit_cost_budgeted || 0, currency) : ''}</span>;
-        },
-        tier: 'P1' as const,
-        cellClassName: 'text-right',
-        minWidth: 100,
+        }, tier: 'P1' as const, cellClassName: 'text-right', minWidth: 100,
       }] : []),
       {
-        key: 'budgeted',
-        label: 'Allocated Budget',
-        get: (item: WbsBudgetExtended) => {
+        key: 'budgeted', label: 'Allocated Budget', get: (item: WbsBudgetExtended) => {
           const isParent = previewRows.hasChildren.has(item.wbs_id);
           const val = groupBy !== 'flat' && isParent
             ? Number(item.total_cost_budgeted_rollup || item.total_cost_budgeted || 0)
             : Number(item.total_cost_budgeted || 0);
           return <span className={`text-sm ${isParent ? 'font-black text-white' : 'font-bold text-gray-300'}`}>{convertToDisplay(val, currency)}</span>;
-        },
-        tier: 'P0' as const,
-        cellClassName: 'text-right whitespace-nowrap',
-        minWidth: 130,
+        }, tier: 'P0' as const, cellClassName: 'text-right whitespace-nowrap', minWidth: 130,
       },
       {
-        key: 'spent',
-        label: 'Actual Spent',
-        get: (item: WbsBudgetExtended) => {
+        key: 'spent', label: 'Actual Spent', get: (item: WbsBudgetExtended) => {
           const spent = Number(item.total_paid_rollup || 0);
           return spent > 0
             ? <span className="text-sm font-bold text-gray-400">{convertToDisplay(spent, currency)}</span>
             : <span className="text-sm text-gray-600">â€”</span>;
-        },
-        tier: 'P1' as const,
-        cellClassName: 'text-right whitespace-nowrap',
-        minWidth: 120,
+        }, tier: 'P1' as const, cellClassName: 'text-right whitespace-nowrap', minWidth: 120,
       },
       {
-        key: 'variance',
-        label: 'Variance',
-        get: (item: WbsBudgetExtended) => {
+        key: 'variance', label: 'Variance', get: (item: WbsBudgetExtended) => {
           const spent = Number(item.total_paid_rollup || 0);
           const isParent = previewRows.hasChildren.has(item.wbs_id);
           const budgeted = groupBy !== 'flat' && isParent
@@ -457,10 +398,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
               )}
             </div>
           );
-        },
-        tier: 'P1' as const,
-        cellClassName: 'text-right',
-        minWidth: 140,
+        }, tier: 'P1' as const, cellClassName: 'text-right', minWidth: 140,
       },
     ];
   }, [groupBy, visibleCols, project?.currency, convertToDisplay, canApprove, previewRows, handleInlineEdit, handleRecallApproval]);

@@ -10,10 +10,7 @@ import { useAuth, Role } from '../../../components/context/AuthContext';
 import { useCurrency } from '../../../components/context/CurrencyContext';
 import toast from 'react-hot-toast';
 import {
-  BarChart2, DollarSign, TrendingUp, TrendingDown, AlertTriangle,
-  Layers, FileText, Bot, PenLine, Briefcase, Activity,
-  ChevronRight, ArrowUpRight, ArrowDownRight, Wallet,
-  CheckCircle, Clock, XCircle, Eye, PlusCircle
+  BarChart2, DollarSign, TrendingUp, TrendingDown, AlertTriangle, Layers, FileText, Bot, PenLine, Briefcase, Activity, ChevronRight, ArrowUpRight, ArrowDownRight, Wallet, CheckCircle, Clock, XCircle, Eye, PlusCircle
 } from 'lucide-react';
 
 interface ProjectSummary {
@@ -42,49 +39,19 @@ interface BudgetKPIs {
 
 const QUICK_LINKS = [
   {
-    name: 'WBS Designer',
-    description: 'Build and manage hierarchical cost structures',
-    icon: Layers,
-    path: '/financials/projects/wbs',
-    color: 'bg-brand-primary/10',
-    iconColor: 'text-brand-primary',
-    borderColor: 'border-brand-primary/30',
+    name: 'WBS Designer', description: 'Build and manage hierarchical cost structures', icon: Layers, path: '/financials/projects/wbs', color: 'bg-brand-primary/10', iconColor: 'text-brand-primary', borderColor: 'border-brand-primary/30',
   },
   {
-    name: 'Project Budgets',
-    description: 'View, filter, and analyze all budget items',
-    icon: DollarSign,
-    path: '/financials/projects/budgets',
-    color: 'bg-brand-secondary/10',
-    iconColor: 'text-brand-secondary',
-    borderColor: 'border-brand-secondary/30',
+    name: 'Project Budgets', description: 'View, filter, and analyze all budget items', icon: DollarSign, path: '/financials/projects/budgets', color: 'bg-brand-secondary/10', iconColor: 'text-brand-secondary', borderColor: 'border-brand-secondary/30',
   },
   {
-    name: 'Project Expenses',
-    description: 'Track live expenses with variance flags',
-    icon: Activity,
-    path: '/financials/projects/expenses',
-    color: 'bg-alert-critical/10',
-    iconColor: 'text-alert-critical',
-    borderColor: 'border-alert-critical/30',
+    name: 'Project Expenses', description: 'Track live expenses with variance flags', icon: Activity, path: '/financials/projects/expenses', color: 'bg-alert-critical/10', iconColor: 'text-alert-critical', borderColor: 'border-alert-critical/30',
   },
   {
-    name: 'OPEX Planning',
-    description: 'Configure and manage operational budgets',
-    icon: Briefcase,
-    path: '/financials/operations/planning',
-    color: 'bg-wbs-violet/10',
-    iconColor: 'text-wbs-violet',
-    borderColor: 'border-wbs-violet/30',
+    name: 'OPEX Planning', description: 'Configure and manage operational budgets', icon: Briefcase, path: '/financials/operations/planning', color: 'bg-wbs-violet/10', iconColor: 'text-wbs-violet', borderColor: 'border-wbs-violet/30',
   },
   {
-    name: 'Log Expense',
-    description: 'Submit single or bulk expense entries against approved budgets',
-    icon: PlusCircle,
-    path: '/financials/expenses/new',
-    color: 'bg-alert-positive/10',
-    iconColor: 'text-green-400',
-    borderColor: 'border-green-500/30',
+    name: 'Log Expense', description: 'Submit single or bulk expense entries against approved budgets', icon: PlusCircle, path: '/financials/expenses/new', color: 'bg-alert-positive/10', iconColor: 'text-green-400', borderColor: 'border-green-500/30',
   },
 ];
 
@@ -101,9 +68,7 @@ const BudgetHubPage: React.FC = () => {
     try {
       // Fetch budgets, expenses, and projects in parallel
       const [budgetRes, expenseRes, projectsRes] = await Promise.allSettled([
-        api.get<{ data: any[]; total: number }>('/wbs/budgets?limit=100'),
-        api.get<{ data: any[]; total: number }>('/wbs/expenses?limit=100'),
-        api.get<{ projects: any[] }>('/projects?limit=100'),
+        api.get<{ data: any[]; total: number }>('/wbs/budgets?limit=100'), api.get<{ data: any[]; total: number }>('/wbs/expenses?limit=100'), api.get<{ projects: any[] }>('/projects?limit=100'),
       ]);
 
       const budgets = budgetRes.status === 'fulfilled' ? budgetRes.value.data.data || [] : [];
@@ -145,13 +110,7 @@ const BudgetHubPage: React.FC = () => {
       const projectSummariesMap = new Map<string, ProjectSummary & { currency: string }>();
       for (const p of projects) {
         projectSummariesMap.set(p.project_id, {
-          project_id: p.project_id,
-          project_name: p.project_name,
-          total_budgeted: 0,
-          total_spent: 0,
-          budget_count: 0,
-          expense_count: 0,
-          currency: p.currency || 'NGN'
+          project_id: p.project_id, project_name: p.project_name, total_budgeted: 0, total_spent: 0, budget_count: 0, expense_count: 0, currency: p.currency || 'NGN'
         });
       }
       for (const b of budgets) {
@@ -172,17 +131,7 @@ const BudgetHubPage: React.FC = () => {
       }
 
       setKpis({
-        totalBudgeted,
-        totalSpent,
-        totalRemaining,
-        healthPercent,
-        approvedCount,
-        pendingCount,
-        rejectedCount,
-        totalBudgets: budgetTotal,
-        totalExpenses: expenseTotal,
-        overBudgetCount,
-        projectSummaries: Array.from(projectSummariesMap.values())
+        totalBudgeted, totalSpent, totalRemaining, healthPercent, approvedCount, pendingCount, rejectedCount, totalBudgets: budgetTotal, totalExpenses: expenseTotal, overBudgetCount, projectSummaries: Array.from(projectSummariesMap.values())
           .filter(ps => ps.budget_count > 0 || ps.expense_count > 0)
           .sort((a, b) => b.total_budgeted - a.total_budgeted),
       });
@@ -213,37 +162,24 @@ const BudgetHubPage: React.FC = () => {
 
   const projectColumns = [
     {
-      key: 'project_name',
-      label: 'Project',
-      get: (ps: ProjectSummary) => (
+      key: 'project_name', label: 'Project', get: (ps: ProjectSummary) => (
         <Link href={`/projects/${ps.project_id}/overview`} className="text-sm font-bold text-gray-200 hover:text-brand-primary transition">
           {ps.project_name}
         </Link>
-      ),
-      tier: 'P0' as const,
+      ), tier: 'P0' as const,
     },
     {
-      key: 'total_budgeted',
-      label: 'Budgeted',
-      get: (ps: ProjectSummary) => (
+      key: 'total_budgeted', label: 'Budgeted', get: (ps: ProjectSummary) => (
         <span className="text-sm font-black text-white">{convertToDisplay(ps.total_budgeted, ps.currency)}</span>
-      ),
-      tier: 'P0' as const,
-      cellClassName: 'text-right',
+      ), tier: 'P0' as const, cellClassName: 'text-right',
     },
     {
-      key: 'total_spent',
-      label: 'Spent',
-      get: (ps: ProjectSummary) => (
+      key: 'total_spent', label: 'Spent', get: (ps: ProjectSummary) => (
         <span className="text-sm font-bold text-gray-300">{convertToDisplay(ps.total_spent, ps.currency)}</span>
-      ),
-      tier: 'P1' as const,
-      cellClassName: 'text-right',
+      ), tier: 'P1' as const, cellClassName: 'text-right',
     },
     {
-      key: 'variance',
-      label: 'Variance',
-      get: (ps: ProjectSummary) => {
+      key: 'variance', label: 'Variance', get: (ps: ProjectSummary) => {
         const variance = ps.total_budgeted - ps.total_spent;
         return (
           <span className={`text-sm font-bold flex items-center justify-end gap-1 ${variance >= 0 ? 'text-alert-positive' : 'text-alert-critical'}`}>
@@ -251,23 +187,15 @@ const BudgetHubPage: React.FC = () => {
             {convertToDisplay(Math.abs(variance), ps.currency)}
           </span>
         );
-      },
-      tier: 'P1' as const,
-      cellClassName: 'text-right',
+      }, tier: 'P1' as const, cellClassName: 'text-right',
     },
     {
-      key: 'items',
-      label: 'Items',
-      get: (ps: ProjectSummary) => (
+      key: 'items', label: 'Items', get: (ps: ProjectSummary) => (
         <span className="text-xs text-gray-400">{ps.budget_count}B / {ps.expense_count}E</span>
-      ),
-      tier: 'P2' as const,
-      cellClassName: 'text-center',
+      ), tier: 'P2' as const, cellClassName: 'text-center',
     },
     {
-      key: 'health',
-      label: 'Health',
-      get: (ps: ProjectSummary) => {
+      key: 'health', label: 'Health', get: (ps: ProjectSummary) => {
         const variance = ps.total_budgeted - ps.total_spent;
         const pct = ps.total_budgeted > 0 ? Math.round((variance / ps.total_budgeted) * 100) : 100;
         return (
@@ -283,18 +211,13 @@ const BudgetHubPage: React.FC = () => {
             </span>
           </div>
         );
-      },
-      tier: 'P2' as const,
+      }, tier: 'P2' as const,
     },
   ];
 
   const projectActions = [
     {
-      key: 'preview',
-      label: 'Preview',
-      icon: <Eye className="w-3.5 h-3.5" />,
-      onClick: (ps: ProjectSummary) => router.push(`/financials/projects/preview/${ps.project_id}`),
-      primary: true,
+      key: 'preview', label: 'Preview', icon: <Eye className="w-3.5 h-3.5" />, onClick: (ps: ProjectSummary) => router.push(`/financials/projects/preview/${ps.project_id}`), primary: true,
     },
   ];
 

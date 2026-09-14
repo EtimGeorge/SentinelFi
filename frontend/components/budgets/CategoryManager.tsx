@@ -43,8 +43,7 @@ const CategoryManager: React.FC = () => {
     if (!newCatName) return;
     try {
       await api.post('/operational-budgets/categories', {
-        name: newCatName,
-        type: newCatType,
+        name: newCatName, type: newCatType,
       });
       addToast('Category added', 'success');
       setNewCatName('');

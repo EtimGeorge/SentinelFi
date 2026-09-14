@@ -2,18 +2,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import MarketingLayout from '../../components/Landing/MarketingLayout';
 import { 
-  Users, 
-  ShieldCheck, 
-  Zap, 
-  Cpu, 
-  BarChart3, 
-  Lock,
-  ArrowRight,
-  ChevronRight,
-  Activity,
-  Target,
-  FileSearch,
-  PieChart
+  Users, ShieldCheck, Zap, Cpu, BarChart3, Lock, ArrowRight, ChevronRight, Activity, Target, FileSearch, PieChart
 } from 'lucide-react';
 
 import { NextPage } from 'next';
@@ -27,16 +16,11 @@ const WorkflowsPage: NextPageWithLayout = () => {
 
   const workflows = {
     'CEO': {
-      title: 'Strategic Oversight',
-      subtitle: 'Board-Level High-Fidelity Intelligence',
-      icon: <ShieldCheck className="w-12 h-12 text-m-primary" />,
-      desc: 'As the executive head, you require absolute clarity on capital risk and organizational health without getting lost in the weeds.',
-      steps: [
+      title: 'Strategic Oversight', subtitle: 'Board-Level High-Fidelity Intelligence', icon: <ShieldCheck className="w-12 h-12 text-m-primary" />, desc: 'As the executive head, you require absolute clarity on capital risk and organizational health without getting lost in the weeds.', steps: [
         { title: 'Global Portfolio Pulse', desc: 'Real-time aggregation of multi-project health and variance heatmaps.' },
         { title: 'Capital Allocation Logic', desc: 'Predictive modeling for future project funding based on historical performance.' },
         { title: 'Governance Guardrails', desc: 'Setting the high-level assurance policies that cascade to every PM.' }
-      ],
-      visual: (
+      ], visual: (
         <div className="space-y-6">
            <div className="grid grid-cols-2 gap-4">
               <div className="p-6 bg-white/5 rounded-2xl border border-m-primary/20">
@@ -63,16 +47,11 @@ const WorkflowsPage: NextPageWithLayout = () => {
       )
     },
     'PM': {
-      title: 'Tactical Execution',
-      subtitle: 'Precision Work Breakdown Governance',
-      icon: <Zap className="w-12 h-12 text-m-secondary" />,
-      desc: 'Project Managers use SentinelFi to enforce rigid WBS structures and prevent scope/budget creep at the source.',
-      steps: [
+      title: 'Tactical Execution', subtitle: 'Precision Work Breakdown Governance', icon: <Zap className="w-12 h-12 text-m-secondary" />, desc: 'Project Managers use SentinelFi to enforce rigid WBS structures and prevent scope/budget creep at the source.', steps: [
         { title: 'Structure Initialization', desc: 'Defining the baseline WBS for multi-billion dollar infrastructure.' },
         { title: 'Operational Budgeting', desc: 'Linking every requisition to a specific WBS node for absolute tracking.' },
         { title: 'Variance Correction', desc: 'Automated alerts when field activities deviate from the digital twin baseline.' }
-      ],
-      visual: (
+      ], visual: (
         <div className="space-y-4">
            <div className="p-4 bg-m-primary/10 border border-m-primary/30 rounded-xl">
               <div className="flex justify-between items-center mb-2">
@@ -96,16 +75,11 @@ const WorkflowsPage: NextPageWithLayout = () => {
       )
     },
     'AUDIT': {
-      title: 'Financial Forensics',
-      subtitle: 'AI-Driven Governance & Compliance',
-      icon: <Activity className="w-12 h-12 text-m-accent" />,
-      desc: 'Audit and Finance teams leverage our AI layer to verify thousands of transactions against organizational policy automatically.',
-      steps: [
+      title: 'Financial Forensics', subtitle: 'AI-Driven Governance & Compliance', icon: <Activity className="w-12 h-12 text-m-accent" />, desc: 'Audit and Finance teams leverage our AI layer to verify thousands of transactions against organizational policy automatically.', steps: [
         { title: 'Policy Enforcement', desc: 'Defining the algorithmic rules for expenditure approval.' },
         { title: 'Anomaly Discovery', desc: 'Letting the Sentinel-AI flag suspicious patterns and duplicates.' },
         { title: 'Immutable Trail', desc: 'Generating forensic-grade reports for internal and external stakeholders.' }
-      ],
-      visual: (
+      ], visual: (
         <div className="space-y-6">
            <div className="p-6 bg-red-900/10 border border-red-500/30 rounded-2xl relative overflow-hidden">
               <div className="absolute top-2 right-4 text-[10px] font-black text-red-500 animate-pulse font-mono">ANOMALY DETECTED</div>

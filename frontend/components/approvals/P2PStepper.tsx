@@ -24,11 +24,7 @@ interface P2PStepperProps {
 }
 
 export const P2PStepper: React.FC<P2PStepperProps> = ({
-  currentStage,
-  stages = STAGES,
-  className = '',
-  showLabels = true,
-  compact = false,
+  currentStage, stages = STAGES, className = '', showLabels = true, compact = false,
 }) => {
   const currentIndex = stages.findIndex(s => s.id === currentStage);
   
@@ -98,12 +94,7 @@ interface StageItemProps {
 }
 
 export const StageItem: React.FC<StageItemProps> = ({
-  completed = false,
-  current = false,
-  pending = false,
-  timestamp,
-  actor,
-  children,
+  completed = false, current = false, pending = false, timestamp, actor, children,
 }) => {
   return (
     <div className="flex items-start gap-4">

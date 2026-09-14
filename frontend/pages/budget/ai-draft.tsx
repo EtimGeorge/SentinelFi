@@ -52,8 +52,7 @@ const AIBudgetDraftingPage: React.FC = () => {
 
     try {
       const response = await api.post<AiDraftResponse>('/ai/draft-budget', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
+        headers: { 'Content-Type': 'multipart/form-data' }, onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 100));
           setAiProcessingStatus(`Uploading: ${percentCompleted}%`);
         }

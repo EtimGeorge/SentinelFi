@@ -31,9 +31,7 @@ class FormAutoSave {
     const timeout = setTimeout(() => {
       try {
         const saveData = {
-          data,
-          timestamp: Date.now(),
-          version: '1.0',
+          data, timestamp: Date.now(), version: '1.0',
         };
         localStorage.setItem(`autosave_${key}`, JSON.stringify(saveData));
         console.log(`[AutoSave] Saved form data for key: ${key}`);

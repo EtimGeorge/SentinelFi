@@ -21,9 +21,7 @@ interface ToastState {
 }
 
 const useToastStore = create<ToastState>((set) => ({
-  toasts: [],
-
-  addToast: (message, type, duration = 5000) => {
+  toasts: [], addToast: (message, type, duration = 5000) => {
     const id = uuid.v4();
     set((state) => ({
       toasts: [...state.toasts, { id, message, type, duration }],
@@ -36,9 +34,7 @@ const useToastStore = create<ToastState>((set) => ({
         }));
       }, duration);
     }
-  },
-
-  addUndoToast: (message, onUndo, duration = 5000, undoLabel = 'Undo') => {
+  }, addUndoToast: (message, onUndo, duration = 5000, undoLabel = 'Undo') => {
     const id = uuid.v4();
     set((state) => ({
       toasts: [...state.toasts, { id, message, type: 'success', duration, onUndo, undoLabel, isUndoToast: true }],
@@ -51,9 +47,7 @@ const useToastStore = create<ToastState>((set) => ({
         }));
       }, duration);
     }
-  },
-
-  removeToast: (id) => {
+  }, removeToast: (id) => {
     set((state) => ({
       toasts: state.toasts.filter((toast) => toast.id !== id),
     }));

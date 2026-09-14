@@ -111,8 +111,7 @@ const Sidebar: React.FC = () => {
   const [projects, setProjects] = useState<any[]>([]);
 
   const {
-    isMobileSidebarOpen, closeMobileSidebar,
-    isDesktopSidebarCollapsed, toggleDesktopSidebar
+    isMobileSidebarOpen, closeMobileSidebar, isDesktopSidebarCollapsed, toggleDesktopSidebar
   } = useUIStore();
 
   const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
@@ -134,7 +133,7 @@ const Sidebar: React.FC = () => {
       } catch (error) {
         console.error('[Sidebar] Failed to init nav:', error);
       }
-      // Fetch projects for global selector — suppress 403 silently (role-gated)
+      // Fetch projects for global selector, suppress 403 silently (role-gated)
       try {
         const res: any = await apiClient.get('/projects?limit=100');
         setProjects(res.projects || res.data?.projects || []);
@@ -142,7 +141,7 @@ const Sidebar: React.FC = () => {
         if (e?.response?.status !== 403 && !e?._isForbidden) {
           console.error('[Sidebar] Failed to initialize projects:', e);
         } else {
-          console.debug('[Sidebar] Projects fetch skipped — forbidden for role');
+          console.debug('[Sidebar] Projects fetch skipped, forbidden for role');
         }
       }
     };
@@ -246,7 +245,7 @@ const Sidebar: React.FC = () => {
             </ul>
           </nav>
 
-          {/* Workspace context (project + currency) — mobile drawer only; desktop keeps header pickers */}
+          {/* Workspace context (project + currency) - mobile drawer only; desktop keeps header pickers */}
           <div className="flex-shrink-0 mt-auto pt-4 border-t border-brand-primary/30 md:hidden">
             <div className="flex items-center gap-3 mb-3" aria-hidden="true">
               <span className="text-xs font-bold  text-gray-500 whitespace-nowrap">Workspace</span>

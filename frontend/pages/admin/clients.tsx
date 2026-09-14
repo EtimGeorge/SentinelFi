@@ -35,11 +35,7 @@ const ClientsPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    industry: '',
-    address: '',
+    name: '', email: '', phone: '', industry: '', address: '',
   });
 
   const fetchClients = useCallback(async () => {
@@ -62,20 +58,12 @@ const ClientsPage: React.FC = () => {
     if (client) {
       setEditingClient(client);
       setFormData({
-        name: client.name,
-        email: client.email || '',
-        phone: client.phone || '',
-        industry: client.industry || '',
-        address: client.address || '',
+        name: client.name, email: client.email || '', phone: client.phone || '', industry: client.industry || '', address: client.address || '',
       });
     } else {
       setEditingClient(null);
       setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        industry: '',
-        address: '',
+        name: '', email: '', phone: '', industry: '', address: '',
       });
     }
     setIsModalOpen(true);

@@ -66,25 +66,10 @@ const useSuperAdminAnalytics = (period: string = '30d') => {
       setError(null);
       try {
         const [
-          tenantCountRes,
-          tenantGrowthRes, // Now returns array
-          userGrowthRes,
-          wbsMetricsRes,
-          opBudgetMetricsRes,
-          systemHealthRes,
-          mrrEstimateRes,
-          totalUsersRes,
-          planDistributionRes,
+          tenantCountRes, tenantGrowthRes, // Now returns array
+          userGrowthRes, wbsMetricsRes, opBudgetMetricsRes, systemHealthRes, mrrEstimateRes, totalUsersRes, planDistributionRes,
         ] = await Promise.all([
-          api.get('/super/analytics/tenant-count', { signal: controller.signal }),
-          api.get(`/super/analytics/tenant-growth?period=${period}`, { signal: controller.signal }),
-          api.get(`/super/analytics/user-growth?period=${period}`, { signal: controller.signal }),
-          api.get('/super/analytics/wbs-metrics', { signal: controller.signal }),
-          api.get('/super/analytics/operational-budget-metrics', { signal: controller.signal }),
-          api.get('/super/analytics/system-health', { signal: controller.signal }),
-          api.get('/super/analytics/mrr-estimate', { signal: controller.signal }),
-          api.get('/super/analytics/total-users', { signal: controller.signal }),
-          api.get('/super/analytics/plan-distribution', { signal: controller.signal }),
+          api.get('/super/analytics/tenant-count', { signal: controller.signal }), api.get(`/super/analytics/tenant-growth?period=${period}`, { signal: controller.signal }), api.get(`/super/analytics/user-growth?period=${period}`, { signal: controller.signal }), api.get('/super/analytics/wbs-metrics', { signal: controller.signal }), api.get('/super/analytics/operational-budget-metrics', { signal: controller.signal }), api.get('/super/analytics/system-health', { signal: controller.signal }), api.get('/super/analytics/mrr-estimate', { signal: controller.signal }), api.get('/super/analytics/total-users', { signal: controller.signal }), api.get('/super/analytics/plan-distribution', { signal: controller.signal }),
         ]);
 
         if (!controller.signal.aborted) {
@@ -99,26 +84,13 @@ const useSuperAdminAnalytics = (period: string = '30d') => {
 
           const wbs = wbsMetricsRes.data as any;
           setData({
-            tenantCount: tc.total || 0,
-            tenantGrowth: (Array.isArray(tg) ? tg : []).map(d => ({ ...d, count: Number(d.count || 0) })), 
-            userGrowth: { value: Number(ug.count || 0) },
-            wbsMetrics: {
+            tenantCount: tc.total || 0, tenantGrowth: (Array.isArray(tg) ? tg : []).map(d => ({ ...d, count: Number(d.count || 0) })), userGrowth: { value: Number(ug.count || 0) }, wbsMetrics: {
                totalBudgets: wbs.total_budget ? (wbs.total_spent > 0 ? 1 : 0) : 0, // Mock count if not real
                totalExpenses: 0, // Placeholder if backend doesn't provide
-               totalBudgetAmount: `$${((wbs.total_budget || 0) / 1000).toFixed(1)}k`,
-               totalExpenseAmount: `$${((wbs.total_spent || 0) / 1000).toFixed(1)}k`,
-               averageBudgetUtilization: wbs.total_budget ? (wbs.total_spent / wbs.total_budget).toString() : '0',
-               total_budget: Number(wbs.total_budget || 0),
-               total_spent: Number(wbs.total_spent || 0)
-            },
-            operationalBudgetMetrics: {
-               ...opBudgetMetricsRes.data,
-               totalBudgets: Number(opBudgetMetricsRes.data.totalBudgets || 0)
-            },
-            systemHealth: systemHealthRes.data,
-            mrrEstimate: Number(mrr.mrrEstimate || 0),
-            totalUsers: Number(tu.total || 0),
-            planDistribution: Array.isArray(planDistributionRes.data) ? planDistributionRes.data : [],
+               totalBudgetAmount: `$${((wbs.total_budget || 0) / 1000).toFixed(1)}k`, totalExpenseAmount: `$${((wbs.total_spent || 0) / 1000).toFixed(1)}k`, averageBudgetUtilization: wbs.total_budget ? (wbs.total_spent / wbs.total_budget).toString() : '0', total_budget: Number(wbs.total_budget || 0), total_spent: Number(wbs.total_spent || 0)
+            }, operationalBudgetMetrics: {
+               ...opBudgetMetricsRes.data, totalBudgets: Number(opBudgetMetricsRes.data.totalBudgets || 0)
+            }, systemHealth: systemHealthRes.data, mrrEstimate: Number(mrr.mrrEstimate || 0), totalUsers: Number(tu.total || 0), planDistribution: Array.isArray(planDistributionRes.data) ? planDistributionRes.data : [],
           });
         }
       } catch (err: any) {

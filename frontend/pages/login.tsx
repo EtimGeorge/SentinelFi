@@ -5,37 +5,43 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 // Custom components
-import { useAuth, AuthLogger, Role } from '../components/context/AuthContext';
+import { useAuth, AuthLogger, Role, MfaChallengeError } from '../components/context/AuthContext';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
-import { Eye, EyeOff, Shield, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Shield, ShieldCheck, KeyRound, AlertTriangle } from 'lucide-react';
 
 // ============================================================================
-// MFA VERIFICATION COMPONENT (NOT YET IMPLEMENTED)
+// MFA VERIFICATION COMPONENT
+// Accepts either a 6-digit TOTP code or a one-time recovery code (XXXX-XXXX).
 // ============================================================================
 
-/* 
 interface MFAVerificationProps {
   mfaToken: string;
+  rememberMe: boolean;
   onBack: () => void;
 }
 
-const MFAVerification: React.FC<MFAVerificationProps> = ({ mfaToken, onBack }) => {
-  // TODO: Implement verifyMFA in AuthContext first
+const MFAVerification: React.FC<MFAVerificationProps> = ({ mfaToken, rememberMe, onBack }) => {
+  const { verifyMfa } = useAuth();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
 
   const handleVerify = async (e: FormEvent) => {
     e.preventDefault();
+    const normalized = code.trim().toUpperCase();
+    if (normalized.length < 6) {
+      setError('Please enter your verification code.');
+      return;
+    }
     setError('');
     setIsVerifying(true);
 
     try {
-      // const result = await verifyMFA(code, mfaToken);
-      setError('MFA not yet implemented');
-    } catch (err) {
-      setError('An unexpected error occurred');
+      await verifyMfa(mfaToken, normalized, rememberMe);
+      AuthLogger.success('[Login] MFA verified - AuthContext will handle navigation');
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred');
       AuthLogger.error('[Login] MFA verification error:', err);
     } finally {
       setIsVerifying(false);
@@ -51,6 +57,13 @@ const MFAVerification: React.FC<MFAVerificationProps> = ({ mfaToken, onBack }) =
         </p>
       </div>
 
+      {error && (
+        <div className="bg-red-900 bg-opacity-30 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative mb-3 flex items-start space-x-3">
+            <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <p className="text-sm font-medium flex-1">{error}</p>
+        </div>
+      )}
+
       <form onSubmit={handleVerify} className="space-y-4">
         <div>
           <label htmlFor="mfa-code" className="block text-sm font-medium text-gray-300">
@@ -59,31 +72,27 @@ const MFAVerification: React.FC<MFAVerificationProps> = ({ mfaToken, onBack }) =
           <Input
             id="mfa-code"
             type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={6}
+            inputMode="text"
+            maxLength={12}
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-            className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-center text-2xl tracking-widest bg-gray-700 text-white placeholder-gray-500"
+            onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
+            className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-lg elev-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-center text-2xl bg-gray-700 text-white placeholder-gray-500"
             placeholder="000000"
             required
             autoFocus
           />
         </div>
 
-        {error && (
-          <div className="bg-red-900 bg-opacity-30 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative mb-3 flex items-start space-x-3">
-              <svg className="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-              <p className="text-sm font-medium flex-1">{error}</p>
-          </div>
-        )}
+        <p className="flex items-start gap-2 text-xs text-gray-400">
+          <KeyRound className="w-4 h-4 mt-0.5 flex-shrink-0 text-brand-primary" />
+          Enter the 6-digit code from your authenticator app, or one of your one-time
+          recovery codes (e.g. <span className="text-gray-200 font-mono">6F2A-9D17</span>).
+        </p>
 
         <Button
           type="submit"
-          disabled={isVerifying || code.length !== 6}
-          className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-brand-primary hover:bg-brand-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          disabled={isVerifying || code.length < 6}
+          className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg elev-sm text-sm font-medium text-white bg-brand-primary hover:bg-brand-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isVerifying ? 'Verifying...' : 'Verify Code'}
         </Button>
@@ -99,7 +108,6 @@ const MFAVerification: React.FC<MFAVerificationProps> = ({ mfaToken, onBack }) =
     </div>
   );
 };
-*/
 
 // ============================================================================
 // LOGIN COMPONENT
@@ -110,8 +118,7 @@ import { NextPageWithLayout } from './_app'; // Import NextPageWithLayout
 import { ReactElement } from 'react'; // Import ReactElement
 
 enum LoginMode {
-  SUPER_ADMIN = 'super',
-  TENANT = 'tenant',
+  SUPER_ADMIN = 'super', TENANT = 'tenant',
 }
 
 const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPageWithLayout
@@ -119,10 +126,7 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
   const { login, isAuthenticated, error: authContextError, isLoading: authContextLoading } = useAuth();
 
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    tenantId: '',
-    rememberMe: false,
+    email: '', password: '', tenantId: '', rememberMe: false,
   });
 
   const [error, setError] = useState('');
@@ -146,8 +150,7 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
   const handleModeSwitch = (mode: LoginMode) => {
     setLoginMode(mode);
     setFormData(prev => ({
-      ...prev,
-      tenantId: mode === LoginMode.SUPER_ADMIN ? '' : prev.tenantId, // Clear tenantId for SuperAdmin
+      ...prev, tenantId: mode === LoginMode.SUPER_ADMIN ? '' : prev.tenantId, // Clear tenantId for SuperAdmin
     }));
     setError(''); // Clear any errors on mode switch
   };
@@ -187,6 +190,11 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
       AuthLogger.success('[Login] Login successful - AuthContext will handle navigation');
 
     } catch (err: any) {
+      if (err instanceof MfaChallengeError) {
+        AuthLogger.info('[Login] MFA challenge received, switching to verification screen');
+        setMfaToken(err.mfaToken);
+        return;
+      }
       AuthLogger.error('[Login] Unexpected error during login:', err);
       setError(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
@@ -195,26 +203,43 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
   };
 
   // ============================================================================
-  // RENDER MFA SCREEN (Not yet implemented)
+  // RENDER MFA SCREEN
   // ============================================================================
 
-  /*
   if (mfaToken) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-dark px-4">
-        <div className="max-w-md w-full bg-gray-800 rounded-xl shadow-2xl p-8">
-          <MFAVerification 
-            mfaToken={mfaToken} 
-            onBack={() => {
-              setMfaToken(null);
-              setFormData({ ...formData, password: '' }); // Clear password on back
-            }} 
-          />
+      <div className="min-h-screen flex items-center justify-center bg-brand-dark p-4">
+        <div className="w-full max-w-md bg-gray-800 rounded-2xl elev-lg overflow-hidden">
+          <div className="p-8 text-center border-b border-gray-700">
+            <div className="flex justify-center mb-6">
+              <div className="relative w-32 h-32">
+                <Image src="/SentinelFi Logo Concept-bg-remv-logo-only.png" alt="App Logo" fill sizes="(max-width: 768px) 100vw, 400px" className="object-contain p-0.5" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-black text-white mb-2 uppercase tracking-tighter font-sora">
+              SENTINEL<span className="text-orange-500">FI</span>
+            </h1>
+            <p className="text-sm text-gray-400">Financial Intelligence Platform</p>
+          </div>
+
+          <div className="p-8">
+            <MFAVerification
+              mfaToken={mfaToken}
+              rememberMe={formData.rememberMe}
+              onBack={() => {
+                setMfaToken(null);
+                setFormData((prev) => ({ ...prev, password: '' }));
+              }}
+            />
+          </div>
+
+          <div className="p-5 bg-gray-700 border-t border-gray-600 text-center">
+            <p className="text-xs text-gray-400">© 2026 SentinelFi. All rights reserved.</p>
+          </div>
         </div>
       </div>
     );
   }
-  */
 
 
   // ============================================================================
@@ -299,7 +324,7 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
 
         </div>
 
-        {/* Portal purpose hint — clarifies which tab to use */}
+        {/* Portal purpose hint, clarifies which tab to use */}
         <div className="px-4 pb-3 bg-gray-700">
           <div className="flex items-start gap-2 rounded-md bg-gray-800/60 border border-gray-600/50 px-3 py-2.5">
             {loginMode === LoginMode.SUPER_ADMIN ? (
@@ -349,12 +374,12 @@ const LoginPage: NextPageWithLayout = () => { // Change to const and use NextPag
                     <p className="text-xs leading-relaxed text-red-200">
                       {showSuperHint && !showTenantHint && (
                         <>
-                          This is a <span className="font-semibold text-white">platform admin</span> account — it has no Tenant ID. Use the <span className="font-semibold text-white">Super Admin</span> tab above.
+                          This is a <span className="font-semibold text-white">platform admin</span> account, it has no Tenant ID. Use the <span className="font-semibold text-white">Super Admin</span> tab above.
                         </>
                       )}
                       {showTenantHint && (
                         <>
-                          This account is an <span className="font-semibold text-white">organization member</span> — it is not a platform admin. Use the <span className="font-semibold text-white">Tenant Login</span> tab above.
+                          This account is an <span className="font-semibold text-white">organization member</span> - it is not a platform admin. Use the <span className="font-semibold text-white">Tenant Login</span> tab above.
                         </>
                       )}
                     </p>

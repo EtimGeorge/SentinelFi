@@ -17,11 +17,7 @@ export const buildWBSHierarchy = (flatData: RollupData[]): WBSNode[] => {
   // 1. Convert flat array to a map and initialize children array
   for (const item of flatData) {
     nodes[item.wbs_id] = {
-      id: item.wbs_id,
-      code: item.wbs_code,
-      description: item.description,
-      parentId: item.parent_wbs_id,
-      children: [],
+      id: item.wbs_id, code: item.wbs_code, description: item.description, parentId: item.parent_wbs_id, children: [],
     };
   }
 
@@ -67,11 +63,10 @@ export const flattenWBSForDisplay = (nodes: WBSNode[], level: number = 0): { id:
     let result: { id: string, label: string }[] = [];
     
     for (const node of nodes) {
-        const indent = '—'.repeat(level);
+        const indent = '-'.repeat(level);
         // Use a space and the WBS Code for a clear, indented display
         result.push({ 
-            id: node.id, 
-            label: `${indent} ${node.code} - ${node.description}`.trim()
+            id: node.id, label: `${indent} ${node.code} - ${node.description}`.trim()
         });
         
         if (node.children.length > 0) {

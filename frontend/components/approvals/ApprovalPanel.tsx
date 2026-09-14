@@ -42,9 +42,7 @@ interface ApprovalPanelProps {
 }
 
 const severityStyles: Record<string, { bg: string; text: string; border: string; icon: React.ReactNode }> = {
-  critical: { bg: 'bg-red-900/30', text: 'text-red-400', border: 'border-red-700/50', icon: <AlertTriangle className="w-4 h-4" /> },
-  warning: { bg: 'bg-yellow-900/30', text: 'text-yellow-400', border: 'border-yellow-700/50', icon: <TrendingUp className="w-4 h-4" /> },
-  info: { bg: 'bg-blue-900/30', text: 'text-blue-400', border: 'border-blue-700/50', icon: <Info className="w-4 h-4" /> },
+  critical: { bg: 'bg-red-900/30', text: 'text-red-400', border: 'border-red-700/50', icon: <AlertTriangle className="w-4 h-4" /> }, warning: { bg: 'bg-yellow-900/30', text: 'text-yellow-400', border: 'border-yellow-700/50', icon: <TrendingUp className="w-4 h-4" /> }, info: { bg: 'bg-blue-900/30', text: 'text-blue-400', border: 'border-blue-700/50', icon: <Info className="w-4 h-4" /> },
 };
 
 const AnomalyBadge: React.FC<{ anomaly: Anomaly }> = ({ anomaly }) => {
@@ -112,12 +110,7 @@ const KPIWithAnomaly: React.FC<{
 };
 
 export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
-  budget,
-  anomalies,
-  onApprove,
-  onReject,
-  onCancel,
-  isLoading = false,
+  budget, anomalies, onApprove, onReject, onCancel, isLoading = false,
 }) => {
   const { convertToDisplay } = useCurrency();
   const [showComment, setShowComment] = React.useState<'approve' | 'reject' | null>(null);
@@ -154,7 +147,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
       <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-black/20">
         <div>
           <p className="text-xs font-bold text-gray-500 r">Approval Review</p>
-          <h3 className="text-lg font-black text-white">{budget.wbs_code} — {budget.description}</h3>
+          <h3 className="text-lg font-black text-white">{budget.wbs_code} - {budget.description}</h3>
           <p className="text-xs text-gray-500 mt-0.5">{budget.project_name} · {budget.category_name}</p>
         </div>
         <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
@@ -257,7 +250,7 @@ export const ApprovalPanel: React.FC<ApprovalPanelProps> = ({
                   ></div>
                 </div>
                 <p className="text-xs text-gray-500 mt-2 text-center">
-                  {burnRate > 90 ? 'Critical — immediate review required' : burnRate > 70 ? 'Elevated — monitor closely' : 'Within normal range'}
+                  {burnRate > 90 ? 'Critical, immediate review required' : burnRate > 70 ? 'Elevated, monitor closely' : 'Within normal range'}
                 </p>
               </div>
             </div>

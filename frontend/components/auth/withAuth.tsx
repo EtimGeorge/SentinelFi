@@ -7,8 +7,7 @@ interface WithAuthProps {
 }
 
 const withAuth = <P extends object>(
-  WrappedComponent: ComponentType<P>,
-  allowedRoles: Role[]
+  WrappedComponent: ComponentType<P>, allowedRoles: Role[]
 ): React.FC<P & WithAuthProps> => {
   const WithAuth: React.FC<P & WithAuthProps> = (props) => {
     const { user, isAuthenticated, isInitialLoad, hasAnyRole } = useAuth();

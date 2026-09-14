@@ -12,11 +12,7 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 const Select: React.FC<SelectProps> = ({
-  className,
-  label,
-  options,
-  id,
-  containerClassName,
+  className, label, options, id, containerClassName,
   ...props
 }) => {
   const selectId = id || props.name;

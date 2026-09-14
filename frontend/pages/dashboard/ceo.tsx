@@ -111,7 +111,12 @@ const CEODashboard: React.FC = () => {
     }, {} as Record<string, string>);
   }, [projects]);
 
-  const sourceCurrency = selectedProjectId === 'all' ? 'NGN' : (projectCurrencyMap[selectedProjectId] || 'NGN');
+  // Backend-declared source (executive figures are base-normalized); the
+  // local guess only covers the OPEX branch + stale backends.
+  const [execCurrency, setExecCurrency] = useState<string | null>(null);
+  const sourceCurrency =
+    execCurrency ||
+    (selectedProjectId === 'all' ? 'NGN' : projectCurrencyMap[selectedProjectId] || 'NGN');
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -173,6 +178,9 @@ const CEODashboard: React.FC = () => {
         // Fetch executive-specific analytics (Project Context)
         const execResp = await api.get(`/dashboard/executive?${params.toString()}`);
         const execData = execResp.data;
+        if (typeof execData.currency === 'string' && execData.currency) {
+          setExecCurrency(execData.currency.toUpperCase());
+        }
 
         setKpis({
           totalBudget: execData.overview.totalBudgeted,

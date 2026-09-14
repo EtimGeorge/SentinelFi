@@ -11,15 +11,10 @@ interface SecuredRouteProps {
 }
 
 const SecuredRoute: React.FC<SecuredRouteProps> = ({
-  children,
-  requiredRoles,
-  requiredPermissions,
-  fallbackPath,
+  children, requiredRoles, requiredPermissions, fallbackPath,
 }) => {
   const { isAuthorized, isChecking } = useRoleGuard({
-    requiredRoles,
-    requiredPermissions,
-    fallbackPath,
+    requiredRoles, requiredPermissions, fallbackPath,
   });
 
   if (isChecking) {

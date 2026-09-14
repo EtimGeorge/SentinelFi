@@ -40,19 +40,9 @@ interface ApprovalsState {
 }
 
 export const useApprovalsStore = create<ApprovalsState>((set, get) => ({
-  pendingApprovals: [],
-  isLoading: false,
-  error: null,
-
-  setPendingApprovals: (items) => set({ pendingApprovals: items }),
-  
-  addPendingApproval: (item) => set((state) => ({
+  pendingApprovals: [], isLoading: false, error: null, setPendingApprovals: (items) => set({ pendingApprovals: items }), addPendingApproval: (item) => set((state) => ({
     pendingApprovals: [item, ...state.pendingApprovals]
-  })),
-
-  removePendingApproval: (id) => set((state) => ({
+  })), removePendingApproval: (id) => set((state) => ({
     pendingApprovals: state.pendingApprovals.filter(a => a.id !== id)
-  })),
-
-  fetchPendingCount: () => get().pendingApprovals.length,
+  })), fetchPendingCount: () => get().pendingApprovals.length,
 }));

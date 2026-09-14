@@ -57,12 +57,9 @@ export interface DataTableProps<T> {
 }
 
 // Min column widths (px) per tier. There is NO cap on how many columns are
-// visible — columns are added in priority order until the width is exhausted.
+// visible, columns are added in priority order until the width is exhausted.
 export const TIER_MIN_WIDTHS: Record<DataColumnTier, number> = {
-  P0: 120,
-  P1: 110,
-  P2: 96,
-  P3: 0,
+  P0: 120, P1: 110, P2: 96, P3: 0,
 };
 
 // Below this container width rows switch to stacked-card mode.
@@ -83,9 +80,7 @@ function priorityOrder<T>(cols: DataColumn<T>[]): DataColumn<T>[] {
 }
 
 export function computeTableLayout(
-  width: number,
-  columns: DataColumn<any>[],
-  reservedWidth: number,
+  width: number, columns: DataColumn<any>[], reservedWidth: number,
 ): TableLayout {
   const ordered = priorityOrder(columns);
   const dataWidth = Math.max(0, width - reservedWidth);
@@ -94,7 +89,7 @@ export function computeTableLayout(
 
   if (width < STACK_BREAKPOINT) {
     // Stacked mode: wrap as many columns as fit onto successive lines,
-    // in priority order — nothing is dropped except P3.
+    // in priority order, nothing is dropped except P3.
     const lines: DataColumn<any>[][] = [];
     let line: DataColumn<any>[] = [];
     let used = 0;
@@ -111,10 +106,7 @@ export function computeTableLayout(
     if (line.length > 0) lines.push(line);
 
     return {
-      mode: 'stack',
-      visibleColumns: nonP3,
-      lines,
-      expansionColumns: [...p3],
+      mode: 'stack', visibleColumns: nonP3, lines, expansionColumns: [...p3],
     };
   }
 
@@ -131,10 +123,7 @@ export function computeTableLayout(
   const expansion = ordered.filter(col => !visible.includes(col));
 
   return {
-    mode: 'grid',
-    visibleColumns: visible,
-    lines: [],
-    expansionColumns: expansion,
+    mode: 'grid', visibleColumns: visible, lines: [], expansionColumns: expansion,
   };
 }
 
@@ -163,16 +152,7 @@ const KEBAB_WIDTH = 40; // overflow trigger
 const ZONE_GAP = 8; // spacing
 
 function DataTable<T>({
-  columns,
-  rows,
-  rowKey,
-  actions = [],
-  expandedContent,
-  emptyMessage = 'No data available.',
-  className = '',
-  virtualized = false,
-  maxHeight = 560,
-  estimatedRowHeight = 48,
+  columns, rows, rowKey, actions = [], expandedContent, emptyMessage = 'No data available.', className = '', virtualized = false, maxHeight = 560, estimatedRowHeight = 48,
 }: DataTableProps<T>) {
   const [bodyRef, width] = useContainerWidth();
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
@@ -205,10 +185,7 @@ function DataTable<T>({
   }, [virtualized, mode, rows, expandedKeys, rowKey]);
 
   const virtualizer = useVirtualizer({
-    count: virtualItemsModel.length,
-    getScrollElement: () => bodyRef.current,
-    estimateSize: () => estimatedRowHeight,
-    overscan: 10,
+    count: virtualItemsModel.length, getScrollElement: () => bodyRef.current, estimateSize: () => estimatedRowHeight, overscan: 10,
   });
 
   const toggleExpansion = useCallback((key: string) => {
@@ -376,11 +353,7 @@ function DataTable<T>({
                 const row = rows[rowIndex];
                 const key = rowKey(row);
                 const style: React.CSSProperties = {
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
+                  position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)`,
                 };
 
                 if (isExpansionItem) {

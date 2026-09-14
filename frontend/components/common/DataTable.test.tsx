@@ -202,13 +202,7 @@ describe('DataTable virtualization', () => {
 
   it('caps the height, scrolls in place, and reports the true row count', () => {
     const many = Array.from({ length: 200 }, (_, i) => ({
-      id: String(i),
-      merchant: `Merchant ${i}`,
-      amount: `${i}.00`,
-      category: 'SaaS',
-      date: '2026-09-01',
-      status: 'OPEN',
-      notes: 'row',
+      id: String(i), merchant: `Merchant ${i}`, amount: `${i}.00`, category: 'SaaS', date: '2026-09-01', status: 'OPEN', notes: 'row',
     }));
     const { container } = render(
       <DataTable virtualized columns={columns} rows={many} rowKey={r => r.id} actions={actions} />,

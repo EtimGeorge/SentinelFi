@@ -63,7 +63,11 @@ const DashboardHome: React.FC = () => {
     }, {} as Record<string, string>);
   }, [projects]);
 
-  const currency = selectedProjectId === 'all' ? 'USD' : (projectCurrencyMap[selectedProjectId] || 'NGN');
+  // Declared source from the executive endpoint (base-normalized server-side);
+  // the local guess only covers stale backends that predate the contract.
+  const currency =
+    metrics?.currency ||
+    (selectedProjectId === 'all' ? 'USD' : projectCurrencyMap[selectedProjectId] || 'NGN');
   const periodLabel = formatDateRange(timeRange);
   const periodShort = TIME_RANGE_PRESETS[timeRange].label;
 

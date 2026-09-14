@@ -396,35 +396,7 @@ export const useFinanceCore = () => {
     }, []);
 
     return {
-        loading,
-        fetchFiscalYears,
-        fetchEmployees,
-        createFiscalYear,
-        fetchDepartments,
-        fetchChartOfAccounts,
-        fetchRequisitions,
-        createRequisition,
-        fetchPurchaseOrders,
-        createPurchaseOrder,
-        fetchInvoices,
-        createInvoice,
-        fetchBudgetConsumption,
-        fetchPayrollRuns,
-        fetchPayrollKPIs,
-        createPayrollRun,
-        fetchPayrollRunDetails,
-        addPayrollLineItem,
-        approvePayrollRun,
-        postPayrollRun,
-        fetchOperationalAnalytics,
-        fetchCapexDashboard,
-        fetchOpexDashboard,
-        downloadPurchaseOrderPdf,
-        downloadInvoicePdf,
-        fetchReportBlob,
-        downloadBlob,
-        fetchWBSForExpense,
-        createLiveExpense,
+        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense,
     };
 };
 

@@ -19,8 +19,7 @@ export interface PersistedTableState {
 const STORAGE_PREFIX = 'sentinelfi:table:';
 
 export function usePersistedTableState(
-  routeKey: string,
-  defaultState: PersistedTableState = { filters: {}, sort: {}, page: 1, limit: 10 }
+  routeKey: string, defaultState: PersistedTableState = { filters: {}, sort: {}, page: 1, limit: 10 }
 ) {
   const storageKey = `${STORAGE_PREFIX}${routeKey}`;
 
@@ -53,9 +52,7 @@ export function usePersistedTableState(
 
   const setSort = useCallback((sortBy: string, sortOrder?: 'ASC' | 'DESC') => {
     setState(prev => ({
-      ...prev,
-      sort: { sortBy, sortOrder: sortOrder || (prev.sort.sortBy === sortBy && prev.sort.sortOrder === 'ASC' ? 'DESC' : 'ASC') },
-      page: 1,
+      ...prev, sort: { sortBy, sortOrder: sortOrder || (prev.sort.sortBy === sortBy && prev.sort.sortOrder === 'ASC' ? 'DESC' : 'ASC') }, page: 1,
     }));
   }, []);
 
@@ -72,23 +69,12 @@ export function usePersistedTableState(
   }, [defaultState]);
 
   return {
-    filters: state.filters,
-    sort: state.sort,
-    page: state.page,
-    limit: state.limit,
-    setFilters,
-    setSort,
-    setPage,
-    setLimit,
-    reset,
-    state,
-    setState,
+    filters: state.filters, sort: state.sort, page: state.page, limit: state.limit, setFilters, setSort, setPage, setLimit, reset, state, setState,
   };
 }
 
 export function usePersistedFilters<T extends Record<string, any>>(
-  routeKey: string,
-  defaultFilters: T
+  routeKey: string, defaultFilters: T
 ) {
   const storageKey = `${STORAGE_PREFIX}${routeKey}:filters`;
 

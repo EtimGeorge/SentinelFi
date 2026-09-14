@@ -43,10 +43,7 @@ const RichContentRenderer: React.FC<{ content: RichContent }> = ({ content }) =>
       );
     case 'table': {
       const tableColumns = content.headers.map((h, i) => ({
-        key: `col-${i}`,
-        label: h,
-        get: (row: string[]) => row[i] || '',
-        tier: (i === 0 ? 'P0' : i < 3 ? 'P1' : 'P2') as 'P0' | 'P1' | 'P2',
+        key: `col-${i}`, label: h, get: (row: string[]) => row[i] || '', tier: (i === 0 ? 'P0' : i < 3 ? 'P1' : 'P2') as 'P0' | 'P1' | 'P2',
       }));
       return (
         <DataTable
@@ -195,16 +192,7 @@ interface ChatSheetProps {
 }
 
 export const ChatSheet: React.FC<ChatSheetProps> = ({
-  isOpen,
-  onClose,
-  scope,
-  messages,
-  isStreaming,
-  proactiveInsight,
-  quickActions,
-  onQuickAction,
-  onSendMessage,
-  onClearHistory,
+  isOpen, onClose, scope, messages, isStreaming, proactiveInsight, quickActions, onQuickAction, onSendMessage, onClearHistory,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -254,14 +242,12 @@ export const ChatSheet: React.FC<ChatSheetProps> = ({
       if (scope?.projectId) formData.append('project_id', scope.projectId);
 
       const res = await fetch('/api/v1/ai/document/fill-form', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+        method: 'POST', credentials: 'include', body: formData,
       });
 
       if (!res.ok) throw new Error();
       const data = await res.json();
-      await onSendMessage(`I uploaded "${file.name}" — please summarize what was extracted and suggest next steps.`);
+      await onSendMessage(`I uploaded "${file.name}" - please summarize what was extracted and suggest next steps.`);
     } catch {
       await onSendMessage(`I tried uploading "${file.name}" but something went wrong. Can you help me fill the form manually?`);
     } finally {

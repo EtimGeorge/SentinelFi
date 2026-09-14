@@ -14,8 +14,7 @@ import { WbsBudget } from '@shared/types/wbs';
 import { Project } from '@shared/types/project';
 import toast from 'react-hot-toast';
 import {
-  DollarSign, Download, Printer, Search, RefreshCcw, Edit3, Trash2,
-  Activity, CheckCircle, Clock, XCircle, Send, CheckSquare, Wallet, PieChart
+  DollarSign, Download, Printer, Search, RefreshCcw, Edit3, Trash2, Activity, CheckCircle, Clock, XCircle, Send, CheckSquare, Wallet, PieChart
 } from 'lucide-react';
 import EmptyState from '../../../components/common/EmptyState';
 import DataTable from '../../../components/common/DataTable';
@@ -23,10 +22,7 @@ import { useRouter } from 'next/router';
 import { TableSkeleton } from '../../../components/common/LoadingSkeleton';
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
-  draft: { label: 'Draft', icon: Edit3, color: 'text-gray-400', bg: 'bg-gray-700/50' },
-  pending: { label: 'Pending', icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
-  approved: { label: 'Approved', icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30' },
-  rejected: { label: 'Rejected', icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30' },
+  draft: { label: 'Draft', icon: Edit3, color: 'text-gray-400', bg: 'bg-gray-700/50' }, pending: { label: 'Pending', icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-900/30' }, approved: { label: 'Approved', icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30' }, rejected: { label: 'Rejected', icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30' },
 };
 
 const BudgetManagementPage: React.FC = () => {
@@ -63,9 +59,7 @@ const BudgetManagementPage: React.FC = () => {
     budgets.forEach(b => {
       // Convert to user currency before summing for accurate global KPIs
       const amountInUserCurrency = convertAmount(
-        Number(b.total_cost_budgeted || 0),
-        b.project?.currency || 'NGN',
-        userCurrency.code
+        Number(b.total_cost_budgeted || 0), b.project?.currency || 'NGN', userCurrency.code
       );
       totalBudgeted += amountInUserCurrency;
       if (b.status === WbsBudgetStatus.APPROVED) approved++;
@@ -88,11 +82,7 @@ const BudgetManagementPage: React.FC = () => {
     setLoading(true);
     try {
       const params = {
-        page, limit,
-        wbsCode: wbsCodeFilter || undefined,
-        description: descriptionFilter || undefined,
-        status: statusFilter || undefined,
-        projectId: projectIdFilter || undefined,
+        page, limit, wbsCode: wbsCodeFilter || undefined, description: descriptionFilter || undefined, status: statusFilter || undefined, projectId: projectIdFilter || undefined,
       };
       // Important constraint limit=100 for backend validation rules
       const response = await api.get<{ data: WbsBudget[]; total: number }>('/wbs/budgets', { params });
@@ -133,10 +123,7 @@ const BudgetManagementPage: React.FC = () => {
     toast('Preparing CSV...', { icon: 'â³' });
     try {
       const params = {
-        wbsCode: wbsCodeFilter || undefined,
-        description: descriptionFilter || undefined,
-        status: statusFilter || undefined,
-        projectId: projectIdFilter || undefined,
+        wbsCode: wbsCodeFilter || undefined, description: descriptionFilter || undefined, status: statusFilter || undefined, projectId: projectIdFilter || undefined,
       };
       const response = await api.get(`/wbs/budgets/export`, { params, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -241,10 +228,7 @@ const BudgetManagementPage: React.FC = () => {
                 <DataTable
                   columns={[
                     {
-                      key: 'project',
-                      label: 'Project',
-                      tier: 'P0',
-                      get: (b: WbsBudget) => (
+                      key: 'project', label: 'Project', tier: 'P0', get: (b: WbsBudget) => (
                         <>
                           <Link href={`/projects/${b.project?.project_id}/overview`} className="text-sm font-bold text-gray-300 hover:text-brand-primary block truncate">
                             {b.project?.project_name || 'N/A'}
@@ -253,29 +237,16 @@ const BudgetManagementPage: React.FC = () => {
                             {b.wbs_code}
                           </span>
                         </>
-                      ),
-                      title: (b: WbsBudget) => b.project?.project_name || 'N/A',
+                      ), title: (b: WbsBudget) => b.project?.project_name || 'N/A',
                     },
                     {
-                      key: 'amount',
-                      label: 'Budgeted Amount',
-                      tier: 'P0',
-                      cellClassName: 'text-right',
-                      get: (b: WbsBudget) => <span className="text-sm font-black text-white">{convertToDisplay(b.total_cost_budgeted, b.project?.currency || 'NGN')}</span>,
-                      title: (b: WbsBudget) => convertToDisplay(b.total_cost_budgeted, b.project?.currency || 'NGN'),
+                      key: 'amount', label: 'Budgeted Amount', tier: 'P0', cellClassName: 'text-right', get: (b: WbsBudget) => <span className="text-sm font-black text-white">{convertToDisplay(b.total_cost_budgeted, b.project?.currency || 'NGN')}</span>, title: (b: WbsBudget) => convertToDisplay(b.total_cost_budgeted, b.project?.currency || 'NGN'),
                     },
                     {
-                      key: 'description',
-                      label: 'Description',
-                      tier: 'P1',
-                      get: (b: WbsBudget) => <span className="text-sm text-gray-300">{b.description}</span>,
-                      title: (b: WbsBudget) => b.description,
+                      key: 'description', label: 'Description', tier: 'P1', get: (b: WbsBudget) => <span className="text-sm text-gray-300">{b.description}</span>, title: (b: WbsBudget) => b.description,
                     },
                     {
-                      key: 'status',
-                      label: 'Status',
-                      tier: 'P2',
-                      get: (b: WbsBudget) => {
+                      key: 'status', label: 'Status', tier: 'P2', get: (b: WbsBudget) => {
                         const st = STATUS_CONFIG[b.status?.toLowerCase() || 'draft'] || STATUS_CONFIG.draft;
                         const StatusIcon = st.icon;
                         return (
@@ -290,33 +261,16 @@ const BudgetManagementPage: React.FC = () => {
                   rowKey={(b) => b.wbs_id}
                   actions={[
                     {
-                      key: 'view',
-                      label: 'View Details',
-                      primary: true,
-                      icon: <Activity className="w-4 h-4" />,
-                      onClick: (b) => router.push(`/financials/projects/budgets?id=${b.wbs_id}`),
+                      key: 'view', label: 'View Details', primary: true, icon: <Activity className="w-4 h-4" />, onClick: (b) => router.push(`/financials/projects/budgets?id=${b.wbs_id}`),
                     },
                     {
-                      key: 'submit',
-                      label: 'Submit',
-                      icon: <Send className="w-4 h-4" />,
-                      visible: (b: WbsBudget) => b.status === 'draft' && canManage,
-                      onClick: (b) => handleStatusChange(b.wbs_id, 'pending'),
+                      key: 'submit', label: 'Submit', icon: <Send className="w-4 h-4" />, visible: (b: WbsBudget) => b.status === 'draft' && canManage, onClick: (b) => handleStatusChange(b.wbs_id, 'pending'),
                     },
                     {
-                      key: 'approve',
-                      label: 'Approve',
-                      icon: <CheckSquare className="w-4 h-4" />,
-                      visible: (b: WbsBudget) => b.status === 'pending' && canApprove,
-                      onClick: (b) => handleStatusChange(b.wbs_id, 'approved'),
+                      key: 'approve', label: 'Approve', icon: <CheckSquare className="w-4 h-4" />, visible: (b: WbsBudget) => b.status === 'pending' && canApprove, onClick: (b) => handleStatusChange(b.wbs_id, 'approved'),
                     },
                     {
-                      key: 'reject',
-                      label: 'Reject',
-                      danger: true,
-                      icon: <XCircle className="w-4 h-4" />,
-                      visible: (b: WbsBudget) => b.status === 'pending' && canApprove,
-                      onClick: (b) => handleStatusChange(b.wbs_id, 'rejected'),
+                      key: 'reject', label: 'Reject', danger: true, icon: <XCircle className="w-4 h-4" />, visible: (b: WbsBudget) => b.status === 'pending' && canApprove, onClick: (b) => handleStatusChange(b.wbs_id, 'rejected'),
                     },
                   ]}
                 />

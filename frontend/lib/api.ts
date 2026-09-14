@@ -53,13 +53,9 @@ class RetryHandler {
 }
 
 const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 120000,
-  withCredentials: true,
-  headers: {
+  baseURL: BASE_URL, timeout: 120000, withCredentials: true, headers: {
     'Content-Type': 'application/json',
-  },
-  validateStatus: (status) => status >= 200 && status < 500,
+  }, validateStatus: (status) => status >= 200 && status < 500,
 });
 
 declare module 'axios' {
@@ -98,8 +94,7 @@ api.interceptors.response.use(
     console.log(`[API] [CID:${correlationId}] ✓ ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
     requestLogger.record(response.config.url || '', duration, true);
     return response;
-  },
-  async (error: AxiosError) => {
+  }, async (error: AxiosError) => {
     const { config } = error;
     if (!config) return Promise.reject(error);
 
@@ -117,7 +112,7 @@ api.interceptors.response.use(
     );
     requestLogger.record(config.url || '', duration, false);
 
-    // ── 402 Subscription Expired — redirect globally ─────────────────────────
+    // ── 402 Subscription Expired, redirect globally ─────────────────────────
     if (error.response?.status === 402) {
       const responseData = error.response.data as any;
       if (responseData?.code === 'SUBSCRIPTION_EXPIRED' && typeof window !== 'undefined') {
@@ -128,7 +123,7 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // ── 403 Forbidden — suppress retry + throttle noisy logs for background polls ─
+    // ── 403 Forbidden, suppress retry + throttle noisy logs for background polls ─
     if (error.response?.status === 403) {
       const url = config.url || '';
       const isBackgroundPoll =
@@ -187,8 +182,7 @@ function getCacheKey(config: AxiosRequestConfig): string {
 }
 
 async function apiRequest<T = any>(
-  config: AxiosRequestConfig,
-  options: { deduplicate?: boolean } = {}
+  config: AxiosRequestConfig, options: { deduplicate?: boolean } = {}
 ): Promise<AxiosResponse<T>> {
   const { deduplicate = true } = options;
 
@@ -234,24 +228,61 @@ export const apiClient = {
   get: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiRequest<T>({ method: 'GET', url, ...config });
     return response.data;
-  },
-  post: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+  }, post: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiRequest<T>({ method: 'POST', url, data, ...config }, { deduplicate: false });
     return response.data;
-  },
-  put: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+  }, put: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiRequest<T>({ method: 'PUT', url, data, ...config }, { deduplicate: false });
     return response.data;
-  },
-  patch: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+  }, patch: async <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiRequest<T>({ method: 'PATCH', url, data, ...config }, { deduplicate: false });
     return response.data;
-  },
-  delete: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
+  }, delete: async <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     const response = await apiRequest<T>({ method: 'DELETE', url, ...config });
     return response.data;
-  },
-  getAxiosInstance: () => api,
+  }, getAxiosInstance: () => api,
+};
+
+// ============================================================================
+// SUPERADMIN TOTP MFA API
+// ============================================================================
+
+export interface SuperAdminMfaStatus {
+  mfaEnabled: boolean;
+  globalMfaRequired: boolean;
+  pendingEnrollment: boolean;
+}
+
+export interface SuperAdminMfaEnrollment {
+  secret: string;
+  otpauthUrl: string;
+  recoveryCodes: string[];
+}
+
+export interface SuperAdminMfaMessage {
+  success: boolean;
+  message: string;
+}
+
+export const superAdminMfaApi = {
+  getStatus: (): Promise<SuperAdminMfaStatus> =>
+    apiClient.get<SuperAdminMfaStatus>('/super/mfa/status'),
+  enroll: (): Promise<SuperAdminMfaEnrollment> =>
+    apiClient.post<SuperAdminMfaEnrollment>('/super/mfa/enroll'),
+  confirm: (code: string): Promise<SuperAdminMfaMessage> =>
+    apiClient.post<SuperAdminMfaMessage>('/super/mfa/confirm', { code }),
+  disable: (currentPassword: string): Promise<SuperAdminMfaMessage> =>
+    apiClient.post<SuperAdminMfaMessage>('/super/mfa/disable', { currentPassword }),
+  verifyLogin: (
+    mfaToken: string,
+    code: string,
+    rememberMe?: boolean,
+  ): Promise<{ success: boolean; user: any }> =>
+    apiClient.post<{ success: boolean; user: any }>('/auth/login/super/mfa-verify', {
+      mfaToken,
+      code,
+      rememberMe,
+    }),
 };
 
 export default api;

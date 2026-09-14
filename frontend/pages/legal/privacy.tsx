@@ -17,14 +17,10 @@ const highlights = [
 
 const sections = [
   {
-    id: 'overview',
-    title: '1. Overview',
-    content: `SentinelFi ("we", "us", "our") respects the privacy of your personal and organizational data. This Privacy Policy explains how we collect, use, disclose, and protect information obtained through the SentinelFi platform. By using the Platform, you consent to the practices described in this policy.`
+    id: 'overview', title: '1. Overview', content: `SentinelFi ("we", "us", "our") respects the privacy of your personal and organizational data. This Privacy Policy explains how we collect, use, disclose, and protect information obtained through the SentinelFi platform. By using the Platform, you consent to the practices described in this policy.`
   },
   {
-    id: 'data-collected',
-    title: '2. Data We Collect',
-    content: `We collect the following categories of data:
+    id: 'data-collected', title: '2. Data We Collect', content: `We collect the following categories of data:
     
 • Identity Data: Name, email address, professional role, and organizational affiliation provided during account provisioning.
 • Usage Data: Log files, session tokens, API request metadata, and feature interaction data (anonymized where possible) used for platform diagnostics and security monitoring.
@@ -33,39 +29,25 @@ const sections = [
 • AI Interaction Data: Prompts and responses submitted to the SentinelFi AI assistant. This data remains within your Tenant schema and is not used to train shared AI models without explicit consent.`
   },
   {
-    id: 'data-use',
-    title: '3. How We Use Your Data',
-    content: `Your data is used solely to operate and improve the SentinelFi platform. Specific uses include: (a) provisioning and managing your Tenant account; (b) processing subscription payments via third-party gateways; (c) generating AI-powered financial analysis for your organization's exclusive use; (d) detecting security incidents and preventing unauthorized access; (e) sending platform-critical notifications (never marketing without explicit opt-in); (f) complying with legal obligations.`
+    id: 'data-use', title: '3. How We Use Your Data', content: `Your data is used solely to operate and improve the SentinelFi platform. Specific uses include: (a) provisioning and managing your Tenant account; (b) processing subscription payments via third-party gateways; (c) generating AI-powered financial analysis for your organization's exclusive use; (d) detecting security incidents and preventing unauthorized access; (e) sending platform-critical notifications (never marketing without explicit opt-in); (f) complying with legal obligations.`
   },
   {
-    id: 'data-sharing',
-    title: '4. Data Sharing & Third Parties',
-    content: `We do not sell your data. We share data only with: (a) Payment processors (Paystack, PayPal) who independently govern their processing under their respective privacy policies; (b) Infrastructure providers (cloud hosting, CDN) who are bound by strict data processing agreements; (c) Law enforcement or regulatory authorities when required by valid legal process. We contractually require all third parties to implement appropriate technical and organizational safeguards.`
+    id: 'data-sharing', title: '4. Data Sharing & Third Parties', content: `We do not sell your data. We share data only with: (a) Payment processors (Paystack, PayPal) who independently govern their processing under their respective privacy policies; (b) Infrastructure providers (cloud hosting, CDN) who are bound by strict data processing agreements; (c) Law enforcement or regulatory authorities when required by valid legal process. We contractually require all third parties to implement appropriate technical and organizational safeguards.`
   },
   {
-    id: 'data-retention',
-    title: '5. Data Retention',
-    content: `Operational Tenant data is retained for the duration of your active subscription. Upon termination, data is archived for 90 days to facilitate export requests, after which it is permanently and irrecoverably deleted. Anonymized aggregate usage statistics may be retained indefinitely for product improvement purposes. Log data for security auditing is retained for 12 months.`
+    id: 'data-retention', title: '5. Data Retention', content: `Operational Tenant data is retained for the duration of your active subscription. Upon termination, data is archived for 90 days to facilitate export requests, after which it is permanently and irrecoverably deleted. Anonymized aggregate usage statistics may be retained indefinitely for product improvement purposes. Log data for security auditing is retained for 12 months.`
   },
   {
-    id: 'your-rights',
-    title: '6. Your Rights',
-    content: `Depending on your jurisdiction, you may have the right to: access, rectify, or erase your personal data; restrict or object to certain processing; request data portability in a machine-readable format; withdraw consent for any processing based on consent. To exercise these rights, contact your Tenant Administrator or reach us directly at privacy@sentinelfi.com. We will respond within 30 days.`
+    id: 'your-rights', title: '6. Your Rights', content: `Depending on your jurisdiction, you may have the right to: access, rectify, or erase your personal data; restrict or object to certain processing; request data portability in a machine-readable format; withdraw consent for any processing based on consent. To exercise these rights, contact your Tenant Administrator or reach us directly at privacy@sentinelfi.com. We will respond within 30 days.`
   },
   {
-    id: 'security',
-    title: '7. Security Measures',
-    content: `We implement industry-standard security measures including TLS 1.3 in transit, AES-256 at rest, schema-level row separation for multi-tenancy, JWT with short-lived access tokens, and automated anomaly detection on login patterns. We conduct periodic penetration testing and maintain an internal security incident response plan. Despite these measures, no system is 100% secure; we encourage you to use strong, unique passwords.`
+    id: 'security', title: '7. Security Measures', content: `We implement industry-standard security measures including TLS 1.3 in transit, AES-256 at rest, schema-level row separation for multi-tenancy, JWT with short-lived access tokens, and automated anomaly detection on login patterns. We conduct periodic penetration testing and maintain an internal security incident response plan. Despite these measures, no system is 100% secure; we encourage you to use strong, unique passwords.`
   },
   {
-    id: 'cookies',
-    title: '8. Cookies & Tracking',
-    content: `We use strictly necessary cookies for session management and CSRF protection. We do not use third-party advertising cookies, tracking pixels, or retargeting technology. Authenticated users may opt into anonymized product telemetry to help us improve the platform. This telemetry never includes financial or project data.`
+    id: 'cookies', title: '8. Cookies & Tracking', content: `We use strictly necessary cookies for session management and CSRF protection. We do not use third-party advertising cookies, tracking pixels, or retargeting technology. Authenticated users may opt into anonymized product telemetry to help us improve the platform. This telemetry never includes financial or project data.`
   },
   {
-    id: 'changes',
-    title: '9. Changes to This Policy',
-    content: `We may update this Privacy Policy periodically. Material changes will be communicated via email to the Tenant Account Owner at least 14 days before taking effect. Continued use of the Platform after the effective date constitutes acceptance of the updated policy.`
+    id: 'changes', title: '9. Changes to This Policy', content: `We may update this Privacy Policy periodically. Material changes will be communicated via email to the Tenant Account Owner at least 14 days before taking effect. Continued use of the Platform after the effective date constitutes acceptance of the updated policy.`
   },
 ];
 

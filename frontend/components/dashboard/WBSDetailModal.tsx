@@ -58,9 +58,7 @@ const WBSDetailModal: React.FC<WBSDetailModalProps> = ({ isOpen, onClose, wbsId,
     setSubmitting(true);
     try {
       await api.post('/dashboard/annotations', {
-        target_type: 'WBS',
-        target_id: wbsId,
-        content: newNote.trim()
+        target_type: 'WBS', target_id: wbsId, content: newNote.trim()
       });
       setNewNote('');
       fetchNotes();

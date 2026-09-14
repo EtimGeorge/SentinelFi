@@ -70,7 +70,7 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children, t
             <div className="print:hidden">
               <Breadcrumbs />
             </div>
-            {/* Free-tier monetization slot — self-hides for paid/trial tenants */}
+            {/* Free-tier monetization slot, self-hides for paid/trial tenants */}
             <div className="print:hidden">
               <FreeTierAdBanner />
             </div>

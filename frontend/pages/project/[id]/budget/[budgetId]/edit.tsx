@@ -12,8 +12,7 @@ import { useAuth, Role } from '../../../../../components/context/AuthContext';
 import { useCurrency } from '../../../../../components/context/CurrencyContext';
 import toast from 'react-hot-toast';
 import {
-  DollarSign, Save, X, AlertTriangle, ChevronRight, ChevronLeft,
-  CheckCircle, Clock, XCircle, Send, Zap, Brain, FileText, Upload, Plus
+  DollarSign, Save, X, AlertTriangle, ChevronRight, ChevronLeft, CheckCircle, Clock, XCircle, Send, Zap, Brain, FileText, Upload, Plus
 } from 'lucide-react';
 import { ApprovalPanel } from '../../../../../components/approvals/ApprovalPanel';
 import { DocumentToFormModal } from '../../../../../components/approvals/DocumentToFormModal';
@@ -49,10 +48,7 @@ interface WBSCategory {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
-  draft: { label: 'Draft', icon: FileText, color: 'text-gray-400', bg: 'bg-gray-700/50' },
-  pending: { label: 'Pending', icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
-  approved: { label: 'Approved', icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30' },
-  rejected: { label: 'Rejected', icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30' },
+  draft: { label: 'Draft', icon: FileText, color: 'text-gray-400', bg: 'bg-gray-700/50' }, pending: { label: 'Pending', icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-900/30' }, approved: { label: 'Approved', icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30' }, rejected: { label: 'Rejected', icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30' },
 };
 
 const BudgetEditPage: React.FC = () => {
@@ -71,14 +67,7 @@ const BudgetEditPage: React.FC = () => {
 
   // Form state
   const [formData, setFormData] = useState({
-    wbs_code: '',
-    description: '',
-    unit_cost_budgeted: 0,
-    quantity_budgeted: 1,
-    days_budgeted: 1,
-    uom: '',
-    category_id: '',
-    custom_metadata: [] as { key: string; value: string }[],
+    wbs_code: '', description: '', unit_cost_budgeted: 0, quantity_budgeted: 1, days_budgeted: 1, uom: '', category_id: '', custom_metadata: [] as { key: string; value: string }[],
   });
 
   const canManage = hasAnyRole([Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager]);
@@ -89,22 +78,14 @@ const BudgetEditPage: React.FC = () => {
     setLoading(true);
     try {
       const [itemRes, catRes] = await Promise.all([
-        api.get<WBSItem>(`/wbs/budget-draft/${budgetId}`),
-        api.get<WBSCategory[]>('/wbs/categories'),
+        api.get<WBSItem>(`/wbs/budget-draft/${budgetId}`), api.get<WBSCategory[]>('/wbs/categories'),
       ]);
       setItem(itemRes.data);
       setCategories(catRes.data);
 
       const data = itemRes.data;
       setFormData({
-        wbs_code: data.wbs_code,
-        description: data.description,
-        unit_cost_budgeted: data.unit_cost_budgeted || 0,
-        quantity_budgeted: data.quantity_budgeted || 1,
-        days_budgeted: data.days_budgeted || 1,
-        uom: data.uom || '',
-        category_id: data.category_id || '',
-        custom_metadata: data.custom_metadata ? Object.entries(data.custom_metadata).map(([k, v]) => ({ key: k, value: String(v) })) : [],
+        wbs_code: data.wbs_code, description: data.description, unit_cost_budgeted: data.unit_cost_budgeted || 0, quantity_budgeted: data.quantity_budgeted || 1, days_budgeted: data.days_budgeted || 1, uom: data.uom || '', category_id: data.category_id || '', custom_metadata: data.custom_metadata ? Object.entries(data.custom_metadata).map(([k, v]) => ({ key: k, value: String(v) })) : [],
       });
 
       // Generate AI anomalies for pending items
@@ -124,44 +105,25 @@ const BudgetEditPage: React.FC = () => {
     
     if (variance < -10) {
       generatedAnomalies.push({
-        type: 'variance',
-        severity: 'critical',
-        message: `Budget shows ${Math.abs(variance).toFixed(1)}% overrun vs planned expenditure`,
-        field: 'Variance',
-        currentValue: variance,
-        expectedValue: 0,
+        type: 'variance', severity: 'critical', message: `Budget shows ${Math.abs(variance).toFixed(1)}% overrun vs planned expenditure`, field: 'Variance', currentValue: variance, expectedValue: 0,
       });
     }
 
     if (data.total_committed_lpo > data.total_cost_budgeted * 0.8) {
       generatedAnomalies.push({
-        type: 'threshold',
-        severity: 'warning',
-        message: 'LPO commitments exceed 80% of budgeted amount',
-        field: 'LPO Commitment',
-        currentValue: data.total_committed_lpo,
-        expectedValue: data.total_cost_budgeted * 0.8,
+        type: 'threshold', severity: 'warning', message: 'LPO commitments exceed 80% of budgeted amount', field: 'LPO Commitment', currentValue: data.total_committed_lpo, expectedValue: data.total_cost_budgeted * 0.8,
       });
     }
 
     if (data.unit_cost_budgeted > 1000000 && data.quantity_budgeted === 1) {
       generatedAnomalies.push({
-        type: 'pattern',
-        severity: 'info',
-        message: 'High unit cost with quantity of 1 â€” verify if this should be split into multiple line items',
-        field: 'Unit Cost',
-        currentValue: data.unit_cost_budgeted,
+        type: 'pattern', severity: 'info', message: 'High unit cost with quantity of 1 â€” verify if this should be split into multiple line items', field: 'Unit Cost', currentValue: data.unit_cost_budgeted,
       });
     }
 
     if (data.days_budgeted > 365) {
       generatedAnomalies.push({
-        type: 'forecast',
-        severity: 'warning',
-        message: `Duration of ${data.days_budgeted} days exceeds 1 year â€” consider phasing`,
-        field: 'Duration',
-        currentValue: data.days_budgeted,
-        expectedValue: 365,
+        type: 'forecast', severity: 'warning', message: `Duration of ${data.days_budgeted} days exceeds 1 year â€” consider phasing`, field: 'Duration', currentValue: data.days_budgeted, expectedValue: 365,
       });
     }
 
@@ -190,15 +152,7 @@ const BudgetEditPage: React.FC = () => {
     setSaving(true);
     try {
       await api.patch(`/wbs/budget-draft/${budgetId}`, {
-        wbs_code: formData.wbs_code,
-        description: formData.description,
-        unit_cost_budgeted: formData.unit_cost_budgeted,
-        quantity_budgeted: formData.quantity_budgeted,
-        days_budgeted: formData.days_budgeted,
-        uom: formData.uom,
-        total_cost_budgeted: formData.unit_cost_budgeted * formData.quantity_budgeted * formData.days_budgeted,
-        category_id: formData.category_id || null,
-        custom_metadata: formData.custom_metadata.reduce((acc, curr) => {
+        wbs_code: formData.wbs_code, description: formData.description, unit_cost_budgeted: formData.unit_cost_budgeted, quantity_budgeted: formData.quantity_budgeted, days_budgeted: formData.days_budgeted, uom: formData.uom, total_cost_budgeted: formData.unit_cost_budgeted * formData.quantity_budgeted * formData.days_budgeted, category_id: formData.category_id || null, custom_metadata: formData.custom_metadata.reduce((acc, curr) => {
           if (curr.key.trim()) acc[curr.key.trim()] = curr.value;
           return acc;
         }, {} as Record<string, any>),

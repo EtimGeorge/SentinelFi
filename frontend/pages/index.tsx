@@ -1,25 +1,11 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import MarketingLayout from '../components/Landing/MarketingLayout';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { POSITIONING, EXPLORE_STEPS, MARKETING_ACTIONS, HEADLINE_VARIANTS } from '../components/Landing/marketingContent';
+import { getMarketingEvents, resolveHeadlineVariant, trackMarketingEvent } from '../components/Landing/marketingAnalytics';
 import { 
-  ArrowRight, 
-  ShieldCheck, 
-  Zap, 
-  Cpu, 
-  BarChart3, 
-  Users, 
-  Lock,
-  ChevronRight,
-  Globe,
-  Database,
-  CreditCard,
-  Mail,
-  Receipt,
-  KeyRound,
-  CheckCircle2,
-  FileText,
-  TrendingUp,
-  Activity,
+  ArrowRight, ShieldCheck, Zap, Cpu, BarChart3, Users, Lock, ChevronRight, Globe, Database, CreditCard, Mail, Receipt, KeyRound, CheckCircle2, FileText, TrendingUp, Activity, Play,
 } from 'lucide-react';
 import { NextPage } from 'next';
 
@@ -29,6 +15,36 @@ type NextPageWithLayout = NextPage & {
 
 const LandingPage: NextPageWithLayout = () => {
   const [activeRole, setActiveRole] = useState('CEO');
+  const router = useRouter();
+  // Headline A/B: ?headline=a|b → persisted; defaults to control 'a'.
+  // SSR-safe: resolve after mount so server markup always matches control.
+  const [headlineKey, setHeadlineKey] = useState<'a' | 'b'>('a');
+  const heroTrackedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const query = router.asPath.includes('?') ? `?${router.asPath.split('?')[1]}` : window.location.search;
+    const key = resolveHeadlineVariant(query);
+    setHeadlineKey(key);
+    // Guard against React StrictMode double-mount double-counting.
+    if (heroTrackedRef.current !== router.asPath) {
+      heroTrackedRef.current = router.asPath;
+      trackMarketingEvent('marketing.hero_view', { variant: `headline-${key}` });
+      trackMarketingEvent('marketing.headline_variant', { variant: `headline-${key}` });
+    }
+  }, [router.asPath]);
+  const headline = HEADLINE_VARIANTS[headlineKey];
+
+  const trackCta = (cta: string, destination: string) => () => {
+    trackMarketingEvent('marketing.cta_click', { cta, destination, variant: `headline-${headlineKey}` });
+  };
+
+  // Debug console: `window.__sfiMarketing()` prints buffered events for the
+  // A/B readout (auditable without a vendor dashboard).
+  useEffect(() => {
+    (window as unknown as { __sfiMarketing?: () => void }).__sfiMarketing = () => {
+      // eslint-disable-next-line no-console
+      console.table(getMarketingEvents());
+    };
+  }, []);
   const roles = [
     { id: 'CEO', label: 'Executive (CEO)', icon: <ShieldCheck />, desc: 'High-level risk aggregation and strategic assurance.' },
     { id: 'PM', label: 'Tactical (PM)', icon: <Zap />, desc: 'WBS granularity and operational baseline management.' },
@@ -37,87 +53,37 @@ const LandingPage: NextPageWithLayout = () => {
 
   const modules = [
     {
-      icon: <TrendingUp className="w-7 h-7" />,
-      color: 'text-brand-primary',
-      bg: 'bg-brand-primary/10 border-brand-primary/20',
-      title: 'CAPEX & Revenue Engine',
-      desc: 'Multi-billion dollar capital projects with WBS-enforced budgets, live variance tracking, and income reconciliation.',
-      href: '/landing/features#capex',
+      icon: <TrendingUp className="w-7 h-7" />, color: 'text-brand-primary', bg: 'bg-brand-primary/10 border-brand-primary/20', title: 'CAPEX & Revenue Engine', desc: 'Multi-billion dollar capital projects with WBS-enforced budgets, live variance tracking, and income reconciliation.', href: '/landing/features#capex',
     },
     {
-      icon: <FileText className="w-7 h-7" />,
-      color: 'text-alert-critical',
-      bg: 'bg-alert-critical/10 border-alert-critical/20',
-      title: 'OPEX, Payroll & Recurring',
-      desc: 'Operational budgets, payroll batches, and recurring cost lines with absolute line-item traceability.',
-      href: '/landing/features#opex',
+      icon: <FileText className="w-7 h-7" />, color: 'text-alert-critical', bg: 'bg-alert-critical/10 border-alert-critical/20', title: 'OPEX, Payroll & Recurring', desc: 'Operational budgets, payroll batches, and recurring cost lines with absolute line-item traceability.', href: '/landing/features#opex',
     },
     {
-      icon: <Receipt className="w-7 h-7" />,
-      color: 'text-brand-secondary',
-      bg: 'bg-brand-secondary/10 border-brand-secondary/20',
-      title: 'Procurement & P2P',
-      desc: 'Purchase-to-pay workflow: requisitions, purchase orders, goods receipt, three-way matching, and payment.',
-      href: '/landing/features#procurement',
+      icon: <Receipt className="w-7 h-7" />, color: 'text-brand-secondary', bg: 'bg-brand-secondary/10 border-brand-secondary/20', title: 'Procurement & P2P', desc: 'Purchase-to-pay workflow: requisitions, purchase orders, goods receipt, three-way matching, and payment.', href: '/landing/features#procurement',
     },
     {
-      icon: <ShieldCheck className="w-7 h-7" />,
-      color: 'text-brand-primary',
-      bg: 'bg-brand-primary/10 border-brand-primary/20',
-      title: 'Approvals & Governance',
-      desc: 'Document-to-form flows, configurable approval chains, and a tamper-resistant audit trail on every action.',
-      href: '/landing/features#approvals',
+      icon: <ShieldCheck className="w-7 h-7" />, color: 'text-brand-primary', bg: 'bg-brand-primary/10 border-brand-primary/20', title: 'Approvals & Governance', desc: 'Document-to-form flows, configurable approval chains, and a tamper-resistant audit trail on every action.', href: '/landing/features#approvals',
     },
     {
-      icon: <Activity className="w-7 h-7" />,
-      color: 'text-alert-critical',
-      bg: 'bg-alert-critical/10 border-alert-critical/20',
-      title: 'AI Forensics & Intelligence',
-      desc: 'Sentinel-AI scans every document and transaction, surfacing anomalies and duplicate invoices in real time.',
-      href: '/landing/features#ai',
+      icon: <Activity className="w-7 h-7" />, color: 'text-alert-critical', bg: 'bg-alert-critical/10 border-alert-critical/20', title: 'AI Forensics & Intelligence', desc: 'Sentinel-AI scans every document and transaction, surfacing anomalies and duplicate invoices in real time.', href: '/landing/features#ai',
     },
     {
-      icon: <Database className="w-7 h-7" />,
-      color: 'text-brand-secondary',
-      bg: 'bg-brand-secondary/10 border-brand-secondary/20',
-      title: 'Reporting & Tenant Sovereignty',
-      desc: 'CAPEX/OPEX variance reports, currency-aware ledgers, and physically isolated multi-tenant databases.',
-      href: '/landing/features#reporting',
+      icon: <Database className="w-7 h-7" />, color: 'text-brand-secondary', bg: 'bg-brand-secondary/10 border-brand-secondary/20', title: 'Reporting & Tenant Sovereignty', desc: 'CAPEX/OPEX variance reports, currency-aware ledgers, and physically isolated multi-tenant databases.', href: '/landing/features#reporting',
     },
   ];
 
   const businessModules = [
     {
-      icon: <KeyRound className="w-6 h-6" />,
-      color: 'text-brand-primary',
-      label: 'Subscriptions',
-      title: 'Plans, cycles & trials',
-      desc: '14-day full-feature trial, single Professional plan with monthly or annual billing (15% annual saving), and enterprise custom contracts â€” all managed from one Billing console.',
-      href: '/landing/features#subscriptions',
+      icon: <KeyRound className="w-6 h-6" />, color: 'text-brand-primary', label: 'Subscriptions', title: 'Plans, cycles & trials', desc: '14-day full-feature trial, single Professional plan with monthly or annual billing (15% annual saving), and enterprise custom contracts â€” all managed from one Billing console.', href: '/landing/features#subscriptions',
     },
     {
-      icon: <CreditCard className="w-6 h-6" />,
-      color: 'text-brand-secondary',
-      label: 'Payments',
-      title: 'Paystack & PayPal',
-      desc: 'Instant provisioning via PCI-DSS gateways. Paystack for Africa and Nigeria, PayPal for international teams. Zero card data ever touches SentinelFi servers.',
-      href: '/landing/features#payments',
+      icon: <CreditCard className="w-6 h-6" />, color: 'text-brand-secondary', label: 'Payments', title: 'Paystack & PayPal', desc: 'Instant provisioning via PCI-DSS gateways. Paystack for Africa and Nigeria, PayPal for international teams. Zero card data ever touches SentinelFi servers.', href: '/landing/features#payments',
     },
     {
-      icon: <Receipt className="w-6 h-6" />,
-      color: 'text-alert-critical',
-      label: 'Billing',
-      title: 'Invoices, renewals & history',
-      desc: 'Secure invoice records, downloadable PDF receipts, auto-expiry enforcement, and one-click renewal when a workspace lapses.',
-      href: '/landing/features#billing',
+      icon: <Receipt className="w-6 h-6" />, color: 'text-alert-critical', label: 'Billing', title: 'Invoices, renewals & history', desc: 'Secure invoice records, downloadable PDF receipts, auto-expiry enforcement, and one-click renewal when a workspace lapses.', href: '/landing/features#billing',
     },
     {
-      icon: <Mail className="w-6 h-6" />,
-      color: 'text-alert-positive',
-      label: 'Email',
-      title: 'Magic links & alerts',
-      desc: 'Passwordless magic-link onboarding dispatched in under 60 seconds, plus transactional alerts for approvals, anomalies, and subscription events.',
-      href: '/landing/features#email',
+      icon: <Mail className="w-6 h-6" />, color: 'text-alert-positive', label: 'Email', title: 'Magic links & alerts', desc: 'Passwordless magic-link onboarding dispatched in under 60 seconds, plus transactional alerts for approvals, anomalies, and subscription events.', href: '/landing/features#email',
     },
   ];
 
@@ -136,31 +102,71 @@ const LandingPage: NextPageWithLayout = () => {
         </div>
 
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-alert-critical/40 bg-alert-critical/10 text-alert-critical text-xs font-mono mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 shadow-[0_0_24px_rgba(234,88,12,0.25)]">
-            <Globe className="w-3 h-3" /> 
-            PLATFORM v2.4: MULTI-TENANT ENGINE LIVE
-          </div>
-          
-          <h1 className="text-6xl md:text-8xl lg:text-9xl font-black m-heading mb-8 leading-[1] tracking-tighter">
-            <span className="block text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.6)]">Absolute Proof.</span>
-            <span className="block gradient-text">Total Assurance.</span>
-          </h1>
-          
-          <p className="text-xl md:text-2xl text-slate-200/90 max-w-3xl mx-auto mb-12 leading-relaxed font-medium drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
-            The single source of truth for enterprise project capital. 
-            <span className="text-brand-primary font-bold"> Automated WBS governance</span>,
-            <span className="text-brand-secondary font-bold"> AI-driven financial intelligence</span>, 
-            and complete tenant sovereignty.
+          <p className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-brand-primary/30 bg-brand-primary/10 text-brand-primary text-xs font-bold uppercase mb-8">
+            <span className="w-2 h-2 rounded-full bg-brand-primary animate-pulse" aria-hidden />
+            {POSITIONING.eyebrow} Financial control tower for capital projects
           </p>
-          
-          <div className="flex flex-col sm:flex-row justify-center gap-6">
-            <Link href="/landing/pricing" className="m-button-primary text-xl px-12 py-6">
-              Secure Your Instance <ArrowRight className="w-6 h-6" />
+
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black m-heading mb-8 leading-[1.02] tracking-tighter">
+            <span className="block text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.6)]">{headline.headlineA}</span>
+            <span className="block gradient-text">{headline.headlineB}</span>
+          </h1>
+
+          <p className="text-lg md:text-xl text-slate-200/90 max-w-3xl mx-auto mb-10 leading-relaxed font-medium drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
+            {POSITIONING.subhead}
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+            <Link href={MARKETING_ACTIONS.primary.href} onClick={trackCta('hero-start-trial', MARKETING_ACTIONS.primary.href)} data-cta="hero-start-trial" className="m-button-primary text-lg px-10 py-5 w-full sm:w-auto justify-center">
+              {MARKETING_ACTIONS.primary.label} <ArrowRight className="w-5 h-5 ml-2" aria-hidden />
             </Link>
-            <Link href="/landing/workflows" className="flex items-center justify-center gap-2 text-slate-200 font-bold hover:text-brand-primary transition-all group drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
-              Explore the Ecosystem <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <Link href={MARKETING_ACTIONS.secondary.href} onClick={trackCta('hero-live-tour', MARKETING_ACTIONS.secondary.href)} data-cta="hero-live-tour" className="inline-flex w-full sm:w-auto min-h-[56px] items-center justify-center gap-2 rounded-full border border-white/20 px-10 text-lg font-bold text-white transition-colors hover:border-brand-primary/60 hover:text-brand-primary">
+              <Play className="w-5 h-5" aria-hidden /> {MARKETING_ACTIONS.secondary.label}
             </Link>
           </div>
+          <p className="text-sm text-slate-400 font-semibold mb-12">{POSITIONING.proofLine}</p>
+
+          {/* Curiosity hook — concrete AI catch, not abstract claims */}
+          <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-brand-darker/80 backdrop-blur-xl p-5 text-left" role="status" aria-label="Live example of an AI fraud catch">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <p className="text-xs font-bold uppercase text-slate-400">Live catch · Sentinel-AI forensics</p>
+              <p className="text-xs font-mono text-brand-primary">confidence 98.2%</p>
+            </div>
+            <p className="mt-3 text-base md:text-lg text-white font-semibold leading-relaxed">
+              Duplicate invoice <span className="font-mono text-alert-warning">INV-8841</span> quarantined — same vendor, same amount, 6 days apart.
+              <span className="text-slate-300"> Payment held before money moved.</span>
+            </p>
+            <Link href="/landing/features#ai" onClick={trackCta('hero-ai-catch', '/landing/features#ai')} data-cta="hero-ai-catch" className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-brand-primary hover:underline">
+              How the AI catch works <ChevronRight className="w-4 h-4" aria-hidden />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* New-here orientation — answers "what is this, how do I explore it" in 60s */}
+      <section aria-label="How to explore SentinelFi" className="relative border-y border-white/5 bg-white/[0.02]">
+        <div className="container mx-auto px-6 py-16">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10">
+            <div>
+              <p className="text-xs font-bold uppercase text-brand-primary mb-3">New here? Start here - 60 seconds</p>
+              <h2 className="text-3xl md:text-4xl font-black m-heading text-white tracking-tight">What SentinelFi is, in three steps.</h2>
+            </div>
+            <Link href={MARKETING_ACTIONS.secondary.href} onClick={trackCta('orientation-tour', MARKETING_ACTIONS.secondary.href)} data-cta="orientation-tour" className="inline-flex items-center gap-1 text-sm font-bold text-slate-300 hover:text-brand-primary transition-colors">
+              Open the full interactive tour <ArrowRight className="w-4 h-4" aria-hidden />
+            </Link>
+          </div>
+          <ol className="grid grid-cols-1 md:grid-cols-3 gap-6" role="list">
+            {EXPLORE_STEPS.map((s) => (
+              <li key={s.step} className="glass-card p-8 flex flex-col">
+                <span className="font-mono text-sm font-bold text-brand-primary mb-4">{s.step}</span>
+                <h3 className="text-xl font-black m-heading text-white mb-3">{s.title}</h3>
+                <p className="text-sm text-slate-400 leading-relaxed mb-6 flex-1">{s.body}</p>
+                <Link href={s.href} onClick={trackCta(`orientation-${s.step}`, typeof s.href === 'string' ? s.href : '/')} data-cta={`orientation-${s.step}`} className="inline-flex items-center gap-1 text-sm font-bold text-brand-primary hover:underline">
+                  {s.cta} <ArrowRight className="w-4 h-4" aria-hidden />
+                </Link>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
 
@@ -184,7 +190,7 @@ const LandingPage: NextPageWithLayout = () => {
                   <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
                     <p className="text-[10px] text-brand-primary font-black uppercase tracking-widest mb-2">Total Project Revenue</p>
                     <p className="text-3xl font-black font-mono text-white">$1.24B</p>
-                    <p className="text-[10px] text-alert-positive font-bold mt-1">â–² 8.2% vs prior quarter</p>
+                    <p className="text-[10px] text-alert-positive font-bold mt-1">â-² 8.2% vs prior quarter</p>
                   </div>
                   <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
                     <p className="text-[10px] text-alert-critical font-black uppercase tracking-widest mb-2">Global Variance</p>

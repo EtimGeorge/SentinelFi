@@ -26,6 +26,8 @@ interface ClientProject {
   status: string;
   total_budget: string;
   actual_spent: string;
+  /** Stored currency of this project's figures (backend-declared). */
+  currency?: string;
 }
 
 interface ClientDetails {
@@ -39,6 +41,8 @@ interface ClientDetails {
   created_at: string;
   projects: ClientProject[];
   total_value: number;
+  /** Tenant base currency the lifecycle total is normalized to. */
+  currency?: string;
 }
 
 const ClientOverviewPage: React.FC = () => {
@@ -107,7 +111,7 @@ const ClientOverviewPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-xs font-black text-gray-500 ">Total Lifecycle Value</p>
-                  <p className="text-2xl font-bold text-white">{convertToDisplay(client.total_value || 0)}</p>
+                  <p className="text-2xl font-bold text-white">{convertToDisplay(client.total_value || 0, client.currency || 'USD')}</p>
                 </div>
               </div>
             </Card>
@@ -185,7 +189,7 @@ const ClientOverviewPage: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-8">
                         <div className="text-right hidden sm:block">
-                          <p className="text-xs font-black text-gray-100">{convertToDisplay(parseFloat(project.total_budget))}</p>
+                          <p className="text-xs font-black text-gray-100">{convertToDisplay(parseFloat(project.total_budget), project.currency || client.currency || 'USD')}</p>
                           <p className="text-xs text-gray-500 uppercase font-bold tracking-tighter">Budget Allocation</p>
                         </div>
                         <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-brand-primary transition-transform group-hover:translate-x-1" />

@@ -1,12 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "../lib/api";
 import {
-  AIChatMessage,
-  AIChatScope,
-  SuggestionChip,
-  ProactiveInsight,
-  RichContent,
-  AIChatSession,
+  AIChatMessage, AIChatScope, SuggestionChip, ProactiveInsight, RichContent, AIChatSession,
 } from "../components/ai/types";
 
 const STORAGE_PREFIX = "sentinelfi:chat:";
@@ -38,13 +33,7 @@ interface UseAIChatReturn {
 
 export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   const {
-    currentPage = "default",
-    projectId,
-    entityType,
-    entityId,
-    tenantId = "default",
-    userId = "default",
-    onActionHint,
+    currentPage = "default", projectId, entityType, entityId, tenantId = "default", userId = "default", onActionHint,
   } = options;
 
   const storageKey = `${STORAGE_PREFIX}${tenantId}:${userId}`;
@@ -56,8 +45,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       if (stored) {
         const parsed = JSON.parse(stored);
         return parsed.map((m: any) => ({
-          ...m,
-          timestamp: new Date(m.timestamp),
+          ...m, timestamp: new Date(m.timestamp),
         }));
       }
     } catch (e) {
@@ -67,10 +55,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   });
 
   const [scope, setScopeState] = useState<AIChatScope>({
-    page: currentPage,
-    entityType,
-    entityId,
-    projectId,
+    page: currentPage, entityType, entityId, projectId,
   });
 
   const [isStreaming, setIsStreaming] = useState(false);
@@ -103,12 +88,8 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         const parsed = JSON.parse(stored);
         setSessionHistory(
           parsed.map((s: any) => ({
-            ...s,
-            createdAt: new Date(s.createdAt),
-            updatedAt: new Date(s.updatedAt),
-            messages: s.messages.map((m: any) => ({
-              ...m,
-              timestamp: new Date(m.timestamp),
+            ...s, createdAt: new Date(s.createdAt), updatedAt: new Date(s.updatedAt), messages: s.messages.map((m: any) => ({
+              ...m, timestamp: new Date(m.timestamp),
             })),
           })),
         );
@@ -135,10 +116,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       if (isStreaming) return;
 
       const userMessage: AIChatMessage = {
-        id: generateId(),
-        role: "user",
-        content,
-        timestamp: new Date(),
+        id: generateId(), role: "user", content, timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, userMessage]);
@@ -148,11 +126,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       // Create streaming assistant message
       const assistantMessageId = generateId();
       const assistantMessage: AIChatMessage = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: "",
-        timestamp: new Date(),
-        streaming: true,
+        id: assistantMessageId, role: "assistant", content: "", timestamp: new Date(), streaming: true,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -161,24 +135,16 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         abortControllerRef.current = new AbortController();
 
         const response = await fetch("/api/v1/ai/chat/stream", {
-          method: "POST",
-          credentials: "include",
-          headers: {
+          method: "POST", credentials: "include", headers: {
             "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: content,
-            scope: { ...scope, page: currentPage },
-            conversation_history: messages.slice(-10).map((m) => ({
-              role: m.role === "assistant" ? "assistant" : "user",
-              content:
+          }, body: JSON.stringify({
+            message: content, scope: { ...scope, page: currentPage }, conversation_history: messages.slice(-10).map((m) => ({
+              role: m.role === "assistant" ? "assistant" : "user", content:
                 typeof m.content === "string"
                   ? m.content
                   : JSON.stringify(m.content),
-            })),
-            project_id: projectId,
-          }),
-          signal: abortControllerRef.current.signal,
+            })), project_id: projectId,
+          }), signal: abortControllerRef.current.signal,
         });
 
         if (!response.ok) {
@@ -225,9 +191,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
             prev.map((m) =>
               m.id === assistantMessageId
                 ? {
-                    ...m,
-                    content: accumulatedContent || chunk,
-                    streaming: true,
+                    ...m, content: accumulatedContent || chunk, streaming: true,
                   }
                 : m,
             ),
@@ -255,16 +219,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
             if (insightMatch) {
               const insight = JSON.parse(insightMatch[1]);
               setProactiveInsight({
-                id: generateId(),
-                type: insight.type || "info",
-                severity: insight.severity || "info",
-                title: insight.title || "AI Insight",
-                message: insight.message || "",
-                entityType: insight.entityType,
-                entityId: insight.entityId,
-                actionPrompt: insight.actionPrompt,
-                dismissible: true,
-                createdAt: new Date(),
+                id: generateId(), type: insight.type || "info", severity: insight.severity || "info", title: insight.title || "AI Insight", message: insight.message || "", entityType: insight.entityType, entityId: insight.entityId, actionPrompt: insight.actionPrompt, dismissible: true, createdAt: new Date(),
               });
             }
           } catch (e) {
@@ -281,11 +236,8 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           prev.map((m) =>
             m.id === assistantMessageId
               ? {
-                  ...m,
-                  content:
-                    "I encountered an error processing your request. Please try again.",
-                  streaming: false,
-                  metadata: { source: "error" },
+                  ...m, content:
+                    "I encountered an error processing your request. Please try again.", streaming: false, metadata: { source: "error" },
                 }
               : m,
           ),
@@ -302,13 +254,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     if (messages.length > 0) {
       // Archive current session
       const session: AIChatSession = {
-        id: generateId(),
-        tenantId,
-        userId,
-        scope,
-        messages: [...messages],
-        createdAt: messages[0]?.timestamp || new Date(),
-        updatedAt: new Date(),
+        id: generateId(), tenantId, userId, scope, messages: [...messages], createdAt: messages[0]?.timestamp || new Date(), updatedAt: new Date(),
       };
 
       setSessionHistory((prev) => [session, ...prev.slice(0, 19)]); // Keep last 20 sessions
@@ -316,8 +262,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       try {
         const historyKey = `${storageKey}:sessions`;
         localStorage.setItem(
-          historyKey,
-          JSON.stringify([session, ...sessionHistory.slice(0, 19)]),
+          historyKey, JSON.stringify([session, ...sessionHistory.slice(0, 19)]),
         );
       } catch (e) {
         console.warn("[useAIChat] Failed to save session:", e);
@@ -334,13 +279,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       console.warn("[useAIChat] Failed to clear storage:", e);
     }
   }, [
-    messages,
-    scope,
-    tenantId,
-    userId,
-    sessionHistory,
-    storageKey,
-    generateId,
+    messages, scope, tenantId, userId, sessionHistory, storageKey, generateId,
   ]);
 
   const setScope = useCallback(
@@ -350,11 +289,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       // Add context change acknowledgment message
       if (newScope.page && newScope.page !== scope.page) {
         const contextMessage: AIChatMessage = {
-          id: generateId(),
-          role: "assistant",
-          content: `Context switched to **${newScope.page}**. How can I help you here?`,
-          timestamp: new Date(),
-          metadata: { source: "context_change" },
+          id: generateId(), role: "assistant", content: `Context switched to **${newScope.page}**. How can I help you here?`, timestamp: new Date(), metadata: { source: "context_change" },
         };
         setMessages((prev) => [...prev, contextMessage]);
       }
@@ -371,17 +306,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   }, []);
 
   return {
-    messages,
-    scope,
-    isStreaming,
-    proactiveInsight,
-    unreadCount,
-    sessionHistory,
-    sendMessage,
-    clearHistory,
-    setScope,
-    markAsRead,
-    dismissProactiveInsight,
+    messages, scope, isStreaming, proactiveInsight, unreadCount, sessionHistory, sendMessage, clearHistory, setScope, markAsRead, dismissProactiveInsight,
   };
 }
 

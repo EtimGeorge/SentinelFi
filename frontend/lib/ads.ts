@@ -18,12 +18,7 @@ export async function getAdsConfig(): Promise<AdsConfig> {
     cachedConfig = data as AdsConfig;
   } catch {
     cachedConfig = {
-      provider: 'test',
-      adsenseClientId: null,
-      adsenseBannerSlot: null,
-      rewardRequiredSeconds: 15,
-      maxRewardsPerDay: 5,
-      adsEnabled: true,
+      provider: 'test', adsenseClientId: null, adsenseBannerSlot: null, rewardRequiredSeconds: 15, maxRewardsPerDay: 5, adsEnabled: true,
     };
   }
   return cachedConfig;
@@ -41,7 +36,7 @@ declare global {
 
 /**
  * Loads the AdSense script once and pushes a banner slot.
- * No-op when no client ID is configured (dev/test) — callers render
+ * No-op when no client ID is configured (dev/test) - callers render
  * a placeholder instead so layouts never break.
  */
 export function loadAdsenseBanner(): boolean {
@@ -85,12 +80,10 @@ export interface RewardResult {
 }
 
 export async function completeRewardedSession(
-  sessionId: string,
-  providerReceipt?: string,
+  sessionId: string, providerReceipt?: string,
 ): Promise<RewardResult> {
   const { data } = await api.post('/ads/rewarded/complete', {
-    sessionId,
-    providerReceipt,
+    sessionId, providerReceipt,
   });
   return data as RewardResult;
 }

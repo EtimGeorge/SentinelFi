@@ -3,17 +3,7 @@ import Head from 'next/head';
 import SecuredLayout from '../../components/Layout/SecuredLayout';
 import { useRouter } from 'next/router';
 import {
-  BarChart3,
-  Calendar,
-  Settings,
-  Plus,
-  Save,
-  ChevronRight,
-  Layers,
-  ChevronDown,
-  ChevronUp,
-  FileSpreadsheet,
-  AlertCircle
+  BarChart3, Calendar, Settings, Plus, Save, ChevronRight, Layers, ChevronDown, ChevronUp, FileSpreadsheet, AlertCircle
 } from 'lucide-react';
 import { useFinanceCore } from '../../hooks/useFinanceCore';
 import { useCurrency } from '../../components/context/CurrencyContext';

@@ -9,12 +9,7 @@ import { apiClient } from '../../lib/api';
 import { AuditLogEntity, GetAuditLogsDto, AuditLogResponse } from '@shared/types/audit'; 
 import { toast } from 'react-hot-toast';
 import { 
-  FileText, 
-  Download, 
-  ShieldAlert, 
-  User, 
-  Filter,
-  RefreshCcwIcon
+  FileText, Download, ShieldAlert, User, Filter, RefreshCcwIcon
 } from 'lucide-react';
 import DataTable from "../../components/common/DataTable";
 import { downloadCsv, CsvColumn, isoStamp } from "../../lib/exportCsv";
@@ -43,20 +38,14 @@ const AuditLogPage: NextPageWithLayout = () => {
   const [limit, setLimit] = useState(10);
 
   const [filters, setFilters] = useState<Partial<GetAuditLogsDto>>({
-    userId: '',
-    action: '',
-    startDate: '',
-    endDate: '',
-    userEmail: '',
-    ipAddress: '',
+    userId: '', action: '', startDate: '', endDate: '', userEmail: '', ipAddress: '',
   });
 
   const fetchAuditLogs = useCallback(async () => {
     setLoading(true);
     try {
       const params: GetAuditLogsDto = {
-        page: currentPage,
-        limit: limit,
+        page: currentPage, limit: limit,
         ...filters,
       };
       
@@ -77,12 +66,7 @@ const AuditLogPage: NextPageWithLayout = () => {
 
   const handleClearFilters = () => {
     setFilters({
-      userId: '',
-      action: '',
-      startDate: '',
-      endDate: '',
-      userEmail: '',
-      ipAddress: '',
+      userId: '', action: '', startDate: '', endDate: '', userEmail: '', ipAddress: '',
     });
     setCurrentPage(1);
   };

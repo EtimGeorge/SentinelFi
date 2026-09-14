@@ -86,10 +86,7 @@ TrainingPage.getLayout = (page: React.ReactElement) => {
 };
 
 const TrainingCard = ({ difficulty, title, duration, desc }: { 
-  difficulty: string, 
-  title: string, 
-  duration: string, 
-  desc: string 
+  difficulty: string, title: string, duration: string, desc: string 
 }) => (
   <div className="glass-card group overflow-hidden flex flex-col">
     <div className="aspect-video bg-white/5 border-b border-white/5 flex items-center justify-center relative">

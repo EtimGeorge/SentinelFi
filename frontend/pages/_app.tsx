@@ -78,7 +78,7 @@ function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPr
 
   // Pages can define a custom layout, otherwise use the default
   const getLayout = Component.getLayout || ((page) => {
-    // Public/marketing routes must NEVER be wrapped in the secured chrome —
+    // Public/marketing routes must NEVER be wrapped in the secured chrome - 
     // even when the visitor holds a valid session. Pages that run their own
     // layout (MarketingLayout etc.) define getLayout and bypass this entirely.
     if (isAuthenticated && !isPublicRoute) {
@@ -92,7 +92,7 @@ function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPr
   return (
     <>
       {getLayout(<Component {...pageProps} />)}
-      {/* Global AI Assistant FAB — authenticated workspace pages only, never public/marketing routes */}
+      {/* Global AI Assistant FAB - authenticated workspace pages only, never public/marketing routes */}
       {isAuthenticated && !isPublicRoute && (
         <AIChatFAB />
       )}
@@ -115,14 +115,13 @@ function NotificationWatcher() {
     const isServerError = (e: any) => e?.response?.status >= 500;
     const fetchCounts = async () => {
       try {
-        // Fetch counts for both WBS and Requisitions — suppress 403 (RBAC) and 500 (server errors) silently
+        // Fetch counts for both WBS and Requisitions, suppress 403 (RBAC) and 500 (server errors) silently
         const [wbs, reqs] = await Promise.all([
           apiClient.get('/wbs/budgets?status=pending&limit=1').catch((e: any) => {
             if (isForbidden(e)) return null;
             if (isServerError(e)) return null;
             throw e;
-          }),
-          apiClient.get('/finance-core/requisitions').catch((e: any) => {
+          }), apiClient.get('/finance-core/requisitions').catch((e: any) => {
             if (isForbidden(e)) return [];
             if (isServerError(e)) return [];
             return [];
@@ -142,12 +141,12 @@ function NotificationWatcher() {
         setUnreadCount(wbsCount + reqCount);
       } catch (error: any) {
         if (isForbidden(error)) {
-          console.debug('[NotificationWatcher] Skipped — insufficient role');
+          console.debug('[NotificationWatcher] Skipped, insufficient role');
           return;
         }
-        // FIX: Don't spam console.error on server errors — they're expected during backend instability
+        // FIX: Don't spam console.error on server errors, they're expected during backend instability
         if (isServerError(error)) {
-          console.debug('[NotificationWatcher] Server unavailable — skipping sync');
+          console.debug('[NotificationWatcher] Server unavailable, skipping sync');
           return;
         }
         console.error('[NotificationWatcher] Failed to sync counts:', error);
@@ -245,20 +244,11 @@ export default function App(props: AppProps) {
         <Toaster
           position="bottom-right"
           toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#1a1a2e',
-              color: '#e2e8f0',
-              border: '1px solid rgba(99, 102, 241, 0.2)',
-              borderRadius: '12px',
-              padding: '14px 18px',
-              fontSize: '14px',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-            },
-            success: {
+            duration: 4000, style: {
+              background: '#1a1a2e', color: '#e2e8f0', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: '12px', padding: '14px 18px', fontSize: '14px', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            }, success: {
               iconTheme: { primary: '#22c55e', secondary: '#1a1a2e' },
-            },
-            error: {
+            }, error: {
               iconTheme: { primary: '#ef4444', secondary: '#1a1a2e' },
             },
           }}

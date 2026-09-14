@@ -37,7 +37,7 @@ export interface AppUser {
  */
 export interface LoginApiResponse {
   success: boolean;
-  user: {
+  user?: {
     id: string;
     email: string;
     first_name?: string;
@@ -48,7 +48,26 @@ export interface LoginApiResponse {
     tenant_name?: string | null;
     permissions?: string[];
   };
-  access_token: string;
+  access_token?: string;
   requiresMFA?: boolean; // For multi-factor authentication
   mfaToken?: string;     // Token to use for the MFA verification step
+}
+
+/**
+ * SuperAdmin self-managed TOTP MFA status (from /super/mfa/status).
+ */
+export interface MfaStatus {
+  mfaEnabled: boolean;
+  globalMfaRequired: boolean;
+  pendingEnrollment: boolean;
+}
+
+/**
+ * Result of starting MFA enrollment. The recovery codes are returned exactly
+ * once and are never retrievable again after the response.
+ */
+export interface MfaEnrollmentResult {
+  secret: string;
+  otpauthUrl: string;
+  recoveryCodes: string[];
 }

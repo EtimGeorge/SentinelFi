@@ -14,20 +14,11 @@ interface ChatWidgetProps {
 type ViewMode = 'CONVERSATIONS' | 'DIRECTORY' | 'CHAT';
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({ 
-  initialRecipientId, 
-  initialRecipientName,
-  initialConversationId 
+  initialRecipientId, initialRecipientName, initialConversationId 
 }) => {
   const { user } = useAuth();
   const { 
-    messages, 
-    conversations, 
-    sendMessage, 
-    isConnected, 
-    fetchHistory, 
-    createConversation,
-    activeConversationId,
-    setActiveConversationId
+    messages, conversations, sendMessage, isConnected, fetchHistory, createConversation, activeConversationId, setActiveConversationId
   } = useMessaging();
   const api = useSecuredApi();
   

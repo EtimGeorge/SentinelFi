@@ -9,27 +9,15 @@ interface SkeletonProps {
 }
 
 export const Skeleton: React.FC<SkeletonProps> = ({
-  className = '',
-  variant = 'text',
-  lines = 1,
-  width,
-  height,
+  className = '', variant = 'text', lines = 1, width, height,
 }) => {
   const baseStyle: React.CSSProperties = {
-    background: 'linear-gradient(90deg, #1F2937 25%, #374151 50%, #1F2937 75%)',
-    backgroundSize: '200% 100%',
-    animation: 'skeleton-loading 1.5s ease-in-out infinite',
-    borderRadius: '8px',
+    background: 'linear-gradient(90deg, #1F2937 25%, #374151 50%, #1F2937 75%)', backgroundSize: '200% 100%', animation: 'skeleton-loading 1.5s ease-in-out infinite', borderRadius: '8px',
   };
 
   const variants: Record<string, React.CSSProperties> = {
-    text: { height: '1rem', borderRadius: '4px' },
-    card: { borderRadius: '16px' },
-    'table-row': { height: '48px', borderRadius: '0' },
-    kpi: { height: '120px', borderRadius: '16px' },
-    chart: { height: '250px', borderRadius: '16px' },
-    avatar: { borderRadius: '50%' },
-    button: { height: '40px', borderRadius: '8px', width: '120px' },
+    text: { height: '1rem', borderRadius: '4px' }, card: { borderRadius: '16px' },
+    'table-row': { height: '48px', borderRadius: '0' }, kpi: { height: '120px', borderRadius: '16px' }, chart: { height: '250px', borderRadius: '16px' }, avatar: { borderRadius: '50%' }, button: { height: '40px', borderRadius: '8px', width: '120px' },
     'table-header': { height: '40px', borderRadius: '0' },
   };
 
@@ -47,10 +35,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
           className={className}
           style={{
             ...baseStyle,
-            ...variants[variant],
-            width: width || (variant === 'button' ? '120px' : '100%'),
-            height: height || undefined,
-            marginBottom: lines > 1 && i < lines - 1 ? '0.5rem' : 0,
+            ...variants[variant], width: width || (variant === 'button' ? '120px' : '100%'), height: height || undefined, marginBottom: lines > 1 && i < lines - 1 ? '0.5rem' : 0,
           }}
         />
       ))}

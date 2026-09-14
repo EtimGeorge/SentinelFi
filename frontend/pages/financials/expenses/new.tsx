@@ -2,9 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import {
-  PlusCircle, Trash2, Send, AlertTriangle, ChevronRight, ChevronDown,
-  Search, Briefcase, DollarSign, Calendar, RefreshCw, AlertCircle, Info,
-  CheckCircle2, Building2, ArrowRight, X, FileText, ReceiptText
+  PlusCircle, Trash2, Send, AlertTriangle, ChevronRight, ChevronDown, Search, Briefcase, DollarSign, Calendar, RefreshCw, AlertCircle, Info, CheckCircle2, Building2, ArrowRight, X, FileText, ReceiptText
 } from 'lucide-react';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'react-hot-toast';
@@ -56,20 +54,13 @@ interface ExpenseLine {
 
 const VARIANCE_CONFIG: Record<VarianceLevel, { color: string; bg: string; border: string; label: string; Icon: any }> = {
   NONE: {
-    color: 'text-emerald-400', bg: 'bg-emerald-500/8', border: 'border-emerald-500/20',
-    label: 'Within Budget', Icon: CheckCircle2
-  },
-  MINOR: {
-    color: 'text-amber-400', bg: 'bg-amber-500/8', border: 'border-amber-500/20',
-    label: 'Minor Variance < 5%', Icon: Info
-  },
-  MAJOR: {
-    color: 'text-orange-400', bg: 'bg-orange-500/8', border: 'border-orange-500/20',
-    label: 'Major Variance — Finance Manager Override Required', Icon: AlertTriangle
-  },
-  CRITICAL: {
-    color: 'text-red-400', bg: 'bg-red-500/8', border: 'border-red-500/20',
-    label: 'Critical Overrun — CFO / CEO Override Required', Icon: AlertCircle
+    color: 'text-emerald-400', bg: 'bg-emerald-500/8', border: 'border-emerald-500/20', label: 'Within Budget', Icon: CheckCircle2
+  }, MINOR: {
+    color: 'text-amber-400', bg: 'bg-amber-500/8', border: 'border-amber-500/20', label: 'Minor Variance < 5%', Icon: Info
+  }, MAJOR: {
+    color: 'text-orange-400', bg: 'bg-orange-500/8', border: 'border-orange-500/20', label: 'Major Variance - Finance Manager Override Required', Icon: AlertTriangle
+  }, CRITICAL: {
+    color: 'text-red-400', bg: 'bg-red-500/8', border: 'border-red-500/20', label: 'Critical Overrun - CFO / CEO Override Required', Icon: AlertCircle
   },
 };
 
@@ -109,11 +100,7 @@ const calcVariance = (amount: number, remaining: number, budgeted: number): Vari
 };
 
 const newLine = (): ExpenseLine => ({
-  id: `line-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-  description: '', unit_cost: 0, quantity: 1, days: 0, amount: 0,
-  expense_date: new Date().toISOString().split('T')[0],
-  document_reference: '', notes_justification: '', override_reason: '',
-  budget_remaining: 0, variance_level: 'NONE',
+  id: `line-${Date.now()}-${Math.random().toString(36).slice(2)}`, description: '', unit_cost: 0, quantity: 1, days: 0, amount: 0, expense_date: new Date().toISOString().split('T')[0], document_reference: '', notes_justification: '', override_reason: '', budget_remaining: 0, variance_level: 'NONE',
 });
 
 // ========================  WBS TREE PICKER WIDGET  ========================
@@ -280,10 +267,7 @@ export default function ProjectExpenseLogger() {
     }
 
     return {
-      ...line, amount,
-      quantity: qty,
-      budget_remaining: remaining,
-      variance_level: calcVariance(amount, remaining, budgeted),
+      ...line, amount, quantity: qty, budget_remaining: remaining, variance_level: calcVariance(amount, remaining, budgeted),
     };
   };
 
@@ -296,15 +280,7 @@ export default function ProjectExpenseLogger() {
     const isDuration = wbs.uom?.toLowerCase().includes('day') || wbs.uom?.toLowerCase().includes('hour');
 
     setLines(prev => prev.map(l => l.id !== lineId ? l : recalcLine({
-      ...l,
-      wbs_id: wbs.wbs_id,
-      wbs_code: wbs.wbs_code,
-      wbs_description: wbs.description,
-      uom: wbs.uom,
-      unit_cost: Number(wbs.unit_cost_budgeted),
-      quantity: isDuration ? 1 : remainingQty > 0 ? remainingQty : 1,
-      days: isDuration ? (remainingDays > 0 ? remainingDays : 1) : 0,
-      project_id: selectedProject?.project_id,
+      ...l, wbs_id: wbs.wbs_id, wbs_code: wbs.wbs_code, wbs_description: wbs.description, uom: wbs.uom, unit_cost: Number(wbs.unit_cost_budgeted), quantity: isDuration ? 1 : remainingQty > 0 ? remainingQty : 1, days: isDuration ? (remainingDays > 0 ? remainingDays : 1) : 0, project_id: selectedProject?.project_id,
     })));
     setActivePicker(null);
   };
@@ -335,9 +311,7 @@ export default function ProjectExpenseLogger() {
   // ── Submission ─────────────────────────────────────────────────────────────
 
   const { totalAmount, hasBlockingVariance, hasMajorNoOverride } = useMemo(() => ({
-    totalAmount: lines.reduce((s, l) => s + l.amount, 0),
-    hasBlockingVariance: lines.some(l => l.variance_level === 'CRITICAL' && !l.override_reason),
-    hasMajorNoOverride: lines.some(l => l.variance_level === 'MAJOR' && !l.override_reason),
+    totalAmount: lines.reduce((s, l) => s + l.amount, 0), hasBlockingVariance: lines.some(l => l.variance_level === 'CRITICAL' && !l.override_reason), hasMajorNoOverride: lines.some(l => l.variance_level === 'MAJOR' && !l.override_reason),
   }), [lines]);
 
   const handleSubmit = async () => {
@@ -360,17 +334,7 @@ export default function ProjectExpenseLogger() {
       if (mode === 'CAPEX') {
         const payload = {
           entries: lines.map((l) => ({
-            wbs_id: l.wbs_id!,
-            project_id: selectedProject!.project_id,
-            description: l.description,
-            unit_cost: l.unit_cost,
-            quantity: l.quantity,
-            days: l.days || undefined,
-            amount: l.amount,
-            expense_date: l.expense_date,
-            document_reference: l.document_reference || undefined,
-            notes_justification: l.notes_justification || undefined,
-            override_reason: l.override_reason || undefined,
+            wbs_id: l.wbs_id!, project_id: selectedProject!.project_id, description: l.description, unit_cost: l.unit_cost, quantity: l.quantity, days: l.days || undefined, amount: l.amount, expense_date: l.expense_date, document_reference: l.document_reference || undefined, notes_justification: l.notes_justification || undefined, override_reason: l.override_reason || undefined,
           })),
         };
         const res: {
@@ -382,8 +346,7 @@ export default function ProjectExpenseLogger() {
 
         if (res.errors && res.errors.length > 0) {
           toast(`Partial success: ${res.successCount} saved, ${res.errors.length} failed.`, {
-            icon: '⚠️',
-            duration: 5000
+            icon: '⚠️', duration: 5000
           });
           res.errors.forEach((e) => {
             const lineNum = e.index + 1;
@@ -398,11 +361,7 @@ export default function ProjectExpenseLogger() {
         // OPEX Flow
         for (const l of lines) {
           await apiClient.post(`/operational-budgets/${l.opex_budget_id}/expenses`, {
-            description: l.description,
-            amount: l.amount,
-            expense_date: l.expense_date,
-            document_reference: l.document_reference || undefined,
-            notes_justification: l.notes_justification || undefined,
+            description: l.description, amount: l.amount, expense_date: l.expense_date, document_reference: l.document_reference || undefined, notes_justification: l.notes_justification || undefined,
           });
         }
         toast.success(`${lines.length} OPEX expense entries submitted successfully.`);
@@ -702,7 +661,7 @@ export default function ProjectExpenseLogger() {
                           <div className="lg:col-span-5">
                             <label className="field-label">Operational Budget</label>
                             <div className="px-3 py-2.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-sm font-bold text-blue-400">
-                              {line.opex_budget_name || selectedOpexBudget?.name || '—'}
+                              {line.opex_budget_name || selectedOpexBudget?.name || '-'}
                             </div>
                           </div>
                         )}
@@ -711,7 +670,7 @@ export default function ProjectExpenseLogger() {
                         <div className="lg:col-span-4">
                           <label className="field-label">Description *</label>
                           <input value={line.description} onChange={e => updateLine(line.id, { description: e.target.value })}
-                            placeholder="e.g., Labour — Week 23 mobilisation"
+                            placeholder="e.g., Labour - Week 23 mobilisation"
                             className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-brand-primary/40"
                           />
                         </div>

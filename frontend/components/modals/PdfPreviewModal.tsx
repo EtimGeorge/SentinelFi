@@ -10,11 +10,7 @@ interface PdfPreviewModalProps {
 }
 
 const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
-  isOpen,
-  onClose,
-  pdfBlob,
-  title,
-  onDownload
+  isOpen, onClose, pdfBlob, title, onDownload
 }) => {
   const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
 

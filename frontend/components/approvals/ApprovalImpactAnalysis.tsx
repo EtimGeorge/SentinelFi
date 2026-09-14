@@ -1,12 +1,7 @@
 import React from 'react';
 import Card from '../common/Card';
 import {
-  AlertTriangle,
-  TrendingUp,
-  ShieldCheck,
-  History,
-  DollarSign,
-  Zap
+  AlertTriangle, TrendingUp, ShieldCheck, History, DollarSign, Zap
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 

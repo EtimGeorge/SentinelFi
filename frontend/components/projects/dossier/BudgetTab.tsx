@@ -35,19 +35,11 @@ interface BudgetImpact {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  draft: 'bg-gray-800 text-gray-400 border-gray-700',
-  pending: 'bg-yellow-900/20 text-yellow-400 border-yellow-800',
-  approved: 'bg-green-900/20 text-green-400 border-green-800',
-  rejected: 'bg-red-900/20 text-red-400 border-red-800',
-  recalled: 'bg-orange-900/20 text-orange-400 border-orange-800',
+  draft: 'bg-gray-800 text-gray-400 border-gray-700', pending: 'bg-yellow-900/20 text-yellow-400 border-yellow-800', approved: 'bg-green-900/20 text-green-400 border-green-800', rejected: 'bg-red-900/20 text-red-400 border-red-800', recalled: 'bg-orange-900/20 text-orange-400 border-orange-800',
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  pending: 'Pending',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  recalled: 'Recalled',
+  draft: 'Draft', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', recalled: 'Recalled',
 };
 
 const BudgetTab: React.FC<BudgetTabProps> = ({ project, budgets, onChanged }) => {
@@ -60,24 +52,14 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ project, budgets, onChanged }) =>
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
-    description: '',
-    unit_cost_budgeted: '',
-    quantity_budgeted: '',
-    days_budgeted: '',
-    total_cost_budgeted: '',
-    uom: '',
+    description: '', unit_cost_budgeted: '', quantity_budgeted: '', days_budgeted: '', total_cost_budgeted: '', uom: '',
   });
   const [impact, setImpact] = useState<BudgetImpact | null>(null);
 
   const handleEditBudget = async (budget: WbsBudget) => {
     setEditingId(budget.wbs_id);
     setEditForm({
-      description: budget.description || '',
-      unit_cost_budgeted: budget.unit_cost_budgeted !== undefined && budget.unit_cost_budgeted !== null ? String(budget.unit_cost_budgeted) : '',
-      quantity_budgeted: budget.quantity_budgeted !== undefined && budget.quantity_budgeted !== null ? String(budget.quantity_budgeted) : '',
-      days_budgeted: budget.days_budgeted !== undefined && budget.days_budgeted !== null ? String(budget.days_budgeted) : '',
-      total_cost_budgeted: String(budget.total_cost_budgeted ?? ''),
-      uom: budget.uom || '',
+      description: budget.description || '', unit_cost_budgeted: budget.unit_cost_budgeted !== undefined && budget.unit_cost_budgeted !== null ? String(budget.unit_cost_budgeted) : '', quantity_budgeted: budget.quantity_budgeted !== undefined && budget.quantity_budgeted !== null ? String(budget.quantity_budgeted) : '', days_budgeted: budget.days_budgeted !== undefined && budget.days_budgeted !== null ? String(budget.days_budgeted) : '', total_cost_budgeted: String(budget.total_cost_budgeted ?? ''), uom: budget.uom || '',
     });
     setImpact(null);
     setIsEditOpen(true);
@@ -135,10 +117,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ project, budgets, onChanged }) =>
   };
 
   const riskStyles: Record<string, string> = {
-    LOW: 'bg-green-900/20 text-green-400 border-green-800',
-    MEDIUM: 'bg-yellow-900/20 text-yellow-400 border-yellow-800',
-    HIGH: 'bg-orange-900/20 text-orange-400 border-orange-800',
-    CRITICAL: 'bg-red-900/20 text-red-400 border-red-800',
+    LOW: 'bg-green-900/20 text-green-400 border-green-800', MEDIUM: 'bg-yellow-900/20 text-yellow-400 border-yellow-800', HIGH: 'bg-orange-900/20 text-orange-400 border-orange-800', CRITICAL: 'bg-red-900/20 text-red-400 border-red-800',
   };
 
   return (
@@ -161,30 +140,16 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ project, budgets, onChanged }) =>
             rowKey={b => b.wbs_id}
             columns={[
               {
-                key: 'code',
-                label: 'WBS Code',
-                tier: 'P0',
-                get: b => <span className="text-sm font-bold text-brand-primary font-mono">{b.wbs_code}</span>,
+                key: 'code', label: 'WBS Code', tier: 'P0', get: b => <span className="text-sm font-bold text-brand-primary font-mono">{b.wbs_code}</span>,
               },
               {
-                key: 'amount',
-                label: 'Budgeted Amount',
-                tier: 'P0',
-                cellClassName: 'text-right',
-                get: b => <span className="text-sm text-white font-mono font-bold">{convertToDisplay(b.total_cost_budgeted, currency)}</span>,
+                key: 'amount', label: 'Budgeted Amount', tier: 'P0', cellClassName: 'text-right', get: b => <span className="text-sm text-white font-mono font-bold">{convertToDisplay(b.total_cost_budgeted, currency)}</span>,
               },
               {
-                key: 'description',
-                label: 'Description',
-                tier: 'P1',
-                get: b => <span className="text-sm text-gray-300 truncate">{b.description}</span>,
-                title: b => b.description,
+                key: 'description', label: 'Description', tier: 'P1', get: b => <span className="text-sm text-gray-300 truncate">{b.description}</span>, title: b => b.description,
               },
               {
-                key: 'status',
-                label: 'Status',
-                tier: 'P2',
-                get: b => (
+                key: 'status', label: 'Status', tier: 'P2', get: b => (
                   <span className={`px-2 py-1 inline-flex text-xs leading-4 font-bold rounded-md border ${STATUS_STYLES[b.status] || STATUS_STYLES.draft}`}>
                     {STATUS_LABELS[b.status] || b.status.toUpperCase()}
                   </span>
@@ -193,19 +158,10 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ project, budgets, onChanged }) =>
             ]}
             actions={canManageBudget ? [
               {
-                key: 'edit',
-                label: 'Edit',
-                icon: <Edit className="w-4 h-4" />,
-                primary: true,
-                onClick: handleEditBudget,
-                title: 'Edit budget line',
+                key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, primary: true, onClick: handleEditBudget, title: 'Edit budget line',
               },
               {
-                key: 'delete',
-                label: 'Delete',
-                icon: <Trash2 className="w-4 h-4" />,
-                danger: true,
-                onClick: (b) => handleDeleteBudget(b.wbs_id),
+                key: 'delete', label: 'Delete', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: (b) => handleDeleteBudget(b.wbs_id),
               },
             ] : undefined}
           />
@@ -297,7 +253,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ project, budgets, onChanged }) =>
               onChange={(e) => setEditForm({ ...editForm, total_cost_budgeted: e.target.value })}
               className="block w-full py-2 px-4 border border-gray-600 rounded-lg elev-sm focus:outline-none focus:ring-brand-primary focus:border-brand-primary bg-brand-dark/50 text-white"
             />
-            <p className="text-xs text-gray-500 mt-1">Explicit override. Leave empty to keep the computed unit Ã— quantity Ã— days value.</p>
+            <p className="text-xs text-gray-500 mt-1">Explicit override. Leave empty to keep the computed unit Ã- quantity Ã- days value.</p>
           </div>
         </div>
       </Modal>

@@ -27,9 +27,7 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
 
     try {
       await api.post('/super/tenants', {
-        name,
-        schema_name: schemaName,
-        admin_email: adminEmail,
+        name, schema_name: schemaName, admin_email: adminEmail,
       });
       setSuccess('Tenant created successfully! Admin user password generated and needs to be securely communicated.');
       onTenantCreated(); // Trigger refresh in parent component

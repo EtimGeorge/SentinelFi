@@ -46,14 +46,10 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
   }, [options.currentPage]);
 
   const addAssistantMessage = useCallback((
-    content: string,
-    extras?: Partial<AiChatMessage>
+    content: string, extras?: Partial<AiChatMessage>
   ) => {
     const msg: AiChatMessage = {
-      id: `msg-${Date.now()}-${Math.random()}`,
-      role: 'assistant',
-      content,
-      timestamp: new Date(),
+      id: `msg-${Date.now()}-${Math.random()}`, role: 'assistant', content, timestamp: new Date(),
       ...extras,
     };
     setMessages(prev => [...prev, msg]);
@@ -62,10 +58,7 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
 
   const addUserMessage = useCallback((content: string) => {
     const msg: AiChatMessage = {
-      id: `msg-${Date.now()}-${Math.random()}`,
-      role: 'user',
-      content,
-      timestamp: new Date(),
+      id: `msg-${Date.now()}-${Math.random()}`, role: 'user', content, timestamp: new Date(),
     };
     setMessages(prev => [...prev, msg]);
     return msg;
@@ -83,11 +76,7 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
     // Add loading placeholder
     const loadingId = `loading-${Date.now()}`;
     setMessages(prev => [...prev, {
-      id: loadingId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-      isLoading: true,
+      id: loadingId, role: 'assistant', content: '', timestamp: new Date(), isLoading: true,
     }]);
     setIsLoading(true);
 
@@ -98,15 +87,8 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
         .map(m => ({ role: m.role, content: m.content }));
 
       const res = await fetch(`${API_BASE}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          message,
-          sessionId: sessionIdRef.current,
-          history: historyPayload,
-          currentPage: options.currentPage,
-          projectId: options.projectId,
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({
+          message, sessionId: sessionIdRef.current, history: historyPayload, currentPage: options.currentPage, projectId: options.projectId,
         }),
       });
 
@@ -120,14 +102,7 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
       setMessages(prev => prev
         .filter(m => m.id !== loadingId)
         .concat({
-          id: `msg-${Date.now()}`,
-          role: 'assistant',
-          content: data.response ?? 'No response received.',
-          timestamp: new Date(),
-          blocked: data.blocked ?? false,
-          blockReason: data.blockReason,
-          suggestions: data.suggestions ?? [],
-          actionHints: data.actionHints ?? [],
+          id: `msg-${Date.now()}`, role: 'assistant', content: data.response ?? 'No response received.', timestamp: new Date(), blocked: data.blocked ?? false, blockReason: data.blockReason, suggestions: data.suggestions ?? [], actionHints: data.actionHints ?? [],
         })
       );
 
@@ -148,10 +123,7 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
   const explainSection = useCallback(async (sectionKey: string, additionalContext?: string): Promise<string> => {
     try {
       const res = await fetch(`${API_BASE}/explain`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ sectionKey, additionalContext }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ sectionKey, additionalContext }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -167,10 +139,7 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
   const fetchForecast = useCallback(async (projectId?: string): Promise<any | null> => {
     try {
       const res = await fetch(`${API_BASE}/forecast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ projectId }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ projectId }),
       });
       if (!res.ok) throw new Error();
       return await res.json();
@@ -183,15 +152,11 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
    * Fetches an AI dashboard analysis narrative.
    */
   const analyzeDashboard = useCallback(async (
-    scope: 'capex' | 'opex' | 'full',
-    projectId?: string
+    scope: 'capex' | 'opex' | 'full', projectId?: string
   ): Promise<{ narrative: string; sections: Record<string, string> } | null> => {
     try {
       const res = await fetch(`${API_BASE}/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ scope, projectId }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ scope, projectId }),
       });
       if (!res.ok) throw new Error();
       return await res.json();
@@ -211,10 +176,7 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
   }): Promise<{ narrative: string; generatedAt: string } | null> => {
     try {
       const res = await fetch(`${API_BASE}/generate-narrative`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(params),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(params),
       });
       if (!res.ok) throw new Error();
       return await res.json();
@@ -227,9 +189,7 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
    * Uploads a document and extracts structured form data.
    */
   const extractFormData = useCallback(async (
-    file: File,
-    targetForm: 'requisition' | 'live-expense' | 'invoice' | 'purchase-order' | 'wbs-budget',
-    projectName: string
+    file: File, targetForm: 'requisition' | 'live-expense' | 'invoice' | 'purchase-order' | 'wbs-budget', projectName: string
   ): Promise<any> => {
     setIsLoading(true);
     setError(null);
@@ -240,9 +200,7 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
       formData.append('projectName', projectName);
 
       const res = await fetch(`${API_BASE}/fill-form`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+        method: 'POST', credentials: 'include', body: formData,
       });
 
       if (!res.ok) throw new Error(`Extraction failed: ${res.status}`);
@@ -269,18 +227,6 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}) {
   }, []);
 
   return {
-    messages,
-    isLoading,
-    error,
-    sendMessage,
-    explainSection,
-    fetchForecast,
-    analyzeDashboard,
-    generateNarrative,
-    extractFormData,
-    askQuick,
-    clearHistory,
-    sessionId: sessionIdRef.current,
-    messageCount: messages.filter(m => !m.isLoading).length,
+    messages, isLoading, error, sendMessage, explainSection, fetchForecast, analyzeDashboard, generateNarrative, extractFormData, askQuick, clearHistory, sessionId: sessionIdRef.current, messageCount: messages.filter(m => !m.isLoading).length,
   };
 }

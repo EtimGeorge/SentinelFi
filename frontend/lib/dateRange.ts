@@ -22,15 +22,15 @@ export function getDateRange(key: TimeRangeKey): { start: Date; end: Date } {
 }
 
 /**
- * Human-readable range label, e.g. "1 Aug – 31 Aug 2026" or "1 Aug – 5 Sep 2026".
+ * Human-readable range label, e.g. "1 Aug - 31 Aug 2026" or "1 Aug - 5 Sep 2026".
  * When the range is fully within one year, the year prints once.
  */
 export function formatDateRange(key: TimeRangeKey): string {
   const { start, end } = getDateRange(key);
   const sameYear = start.getFullYear() === end.getFullYear();
   return sameYear
-    ? `${formatDay(start)} – ${formatFull(end)}`
-    : `${formatFull(start)} – ${formatFull(end)}`;
+    ? `${formatDay(start)} - ${formatFull(end)}`
+    : `${formatFull(start)} - ${formatFull(end)}`;
 }
 
 /**
