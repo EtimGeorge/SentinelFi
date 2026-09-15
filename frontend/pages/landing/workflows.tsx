@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import MarketingLayout from '../../components/Landing/MarketingLayout';
-import { 
+import DemoSandbox from '../../components/Landing/DemoSandbox';
+import {
   Users, ShieldCheck, Zap, Cpu, BarChart3, Lock, ArrowRight, ChevronRight, Activity, Target, FileSearch, PieChart
 } from 'lucide-react';
 
@@ -112,13 +113,28 @@ const WorkflowsPage: NextPageWithLayout = () => {
   return (
     <>
       <section className="py-24 container mx-auto px-6">
-        <div className="max-w-4xl mx-auto text-center mb-24">
+        <div className="max-w-4xl mx-auto text-center mb-16">
           <h1 className="text-5xl md:text-6xl font-black m-heading mb-8 gradient-text">
-            Engineered for Every Stakeholder.
+            Don&apos;t read about it. Run it.
           </h1>
           <p className="text-xl text-m-text-muted leading-relaxed">
-            SentinelFi is not just a tool; it is an organizational nervous system. 
-            Select your role to see how we transform your workflow baseline.
+            This is a working replica of the SentinelFi workspace with sample data.
+            Pick a role, follow the scenario, and see a duplicate invoice get caught
+            before it costs anyone ₦84M.
+          </p>
+        </div>
+
+        <DemoSandbox />
+      </section>
+
+      {/* Role deep-dive (static narrative beneath the interactive sandbox) */}
+      <section className="pb-24 container mx-auto px-6">
+        <div className="max-w-4xl mx-auto text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-black m-heading mb-6 text-white">
+            Engineered for Every Stakeholder.
+          </h2>
+          <p className="text-lg text-m-text-muted leading-relaxed">
+            Select your role to see how SentinelFi transforms your workflow baseline.
           </p>
         </div>
 
@@ -129,8 +145,8 @@ const WorkflowsPage: NextPageWithLayout = () => {
               key={role}
               onClick={() => setActiveRole(role)}
               className={`px-8 py-4 rounded-full font-bold transition-all border shrink-0 ${
-                activeRole === role 
-                ? 'bg-m-primary text-m-dark border-m-primary shadow-lg shadow-m-primary/20' 
+                activeRole === role
+                ? 'bg-m-primary text-m-dark border-m-primary shadow-lg shadow-m-primary/20'
                 : 'bg-white/5 text-gray-400 border-white/10 hover:border-white/30'
               }`}
             >

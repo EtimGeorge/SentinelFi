@@ -10,7 +10,11 @@ export type { HeadlineVariantKey };
 export type MarketingEventName =
   | 'marketing.hero_view'
   | 'marketing.headline_variant'
-  | 'marketing.cta_click';
+  | 'marketing.cta_click'
+  | 'marketing.demo_step'
+  | 'marketing.demo_complete'
+  | 'marketing.lesson_open'
+  | 'marketing.lesson_complete';
 
 export interface MarketingEvent {
   name: MarketingEventName;
@@ -19,6 +23,8 @@ export interface MarketingEvent {
   variant?: string;
   cta?: string;
   destination?: string;
+  /** Sandbox/lesson context: role, scenario step id, lesson slug, etc. */
+  label?: string;
 }
 
 type MarketingEventListener = (e: MarketingEvent) => void;
@@ -41,7 +47,7 @@ function readStoredEvents(): MarketingEvent[] {
 
 export function trackMarketingEvent(
   name: MarketingEventName,
-  fields: Partial<Pick<MarketingEvent, 'variant' | 'cta' | 'destination'>> = {},
+  fields: Partial<Pick<MarketingEvent, 'variant' | 'cta' | 'destination' | 'label'>> = {},
 ): void {
   if (typeof window === 'undefined') return;
   const event: MarketingEvent = {
