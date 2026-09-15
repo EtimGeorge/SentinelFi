@@ -7,7 +7,7 @@ import {
   InternalServerErrorException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, DataSource, LessThan } from "typeorm";
+import { Repository, DataSource } from "typeorm";
 import {
   SubscriptionEntity,
   SubscriptionStatus,
@@ -21,6 +21,7 @@ import { InvoiceDto, InvoiceStatus } from "./dto/invoice.dto";
 import {
   SubscriptionSummaryDto,
   SafeSubscriptionDto,
+  PlanMrrBreakdown,
 } from "@shared/types/billing";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { PaymentService } from "../payment/payment.service";
@@ -1169,19 +1170,36 @@ export class BillingService {
   // ─── INVOICE (Legacy — Enhanced + real invoice generation) ───────────────────
 
   async getBillingOverview(): Promise<BillingOverviewDto> {
-    const { summary } = await this.getAllTenantSubscriptions();
-
-    const thirtyDaysAgo = new Date();
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const sevenDaysFromNow = new Date(now);
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-    const pastSubscriptions = await this.subscriptionRepository.find({
-      where: {
-        created_at: LessThan(thirtyDaysAgo),
-      },
-    });
+    const subscriptions = await this.subscriptionRepository.find();
 
-    const pastActive = pastSubscriptions.filter(
+    const activeSubs = subscriptions.filter(
       (s) => s.status === SubscriptionStatus.ACTIVE,
+    );
+
+    const mrr = activeSubs.reduce(
+      (acc, s) => acc + effectiveMonthlyUsd(s),
+      0,
+    );
+    const arr = activeSubs.reduce(
+      (acc, s) =>
+        acc +
+        (s.billing_cycle === BillingCycle.ANNUAL
+          ? Number(s.amount_usd) || 0
+          : effectiveMonthlyUsd(s) * 12),
+      0,
+    );
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+
+    const pastActive = subscriptions.filter(
+      (s) =>
+        s.status === SubscriptionStatus.ACTIVE &&
+        s.created_at < thirtyDaysAgo,
     );
     const pastMrr = pastActive.reduce(
       (acc, s) => acc + effectiveMonthlyUsd(s),
@@ -1190,23 +1208,115 @@ export class BillingService {
 
     const mrrGrowthPercentage =
       pastMrr === 0
-        ? summary.mrr_usd > 0
+        ? mrr > 0
           ? 100
           : 0
-        : ((summary.mrr_usd - pastMrr) / pastMrr) * 100;
+        : ((mrr - pastMrr) / pastMrr) * 100;
     const subGrowthPercentage =
       pastActive.length === 0
-        ? summary.active > 0
+        ? activeSubs.length > 0
           ? 100
           : 0
-        : ((summary.active - pastActive.length) / pastActive.length) * 100;
+        : ((activeSubs.length - pastActive.length) /
+            pastActive.length) *
+          100;
+
+    const cancelled30d = subscriptions.filter(
+      (s) =>
+        s.status === SubscriptionStatus.CANCELLED &&
+        s.cancelled_at !== null &&
+        s.cancelled_at !== undefined &&
+        s.cancelled_at >= thirtyDaysAgo,
+    ).length;
+    const expired30d = subscriptions.filter(
+      (s) =>
+        s.status === SubscriptionStatus.EXPIRED &&
+        s.current_period_end !== null &&
+        s.current_period_end !== undefined &&
+        s.current_period_end >= thirtyDaysAgo,
+    ).length;
+    const churnRate30d =
+      activeSubs.length > 0
+        ? ((cancelled30d + expired30d) / activeSubs.length) * 100
+        : 0;
+
+    const expiringSoon7d = subscriptions.filter((s) => {
+      if (
+        s.status !== SubscriptionStatus.ACTIVE &&
+        s.status !== SubscriptionStatus.PENDING &&
+        s.status !== SubscriptionStatus.TRIALING
+      ) {
+        return false;
+      }
+      const end = s.current_period_end ?? s.trial_ends_at;
+      return (
+        end !== null &&
+        end !== undefined &&
+        end >= now &&
+        end <= sevenDaysFromNow
+      );
+    }).length;
+
+    const mrrByPlan: PlanMrrBreakdown[] = (() => {
+      const byPlan = new Map<string, number>();
+      for (const s of activeSubs) {
+        const plan = s.plan?.toLowerCase() || "other";
+        byPlan.set(plan, (byPlan.get(plan) ?? 0) + effectiveMonthlyUsd(s));
+      }
+      return [...byPlan.entries()]
+        .map(([plan, mrrUsd]) => ({ plan, mrrUsd: round2(mrrUsd) }))
+        .sort((a, b) => b.mrrUsd - a.mrrUsd);
+    })();
+
+    const invoices = await this.invoiceRepository.find();
+    const pending = invoices.filter(
+      (i) => i.status === InvoiceStatus.Pending,
+    );
+    const overdue = invoices.filter(
+      (i) => i.status === InvoiceStatus.Overdue,
+    );
+    const paid30d = invoices.filter(
+      (i) =>
+        i.status === InvoiceStatus.Paid &&
+        (i.paid_at ?? i.created_at) >= thirtyDaysAgo,
+    );
+
+    const sumUsd = (list: BillingInvoiceEntity[]) =>
+      list.reduce((acc, i) => acc + (Number(i.amount_usd) || 0), 0);
 
     return {
-      totalMrr: summary.mrr_usd,
-      activeSubscriptions: summary.active,
-      pendingInvoices: summary.trialing,
+      totalMrr: round2(mrr),
+      arr: round2(arr),
+      activeSubscriptions: activeSubs.length,
+      pendingInvoices: pending.length,
       mrrGrowthPercentage: Number(mrrGrowthPercentage.toFixed(2)),
       subscriptionGrowthPercentage: Number(subGrowthPercentage.toFixed(2)),
+      trialSubscriptions: subscriptions.filter(
+        (s) => s.status === SubscriptionStatus.TRIALING,
+      ).length,
+      cancelledSubscriptions: subscriptions.filter(
+        (s) => s.status === SubscriptionStatus.CANCELLED,
+      ).length,
+      expiredSubscriptions: subscriptions.filter(
+        (s) => s.status === SubscriptionStatus.EXPIRED,
+      ).length,
+      pausedSubscriptions: subscriptions.filter(
+        (s) => s.status === SubscriptionStatus.PAUSED,
+      ).length,
+      freeSubscriptions: subscriptions.filter(
+        (s) =>
+          s.status === SubscriptionStatus.ACTIVE &&
+          s.plan?.toLowerCase() === "free",
+      ).length,
+      expiringSoon7d,
+      churnRate30d: round2(churnRate30d),
+      mrrByPlan,
+      collection: {
+        pendingAmount: round2(sumUsd(pending)),
+        overdueAmount: round2(sumUsd(overdue)),
+        overdueInvoices: overdue.length,
+        paidAmount30d: round2(sumUsd(paid30d)),
+      },
     };
   }
 

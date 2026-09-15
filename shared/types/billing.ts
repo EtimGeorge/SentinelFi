@@ -65,10 +65,39 @@ export interface InvoiceDto {
   status: InvoiceStatus;
 }
 
+/** Monthly-equivalent recurring revenue grouped by plan (active subscriptions only). */
+export interface PlanMrrBreakdown {
+  plan: string;
+  mrrUsd: number;
+}
+
+/** Receivables snapshot derived from billing_invoices. */
+export interface CollectionSnapshotDto {
+  pendingAmount: number;
+  overdueAmount: number;
+  overdueInvoices: number;
+  paidAmount30d: number;
+}
+
 export interface BillingOverviewDto {
+  /** MRR in USD — active subscriptions only. */
   totalMrr: number;
+  /** Annual recurring revenue (annual plans at face value, monthly * 12). */
+  arr: number;
   activeSubscriptions: number;
+  /** Number of invoices still pending payment (not trialing count). */
   pendingInvoices: number;
   mrrGrowthPercentage: number;
   subscriptionGrowthPercentage: number;
+  trialSubscriptions: number;
+  cancelledSubscriptions: number;
+  expiredSubscriptions: number;
+  pausedSubscriptions: number;
+  freeSubscriptions: number;
+  /** Active/pending/trialing subscriptions whose period ends within 7 days. */
+  expiringSoon7d: number;
+  /** % of active subscribers that cancelled or lapsed within the last 30 days. */
+  churnRate30d: number;
+  mrrByPlan: PlanMrrBreakdown[];
+  collection: CollectionSnapshotDto;
 }

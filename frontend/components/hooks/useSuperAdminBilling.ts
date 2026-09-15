@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import api from '../../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { BillingOverviewDto, InvoiceDto } from 'shared/types/billing';
+import { EmailStatsResponse } from 'shared/types/email';
 
 export interface SuperAdminBillingData {
   overview: BillingOverviewDto;
   invoices: InvoiceDto[];
+  emailStats: EmailStatsResponse;
 }
 
 const useSuperAdminBilling = () => {
@@ -24,13 +26,20 @@ const useSuperAdminBilling = () => {
       setLoading(true);
       setError(null);
       try {
-        const [overviewRes, invoicesRes] = await Promise.all([
-          api.get('/super/billing/overview', { signal: controller.signal }), api.get('/super/billing/invoices', { signal: controller.signal }),
+        const [overviewRes, invoicesRes, emailRes] = await Promise.all([
+          api.get('/super/billing/overview', { signal: controller.signal }),
+          api.get('/super/billing/invoices', { signal: controller.signal }),
+          api.get('/email-stats', {
+            params: { days: 30 },
+            signal: controller.signal,
+          }),
         ]);
 
         if (!controller.signal.aborted) {
           setData({
-            overview: overviewRes.data, invoices: invoicesRes.data,
+            overview: overviewRes.data,
+            invoices: invoicesRes.data,
+            emailStats: emailRes.data,
           });
         }
       } catch (err: any) {

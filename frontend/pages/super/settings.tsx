@@ -15,6 +15,7 @@ import { Spinner } from '../../components/common/Spinner';
 import { AlertCircle } from 'lucide-react';
 import api, { superAdminMfaApi, SuperAdminMfaStatus, SuperAdminMfaEnrollment } from '../../lib/api';
 import { useAuth } from '../../components/context/AuthContext';
+import EmailDeliverabilityCard from '../../components/super/EmailDeliverabilityCard';
 import { NextPageWithLayout } from '../_app';
 
 type TabType = 'general' | 'integrations' | 'security' | 'profile';
@@ -28,6 +29,7 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
   const [localSettings, setLocalSettings] = useState<SettingsEntity | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [emailStatsRefresh, setEmailStatsRefresh] = useState(0);
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -112,6 +114,7 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
       const dto: SendTestEmailDto = { to: localSettings.supportEmail };
       const response = await api.post('/super/settings/test-email', dto);
       addToast(response.data.message, 'success');
+      setEmailStatsRefresh((n) => n + 1);
     } catch (e: any) {
       addToast(e.response?.data?.message || 'Test email delivery failed.', 'error');
     } finally {
@@ -285,6 +288,8 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
                       </Button>
                    </div>
                 </Card>
+
+                <EmailDeliverabilityCard refreshKey={emailStatsRefresh} />
 
                 <Card title="ERP Bridge (Enterprise)" headerContent={<Plug className="w-5 h-5 text-brand-primary" />}>
                    <div className="space-y-4">

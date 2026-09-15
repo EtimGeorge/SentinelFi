@@ -9,6 +9,7 @@ import { EmailProvider } from "./interfaces/email-provider.interface";
 import { SmtpProvider } from "./providers/smtp.provider";
 import { ResendProvider } from "./providers/resend.provider";
 import { EmailLogEntity, EmailLogStatus } from "./email-log.entity";
+import { EmailStatsResponse } from "@shared/types/email";
 
 /**
  * Extra context attached to a send for the email audit trail.
@@ -18,21 +19,7 @@ export interface EmailMeta {
   tenantId?: string | null;
 }
 
-export interface EmailStatsResponse {
-  days: number;
-  totals: { total: number; sent: number; failed: number; preview: number };
-  deliveryRate: number | null;
-  uniqueRecipients: number;
-  lastSentAt: Date | null;
-  byTemplate: {
-    template: string;
-    total: number;
-    sent: number;
-    failed: number;
-    preview: number;
-  }[];
-  daily: { day: string; total: number; sent: number; failed: number }[];
-}
+export { EmailStatsResponse };
 
 // ─── Context DTOs ─────────────────────────────────────────────────────────────
 
