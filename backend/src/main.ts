@@ -94,6 +94,30 @@ async function bootstrap() {
       await import("./common/filters/all-exceptions.filter");
     app.useGlobalFilters(new AllExceptionsFilter());
 
+    // OpenAPI/Swagger — dev & staging only; never exposed in production.
+    // SWAGGER_ENABLED forces it on/off; default = enabled outside production.
+    const swaggerOverride = configService.get<string>("SWAGGER_ENABLED");
+    const swaggerEnabled = swaggerOverride
+      ? swaggerOverride === "true"
+      : !isProd;
+    if (swaggerEnabled) {
+      const { DocumentBuilder, SwaggerModule } = await import("@nestjs/swagger");
+      const config = new DocumentBuilder()
+        .setTitle("SentinelFi API")
+        .setDescription("SentinelFi multi-tenant ERP REST API")
+        .setVersion("1.0.0")
+        .addBearerAuth(
+          { type: "http", scheme: "bearer", bearerFormat: "JWT", in: "header" },
+          "access-token",
+        )
+        .build();
+      const document = SwaggerModule.createDocument(app, config);
+      SwaggerModule.setup("api/v1/docs", app, document, {
+        swaggerOptions: { persistAuthorization: true },
+      });
+      logger.log("📖 Swagger UI available at /api/v1/docs");
+    }
+
     if (nodeEnv === "development") {
       app.use((req: Request, res: Response, next: NextFunction) => {
         logger.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);

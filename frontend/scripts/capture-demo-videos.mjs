@@ -1,124 +1,288 @@
-// ─── SentinelFi demo-video capture (Playwright) ─────────────────────────────
-// Records the Academy lesson videos against a SEEDED, read-only demo tenant so
-// the recordings are deterministic and PII-free. Run after each release:
+// ─── SentinelFi DemoSandbox video capture (Playwright) ──────────────────────
+// Records the interactive marketing sandbox on /landing/workflows for each
+// role (CEO / PM / AUDIT) plus a combined walkthrough, all without
+// authentication. Output: public/demos/<slug>.webm (+ .mp4 if ffmpeg available).
 //
-//   1. Seed the demo tenant:  npm run db:setup-test-tenants
-//   2. Start the app:         npm run dev
-//   3. Capture videos:        node frontend/scripts/capture-demo-videos.mjs
+// These videos feed the ACADEMY_LESSONS array in frontend/lib/academy-content.ts
+// and can also be embedded on marketing pages.
 //
-// Output: frontend/public/demos/<slug>.mp4 (+ .png poster frames)
+// Prerequisites:
+//   1. Dev server running: npm run dev:frontend   (serves on localhost:3000)
+//   2. Playwright browsers: npx playwright install chromium
 //
-// The scenario script per lesson mirrors the ACADEMY_LESSONS checklists in
-// frontend/lib/academy-content.ts — keep them in sync when lessons change.
+// Usage:
+//   node frontend/scripts/capture-demo-videos.mjs
 //
-// Requirements: `npx playwright install chromium` once; DEMO_BASE_URL,
-// DEMO_USER, DEMO_PASS env vars for the seeded tenant (defaults for local dev
-// below). Videos land untracked-commit-friendly; re-commit them per release
-// so marketing pages stay in sync with the product.
+// Outputs (WebM — Playwright native video API):
+//   public/demos/demo-sandbox-ceo.webm
+//   public/demos/demo-sandbox-pm.webm
+//   public/demos/demo-sandbox-audit.webm
+//   public/demos/demo-sandbox-walkthrough.webm   (all 3 roles in sequence)
+//
+// Optional MP4 conversion (Safari needs MP4; Chrome/Firefox/Edge play WebM):
+//   If ffmpeg is on PATH, .mp4 variants are created automatically.
+//   Otherwise the script prints the exact ffmpeg command to run.
+//
+// Timing:
+//   Sandbox auto-advances every 3200 ms. After clicking "Auto-play tour" we
+//   wait for the "Scenario complete." banner. Per-role ~12-14s; walkthrough ~45s.
+//
+// UI coupling:
+//   Selectors target the DemoSandbox component. If the UI changes this script
+//   will throw — that is intentional. Re-run and verify before committing.
+//
+// Regenerate after every UI release that touches /landing/workflows or the
+// DemoSandbox component.
 
 import { chromium } from 'playwright';
-import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync, existsSync, statSync, readdirSync, renameSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const BASE_URL = process.env.DEMO_BASE_URL || 'http://localhost:3000';
-const DEMO_USER = process.env.DEMO_USER || 'demo@sentinelfi.com';
-const DEMO_PASS = process.env.DEMO_PASS || 'demo-only-password';
-const OUT_DIR = resolve(process.cwd(), 'public/demos');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = join(__dirname, '..', '..');
+const PUBLIC_DEMOS = join(PROJECT_ROOT, 'frontend', 'public', 'demos');
 
-const SCENARIOS = [
-  {
-    slug: 'onboarding',
-    steps: [
-      'Visit /landing/pricing and start a trial',
-      'Open the check-email magic link flow',
-      'Walk through tenant provisioning: currency, fiscal calendar',
-      'Invite a teammate via magic link',
-    ],
-  },
-  {
-    slug: 'wbs-architecture',
-    steps: [
-      'Sign in and open /financials/projects/wbs',
-      'Expand the root WBS packages',
-      'Drill into a cost centre and show roll-up totals',
-      'Log an expense against a WBS node',
-    ],
-  },
-  {
-    slug: 'ai-forensics',
-    steps: [
-      'Open the AI forensics queue',
-      'Open the quarantined duplicate invoice (INV-8841 equivalent)',
-      'Review the evidence trail and confidence score',
-      'Export the audit trail entry',
-    ],
-  },
-  {
-    slug: 'strategic-reporting',
-    steps: [
-      'Open the executive dashboard',
-      'Generate a variance report with AI narrative',
-      'Show the schedule-export option',
-    ],
-  },
-  {
-    slug: 'compliance',
-    steps: [
-      'Open reporting > expense audit',
-      'Filter to a funding period',
-      'Export the regulator-ready evidence bundle',
-    ],
-  },
-  {
-    slug: 'api-integration',
-    steps: [
-      'Open settings > API keys',
-      'Generate a scoped credential',
-      'Show a webhook configuration for approval events',
-    ],
-  },
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const VIEWPORT = { width: 1280, height: 720 };
+
+const ROLES = [
+  { key: 'CEO',    label: 'Executive (CEO)',     slug: 'demo-sandbox-ceo' },
+  { key: 'PM',     label: 'Project Manager',     slug: 'demo-sandbox-pm' },
+  { key: 'AUDIT',  label: 'Auditor',            slug: 'demo-sandbox-audit' },
 ];
 
-async function loginDemo(page) {
-  await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
-  await page.getByLabel(/user|email/i).first().fill(DEMO_USER);
-  await page.getByLabel(/password/i).first().fill(DEMO_PASS);
-  await page.getByRole('button', { name: /sign in/i }).click();
-  await page.waitForURL(/dashboard|financials/, { timeout: 30_000 });
+function ensureDemosDir() {
+  mkdirSync(PUBLIC_DEMOS, { recursive: true });
+  return PUBLIC_DEMOS;
+}
+
+async function waitForScenarioComplete(page, timeoutMs = 20_000) {
+  await page.waitForSelector('text=Scenario complete.', {
+    state: 'visible',
+    timeout: timeoutMs,
+  });
+}
+
+async function startAutoPlay(page) {
+  await page.click('button:has-text("Auto-play tour")');
+  await page.waitForTimeout(600);
+}
+
+async function switchRole(page, roleKey) {
+  const role = ROLES.find((r) => r.key === roleKey);
+  if (!role) throw new Error(`Unknown role: ${roleKey}`);
+  await page.click(`button:has-text("${role.label}")`);
+  await page.waitForSelector('text=Guided scenario · 1/3', {
+    state: 'visible',
+    timeout: 5_000,
+  });
+}
+
+async function ffmpegAvailable() {
+  try {
+    const { execSync } = require('node:child_process');
+    execSync('ffmpeg -version', { stdio: 'ignore', timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function convertWebmToMp4(webmPath) {
+  if (!ffmpegAvailable()) {
+    console.log(
+      `  ⊘  ffmpeg not found — skipping MP4 for ${webmPath}\n` +
+        `     Run manually:\n` +
+        `       ffmpeg -i "${webmPath}" -c:v libx264 -preset medium -crf 23 ` +
+        `"${webmPath.replace('.webm', '.mp4')}"`,
+    );
+    return null;
+  }
+  const mp4Path = webmPath.replace(/\.webm$/, '.mp4');
+  const { execSync } = require('node:child_process');
+  try {
+    execSync(
+      `ffmpeg -y -i "${webmPath}" -c:v libx264 -preset medium -crf 23 ` +
+        `-c:a aac -b:a 128k "${mp4Path}"`,
+      { stdio: 'inherit', timeout: 120_000 },
+    );
+    console.log(`  ✓  Converted  ${mp4Path}`);
+    return mp4Path;
+  } catch (err) {
+    console.error(`  ✘  ffmpeg failed:`, err.message);
+    return null;
+  }
+}
+
+async function recordRoleVideo(
+  browser,
+  role,
+  demosDir,
+) {
+  const webmPath = join(demosDir, `${role.slug}.webm`);
+  console.log(`\n▶ ${role.key}  →  ${role.slug}.webm`);
+
+  // Track existing files to find the new one after recording.
+  const beforeFiles = new Set(readdirSync(demosDir));
+
+  const context = await browser.newContext({
+    viewport: VIEWPORT,
+    recordVideo: {
+      dir: demosDir,
+      size: VIEWPORT,
+    },
+  });
+
+  const page = await context.newPage();
+
+  try {
+    await page.goto(BASE_URL + '/landing/workflows', {
+      waitUntil: 'networkidle',
+      timeout: 30_000,
+    });
+    await page.waitForSelector('text=Guided scenario', {
+      state: 'visible',
+      timeout: 10_000,
+    });
+
+    if (role.key !== 'CEO') {
+      await switchRole(page, role.key);
+    }
+
+    await startAutoPlay(page);
+    await waitForScenarioComplete(page);
+  } finally {
+    await context.close();
+  }
+
+  // Find the newly created video file (Playwright uses hashed names).
+  const afterFiles = readdirSync(demosDir);
+  const newFile = afterFiles.find((f) => !beforeFiles.has(f) && f.endsWith('.webm'));
+  if (!newFile) {
+    throw new Error(
+      `No new .webm file found in ${demosDir} after recording ${role.key}`,
+    );
+  }
+
+  const tempPath = join(demosDir, newFile);
+  if (tempPath !== webmPath) {
+    renameSync(tempPath, webmPath);
+  }
+
+  console.log(`  ✓  ${webmPath}  (${(statSync(webmPath).size / 1024).toFixed(0)} KB)`);
+  convertWebmToMp4(webmPath);
+  return webmPath;
+}
+
+async function recordWalkthroughVideo(browser, demosDir) {
+  console.log('\n▶ Walkthrough  →  demo-sandbox-walkthrough.webm');
+  const walkWebm = join(demosDir, 'demo-sandbox-walkthrough.webm');
+
+  // Track existing files to find the new one after recording.
+  const beforeFiles = new Set(readdirSync(demosDir));
+
+  const context = await browser.newContext({
+    viewport: VIEWPORT,
+    recordVideo: {
+      dir: demosDir,
+      size: VIEWPORT,
+    },
+  });
+
+  const page = await context.newPage();
+
+  try {
+    await page.goto(BASE_URL + '/landing/workflows', {
+      waitUntil: 'networkidle',
+      timeout: 30_000,
+    });
+    await page.waitForSelector('text=Guided scenario', {
+      state: 'visible',
+      timeout: 10_000,
+    });
+
+    await startAutoPlay(page);
+    await waitForScenarioComplete(page);
+
+    await switchRole(page, 'PM');
+    await page.waitForTimeout(800);
+    await startAutoPlay(page);
+    await waitForScenarioComplete(page);
+
+    await switchRole(page, 'AUDIT');
+    await page.waitForTimeout(800);
+    await startAutoPlay(page);
+    await waitForScenarioComplete(page);
+  } finally {
+    await context.close();
+  }
+
+  // Find the newly created video file (Playwright uses hashed names).
+  const afterFiles = readdirSync(demosDir);
+  const newFile = afterFiles.find((f) => !beforeFiles.has(f) && f.endsWith('.webm'));
+  if (!newFile) {
+    throw new Error(
+      `No new .webm file found in ${demosDir} after recording walkthrough`,
+    );
+  }
+
+  const tempPath = join(demosDir, newFile);
+  if (tempPath !== walkWebm) {
+    renameSync(tempPath, walkWebm);
+  }
+
+  console.log(`  ✓  ${walkWebm}  (${(statSync(walkWebm).size / 1024).toFixed(0)} KB)`);
+  convertWebmToMp4(walkWebm);
+  return walkWebm;
 }
 
 async function main() {
-  mkdirSync(OUT_DIR, { recursive: true });
-  const browser = await chromium.launch();
+  console.log('═'.repeat(56));
+  console.log('  SentinelFi · DemoSandbox Video Capture');
+  console.log('  URL     :', BASE_URL + '/landing/workflows');
+  console.log('  Viewport:', `${VIEWPORT.width}×${VIEWPORT.height}  (16:9)`);
+  console.log('═'.repeat(56));
 
-  for (const scenario of SCENARIOS) {
-    const context = await browser.newContext({
-      viewport: { width: 1280, height: 800 },
-      recordVideo: { dir: OUT_DIR, size: { width: 1280, height: 800 } },
-    });
-    const page = await context.newPage();
-    try {
-      await loginDemo(page);
-      for (const step of scenario.steps) {
-        // Steps are intentionally descriptive; an operator can pause here and
-        // perform the action manually if automation for that screen doesn't
-        // exist yet. Deterministic fixtures keep takes consistent.
-        console.log(`[${scenario.slug}] ${step}`);
-        await page.waitForTimeout(1200);
-      }
-    } catch (err) {
-      console.error(`[${scenario.slug}] capture failed:`, err.message);
-    } finally {
-      await context.close(); // flushes the video file
+  const demosDir = ensureDemosDir();
+
+  const browser = await chromium.launch({ headless: true });
+  try {
+    // ── Per-role recordings ────────────────────────────────────────────────
+    for (const role of ROLES) {
+      await recordRoleVideo(browser, role, demosDir);
     }
-    console.log(`[${scenario.slug}] saved to ${OUT_DIR}`);
-  }
 
-  await browser.close();
-  console.log('Done. Rename raw videos to <slug>.mp4 and commit them.');
+    // ── Combined walkthrough ───────────────────────────────────────────────
+    await recordWalkthroughVideo(browser, demosDir);
+
+    // ── summary ────────────────────────────────────────────────────────────
+    console.log('\n' + '═'.repeat(56));
+    console.log('  Done.  Output:');
+    const produced = [
+      ...ROLES.map((r) => join(demosDir, `${r.slug}.webm`)),
+      join(demosDir, 'demo-sandbox-walkthrough.webm'),
+    ];
+    const seen = new Set();
+    for (const base of produced) {
+      for (const ext of ['.webm', '.mp4']) {
+        const f = base.replace(/\.webm$/, ext);
+        if (!seen.has(f) && existsSync(f)) {
+          seen.add(f);
+          const kb = (statSync(f).size / 1024).toFixed(0);
+          console.log(
+            `  ${f.replace(PROJECT_ROOT, '').replace(/^\//, '')}  (${kb} KB)`,
+          );
+        }
+      }
+    }
+    console.log('═'.repeat(56));
+  } finally {
+    await browser.close();
+  }
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error('Fatal:', err);
   process.exit(1);
 });

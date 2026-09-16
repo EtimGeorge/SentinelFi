@@ -300,7 +300,7 @@ const InflowsTab: React.FC<InflowsTabProps> = ({ project, inflows, onChanged }) 
           </div>
           <h3 className="text-lg font-bold text-white">Confirm Removal?</h3>
           <p className="text-sm text-gray-400 max-w-xs mx-auto">
-            This will permanently delete the inflow for <strong>{selectedInflow?.milestone_name}</strong> and reduce the project's received revenue.
+            This will permanently delete the inflow for <strong>{selectedInflow?.milestone_name}</strong> and reduce the project&apos;s received revenue.
           </p>
           <div className="flex gap-2 justify-center pt-6">
             <Button variant="secondary" onClick={() => setIsDeleteOpen(false)}>Cancel</Button>

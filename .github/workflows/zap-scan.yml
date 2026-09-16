@@ -1,0 +1,129 @@
+name: ZAP Scan
+
+on:
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "23 3 * * 0" # weekly deep scan of STAGING_URL (Sunday 03:23 UTC)
+  workflow_dispatch:
+    inputs:
+      target:
+        description: >-
+          Deployment to scan (e.g. https://staging.example.com). Leave blank to
+          spin up and scan the compose stack at http://localhost:3001.
+        required: false
+        default: ""
+
+env:
+  # Compose-path target. STAGING_URL secret overrides for scheduled deep scans.
+  SCAN_TARGET: ${{ github.event.inputs.target || secrets.STAGING_URL || '' }}
+
+jobs:
+  compose-scan:
+    name: ZAP (compose localhost:3001)
+    if: env.SCAN_TARGET == ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate .env.prod from repo secrets (fail-open defaults for CI)
+        run: |
+          cat > .env.prod <<EOF
+          NODE_ENV=development
+          PORT=3001
+          FRONTEND_URL=http://localhost:3001
+          DATABASE_URL=postgresql://postgres:postgres@db:5432/sentinelfi
+          REDIS_URL=redis://redis:6379
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          AI_AGENT_URL=http://ai-agent:8000
+          EOF
+
+      - name: Boot compose (db, redis, backend, frontend)
+        run: |
+          docker compose up -d --build db redis backend frontend
+          # Wait for the API to come up (generous budget for cold builds)
+          for i in $(seq 1 60); do
+            if curl -fsS -m 5 http://localhost:3001/api/v1/health > /dev/null 2>&1; then
+              echo "API healthy after ${i}x5s"; break
+            fi
+            sleep 5
+          done
+          curl -fsS -m 10 http://localhost:3001/api/v1/health > /dev/null \
+            || { echo "API failed to become healthy"; docker compose logs backend --tail 80; exit 1; }
+
+      - name: ZAP authenticated scan (compose target)
+        run: |
+          bash ./security/zap/zap-scan.sh \
+            -t "${TARGET_URL}" \
+            -e "${ZAP_SCAN_EMAIL}" \
+            -p "${ZAP_SCAN_PASSWORD}" \
+            -i "${ZAP_SCAN_TENANT}" \
+            -a
+        env:
+          TARGET_URL: "http://localhost:3001"
+          ZAP_SCAN_EMAIL: ${{ secrets.ZAP_SCAN_EMAIL }}
+          ZAP_SCAN_PASSWORD: ${{ secrets.ZAP_SCAN_PASSWORD }}
+          ZAP_SCAN_TENANT: ${{ secrets.ZAP_SCAN_TENANT }}
+
+      - name: Tear down compose
+        if: always()
+        run: docker compose down -v || true
+
+      - name: Summarize ZAP alerts (threshold: fail on High/Critical)
+        run: |
+          report="security/zap/reports/zap-report.json"
+          if [ ! -f "$report" ]; then echo "no report — scan did not run"; exit 0; fi
+          node -e '
+            const fs=require("fs");
+            const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            const byRisk=j.site?.[0]?.alerts||[];
+            const high=byRisk.filter(a=>Number(a.riskdesc?.match(/^\((\d)\)/)?.[1]===3||a.risk==="High"));
+            console.log(`ZAP alerts: ${byRisk.length} total; High/Critical: ${high.length}`);
+            byRisk.slice(0,30).forEach(a=>console.log(`  [${a.risk||a.riskdesc}] ${a.alert}`));
+            if (high.length) { console.error("FAIL: High/Critical ZAP alerts found"); process.exit(1); }
+          ' "$report"
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-reports-compose
+          path: security/zap/reports/**
+          retention-days: 30
+
+  staging-scan:
+    name: ZAP (STAGING_URL)
+    if: env.SCAN_TARGET != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deny production
+        run: |
+          echo "Target: ${SCAN_TARGET}"
+          case "${SCAN_TARGET}" in
+            *sentinel*:*) echo "DENY: production-like target not permitted."; exit 1 ;;
+            https://) echo "DENY: https refusal; ensure scheme is http and host is explicitly staging."; exit 1 ;;
+          esac
+          echo "Proceeding with staging scan."
+
+      - uses: actions/checkout@v4
+
+      - name: ZAP authenticated deep scan (STAGING_URL)
+        run: |
+          bash ./security/zap/zap-scan.sh \
+            -t "${SCAN_TARGET}" \
+            -e "${ZAP_SCAN_EMAIL}" \
+            -p "${ZAP_SCAN_PASSWORD}" \
+            -i "${ZAP_SCAN_TENANT}" \
+            -a
+        env:
+          ZAP_SCAN_EMAIL: ${{ secrets.ZAP_SCAN_EMAIL }}
+          ZAP_SCAN_PASSWORD: ${{ secrets.ZAP_SCAN_PASSWORD }}
+          ZAP_SCAN_TENANT: ${{ secrets.ZAP_SCAN_TENANT }}
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-reports-staging
+          path: security/zap/reports/**
+          retention-days: 30

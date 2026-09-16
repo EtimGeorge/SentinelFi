@@ -28,6 +28,10 @@ import { TENANT_DATA_SOURCE } from "../database/constants";
 import { Inject, forwardRef } from "@nestjs/common";
 import { GetWbsBudgetsDto } from "./dto/get-wbs-budgets.dto";
 import { GetLiveExpensesDto } from "./dto/get-live-expenses.dto";
+import {
+  WBS_BUDGET_SORT_COLUMNS,
+  LIVE_EXPENSE_SORT_COLUMNS,
+} from "./wbs-sort.constants";
 import { WbsBudgetRollupDto } from "./dto/wbs-budget-rollup.dto";
 import { UpdateWbsCategoryDto } from "./dto/update-wbs-category.dto";
 import { CreateWbsCategoryDto } from "./dto/create-wbs-category.dto";
@@ -1707,6 +1711,10 @@ export class WbsService {
       .leftJoinAndSelect("wbs.category", "category")
       .where("wbs.tenant_id = :tenant_id", { tenant_id });
 
+    // sortOrder is user-controlled and interpolated into the ORDER BY
+    // directive; normalize it strictly (defense in depth beyond the DTO IsIn).
+    const safeSortOrder = sortOrder === "ASC" ? "ASC" : "DESC";
+
     if (wbsCode) {
       queryBuilder.andWhere("wbs.wbs_code ILIKE :wbsCode", {
         wbsCode: `%${wbsCode}%`,
@@ -1734,12 +1742,26 @@ export class WbsService {
 
     if (sortBy === "wbs_code") {
       // Advanced Logic: Numerical sorting for WBS strings (1.9 before 1.10)
-      queryBuilder.orderBy(
-        `string_to_array(wbs.wbs_code, '.')::int[]`,
-        sortOrder,
-      );
+      // IMPORTANT: Use a dot-free SELECT alias + orderBy alias. TypeORM's
+      // pagination path (createOrderByCombinedWithSelectExpression) splits any
+      // order criteria on the first "." and resolves the first segment as an
+      // alias; a raw dotted expression like `string_to_array(wbs.wbs_code, '.' )`
+      // is misparsed as alias "string_to_array(wbs" and throws. Routing the
+      // expression through addSelect(..., "wbs_sort_key") lets it survive both
+      // the direct and the paginated (subquery) code paths.
+      queryBuilder
+        .addSelect("string_to_array(wbs.wbs_code, '.')::int[]", "wbs_sort_key")
+        .orderBy("wbs_sort_key", safeSortOrder)
+        .addOrderBy("wbs.wbs_code", safeSortOrder);
     } else {
-      queryBuilder.orderBy(`wbs.${sortBy}`, sortOrder);
+      // Defense in depth: sortBy is validated in the DTO (IsIn allowlist), but
+      // re-check here too before interpolating into ORDER BY.
+      const safeSortBy = WBS_BUDGET_SORT_COLUMNS.includes(sortBy)
+        ? sortBy
+        : "sort_order";
+      queryBuilder
+        .orderBy(`wbs.${safeSortBy}`, safeSortOrder)
+        .addOrderBy("wbs.wbs_id", "ASC");
     }
     queryBuilder.skip((page - 1) * limit).take(limit);
 

@@ -18,7 +18,7 @@ const AboutPage: NextPageWithLayout = () => {
           </h1>
           <p className="text-xl text-m-text-muted leading-relaxed">
             SentinelFi was born from a simple observation: enterprise project finance is 
-            plagued by "Shadow Accounting" and manual auditing friction. We built the 
+            plagued by &ldquo;Shadow Accounting&rdquo; and manual auditing friction. We built the 
             Sentinel system to automate the verification of every capital dollar, ensuring that project directors can manage with absolute confidence.
           </p>
         </div>
@@ -45,7 +45,7 @@ const AboutPage: NextPageWithLayout = () => {
             <ShieldAlert className="w-12 h-12 text-m-accent" />
             <h3 className="text-2xl font-bold m-heading text-m-accent">Absolute Security</h3>
             <p className="text-m-text-muted">
-              Leveraging multi-tenant schema isolation to ensure that every tenant's 
+              Leveraging multi-tenant schema isolation to ensure that every tenant&apos;s
               financial metadata remains strictly their own.
             </p>
           </div>

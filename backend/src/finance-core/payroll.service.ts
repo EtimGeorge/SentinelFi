@@ -32,7 +32,7 @@ export class PayrollService {
   ) {}
 
   private getTenantId(): string {
-    return this.cls.get("tenantId");
+    return this.cls.get("tenant_id");
   }
 
   async createRun(data: {

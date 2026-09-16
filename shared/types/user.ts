@@ -52,6 +52,8 @@ export interface User {
   is_active: boolean;
   tenant_id?: string | null;
   tenant_name?: string | null;
+  display_currency_code?: string;
+  permissions?: string[];
   impersonator_id?: string | null;
 }
 

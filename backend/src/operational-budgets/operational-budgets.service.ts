@@ -774,6 +774,7 @@ export class OperationalBudgetsService {
         period_date: date,
         planned_amount: amount,
         period_type,
+        tenant_id: tenantId,
       });
     }
 

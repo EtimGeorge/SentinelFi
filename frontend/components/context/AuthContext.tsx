@@ -59,6 +59,7 @@ export interface User {
   first_name?: string;
   last_name?: string;
   is_active?: boolean;
+  permissions?: string[];
   impersonator_id?: string | null;
 }
 
@@ -236,7 +237,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasPermission = useCallback((permission: string): boolean => {
     if (!user) return false;
     if (hasRole(Role.SuperAdmin)) return true;
-    return false;
+    const perms = user.permissions;
+    if (!perms || perms.length === 0) return false;
+    // '*' grants all permissions (explicitly seeded service accounts only)
+    if (perms.includes('*')) return true;
+    return perms.includes(permission);
   }, [user, hasRole]);
 
   const getDefaultRoute = useCallback((): string => {
@@ -610,6 +615,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [user, router]);
+
+  // Silent-renewal expiry: lib/api.ts dispatches this event when refresh
+  // rotation fails hard (reuse detection / expiry) — clear the local session.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      if (!isMountedRef.current) return;
+      AuthLogger.warn('[AUTH] Refresh rotation failed — clearing local session.');
+      setUser(null);
+      SessionStorage.clear();
+      // Redirect is managed by RouteGuard
+    };
+    window.addEventListener('sentinelfi:session-expired', handleSessionExpired);
+    return () => {
+      window.removeEventListener('sentinelfi:session-expired', handleSessionExpired);
+    };
+  }, []);
 
   // 2.3 Permanent Interceptors (Installed once, dynamic via Refs)
   // Module-level guard to suppress StrictMode double-mount spam in dev (logs twice otherwise)

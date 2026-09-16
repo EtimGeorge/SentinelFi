@@ -24,6 +24,13 @@ export const envValidationSchema = Joi.object({
   JWT_SECRET_KEY: Joi.string().optional(),
   FRONTEND_URL: Joi.string().uri().required(),
 
+  // Optional comma-separated allowlist of additional origins allowed on the
+  // WebSocket notification channel (defaults to FRONTEND_URL / localhost).
+  FRONTEND_ALLOWED_ORIGINS: Joi.string().optional(),
+
+  // OpenAPI/Swagger — defaults to enabled outside production; force with SWAGGER_ENABLED
+  SWAGGER_ENABLED: Joi.string().valid("true", "false").optional(),
+
   // AI Agent (Resilience)
   AI_AGENT_URL: Joi.string().uri().default("http://localhost:8000"),
 

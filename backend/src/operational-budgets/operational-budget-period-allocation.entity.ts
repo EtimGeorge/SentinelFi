@@ -18,10 +18,15 @@ export enum PeriodType {
 }
 
 @Entity("operational_budget_period_allocation")
-@Index(["operational_budget_category_id", "period_date"], { unique: true }) // One allocation per period per category
+@Index(["tenant_id", "operational_budget_category_id", "period_date"], {
+  unique: true,
+}) // One allocation per period per category, scoped to tenant
 export class OperationalBudgetPeriodAllocationEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
+
+  @Column({ type: "uuid" })
+  tenant_id!: string;
 
   @Column({ type: "uuid" })
   operational_budget_category_id!: string;

@@ -1,9 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
 import { CurrencyService } from "./currency.service";
-import { CurrencyExchangeRateEntity } from "./currency.entity";
+import {
+  CurrencyExchangeRateEntity,
+  CurrencyMetadataEntity,
+} from "./currency.entity";
 import { Repository, ObjectLiteral } from "typeorm";
-import { HttpException, HttpStatus } from "@nestjs/common";
+import { HttpException } from "@nestjs/common";
 
 // Define a type for the repository mock for proper typing
 type MockRepository<T extends ObjectLiteral = any> = Partial<
@@ -13,6 +16,7 @@ type MockRepository<T extends ObjectLiteral = any> = Partial<
 describe("CurrencyService", () => {
   let service: CurrencyService;
   let repository: MockRepository<CurrencyExchangeRateEntity>;
+  let metadataRepository: MockRepository<CurrencyMetadataEntity>;
 
   // Mock data
   const mockDate = new Date();
@@ -31,6 +35,7 @@ describe("CurrencyService", () => {
     findOne: jest.fn(),
     upsert: jest.fn(),
     count: jest.fn(),
+    find: jest.fn(),
   });
 
   beforeEach(async () => {
@@ -43,11 +48,16 @@ describe("CurrencyService", () => {
           provide: getRepositoryToken(CurrencyExchangeRateEntity),
           useFactory: mockRepoFactory,
         },
+        {
+          provide: getRepositoryToken(CurrencyMetadataEntity),
+          useFactory: mockRepoFactory,
+        },
       ],
     }).compile();
 
     service = module.get<CurrencyService>(CurrencyService);
     repository = module.get(getRepositoryToken(CurrencyExchangeRateEntity));
+    metadataRepository = module.get(getRepositoryToken(CurrencyMetadataEntity));
   });
 
   it("should be defined", () => {
@@ -117,11 +127,8 @@ describe("CurrencyService", () => {
   });
 
   describe("updateExchangeRates", () => {
-    // Mock global fetch
-    global.fetch = jest.fn();
-
     it("should fetch and upsert rates successfully", async () => {
-      (global.fetch as jest.Mock).mockResolvedValue({
+      (global.fetch as jest.Mock) = jest.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           result: "success",
@@ -134,22 +141,43 @@ describe("CurrencyService", () => {
         }),
       });
 
+      (metadataRepository.find as jest.Mock).mockResolvedValue([
+        { code: "NGN", isActive: true },
+        { code: "EUR", isActive: true },
+        { code: "GBP", isActive: true },
+      ]);
+
       await service.updateExchangeRates();
 
-      // Should skip USD and update others
-      // Supported currencies list in service usually has ~12 items minus USD
+      // Should skip USD and update the supported currencies
       expect(repository.upsert).toHaveBeenCalled();
     });
 
-    it("should throw error on API failure", async () => {
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: false,
-        status: 503,
-      });
+    it("should fall back to ECB when the primary API fails", async () => {
+      (global.fetch as jest.Mock) = jest
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 503 })
+        .mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            base: "USD",
+            date: "2026-09-15",
+            rates: {
+              NGN: 1500,
+              EUR: 0.92,
+              GBP: 0.79,
+            },
+          }),
+        });
 
-      await expect(service.updateExchangeRates()).rejects.toThrow(
-        HttpException,
-      );
+      (metadataRepository.find as jest.Mock).mockResolvedValue([
+        { code: "NGN", isActive: true },
+        { code: "EUR", isActive: true },
+        { code: "GBP", isActive: true },
+      ]);
+
+      await expect(service.updateExchangeRates()).resolves.not.toThrow();
+      expect(repository.upsert).toHaveBeenCalled();
     });
   });
 });

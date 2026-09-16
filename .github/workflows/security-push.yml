@@ -1,0 +1,42 @@
+name: Security - Push
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  gitleaks:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks scan (full history)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  audit-block:
+    name: npm audit gate (fail on high)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: npm audit
+        run: |
+          set +e
+          out=$(npm audit --audit-level=high 2>&1)
+          code=$?
+          echo "$out"
+          if [ $code -eq 1 ]; then
+            echo "::error::High/critical vulnerabilities present for production deps."
+            exit 1
+          fi
+          exit 0

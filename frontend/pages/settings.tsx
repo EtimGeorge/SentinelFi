@@ -639,7 +639,7 @@ const SettingsPage: React.FC = () => {
       <div className="border-l-2 border-brand-primary pl-4 mt-6 mb-1">
         <h3 className="text-white font-semibold text-base">Email Delivery</h3>
         <p className="text-xs text-gray-400 mt-0.5">
-          Configure how SentinelFi sends notification, approval, and DCS report emails from your organisation's domain.
+          Configure how SentinelFi sends notification, approval, and DCS report emails from your organisation&apos;s domain.
         </p>
       </div>
 
@@ -649,7 +649,7 @@ const SettingsPage: React.FC = () => {
             <div>
               <span className="text-sm text-gray-300 font-medium">Use Custom SMTP Server</span>
               <p className="text-xs text-gray-500 mt-0.5">
-                When off, SentinelFi uses the platform's managed Resend service â€” zero configuration needed.
+                When off, SentinelFi uses the platform&apos;s managed Resend service â€” zero configuration needed.
                 Enable this only if you need emails sent from your own mail server domain.
               </p>
             </div>
@@ -712,7 +712,7 @@ const SettingsPage: React.FC = () => {
             <SecretInput value={sendgridKey} onChange={setSendgridKey} placeholder="SG.â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
             <p className="text-xs text-gray-500 mt-1">
               Get your key from <span className="text-brand-primary">SendGrid Dashboard â†’ Settings â†’ API Keys</span>.
-              Assign the "Mail Send" permission only.
+              Assign the &ldquo;Mail Send&rdquo; permission only.
             </p>
           </div>
 

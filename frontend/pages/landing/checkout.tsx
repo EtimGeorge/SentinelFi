@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import MarketingLayout from '../../components/Landing/MarketingLayout';
 import { useRouter } from 'next/router';
 import { CreditCard, ArrowRight, ShieldCheck, Globe, CheckCircle2, AlertCircle, Zap } from 'lucide-react';
@@ -118,7 +119,7 @@ const CheckoutPage: NextPageWithLayout = () => {
   if (!planConfig) {
     return (
       <div className="py-40 text-center text-gray-400">
-        <p>No plan selected. <a href="/landing/pricing" className="text-brand-primary underline">View Pricing →</a></p>
+        <p>No plan selected. <Link href="/landing/pricing" className="text-brand-primary underline">View Pricing →</Link></p>
       </div>
     );
   }

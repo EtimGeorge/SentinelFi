@@ -23,6 +23,13 @@ import { InvitationService } from "../auth/invitation.service"; // NEW: Import I
 
 import { Role } from "@shared/types/role.enum"; // NEW: Import Role enum
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import {
+  deriveSchemaName,
+  assertValidSchemaName,
+  quoteSchemaIdentifier,
+} from "../common/utils/schema-name.util";
+import { TenantProvisioningStatus } from "@shared/types/tenant-provisioning-status.enum";
+import { PROVISIONING_STALE_MS } from "@shared/types/tenant-provisioning-status.enum";
 
 @Injectable()
 export class TenantService {
@@ -40,241 +47,258 @@ export class TenantService {
     private readonly invitationService: InvitationService, // NEW: Inject InvitationService
   ) {}
 
-  /**
-   * Creates a new tenant using a two-phase commit strategy:
+    /**
+   * Creates a new tenant using reservation-first provisioning:
+   *  - PHASE 0: reserve a tenant row (provisioning_status=PENDING) under an
+   *    atomic transaction; the unique(schema_name) constraint serializes
+   *    concurrent creators so no destructive DROP-SCHEMA preflight is needed.
+   *  - PHASE 1: create + commit the PostgreSQL schema (separate connection —
+   *    the TenantMigrationService DataSource opens its own link and must see
+   *    the committed schema).
+   *  - PHASE 2: run tenant migrations, then promote the row to ACTIVE.
+   *    On any Phase 2 failure the orphan schema is dropped and the row is
+   *    marked FAILED (never left hanging in PENDING, which would leak the
+   *    schema_name under the unique constraint).
+   *  - PHASE 3: invite the initial admin (best-effort; does NOT roll back
+   *    an ACTIVE tenant).
    *
-   * PHASE 1: Create and commit the PostgreSQL schema
-   *  - This makes the schema visible to subsequent connections
-   *
-   * PHASE 2: Run migrations and save tenant record
-   *  - If this fails, the orphaned schema is cleaned up
-   *
-   * This approach solves the "schema does not exist" error that occurs when
-   * TenantMigrationService creates a new DataSource - the schema must be
-   * committed before the new connection attempts to use it.
-   *
-   * @param createTenantDto - The DTO containing the tenant's information.
-   * @param initialBudgetFile - Optional file for future AI processing.
-   * @returns The newly created TenantEntity.
+   * Any schema name reaches DDL only through `quoteSchemaIdentifier` /
+   * `assertValidSchemaName` — raw derivation is gone (R1b).
    */
   async createTenant(
     createTenantDto: CreateTenantDto,
     initialBudgetFile?: Express.Multer.File,
     actor?: { id: string; email: string },
   ): Promise<TenantEntity & { admin_password?: string }> {
-    const schema_name = (createTenantDto.schema_name || createTenantDto.name)
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/gi, "_");
+    // R1b: canonical, NAMEDATALEN-safe schema-name derivation (single source
+    // of truth). Previously triplicated across createTenant, startFreeTrial and
+    // startFreePlan with divergent truncation — the same company name resolved
+    // to different schema names. deriveSchemaName also rejects reserved names
+    // and any value that would silently truncate.
+    const baseName = createTenantDto.schema_name ?? createTenantDto.name;
+    const schema_name = deriveSchemaName(baseName);
 
-    // PRE-FLIGHT CHECK: Verify tenant doesn't exist BEFORE starting any transactions
-    // This is more efficient than checking inside a transaction
-    const existingTenant = await this.tenantRepository.findOne({
-      where: [{ name: createTenantDto.name }, { schema_name }],
-    });
-
-    if (existingTenant) {
-      this.auditService
-        .log(
-          actor?.id ?? null,
-          "TENANT_CREATION_FAILED",
-          null,
-          `Conflicting tenant name or schema name: ${createTenantDto.name}/${schema_name}`,
-          {
-            requestedName: createTenantDto.name,
-            requestedSchemaName: schema_name,
-            reason: "Conflict: Tenant or schema name already exists.",
-          },
-          actor?.email ?? "SYSTEM",
-        )
-        .catch((err) =>
-          this.logger.error(
-            `Failed to log tenant creation conflict: ${err.message}`,
-          ),
-        );
-
-      throw new ConflictException(
-        "Tenant with this name or a conflicting schema name already exists.",
-      );
-    }
-
-    // ADDITIONAL PRE-FLIGHT: Check if schema already exists from failed previous run
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-
+    // R1e-reservation: write the tenant ROW before creating the schema. This
+    // makes intent durable, gives a crashed run a recoverable anchor, and lets
+    // the unique(schema_name) row constraint serialize concurrent creators —
+    // replacing the old destructive DROP-SCHEMA preflight that could race and
+    // destroy a live tenant's schema.
+    const reservationQr = this.dataSource.createQueryRunner();
+    await reservationQr.connect();
+    await reservationQr.startTransaction();
     try {
-      const schemaCheckResult = await queryRunner.query(
-        `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1`,
-        [schema_name],
-      );
+      const existing = await reservationQr.manager.findOne(TenantEntity, {
+        where: [{ name: createTenantDto.name }, { schema_name }],
+        select: [
+          "tenant_id",
+          "name",
+          "schema_name",
+          "provisioning_status",
+          "provisioning_started_at",
+        ],
+      });
 
-      if (schemaCheckResult.length > 0) {
-        this.logger.warn(
-          `Schema "${schema_name}" already exists (likely from failed previous run). Dropping it for clean retry...`,
-        );
-        await this.dropTenantSchema(schema_name);
-      }
-    } finally {
-      await queryRunner.release();
-    }
+      if (existing) {
+        const stale =
+          existing.provisioning_status === TenantProvisioningStatus.PENDING &&
+          existing.provisioning_started_at &&
+          Date.now() -
+            new Date(existing.provisioning_started_at).getTime() >
+            PROVISIONING_STALE_MS;
 
-    let schemaCreated = false;
-
-    try {
-      // ========== PHASE 1: Create Schema and Commit Immediately ==========
-      const schemaQueryRunner = this.dataSource.createQueryRunner();
-      await schemaQueryRunner.connect();
-      await schemaQueryRunner.startTransaction();
-
-      try {
-        this.logger.log(`[Phase 1] Creating schema: ${schema_name}`);
-        await schemaQueryRunner.query(
-          `CREATE SCHEMA IF NOT EXISTS "${schema_name}"`,
-        );
-
-        // CRITICAL: Commit immediately so new DataSource can see the schema
-        await schemaQueryRunner.commitTransaction();
-        schemaCreated = true;
-        this.logger.log(
-          `[Phase 1] ✅ Schema "${schema_name}" created and committed.`,
-        );
-      } catch (schemaError) {
-        await schemaQueryRunner.rollbackTransaction();
-        this.logger.error(
-          `[Phase 1] ❌ Failed to create schema: ${schemaError instanceof Error ? schemaError.message : "Unknown error"}`,
-        );
-        throw schemaError;
-      } finally {
-        await schemaQueryRunner.release();
-      }
-
-      // ========== PHASE 2: Run Migrations and Save Tenant Record ==========
-      try {
-        // Run migrations on the newly committed schema
-        this.logger.log(
-          `[Phase 2] Running migrations for schema: ${schema_name}`,
-        );
-        await this.tenantMigrationService.runTenantMigrations(schema_name);
-        this.logger.log(
-          `[Phase 2] ✅ Migrations successfully applied to schema: "${schema_name}"`,
-        );
-
-        // Create and save tenant record in a separate transaction
-        const tenantQueryRunner = this.dataSource.createQueryRunner();
-        await tenantQueryRunner.connect();
-        await tenantQueryRunner.startTransaction();
-
-        try {
-          const newTenant = tenantQueryRunner.manager.create(TenantEntity, {
-            name: createTenantDto.name,
-            schema_name: schema_name,
-            is_active: createTenantDto.is_active ?? true,
-            plan: createTenantDto.plan ?? "basic", // Use provided plan or default
-            default_currency_code:
-              createTenantDto.default_currency_code ?? "USD",
-          });
-          const savedTenant = await tenantQueryRunner.manager.save(newTenant);
-
-          // Process initial budget file if provided
-          if (initialBudgetFile) {
-            this.logger.warn(
-              `File processing for '${initialBudgetFile.originalname}' is not yet implemented.`,
-            );
-            // TODO: Implement AI processing
-            // const wbsData = await this.aiService.parseBudget(initialBudgetFile);
-            // await this.wbsService.seedWbsDataForTenant(schema_name, wbsData, userId);
-          }
-
-          await tenantQueryRunner.commitTransaction();
-
-          // PHASE 3: Invite Initial Admin User (Now that tenant exists)
-          this.logger.log(
-            `[Phase 3] Inviting initial admin user for tenant '${savedTenant.name}'...`,
-          );
-          try {
-            await this.invitationService.createInvitation(
-              createTenantDto.admin_email,
-              Role.AdminDirector,
-              savedTenant,
-              createTenantDto.admin_first_name,
-              createTenantDto.admin_last_name,
-            );
-            this.logger.log(
-              `[Phase 3] ✅ Admin invitation for '${createTenantDto.admin_email}' sent successfully.`,
-            );
-          } catch (userError: any) {
-            this.logger.error(
-              `[Phase 3] ❌ Failed to send admin invitation: ${userError.message}`,
-            );
-            // Note: We do NOT rollback schema/tenant here as they are committed.
-            // The SuperAdmin can manually trigger another invitation later.
-          }
-
-          this.logger.log(
-            `[Phase 2] ✅ Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`,
-          );
-
+        if (!stale) {
+          // Flaw D (knowable-tenant rule): the blocking tenant is a DIFFERENT
+          // tenant, so this failure is genuinely unattributable to the
+          // (never-created) target. Route through the explicit SYS-write path
+          // so RLS cannot swallow the audit trail for this security event.
+          await reservationQr.rollbackTransaction();
           this.auditService
-            .log(
-              actor?.id ?? "SYSTEM",
-              "TENANT_CREATED",
-              savedTenant.tenant_id,
-              `Successfully created tenant '${savedTenant.name}' with schema '${savedTenant.schema_name}'.`,
+            .logSysWrite(
+              actor?.id ?? null,
+              "TENANT_CREATION_FAILED",
+              `Conflicting tenant name or schema name: ${createTenantDto.name}/${schema_name}`,
               {
-                name: savedTenant.name,
-                schema_name: savedTenant.schema_name,
-                plan: savedTenant.plan,
-                admin_email: createTenantDto.admin_email,
+                requestedName: createTenantDto.name,
+                requestedSchemaName: schema_name,
+                actorEmail: actor?.email ?? null,
+                reason: "Conflict: Tenant or schema name already exists.",
               },
-              actor?.email ?? "SYSTEM",
+              actor?.email ?? null,
             )
             .catch((err) =>
               this.logger.error(
-                `Failed to log tenant creation success: ${err.message}`,
+                `Failed to log tenant creation conflict: ${err.message}`,
               ),
             );
-
-          // RETURN the tenant
-          return savedTenant;
-        } catch (tenantRecordError) {
-          await tenantQueryRunner.rollbackTransaction();
-          this.logger.error(
-            `[Phase 2] ❌ Failed to save tenant record: ${tenantRecordError instanceof Error ? tenantRecordError.message : "Unknown error"}`,
+          throw new ConflictException(
+            "Tenant with this name or a conflicting schema name already exists.",
           );
-          throw tenantRecordError;
-        } finally {
-          await tenantQueryRunner.release();
         }
-      } catch (phase2Error) {
-        // If migrations or tenant record creation fails, clean up the orphaned schema
-        this.logger.error(
-          `[Phase 2] ❌ Phase 2 failed. Cleaning up orphaned schema "${schema_name}"...`,
-        );
 
+        this.logger.warn(
+          `Resuming stale PENDING provisioning for schema "${schema_name}" (tenant ${existing.tenant_id}).`,
+        );
+        await reservationQr.manager.update(
+          TenantEntity,
+          { tenant_id: existing.tenant_id },
+          { provisioning_status: TenantProvisioningStatus.PENDING, provisioning_error: null },
+        );
+      } else {
+        const reserved = reservationQr.manager.create(TenantEntity, {
+          name: createTenantDto.name,
+          schema_name,
+          plan: createTenantDto.plan ?? "basic",
+          default_currency_code: createTenantDto.default_currency_code ?? "USD",
+          is_active: createTenantDto.is_active ?? true,
+          provisioning_status: TenantProvisioningStatus.PENDING,
+          provisioning_started_at: new Date(),
+        });
+        await reservationQr.manager.save(reserved);
+      }
+      await reservationQr.commitTransaction();
+    } catch (err: any) {
+      await reservationQr.rollbackTransaction();
+      if (err.code === "23505") {
+        this.auditService
+          .logSysWrite(
+            actor?.id ?? null,
+            "TENANT_CREATION_FAILED",
+            `Race lost: schema or name already claimed: ${schema_name}`,
+            { requestedSchemaName: schema_name, reason: "Unique constraint violation on concurrent creation." },
+            actor?.email ?? null,
+          )
+          .catch((e) =>
+            this.logger.error(`Failed to log race conflict: ${e.message}`),
+          );
+        throw new ConflictException(
+          "Tenant with this name or a conflicting schema name already exists.",
+        );
+      }
+      throw err;
+    } finally {
+      await reservationQr.release();
+    }
+
+    const targetTenant = await this.tenantRepository.findOneOrFail({
+      where: { schema_name },
+      select: ["tenant_id", "name", "schema_name", "plan", "default_currency_code"],
+    });
+
+    // PHASE 1: create schema (committed immediately — the TenantMigrationService
+    // opens a fresh DataSource that must see the committed schema).
+    const schemaId = quoteSchemaIdentifier(schema_name);
+    const schemaQr = this.dataSource.createQueryRunner();
+    await schemaQr.connect();
+    await schemaQr.startTransaction();
+    let schemaCreated = false;
+    try {
+      this.logger.log(`[Phase 1] Creating schema: ${schema_name}`);
+      await schemaQr.query(`CREATE SCHEMA IF NOT EXISTS ${schemaId}`);
+      await schemaQr.commitTransaction();
+      schemaCreated = true;
+    } catch (schemaError) {
+      await schemaQr.rollbackTransaction();
+      await this.markProvisioningFailed(targetTenant.tenant_id, schemaError);
+      throw new InternalServerErrorException(
+        `Could not create tenant schema "${schema_name}": ${schemaError instanceof Error ? schemaError.message : "Unknown error"}`,
+      );
+    } finally {
+      await schemaQr.release();
+    }
+
+
+    // PHASE 2: migrations + promotion to ACTIVE
+    try {
+      this.logger.log(`[Phase 2] Running migrations for schema: ${schema_name}`);
+      await this.tenantMigrationService.runTenantMigrations(schema_name);
+      this.logger.log(`[Phase 2] Migrations applied to "${schema_name}".`);
+
+      await this.tenantRepository.update(targetTenant.tenant_id, {
+        provisioning_status: TenantProvisioningStatus.ACTIVE,
+        provisioning_error: null,
+      });
+      JwtAuthGuard.invalidateTenantStatus(targetTenant.tenant_id);
+      this.logger.log(`[Phase 2] ✅ Tenant "${targetTenant.name}" promoted to ACTIVE.`);
+    } catch (err: unknown) {
+      if (schemaCreated) {
         try {
           await this.dropTenantSchema(schema_name);
-          this.logger.log(
-            `[Cleanup] ✅ Successfully dropped orphaned schema "${schema_name}".`,
-          );
+          this.logger.log(`[Cleanup] Dropped orphaned schema "${schema_name}".`);
         } catch (cleanupError) {
           this.logger.error(
-            `[Cleanup] ❌ Failed to clean up schema "${schema_name}": ${cleanupError instanceof Error ? cleanupError.message : "Unknown error"}`,
+            `Failed to drop orphaned schema "${schema_name}": ${cleanupError instanceof Error ? cleanupError.message : "Unknown error"}`,
           );
-          // Don't throw cleanup error - the original phase2Error is more important
         }
-
-        throw phase2Error;
       }
-    } catch (error: unknown) {
-      this.logger.error(
-        `Failed to create tenant: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error instanceof Error ? error.stack : undefined,
+      await this.markProvisioningFailed(targetTenant.tenant_id, err);
+      throw new InternalServerErrorException(
+        `Provisioning failed for "${schema_name}": ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
+
+    // PHASE 3: best-effort side effects. Tenant is ACTIVE; failures here do NOT
+    // roll back provisioning — SuperAdmin can re-trigger the invitation.
+    if (initialBudgetFile) {
+      this.logger.warn(`File processing for '${initialBudgetFile.originalname}' is not yet implemented.`);
+    }
+
+    try {
+      await this.invitationService.createInvitation(
+        createTenantDto.admin_email,
+        Role.AdminDirector,
+        targetTenant,
+        createTenantDto.admin_first_name,
+        createTenantDto.admin_last_name,
+      );
+      this.logger.log(`[Phase 3] ✅ Admin invitation for '${createTenantDto.admin_email}' sent.`);
+    } catch (userError: any) {
+      this.logger.error(`[Phase 3] ❌ Failed to send admin invitation: ${userError.message}`);
+    }
+
+    // KNOWN tenant → tenant-scoped audit writer (never logSysWrite on this path).
+    this.auditService
+      .log(
+        actor?.id ?? "SYSTEM",
+        "TENANT_CREATED",
+        targetTenant.tenant_id,
+        `Successfully created tenant '${targetTenant.name}' with schema '${targetTenant.schema_name}'.`,
+        {
+          name: targetTenant.name,
+          schema_name: targetTenant.schema_name,
+          plan: targetTenant.plan,
+          admin_email: createTenantDto.admin_email,
+        },
+        actor?.email ?? "SYSTEM",
+      )
+      .catch((err) =>
+        this.logger.error(`Failed to log tenant creation success: ${err.message}`),
       );
 
-      throw new InternalServerErrorException(
-        `Could not create tenant: ${error instanceof Error ? error.message : "Unknown error"}`,
+    return targetTenant;
+  }
+
+  /**
+   * Persist a FAILED provisioning state so the row survives for audit/retry
+   * instead of hanging in PENDING (which would block the schema_name under the
+   * unique constraint and evade detection). Never throws.
+   */
+  private async markProvisioningFailed(tenantId: string, err: unknown): Promise<void> {
+    try {
+      await this.tenantRepository.update(
+        { tenant_id: tenantId },
+        {
+          provisioning_status: TenantProvisioningStatus.FAILED,
+          provisioning_error: err instanceof Error ? err.message : String(err),
+        },
+      );
+      JwtAuthGuard.invalidateTenantStatus(tenantId);
+    } catch (persistErr) {
+      this.logger.error(
+        `Could not persist provisioning failure for tenant ${tenantId}: ${(persistErr as Error).message}`,
       );
     }
   }
+
 
   /**
    * Finds all tenants from the public schema.
@@ -386,6 +410,11 @@ export class TenantService {
    * @param schema_name The name of the schema to drop.
    */
   async dropTenantSchema(schema_name: string): Promise<void> {
+    // R1b: schema_name may originate from a DB row (tenants.schema_name) and is
+    // therefore not direct user input on this path, but it can still be legacy
+    // or tampered. Validate before interpolating into DDL — makes identifier
+    // injection impossible regardless of provenance.
+    const safeSchema = assertValidSchemaName(schema_name, "drop schema");
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
 
@@ -393,7 +422,7 @@ export class TenantService {
       this.logger.log(`Attempting to drop schema: "${schema_name}"`);
       // We use CASCADE to ensure all tables, types, and constraints within the schema are also dropped.
       // CAUTION: This is a destructive operation.
-      await queryRunner.query(`DROP SCHEMA IF EXISTS "${schema_name}" CASCADE`);
+      await queryRunner.query(`DROP SCHEMA IF EXISTS "${safeSchema}" CASCADE`);
       this.logger.log(`Schema "${schema_name}" dropped successfully.`);
     } catch (error) {
       this.logger.error(
@@ -417,13 +446,20 @@ export class TenantService {
     });
 
     if (!tenant) {
+      // Flaw D (knowable-tenant rule): the row was NOT found, so `id` does not
+      // name a live tenant — it must not be written into the tenantId column
+      // (RLS WITH CHECK would reject it on a tenant-scoped session, and the
+      // .catch() below would swallow the audit row entirely). Route through the
+      // SYS path and preserve the attempted id in the targetId column instead.
       this.auditService
-        .log(
+        .logSysWrite(
           null,
           "TENANT_DELETION_FAILED",
-          id, // Use the ID passed in, as tenant record not found
           `Tenant with ID ${id} not found for deletion.`,
-          { reason: `Tenant with ID ${id} not found for deletion.` },
+          {
+            targetId: id,
+            reason: `Tenant with ID ${id} not found for deletion.`,
+          },
           "SYSTEM",
         )
         .catch((err) =>

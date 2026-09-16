@@ -37,6 +37,7 @@ import * as crypto from "crypto";
 import * as path from "path";
 import { isCorporateEmail } from "@shared/utils/validation";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { deriveSchemaName } from "../common/utils/schema-name.util";
 
 // ─── Pricing Constants ───────────────────────────────────────────────────────
 // Business model:
@@ -157,99 +158,75 @@ export class BillingService {
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
-    const schemaName = data.companyName
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/gi, "_")
-      .slice(0, 63);
+    // R1b: canonical schema-name derivation (single source of truth).
+    // Previously a divergent inline copy here vs startFreePlan vs paid path.
+    const schemaName = deriveSchemaName(data.companyName);
 
-    // Use transaction to keep tenant + subscription atomic
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+    // R1g: NO outer queryRunner. createTenant runs its own transaction.
+    // TypeORM does not nest transactions — outer rollback could discard only
+    // the subscription while tenant+schema persist (zombie).
+    const tenant = await this.tenantService.createTenant({
+      name: data.companyName,
+      schema_name: schemaName,
+      admin_email: data.email,
+      plan: "trial",
+      admin_first_name: data.firstName,
+      admin_last_name: data.lastName,
+      default_currency_code: "USD",
+    });
 
-    try {
-      const tenant = await this.tenantService.createTenant({
-        name: data.companyName,
-        schema_name: schemaName,
-        admin_email: data.email,
-        plan: "trial",
-        admin_first_name: data.firstName,
-        admin_last_name: data.lastName,
-        default_currency_code: "USD",
-      });
+    // Update tenant expires_at in a SEPARATE transaction (createTenant committed its own)
+    await this.tenantRepository.update(
+      { tenant_id: tenant.tenant_id },
+      { expires_at: trialEndsAt, is_active: true, plan: "trial" },
+    );
+    JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
 
-// Update tenant expires_at
-      await queryRunner.manager.update(
-        "tenants",
-        { tenant_id: tenant.tenant_id },
-        {
-          expires_at: trialEndsAt,
-          is_active: true,
-          plan: "trial",
-        },
+    // 2. Create Subscription
+    const subscription = this.subscriptionRepository.create({
+      tenant_id: tenant.tenant_id,
+      plan: "trial",
+      status: SubscriptionStatus.TRIALING,
+      billing_cycle: BillingCycle.TRIAL,
+      amount_usd: 0,
+      gateway: "trial",
+      admin_email: data.email,
+      company_name: data.companyName,
+      admin_first_name: data.firstName,
+      admin_last_name: data.lastName,
+      base_currency: "USD",
+      trial_ends_at: trialEndsAt,
+      current_period_start: new Date(),
+      current_period_end: trialEndsAt,
+      max_tasks_per_day: null,
+      has_ads: false,
+      ad_unlock_credits: 0,
+      ad_unlock_date: null,
+    });
+
+    await this.subscriptionRepository.save(subscription);
+
+    // 3. Dispatch magic-link invitation happens automatically in TenantService phase 3
+    // 4. Send trial activation confirmation email
+    const frontendUrl = this.configService.get<string>("FRONTEND_URL", "https://sentinelfi.com");
+    this.emailService
+      .sendTrialActivationEmail(data.email, {
+        firstName: data.firstName,
+        companyName: data.companyName,
+        adminEmail: data.email,
+        trialStartDate: new Date().toDateString(),
+        trialEndDate: trialEndsAt.toDateString(),
+        pricingUrl: `${frontendUrl}/landing/pricing`,
+      })
+      .catch((err: Error) =>
+        this.logger.error(`[BILLING] Trial activation email failed: ${err.message}`),
       );
-      JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
 
-      // 2. Create Subscription — trial is full-access, ad-free
-      const subscription = this.subscriptionRepository.create({
-        tenant_id: tenant.tenant_id,
-        plan: "trial",
-        status: SubscriptionStatus.TRIALING,
-        billing_cycle: BillingCycle.TRIAL,
-        amount_usd: 0,
-        gateway: "trial",
-        admin_email: data.email,
-        company_name: data.companyName,
-        admin_first_name: data.firstName,
-        admin_last_name: data.lastName,
-        base_currency: "USD",
-        trial_ends_at: trialEndsAt,
-        current_period_start: new Date(),
-        current_period_end: trialEndsAt,
-        max_tasks_per_day: null,
-        has_ads: false,
-        ad_unlock_credits: 0,
-        ad_unlock_date: null,
-      });
-
-      await queryRunner.manager.save(SubscriptionEntity, subscription);
-      await queryRunner.commitTransaction();
-
-      // 3. Dispatch magic-link invitation happens automatically in TenantService phase 3
-      // 4. Send trial activation confirmation email
-      const frontendUrl = this.configService.get<string>(
-        "FRONTEND_URL",
-        "https://sentinelfi.com",
-      );
-      this.emailService
-        .sendTrialActivationEmail(data.email, {
-          firstName: data.firstName,
-          companyName: data.companyName,
-          adminEmail: data.email,
-          trialStartDate: new Date().toDateString(),
-          trialEndDate: trialEndsAt.toDateString(),
-          pricingUrl: `${frontendUrl}/landing/pricing`,
-        })
-        .catch((err: Error) =>
-          this.logger.error(
-            `[BILLING] Trial activation email failed: ${err.message}`,
-          ),
-        );
-
-      this.logger.log(
-        `Trial provisioned for ${data.email}. Emails dispatching.`,
-      );
-      return {
-        message: "Trial provisioned. Check your email for access.",
-        trialEndsAt,
-      };
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(`Trial provisioning failed for ${data.email}`, err);
-      throw err;
-    } finally {
-      await queryRunner.release();
-    }
+    this.logger.log(`Trial provisioned for ${data.email}. Emails dispatching.`);
+    return {
+      message: "Trial provisioned. Check your email for access.",
+      trialEndsAt,
+    };
   }
 
   // ─── FREE PLAN FLOW ─────────────────────────────────────────────────────────
@@ -283,88 +260,68 @@ export class BillingService {
       );
     }
 
-    const schemaName = data.companyName
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/gi, "_")
-      .slice(0, 63);
+    // R1b: canonical schema-name derivation (single source of truth).
+    const schemaName = deriveSchemaName(data.companyName);
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+    // R1g: NO outer queryRunner. createTenant runs its own transaction.
+    const tenant = await this.tenantService.createTenant({
+      name: data.companyName,
+      schema_name: schemaName,
+      admin_email: data.email,
+      plan: "free",
+      admin_first_name: data.firstName,
+      admin_last_name: data.lastName,
+      default_currency_code: "USD",
+    });
 
-    try {
-      const tenant = await this.tenantService.createTenant({
-        name: data.companyName,
-        schema_name: schemaName,
-        admin_email: data.email,
-        plan: "free",
-        admin_first_name: data.firstName,
-        admin_last_name: data.lastName,
-        default_currency_code: "USD",
-      });
+    // Free plan never expires — separate transaction (createTenant committed its own)
+    await this.tenantRepository.update(
+      { tenant_id: tenant.tenant_id },
+      { expires_at: null, is_active: true, plan: "free" },
+    );
+    JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
 
-      // Free plan never expires — expires_at stays null, tenant stays active
-      await queryRunner.manager.update(
-        "tenants",
-        { tenant_id: tenant.tenant_id },
-        { expires_at: null, is_active: true, plan: "free" },
+    const subscription = this.subscriptionRepository.create({
+      tenant_id: tenant.tenant_id,
+      plan: "free",
+      status: SubscriptionStatus.ACTIVE,
+      billing_cycle: BillingCycle.FREE,
+      amount_usd: 0,
+      gateway: "free",
+      admin_email: data.email,
+      company_name: data.companyName,
+      admin_first_name: data.firstName,
+      admin_last_name: data.lastName,
+      base_currency: "USD",
+      trial_ends_at: null,
+      current_period_start: new Date(),
+      current_period_end: null,
+      max_tasks_per_day: FREE_PLAN_TASK_CAP,
+      has_ads: true,
+      ad_unlock_credits: 0,
+      ad_unlock_date: null,
+    });
+
+    await this.subscriptionRepository.save(subscription);
+
+    // Welcome email (Resend) — async, non-blocking
+    const frontendUrl = this.configService.get<string>("FRONTEND_URL", "https://sentinelfi.com");
+    this.emailService
+      .sendWelcomeEmail(data.email, {
+        firstName: data.firstName,
+        companyName: data.companyName,
+        dashboardUrl: `${frontendUrl}/dashboard`,
+        pricingUrl: `${frontendUrl}/landing/pricing`,
+      })
+      .catch((err: Error) =>
+        this.logger.error(`[BILLING] Free-plan welcome email failed: ${err.message}`),
       );
-      JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
 
-      const subscription = this.subscriptionRepository.create({
-        tenant_id: tenant.tenant_id,
-        plan: "free",
-        status: SubscriptionStatus.ACTIVE,
-        billing_cycle: BillingCycle.FREE,
-        amount_usd: 0,
-        gateway: "free",
-        admin_email: data.email,
-        company_name: data.companyName,
-        admin_first_name: data.firstName,
-        admin_last_name: data.lastName,
-        base_currency: "USD",
-        trial_ends_at: null,
-        current_period_start: new Date(),
-        current_period_end: null,
-        max_tasks_per_day: FREE_PLAN_TASK_CAP,
-        has_ads: true,
-        ad_unlock_credits: 0,
-        ad_unlock_date: null,
-      });
-
-      await queryRunner.manager.save(SubscriptionEntity, subscription);
-      await queryRunner.commitTransaction();
-
-      // Welcome email (Resend) — async, non-blocking
-      const frontendUrl = this.configService.get<string>(
-        "FRONTEND_URL",
-        "https://sentinelfi.com",
-      );
-      this.emailService
-        .sendWelcomeEmail(data.email, {
-          firstName: data.firstName,
-          companyName: data.companyName,
-          dashboardUrl: `${frontendUrl}/dashboard`,
-          pricingUrl: `${frontendUrl}/landing/pricing`,
-        })
-        .catch((err: Error) =>
-          this.logger.error(
-            `[BILLING] Free-plan welcome email failed: ${err.message}`,
-          ),
-        );
-
-      this.logger.log(`Free plan provisioned for ${data.email}.`);
-      return {
-        message: "Free workspace provisioned. Check your email for access.",
-        tenant_id: tenant.tenant_id,
-      };
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(`Free plan provisioning failed for ${data.email}`, err);
-      throw err;
-    } finally {
-      await queryRunner.release();
-    }
+    this.logger.log(`Free plan provisioned for ${data.email}.`);
+    return {
+      message: "Free workspace provisioned. Check your email for access.",
+      tenant_id: tenant.tenant_id,
+    };
   }
 
   // ─── PAID SUBSCRIPTION FLOW ─────────────────────────────────────────────────

@@ -204,7 +204,7 @@ const WorkflowsPage: NextPageWithLayout = () => {
          <div className="container mx-auto px-6 text-center">
             <h3 className="text-3xl font-bold m-heading mb-6 text-brand-primary">Absolute Synchronization.</h3>
             <p className="text-m-text-muted max-w-2xl mx-auto mb-10">
-               SentinelFi ensures that when a Project Manager updates a baseline, the CEO's 
+               SentinelFi ensures that when a Project Manager updates a baseline, the CEO&apos;s 
                strategic dashboard reflects the risk shift in under 12 milliseconds. 
                Total organizational alignment, enforced by code.
             </p>

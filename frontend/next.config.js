@@ -34,6 +34,10 @@ class CircuitBreaker {
 
 const proxyCircuitBreaker = new CircuitBreaker(5, 30000);
 
+// Origins used by the security headers (CSP connect-src) and the API proxy.
+const SELF_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:3000';
+const WSHOST = (process.env.NEXT_PUBLIC_WS_URL || process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1:3001').replace(/^http/, 'ws');
+
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -88,7 +92,40 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
+          // Content-Security-Policy — locked down in production; loosened only
+          // where Next.js needs it ('unsafe-inline' style injection, inline
+          // JSON bootstrapping). No remote script sources are allowed.
+          ...(process.env.NODE_ENV === 'production'
+            ? [{
+                key: 'Content-Security-Policy',
+                value: [
+                  "default-src 'self'",
+                  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+                  "style-src 'self' 'unsafe-inline'",
+                  `connect-src 'self' ${SELF_ORIGIN} ${WSHOST}`,
+                  "img-src 'self' data: blob:",
+                  "font-src 'self' data:",
+                  "object-src 'none'",
+                  "base-uri 'self'",
+                  "frame-ancestors 'self'",
+                  "form-action 'self'",
+                  "media-src 'self'",
+                  "upgrade-insecure-requests",
+                ].join('; '),
+              }]
+            : []),
         ],
+      },
+      // Serve .webm and .mp4 with correct MIME types for video playback.
+      // Next.js static file serving usually detects these, but explicit
+      // overrides prevent misdetection especially in production builds.
+      {
+        source: '/demos/:path*.webm',
+        headers: [{ key: 'Content-Type', value: 'video/webm' }],
+      },
+      {
+        source: '/demos/:path*.mp4',
+        headers: [{ key: 'Content-Type', value: 'video/mp4' }],
       },
     ];
   },

@@ -89,7 +89,9 @@ export class FinanceCoreService {
   ) {}
 
   private getTenantId(): string {
-    const tenantId = this.cls.get("tenantId");
+    // Canonical CLS key is tenant_id (set by TenancyGuard, read by
+    // tenancy-aware-data-source and tenants/client services).
+    const tenantId = this.cls.get("tenant_id");
     if (!tenantId) {
       throw new InternalServerErrorException("Tenant context missing. Request must include a valid tenant.");
     }

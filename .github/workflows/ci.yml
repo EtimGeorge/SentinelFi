@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck (frontend + backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package (produces types consumed by frontend/backend)
+        run: npm run build -w shared
+
+      - name: Typecheck frontend
+        run: npm run typecheck -w frontend
+
+      - name: Typecheck backend
+        run: npm run typecheck -w backend
+
+  lint:
+    name: Lint (incl. sentinelfi design guardrail)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint -w frontend
+
+      - name: Lint backend
+        run: npm run lint -w backend
+
+  tests:
+    name: Jest (frontend + backend, CI mode)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build -w shared
+
+      - name: Test frontend (non-watch CI mode)
+        run: npm run test:ci -w frontend
+
+      - name: Test backend
+        run: npm run test:ci -w backend

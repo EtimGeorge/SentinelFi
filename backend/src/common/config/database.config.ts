@@ -32,6 +32,8 @@ import { OperationalBudgetPeriodAllocationEntity } from "../../operational-budge
 import { CEOAnnotationEntity } from "../../dashboard/annotation.entity";
 import { SubscriptionEntity } from "../../billing/entities/subscription.entity";
 import { EmailLogEntity } from "../../email/email-log.entity";
+import { RefreshTokenEntity } from "../../auth/refresh-token.entity";
+import { AcademyProgressEntity } from "../../marketing/academy-progress.entity";
 
 // Enterprise OPEX Entities
 import { FiscalYearEntity } from "../../finance-core/entities/fiscal-year.entity";
@@ -197,6 +199,8 @@ export class DatabaseConfig {
       NotificationEntity,
       SubscriptionEntity,
       EmailLogEntity,
+      RefreshTokenEntity,
+      AcademyProgressEntity,
     ];
   }
 

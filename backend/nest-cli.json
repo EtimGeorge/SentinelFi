@@ -10,6 +10,15 @@
       { "include": "common/templates/*.hbs", "watch": true },
       { "include": "wbs/data/templates/*.json", "watch": true }
     ],
-    "copyAssetsToDist": true
+    "copyAssetsToDist": true,
+    "plugins": [
+      {
+        "name": "@nestjs/swagger",
+        "options": {
+          "classValidatorShim": true,
+          "introspectComments": true
+        }
+      }
+    ]
   }
 }

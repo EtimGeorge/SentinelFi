@@ -384,7 +384,7 @@ const ExpenseManagementPage: React.FC = () => {
               <AlertTriangle className="w-5 h-5 text-brand-primary shrink-0 mt-0.5" />
               <div className="text-xs text-brand-secondary">
                 <p className="font-bold r mb-1">Metric Recalibration Active</p>
-                <p>Changing these values will automatically adjust the project's actual spend and fulfillment metrics (Qty/Days).</p>
+                <p>Changing these values will automatically adjust the project&apos;s actual spend and fulfillment metrics (Qty/Days).</p>
               </div>
             </div>
 

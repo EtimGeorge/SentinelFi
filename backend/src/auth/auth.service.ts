@@ -10,7 +10,7 @@ import {
   HttpException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, DataSource, DeepPartial } from "typeorm";
+import { Repository, DataSource, DeepPartial, IsNull } from "typeorm";
 import { UserEntity } from "./user.entity";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
@@ -40,6 +40,7 @@ import { EmailService } from "../email/email.service";
 import { IAuthCache } from "./auth-cache";
 import { TokenBlacklistService } from "./token-blacklist.service";
 import { PasswordResetEntity } from "./entities/password-reset.entity";
+import { RefreshTokenEntity } from "./refresh-token.entity";
 import { SettingsEntity } from "../settings/settings.entity";
 import {
   buildOtpauthUrl,
@@ -96,9 +97,17 @@ class LoginCache {
 
   set(key: string, promise: Promise<any>): void {
     this.cache.set(key, { promise, timestamp: Date.now() });
-    promise.finally(() => {
-      setTimeout(() => this.cache.delete(key), this.TTL);
-    });
+    // NOTE: `.finally()` derives a NEW promise that inherits the original's
+    // rejection. If login fails, the derived promise rejects with no consumer,
+    // which Node (unhandled-rejections=strict) treats as fatal. Swallow it;
+    // the controller awaits the original loginPromise and handles the error.
+    promise
+      .finally(() => {
+        setTimeout(() => this.cache.delete(key), this.TTL);
+      })
+      .catch(() => {
+        // Original rejection is handled by the login() caller.
+      });
   }
 }
 
@@ -138,6 +147,8 @@ export class AuthService {
         () => this.cleanPasswordCache(),
         60000,
       );
+      // unref so this timer alone never keeps the process alive (tests, graceful shutdown)
+      AuthService.cleanupInterval.unref();
       this.logger.log("Starting global password cache cleanup timer (60s)");
     }
   }
@@ -469,6 +480,10 @@ export class AuthService {
             } as Omit<JwtPayload, "iat" | "exp">,
             { expiresIn: 5 * 60, jwtid: challengeJti },
           );
+          // MFA challenge tokens never carry a tenant scope — the challenge step
+          // re-verifies tenancy after MFA. The guard rejects null-tenant tokens
+          // unless they carry a verified SuperAdmin role (Flaw H). Challenge
+          // tokens carry NO verified role, so they cannot pass the guard.
           // NON-BLOCKING: audit the challenge issue
           this.auditService
             .log(
@@ -500,6 +515,11 @@ export class AuthService {
       const roleNames: Role[] = user.roles.map((role) => role.name as Role); // Corrected to map to Role[]
 
       const jti = crypto.randomUUID();
+      // SECURITY (Flaw H): tenant scope MUST come from the authoritative
+      // user.tenant_id column. The tenant *relation* may be null (join miss,
+      // soft-deleted tenant, or not loaded) — using user.tenant?.tenant_id
+      // here minted tenant_id: null tokens that the guard treated as
+      // platform SuperAdmins (privilege elevation).
       const payload: Omit<JwtPayload, "iat" | "exp"> = {
         jti,
         email: user.email,
@@ -507,7 +527,7 @@ export class AuthService {
         id: user.id,
         roles: roleNames,
         permissions: permissions,
-        tenant_id: user.tenant?.tenant_id ?? null, // Corrected to tenant_id
+        tenant_id: user.tenant_id ?? null,
         v: user.token_version ?? 0,
       };
 
@@ -908,6 +928,341 @@ export class AuthService {
     this.logger.debug(`[LOGOUT] User ${userId} logged out successfully.`);
   }
 
+  // ============================================================================
+  // REFRESH TOKEN ROTATION (AUTH-P0-03)
+  // Hashed refresh tokens with per-family reuse detection. The raw token is
+  // only ever present in the httpOnly cookie and in memory here.
+  // ============================================================================
+
+  private readonly REFRESH_TOKEN_MAX_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+  private hashRefreshToken(raw: string): string {
+    return crypto.createHash("sha256").update(raw).digest("hex");
+  }
+
+  private generateRawRefreshToken(): string {
+    return crypto.randomBytes(48).toString("base64url");
+  }
+
+  /**
+   * Issues a brand-new refresh token family (fresh login).
+   * Returns the raw token — the caller sets it as an httpOnly cookie.
+   *
+   * KNOWABLE-TENANT RULE (Flaw D): the owning user's tenant is always known
+   * here, so the audit row carries it. Platform audit rows are written with
+   * tenantId null ONLY when the event is genuinely unattributable; those
+   * call sites are marked SYS-WRITE and run under a SYS RLS context.
+   */
+  async issueRefreshToken(
+    userId: string,
+    rememberMe: boolean,
+    tenantId: string | null,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<string> {
+    const raw = this.generateRawRefreshToken();
+    const ttl = rememberMe
+      ? this.REFRESH_TOKEN_MAX_TTL_MS
+      : 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    await this.dataSource.getRepository(RefreshTokenEntity).save({
+      user_id: userId,
+      token_hash: this.hashRefreshToken(raw),
+      family_id: crypto.randomUUID(),
+      expires_at: new Date(now + ttl),
+      // Flaw G: family ceiling is fixed at issue time — rotation can slide the
+      // per-token window but never push absolute expiry past this instant.
+      family_expires_at: new Date(now + ttl),
+      ip: ip ? ip.slice(0, 64) : null,
+      user_agent: userAgent ? userAgent.slice(0, 255) : null,
+    });
+    this.auditService
+      .log(
+        userId,
+        "AUTH_REFRESH_ISSUED",
+        tenantId,
+        "Refresh token family issued",
+        {
+          remember_me: rememberMe,
+        },
+      )
+      .catch(() => {});
+    return raw;
+  }
+
+  /**
+   * Exchanges a valid refresh token for a new access token + rotated refresh
+   * token (same family). Reuse of a consumed token revokes the ENTIRE family
+   * and is audited — the standard defense against stolen refresh tokens.
+   *
+   * CONCURRENCY (Flaw F): the read-modify-write runs inside a transaction
+   * with a pessimistic write lock on the parent row. Concurrent presenters of
+   * the same token serialize; the loser re-reads consumed_at under the lock
+   * and falls into reuse detection instead of minting a second live child.
+   * Audit events are collected inside the transaction and emitted only after
+   * commit, so logs never claim a rotation that rolled back.
+   */
+  async rotateRefreshToken(
+    rawToken: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: UserResponseDto;
+  }> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    let auditEvent: {
+      userId: string;
+      action: string;
+      tenantId: string | null;
+      description: string;
+      metadata: Record<string, unknown>;
+    } | null = null;
+
+    try {
+      const repo = queryRunner.manager.getRepository(RefreshTokenEntity);
+      let stored: RefreshTokenEntity | null;
+      try {
+        stored = await repo.findOne({
+          where: { token_hash: this.hashRefreshToken(rawToken) },
+          lock: { mode: "pessimistic_write" },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `[REFRESH] Lookup failed: ${msg}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+        throw new InternalServerErrorException(
+          "Session renewal temporarily unavailable.",
+        );
+      }
+
+      if (!stored) {
+        throw new UnauthorizedException("Invalid refresh token.");
+      }
+
+      // ── Reuse detection ───────────────────────────────────────────────────
+      // Re-checked UNDER THE LOCK: a concurrent rotation that committed first
+      // is visible here, so the second presenter always lands in this branch.
+      if (stored.consumed_at || stored.revoked_at) {
+        if (stored.consumed_at && !stored.revoked_at) {
+          await queryRunner.manager
+            .getRepository(RefreshTokenEntity)
+            .createQueryBuilder()
+            .update(RefreshTokenEntity)
+            .set({ revoked_at: new Date() })
+            .where("family_id = :familyId AND revoked_at IS NULL", {
+              familyId: stored.family_id,
+            })
+            .execute();
+          // Family revocation is a security outcome: commit it even though the
+          // caller's rotation is denied. The throw below then rolls back only
+          // the (empty) remainder of this transaction.
+          await queryRunner.commitTransaction();
+          // Flaw D: the presenter is unauthenticated, but the STORED token row
+          // names its owning user — whose tenant is knowable from
+          // public.users. Null here means the owner no longer resolves
+          // (deleted user): the only legitimately unattributable case, routed
+          // via logSysWrite() by the finally block.
+          const ownerTenant = await queryRunner.manager
+            .getRepository(UserEntity)
+            .findOne({
+              where: { id: stored.user_id },
+              select: ["id", "tenant_id"],
+            })
+            .then((u) => u?.tenant_id ?? null)
+            .catch(() => null);
+          auditEvent = {
+            userId: stored.user_id,
+            action: "AUTH_REFRESH_TOKEN_REUSE",
+            tenantId: ownerTenant,
+            description:
+              "Consumed refresh token replayed — entire rotation family revoked",
+            metadata: { family_id: stored.family_id, ip: ip ?? null },
+          };
+          this.logger.warn(
+            `[REFRESH] REUSE DETECTED for user=${stored.user_id} family=${stored.family_id} — family revoked.`,
+          );
+        }
+        throw new UnauthorizedException(
+          "Refresh token is no longer valid. Please sign in again.",
+        );
+      }
+
+    if (new Date(stored.expires_at).getTime() <= Date.now()) {
+      throw new UnauthorizedException("Refresh token expired. Sign in again.");
+    }
+
+      // Flaw G: absolute family ceiling. Rows predating the column fall back
+      // to the row's own expiry so legacy sessions keep working without
+      // becoming immortal.
+      const familyCeilingMs = stored.family_expires_at
+        ? new Date(stored.family_expires_at).getTime()
+        : new Date(stored.expires_at).getTime();
+      if (familyCeilingMs <= Date.now()) {
+        throw new UnauthorizedException(
+          "Session lifetime exceeded. Sign in again.",
+        );
+      }
+
+    // ── Load user (must still be active) ────────────────────────────────────
+    const user = await queryRunner.manager
+      .getRepository(UserEntity)
+      .findOne({
+        where: { id: stored.user_id },
+        relations: ["roles", "roles.permissions", "tenant"],
+      });
+    if (!user || !user.is_active) {
+      throw new UnauthorizedException("User account is inactive.");
+    }
+
+    // ── Rotate: consume parent, issue child in the same family ─────────────
+    // Flaw G: the sliding per-token window is clamped to the absolute family
+    // ceiling — rotation keeps sessions alive, it never extends total lifetime.
+    const raw = this.generateRawRefreshToken();
+    const originalSpanMs =
+      new Date(stored.expires_at).getTime() -
+      new Date(stored.created_at).getTime();
+    const slidingTtl = Math.min(
+      originalSpanMs > 0 ? originalSpanMs : 7 * 24 * 60 * 60 * 1000,
+      this.REFRESH_TOKEN_MAX_TTL_MS,
+    );
+    const ttl = Math.min(slidingTtl, Math.max(familyCeilingMs - Date.now(), 0));
+    const child = await repo.save({
+      user_id: user.id,
+      token_hash: this.hashRefreshToken(raw),
+      family_id: stored.family_id,
+      expires_at: new Date(Date.now() + ttl),
+      family_expires_at: stored.family_expires_at ?? stored.expires_at,
+      ip: ip ? ip.slice(0, 64) : null,
+      user_agent: userAgent ? userAgent.slice(0, 255) : null,
+    });
+    stored.consumed_at = new Date();
+    stored.replaced_by_id = child.id;
+    await repo.save(stored);
+
+    await queryRunner.commitTransaction();
+
+    // ── Sign a short-lived access token (session stays alive via rotation) ─
+    const permissions = [
+      ...new Set(
+        user.roles.flatMap(
+          (role) => role.permissions?.map((p) => p.name) || [],
+        ),
+      ),
+    ];
+    const payload: Omit<JwtPayload, "iat" | "exp"> = {
+      jti: crypto.randomUUID(),
+      email: user.email,
+      sub: user.id,
+      id: user.id,
+      // SECURITY (Flaw H): authoritative user.tenant_id column — never the relation.
+      roles: user.roles.map((role) => role.name as Role),
+      permissions,
+      tenant_id: user.tenant_id ?? null,
+      v: user.token_version ?? 0,
+    };
+    const accessToken = this.jwtService.sign(payload, { expiresIn: 60 * 60 }); // 1h
+
+    auditEvent = {
+      userId: user.id,
+      action: "AUTH_REFRESH_ROTATED",
+      // Flaw D: user.tenant_id (column) is knowable here — never null-by-laziness.
+      tenantId: user.tenant_id ?? null,
+      description: "Access token renewed via refresh rotation",
+      metadata: { family_id: stored.family_id },
+    };
+
+    const userResponse: UserResponseDto = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      roles: this.mapRolesToSimpleRoles(user.roles),
+      is_active: user.is_active,
+      tenant_id: user.tenant_id ?? null,
+      tenant_name: user.tenant?.name || null,
+      permissions,
+    };
+    return { accessToken, refreshToken: raw, user: userResponse };
+    } catch (err) {
+      try {
+        await queryRunner.rollbackTransaction();
+      } catch {
+        // Best-effort: transaction may never have started or already failed.
+      }
+      throw err;
+    } finally {
+      await queryRunner.release();
+      // Emit deferred audit events only for committed outcomes: reuse
+      // detection and committed rotations. Rolled-back attempts stay silent.
+      // Flaw D routing: null-tenant (unattributable) rows go through
+      // logSysWrite() under an explicit SYS RLS context; knowable-tenant
+      // rows go through log() on the request connection.
+      if (auditEvent) {
+        if (auditEvent.tenantId === null) {
+          await this.auditService
+            .logSysWrite(
+              auditEvent.userId,
+              auditEvent.action,
+              auditEvent.description,
+              auditEvent.metadata,
+            )
+            .catch(() => {});
+        } else {
+          this.auditService
+            .log(
+              auditEvent.userId,
+              auditEvent.action,
+              auditEvent.tenantId,
+              auditEvent.description,
+              auditEvent.metadata,
+            )
+            .catch(() => {});
+        }
+      }
+    }
+  }
+
+  /** Revokes every un-revoked token in a rotation family. */
+  async revokeRefreshTokenFamily(familyId: string): Promise<void> {
+    await this.dataSource
+      .getRepository(RefreshTokenEntity)
+      .createQueryBuilder()
+      .update(RefreshTokenEntity)
+      .set({ revoked_at: new Date() })
+      .where("family_id = :familyId AND revoked_at IS NULL", { familyId })
+      .execute();
+  }
+
+  /** Best-effort revocation from the raw token value (used on logout). */
+  async revokeRefreshTokenByValue(rawToken: string): Promise<void> {
+    const repo = this.dataSource.getRepository(RefreshTokenEntity);
+    const stored = await repo.findOne({
+      where: { token_hash: this.hashRefreshToken(rawToken) },
+    });
+    if (stored && !stored.revoked_at) {
+      // Logout kills the whole family — no orphan sessions survive.
+      await this.revokeRefreshTokenFamily(stored.family_id);
+    }
+  }
+
+  /** Revokes ALL refresh tokens for a user (password change, admin lockout). */
+  async revokeAllRefreshTokensForUser(userId: string): Promise<void> {
+    await this.dataSource
+      .getRepository(RefreshTokenEntity)
+      .createQueryBuilder()
+      .update(RefreshTokenEntity)
+      .set({ revoked_at: new Date() })
+      .where("user_id = :userId AND revoked_at IS NULL", { userId })
+      .execute();
+  }
+
   private cleanPasswordCacheForUser(userId: string) {
     // Cache key format is `password_hash:${email}` — we can't look up email by userId here,
     // so we invalidate the whole cache on logout. It's a small trade-off for security.
@@ -938,6 +1293,9 @@ export class AuthService {
         })
         .where("id = :id", { id: userId })
         .execute();
+
+      // Revoke all refresh token families — rotation cannot resurrect a revoked session
+      await this.revokeAllRefreshTokensForUser(userId);
 
       // Evict cached auth payload so fresh token_version is fetched on next request
       await this.authCache
@@ -1136,7 +1494,7 @@ export class AuthService {
         () =>
           this.dataSource.getRepository(UserEntity).findOne({
             where: { id },
-            relations: ["roles", "tenant"],
+            relations: ["roles", "roles.permissions", "tenant"],
           }),
         3,
         100,
@@ -1145,6 +1503,11 @@ export class AuthService {
       `findUserById:${id}`,
     );
     if (!user) throw new NotFoundException("User not found");
+    const permissions = [
+      ...new Set(
+        user.roles.flatMap((role) => role.permissions?.map((p) => p.name) || []),
+      ),
+    ];
     return {
       id: user.id,
       email: user.email,
@@ -1155,6 +1518,7 @@ export class AuthService {
       is_active: user.is_active,
       tenant_id: user.tenant_id,
       tenant_name: user.tenant?.name || null,
+      permissions,
     };
   }
 
@@ -1806,6 +2170,7 @@ export class AuthService {
     ];
     const roleNames: Role[] = user.roles.map((role) => role.name as Role);
     const jti = crypto.randomUUID();
+    // SECURITY (Flaw H): authoritative user.tenant_id column — never the relation.
     const payloadToSign: Omit<JwtPayload, "iat" | "exp"> = {
       jti,
       email: user.email,
@@ -1813,7 +2178,7 @@ export class AuthService {
       id: user.id,
       roles: roleNames,
       permissions,
-      tenant_id: user.tenant?.tenant_id ?? null,
+      tenant_id: user.tenant_id ?? null,
       v: user.token_version ?? 0,
       mfa: true,
     };

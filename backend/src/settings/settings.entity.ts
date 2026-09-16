@@ -1,7 +1,7 @@
 import { Entity, PrimaryColumn, Column } from "typeorm";
 import { SettingsEntity as ISettingsEntity } from "shared/types/settings";
 
-@Entity({ name: "settings" })
+@Entity({ name: "settings", schema: "public" }) // Global singleton (id=1); lives in MASTER schema, NOT tenant schemas
 export class SettingsEntity implements ISettingsEntity {
   @PrimaryColumn({ type: "int", default: 1 })
   id!: number;

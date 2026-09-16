@@ -67,18 +67,22 @@ const ChartCard: React.FC<{ title: string; sub?: string; children: React.ReactNo
 );
 
 /** Currency-aware tooltip, receives fmt as a closure from the parent. */
-const makeTooltip = (fmt: FmtFn) => ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '10px 14px' }}>
-      <p style={{ margin: 0, color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 4 }}>{label}</p>
-      {payload.map((p: any, i: number) => (
-        <p key={i} style={{ margin: '2px 0', color: p.color, fontSize: 12, fontWeight: 600 }}>
-          {p.name}: {typeof p.value === 'number' ? fmt(p.value) : p.value}
-        </p>
-      ))}
-    </div>
-  );
+const makeTooltip = (fmt: FmtFn) => {
+  const CurrencyTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '10px 14px' }}>
+        <p style={{ margin: 0, color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 4 }}>{label}</p>
+        {payload.map((p: any, i: number) => (
+          <p key={i} style={{ margin: '2px 0', color: p.color, fontSize: 12, fontWeight: 600 }}>
+            {p.name}: {typeof p.value === 'number' ? fmt(p.value) : p.value}
+          </p>
+        ))}
+      </div>
+    );
+  };
+  CurrencyTooltip.displayName = 'CurrencyTooltip';
+  return CurrencyTooltip;
 };
 
 // ─── CAPEX Dashboard ──────────────────────────────────────────────────────────

@@ -530,7 +530,7 @@ const UserManagementPage: React.FC = () => {
           </div>
           <div className="p-3 bg-alert-warning/5 rounded-xl border border-alert-warning/10 flex gap-3">
               <AlertTriangle className="w-5 h-5 text-alert-warning shrink-0" />
-              <p className="text-xs text-gray-400 font-medium">Changing an operator's identity will invalidate their active session tokens.</p>
+              <p className="text-xs text-gray-400 font-medium">Changing an operator&apos;s identity will invalidate their active session tokens.</p>
           </div>
         </div>
       </Modal>

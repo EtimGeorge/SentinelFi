@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { resolveNotificationsWsUrl } from '../lib/ws-url';
 // import { getUnreadNotificationCount } from '../lib/notificationService'; // No longer needed for polling
 
 interface UIState {
@@ -58,8 +59,8 @@ const useUIStore = create<UIState>((set, get) => ({
       set({ reconnectTimeoutId: null });
     }
 
-    // Connect to backend WebSocket endpoint
-    const WS_URL = 'ws://localhost:3001/ws-notifications'; // Using port 3001 for backend
+    // Connect to backend WebSocket endpoint (env-derived — was hard-coded localhost, UX-P1-03)
+    const WS_URL = resolveNotificationsWsUrl();
     const newSocket = new WebSocket(WS_URL);
 
     newSocket.onopen = () => {

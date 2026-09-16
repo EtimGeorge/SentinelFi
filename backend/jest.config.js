@@ -3,7 +3,12 @@ module.exports = {
   rootDir: '.', // Relative to backend package root
   testRegex: '.*\.spec\.ts$',
   transform: {
-    '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.jest.json', useTsconfigPaths: true }],
+    '^.+\\.(t|j)s$': ['ts-jest', {
+      tsconfig: '<rootDir>/tsconfig.jest.json',
+      useTsconfigPaths: true,
+      diagnostics: false,
+      isolatedModules: true,
+    }],
   },
   moduleNameMapper: {
     '^@shared/(.*)$': '<rootDir>/../shared/$1', // Add this line

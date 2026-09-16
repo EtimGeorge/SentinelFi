@@ -11,11 +11,14 @@ import { ConversationEntity } from "./conversation.entity";
 import { UserEntity } from "../../auth/user.entity";
 
 @Entity("conversation_member")
-@Index(["conversation_id", "user_id"], { unique: true }) // A user is only in a combo once
-@Index(["user_id"]) // For quickly finding all conversations a user belongs to
+@Index(["tenant_id", "conversation_id", "user_id"], { unique: true }) // A user is only in a combo once, scoped to tenant
+@Index(["tenant_id", "user_id"]) // For quickly finding all conversations a user belongs to
 export class ConversationMemberEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
+
+  @Column({ type: "uuid" })
+  tenant_id!: string;
 
   @Column({ type: "uuid" })
   conversation_id!: string;

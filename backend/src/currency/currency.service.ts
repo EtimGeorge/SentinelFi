@@ -390,7 +390,10 @@ export class CurrencyService implements OnModuleInit {
         .where("r.fromCurrency = :usd", { usd: "USD" })
         .groupBy("r.toCurrency")
         .addGroupBy("r.rate")
-        .orderBy("lastUpdated", "DESC")
+        // Order by the aggregate expression, NOT the quoted alias: the alias is
+        // `"lastUpdated"` (case-preserved) but an unquoted `ORDER BY lastUpdated`
+        // folds to `lastupdated`, which doesn't exist -> Postgres error 42703.
+        .orderBy("MAX(r.lastUpdated)", "DESC")
         .getRawMany();
       const map: Record<string, number> = { USD: 1 };
       for (const row of rows) {

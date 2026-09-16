@@ -18,6 +18,10 @@
 - The ESLint workspace package `packages/eslint-plugin-sentinelfi` provides `sentinelfi/no-ai-tells`. `frontend/.eslintrc.json` extends `plugin:sentinelfi/recommended`. Canonical source is `packages/eslint-plugin-sentinelfi/index.js` — if a fresh clone fails to resolve the plugin, re-run `npm install` to recreate the workspace symlink.
 - Never introduce raw `shadow-{sm|md|lg|xl|2xl}`, `tracking-widest/wide/wider`, `text-[8px|9px|10px]`, or decorative `bg-gradient-to-*` in app UI. Use DESIGN.md tokens (`elev-*`, `text-*`, `shadow-brand-*`).
 
+## Workspace temp space
+
+- Always write scratch/log/probe/temp files inside the repo's own `/.workspace-temp/` directory (already gitignored) — NEVER into the global system temp (`%TEMP%`, `C:\Users\user\AppData\Local\Temp`, etc.). The user must not have to clean up outside the project.
+
 ## Verification
 
 Before finishing any code task, run (sequentially, not in parallel — parallel tsc/jest can cause phantom parse errors):

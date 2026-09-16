@@ -65,4 +65,10 @@ export class UserResponseDto implements User {
   @IsOptional()
   @IsString()
   display_currency_code?: string; // NEW
+
+  /** Flat permission names resolved from roles — consumed by the frontend permission gates. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  permissions?: string[];
 }

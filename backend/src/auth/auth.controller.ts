@@ -108,6 +108,38 @@ export class AuthController {
     );
   }
 
+  /**
+   * Refresh token cookie — path-scoped to /api/v1/auth so it is only ever
+   * sent to the auth endpoints (refresh/logout), never to business routes.
+   */
+  private setRefreshCookie(
+    response: Response,
+    refreshToken: string,
+    rememberMe: boolean,
+  ) {
+    const maxAge = rememberMe
+      ? 30 * 24 * 60 * 60 * 1000
+      : 7 * 24 * 60 * 60 * 1000;
+    const isProduction = process.env.NODE_ENV === "production";
+    response.cookie("refresh_token", refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/api/v1/auth",
+      maxAge,
+    });
+  }
+
+  private clearRefreshCookie(response: Response) {
+    const isProduction = process.env.NODE_ENV === "production";
+    response.clearCookie("refresh_token", {
+      path: "/api/v1/auth",
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+    });
+  }
+
   @Public()
   @Post("login/super")
   @UseInterceptors(TimeoutInterceptor) // Apply global timeout policy
@@ -142,6 +174,14 @@ export class AuthController {
         return;
       }
       this.setAuthCookie(res, result.accessToken, loginDto.rememberMe || false); // CHANGED: result.access_token to result.accessToken
+      const refreshToken = await this.authService.issueRefreshToken(
+        result.user.id,
+        loginDto.rememberMe || false,
+        result.user.tenant_id ?? null, // Flaw D: knowable tenant, never null-by-laziness
+        ipAddress,
+        userAgent,
+      );
+      this.setRefreshCookie(res, refreshToken, loginDto.rememberMe || false);
       ResponseHelper.sendJson(res, HttpStatus.OK, {
         success: true,
         user: result.user,
@@ -187,7 +227,23 @@ export class AuthController {
         userAgent,
         verifyMfaDto.rememberMe || false,
       );
-      this.setAuthCookie(res, result.accessToken, verifyMfaDto.rememberMe || false);
+      this.setAuthCookie(
+        res,
+        result.accessToken,
+        verifyMfaDto.rememberMe || false,
+      );
+      const mfaRefreshToken = await this.authService.issueRefreshToken(
+        result.user.id,
+        verifyMfaDto.rememberMe || false,
+        result.user.tenant_id ?? null, // Flaw D: knowable tenant, never null-by-laziness
+        ipAddress,
+        userAgent,
+      );
+      this.setRefreshCookie(
+        res,
+        mfaRefreshToken,
+        verifyMfaDto.rememberMe || false,
+      );
       ResponseHelper.sendJson(res, HttpStatus.OK, {
         success: true,
         user: result.user,
@@ -245,6 +301,18 @@ export class AuthController {
         return;
       }
       this.setAuthCookie(res, result.accessToken, loginDto.rememberMe || false); // CHANGED: result.access_token to result.accessToken
+      const tenantRefreshToken = await this.authService.issueRefreshToken(
+        result.user.id,
+        loginDto.rememberMe || false,
+        result.user.tenant_id ?? null, // Flaw D: knowable tenant, never null-by-laziness
+        ipAddress,
+        userAgent,
+      );
+      this.setRefreshCookie(
+        res,
+        tenantRefreshToken,
+        loginDto.rememberMe || false,
+      );
       ResponseHelper.sendJson(res, HttpStatus.OK, {
         success: true,
         user: result.user,
@@ -264,6 +332,61 @@ export class AuthController {
           "An unexpected internal error occurred.",
         );
       }
+    }
+  }
+
+  @Public()
+  @Post("refresh")
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30/min — silent renewal bursts after tab wake-ups
+  async refresh(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const rawToken = (req as any).cookies?.["refresh_token"];
+    if (!rawToken || typeof rawToken !== "string") {
+      ResponseHelper.sendError(
+        res,
+        HttpStatus.UNAUTHORIZED,
+        "No refresh token present.",
+      );
+      return;
+    }
+    const ipAddress =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+      req.socket.remoteAddress;
+    const userAgent = req.headers["user-agent"] as string;
+
+    try {
+      const result = await this.authService.rotateRefreshToken(
+        rawToken,
+        ipAddress,
+        userAgent,
+      );
+      // Short-lived access token (1h) — the session is kept alive by rotation.
+      this.setAuthCookie(res, result.accessToken, false);
+      this.setRefreshCookie(res, result.refreshToken, false);
+      ResponseHelper.sendJson(res, HttpStatus.OK, {
+        success: true,
+        user: result.user,
+        message: "Session renewed.",
+      });
+    } catch (error) {
+      // Any rotation failure invalidates both cookies so the client re-authenticates cleanly.
+      this.clearRefreshCookie(res);
+      const isProduction = process.env.NODE_ENV === "production";
+      res.clearCookie("access_token", {
+        path: "/",
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: "lax",
+      });
+      const status =
+        error instanceof HttpException
+          ? error.getStatus()
+          : HttpStatus.UNAUTHORIZED;
+      const message =
+        error instanceof HttpException
+          ? error.message
+          : "Session renewal failed.";
+      ResponseHelper.sendError(res, status, message);
     }
   }
 
@@ -293,6 +416,18 @@ export class AuthController {
       secure: isProduction,
       sameSite: "lax",
     });
+    // Kill the refresh token family so no silent renewal can resurrect the session.
+    const rawRefreshToken = (req as any).cookies?.["refresh_token"];
+    if (rawRefreshToken && typeof rawRefreshToken === "string") {
+      await this.authService
+        .revokeRefreshTokenByValue(rawRefreshToken)
+        .catch((err: Error) =>
+          this.logger.error(
+            `[LOGOUT] Refresh token revocation failed: ${err.message}`,
+          ),
+        );
+    }
+    this.clearRefreshCookie(response);
     return { success: true, message: "Logged out successfully" };
   }
 
@@ -310,8 +445,8 @@ export class AuthController {
   @Get("health")
   @HttpCode(HttpStatus.OK)
   async healthCheck(): Promise<any> {
-    return { 
-      status: "ok", 
+    return {
+      status: "ok",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),

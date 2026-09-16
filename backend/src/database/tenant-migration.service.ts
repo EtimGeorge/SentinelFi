@@ -24,7 +24,11 @@ import { UserEntity } from "../auth/user.entity";
 import { RoleEntity } from "../auth/role.entity"; // NEW
 import { PermissionEntity } from "../auth/permission.entity"; // NEW
 import { TenantEntity } from "../tenants/tenant.entity";
-import { getTenantMigrationsPath } from "../common/utils/path.utils";
+import {
+  getTenantMigrationsPath,
+  countTenantMigrationFiles,
+} from "../common/utils/path.utils";
+import { assertValidSchemaName } from "../common/utils/schema-name.util";
 import { AuditLogEntity } from "../audit/audit.entity"; // NEW
 import { BudgetCategoryEntity } from "../operational-budgets/budget-category.entity";
 import { OperationalBudgetPeriodAllocationEntity } from "../operational-budgets/operational-budget-period-allocation.entity";
@@ -53,6 +57,12 @@ export class TenantMigrationService {
   constructor(private configService: ConfigService) {}
 
   async runTenantMigrations(schemaName: string): Promise<void> {
+    // Every schema name reaching this point is about to be interpolated into a
+    // DataSource `schema` option and into `information_schema` lookups. Validate
+    // it here as well so a tampered `tenants.schema_name` row can never be used
+    // to reach an unintended schema.
+    assertValidSchemaName(schemaName, "tenant migration schema");
+
     this.logger.log(`Attempting to run migrations for schema: "${schemaName}"`);
 
     let databaseUrl = this.configService.get<string>("DATABASE_URL");
@@ -143,9 +153,50 @@ export class TenantMigrationService {
       this.logger.log(
         `DataSource initialized for schema: "${schemaName}". Running migrations...`,
       );
-      await tenantDataSource.runMigrations();
+
+      // PRE-MIGRATION GUARD: if the glob resolves to zero files, TypeORM
+      // `runMigrations()` applies NOTHING and reports success. That silent
+      // no-op is what produces "empty" tenant schemas that only fail later,
+      // at first query time. Fail loudly *before* touching the database.
+      const resolvedMigrationFiles = countTenantMigrationFiles();
+      if (resolvedMigrationFiles === 0) {
+        throw new InternalServerErrorException(
+          `No tenant migration files could be resolved for schema "${schemaName}". ` +
+            `Refusing to run migrations because TypeORM would report success while applying nothing. ` +
+            `Check getTenantMigrationsPath() and the build output layout.`,
+        );
+      }
+
+      const applied = await tenantDataSource.runMigrations();
       this.logger.log(
-        `Migrations successfully run for schema: "${schemaName}"`,
+        `Migrations successfully run for schema: "${schemaName}" (${applied.length} applied).`,
+      );
+
+      // POST-MIGRATION VERIFICATION (R1f): `runMigrations()` reporting success is
+      // NOT proof the schema is usable. Verify the sentinel tables that the
+      // initial tenant migration must create. These names are singular — they
+      // were verified against 1768016698926-InitialTenantSchemaSetup.ts. Do not
+      // "tidy" them into plurals: `users`/`audit_log` live in the public schema
+      // and are deliberately NOT in this list.
+      const requiredTables = ["project", "wbs_budget", "operational_budget"];
+      const presentRows: Array<{ table_name: string }> = await tenantDataSource.query(
+        `SELECT table_name FROM information_schema.tables
+          WHERE table_schema = $1 AND table_name = ANY($2::text[])`,
+        [schemaName, requiredTables],
+      );
+      const present = new Set(presentRows.map((r) => r.table_name));
+      const missing = requiredTables.filter((t) => !present.has(t));
+
+      if (missing.length > 0) {
+        throw new InternalServerErrorException(
+          `Tenant schema "${schemaName}" is incomplete after migrations: missing required table(s) ${missing.join(
+            ", ",
+          )}. The tenant must NOT be activated.`,
+        );
+      }
+
+      this.logger.log(
+        `Post-migration verification passed for schema "${schemaName}": ${requiredTables.length}/${requiredTables.length} sentinel tables present.`,
       );
     } catch (error: unknown) {
       // Explicitly mark as unknown

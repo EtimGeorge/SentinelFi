@@ -196,7 +196,10 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({
   permission, fallback = null, children,
 }) => {
   const { hasPermission, isInitialized, isLoading } = useAuth();
-  const [canAccess, setCanAccess] = useState(false);
+  // FIX (UX-P2-02): previously canAccess was state that was never set —
+  // this component always rendered the fallback (dead gate). Computed directly now.
+  const requiredPerms = Array.isArray(permission) ? permission : [permission];
+  const canAccess = requiredPerms.every((p) => hasPermission(p));
 
   if (!isInitialized || isLoading) return null; // Or a loading spinner
   return canAccess ? <React.Fragment>{children}</React.Fragment> : <React.Fragment>{fallback}</React.Fragment>;

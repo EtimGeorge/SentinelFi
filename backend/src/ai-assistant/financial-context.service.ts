@@ -69,7 +69,8 @@ export class FinancialContextService {
     tenantName?: string;
     tenantId?: string;
   }): Promise<FinancialContextSnapshot> {
-    const tenantId = options?.tenantId || (this.cls.get("tenantId") as string);
+    const tenantId =
+      options?.tenantId || (this.cls.get("tenant_id") as string);
 
     if (!tenantId) {
       this.logger.error(

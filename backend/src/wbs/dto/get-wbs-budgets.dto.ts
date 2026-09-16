@@ -1,6 +1,7 @@
 import { IsOptional, IsString, IsUUID, IsIn, IsEnum } from "class-validator";
 import { PaginationDto } from "../../common/dto/pagination.dto"; // Reverted to backend-internal DTO
 import { WbsBudgetStatus } from "@shared/types/wbs-budget-status.enum"; // Import from shared
+import { WBS_BUDGET_SORT_COLUMNS } from "../wbs-sort.constants";
 
 export class GetWbsBudgetsDto extends PaginationDto {
   @IsOptional()
@@ -25,6 +26,7 @@ export class GetWbsBudgetsDto extends PaginationDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(WBS_BUDGET_SORT_COLUMNS)
   sortBy?: string = "created_at";
 
   @IsOptional()

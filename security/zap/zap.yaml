@@ -1,0 +1,69 @@
+# SentinelFi ZAP automation plan (ZAP Automation Framework).
+#
+# https://www.zaproxy.org/docs/automate/automation-framework/
+#
+# Run via the wrapper scripts in this directory (zap-scan.ps1 / zap-scan.sh):
+#   zap.ps1 -Target http://localhost:3001 -Email ... -Password ... -TenantId ...
+#
+# Replace the {{...}} placeholders at run time (the wrappers do this).
+
+env:
+  contexts:
+    - name: sentinelfi
+      urls:
+        - "{{TARGET_URL}}"
+      authentication:
+        method: script
+        parameters:
+          script:
+            name: zap-auth.js
+        # No form-login values: the JS script reads credentials below.
+        verification:
+          method: response
+          loggedin:
+            name: "Logged In"
+            response:
+              url: "{{TARGET_URL}}/api/v1/users/me"
+              code: 200
+      sessionManagement:
+        method: cookie
+      users:
+        - name: tenant-admin
+          credentials:
+            email: "{{ZAP_EMAIL}}"
+            password: "{{ZAP_PASSWORD}}"
+            tenantId: "{{ZAP_TENANTID}}"
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+jobs:
+  - type: spider
+    parameters:
+      context: sentinelfi
+      user: tenant-admin
+      maxChildren: 20
+  - type: passiveScan
+    parameters:
+      maxAlertsPerRule: 25
+      threshold: medium
+  - type: activeScan
+    parameters:
+      context: sentinelfi
+      user: tenant-admin
+  - type: report
+    parameters:
+      reportTitle: "SentinelFi ZAP Scan"
+      reportDescription: "Automated ZAP scan (spider + passive + active). Run by the SentinelFi security tooling."
+      displayReport: false
+      template: traditional-html
+      reportDir: "{{ZAP_REPORT_DIR}}"
+      reportFile: "zap-report.html"
+  - type: report
+    parameters:
+      reportTitle: "SentinelFi ZAP Scan (JSON)"
+      displayReport: false
+      template: traditional-json
+      reportDir: "{{ZAP_REPORT_DIR}}"
+      reportFile: "zap-report.json"

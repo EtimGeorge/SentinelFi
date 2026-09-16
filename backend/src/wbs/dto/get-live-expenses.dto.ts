@@ -9,6 +9,7 @@ import {
 } from "class-validator";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 import { VarianceFlag } from "@shared/types/get-live-expenses.dto"; // Import from shared
+import { LIVE_EXPENSE_SORT_COLUMNS } from "../wbs-sort.constants";
 
 export class GetLiveExpensesDto extends PaginationDto {
   @IsOptional()
@@ -45,6 +46,7 @@ export class GetLiveExpensesDto extends PaginationDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(LIVE_EXPENSE_SORT_COLUMNS)
   sortBy?: string = "created_at";
 
   @IsOptional()

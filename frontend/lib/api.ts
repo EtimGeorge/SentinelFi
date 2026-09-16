@@ -87,12 +87,63 @@ api.interceptors.request.use(
   }
 );
 
+// ============================================================================
+// SILENT SESSION RENEWAL (single-flight)
+// Auth lives in httpOnly cookies; when any endpoint returns 401 we perform
+// ONE shared POST /auth/refresh (refresh-token rotation on the backend) and
+// replay the original request once. Concurrent 401s await the same promise.
+// NOTE: api.validateStatus resolves 2xx-4xx, so most 401s arrive on the
+// SUCCESS path — handled there; the error path covers genuinely rejected
+// responses (e.g. network-layer or third-party instances).
+// ============================================================================
+let refreshInFlight: Promise<boolean> | null = null;
+
+const isAuthRoute = (url?: string): boolean =>
+  typeof url === 'string' && /auth\/(refresh|login|logout|register|mfa-verify)/.test(url);
+
+const silentRefresh = (): Promise<boolean> => {
+  if (!refreshInFlight) {
+    refreshInFlight = axios
+      .post('/api/v1/auth/refresh', null, { withCredentials: true, timeout: 15000 })
+      .then((res) => res.status === 200)
+      .catch(() => false)
+      .finally(() => {
+        // Release after the current microtask queue so all parallel waiters
+        // observe the same in-flight promise.
+        setTimeout(() => { refreshInFlight = null; }, 0);
+      });
+  }
+  return refreshInFlight;
+};
+
+const renewSessionOrExpire = async (): Promise<boolean> => {
+  const renewed = await silentRefresh();
+  if (!renewed && typeof window !== 'undefined') {
+    // Rotation failed hard (expired / reuse detection) — AuthContext clears the session.
+    window.dispatchEvent(new CustomEvent('sentinelfi:session-expired'));
+  }
+  return renewed;
+};
+
 api.interceptors.response.use(
-  (response: AxiosResponse) => {
+  async (response: AxiosResponse) => {
     const duration = Date.now() - (response.config.metadata?.startTime || 0);
     const correlationId = response.config.headers?.['X-Correlation-ID'];
     console.log(`[API] [CID:${correlationId}] ✓ ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
     requestLogger.record(response.config.url || '', duration, true);
+
+    // ── Silent session renewal (validateStatus resolves 4xx → success path) ─
+    if (
+      response.status === 401 &&
+      !response.config._skipRetry &&
+      !isAuthRoute(response.config.url)
+    ) {
+      const renewed = await renewSessionOrExpire();
+      if (renewed) {
+        console.info('[API] Session renewed via refresh rotation — replaying request.');
+        return api.request({ ...response.config, _skipRetry: true });
+      }
+    }
     return response;
   }, async (error: AxiosError) => {
     const { config } = error;
@@ -111,6 +162,16 @@ api.interceptors.response.use(
       `[API] [CID:${correlationId}] ✗ ${error.response?.status || error.code} ${config.method?.toUpperCase()} ${config.url} (${duration}ms): ${error.message}`
     );
     requestLogger.record(config.url || '', duration, false);
+
+    // ── 401 rejected at the network layer — same single-flight renewal ──────
+    if (error.response?.status === 401 && !config._skipRetry && !isAuthRoute(config.url)) {
+      const renewed = await renewSessionOrExpire();
+      if (renewed) {
+        console.info('[API] Session renewed via refresh rotation — replaying request.');
+        return api.request({ ...config, _skipRetry: true } as typeof config);
+      }
+      return Promise.reject(error);
+    }
 
     // ── 402 Subscription Expired, redirect globally ─────────────────────────
     if (error.response?.status === 402) {

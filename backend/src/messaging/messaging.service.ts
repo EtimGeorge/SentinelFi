@@ -261,6 +261,9 @@ export class MessagingService {
         queryRunner.manager.getRepository(ConversationMemberEntity).create({
           conversation_id: savedConv.id,
           user_id: userId,
+          // tenant_id is NOT NULL (multi-tenancy hardening) and is scoped to
+          // the conversation's tenant so member rows stay inside the schema boundary.
+          tenant_id: savedConv.tenant_id,
         }),
       );
       await queryRunner.manager.getRepository(ConversationMemberEntity).save(members);

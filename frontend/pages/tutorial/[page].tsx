@@ -131,7 +131,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                 <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700 }}>Interactive Navigation Guide</h3>
                 <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.4)', maxWidth: 400 }}>
                   A visual walkthrough for the {tutorial.title} is being prepared.
-                  Use the 'Start Interactive Tour' above for a live guided experience.
+                  Use the &apos;Start Interactive Tour&apos; above for a live guided experience.
                 </p>
               </div>
             )}
@@ -155,7 +155,7 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                 Ask the AI Tutor
               </h4>
               <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
-                Want a personalized walkthrough? Launch the AI Assistant from the header orb and toggle <strong>'Guide Me'</strong>. 
+                Want a personalized walkthrough? Launch the AI Assistant from the header orb and toggle <strong>&apos;Guide Me&apos;</strong>. 
                 Our AI will give you real-time, context-aware coaching as you navigate the live interface.
               </p>
             </div>

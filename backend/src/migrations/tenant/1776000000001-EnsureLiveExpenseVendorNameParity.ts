@@ -12,6 +12,17 @@ export class EnsureLiveExpenseVendorNameParity1776000000001 implements Migration
   name = "EnsureLiveExpenseVendorNameParity1776000000001";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // TypeORM's `schema` option does NOT set session search_path (verified
+    // against 0.3.28 source) — TenantMigrationService does not set it either
+    // (its DataSource is configured with `schema:` only). Unqualified ALTER/
+    // CREATE below resolves to the pooled session's search_path (public by
+    // default on Neon), so this must be guarded explicitly or it lands on the
+    // public shadow tables.
+    const schema = (queryRunner.connection.options as any).schema;
+    if (schema) {
+      await queryRunner.query(`SET search_path TO "${schema}", public`);
+    }
+
     // --- live_expense vendor_name (critical for WBS expenses and any query that hydrates LiveExpenseEntity) ---
     await queryRunner.query(`ALTER TABLE "live_expense" ADD COLUMN IF NOT EXISTS "vendor_name" character varying(255)`);
     // also ensure nullable vendor_name for other finance entities if they were moved to tenant schema

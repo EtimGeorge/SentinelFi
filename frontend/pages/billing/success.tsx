@@ -72,7 +72,7 @@ const SuccessPage: NextPageWithLayout = () => {
             <>
               <Loader2 className="w-16 h-16 text-brand-primary animate-spin mx-auto mb-8" />
               <h1 className="text-3xl font-black font-sora text-white mb-4">Confirming Your Payment…</h1>
-              <p className="text-gray-400">We're waiting for confirmation from the payment gateway. This usually takes under 30 seconds.</p>
+              <p className="text-gray-400">We&apos;re waiting for confirmation from the payment gateway. This usually takes under 30 seconds.</p>
             </>
           )}
 
@@ -133,7 +133,7 @@ const SuccessPage: NextPageWithLayout = () => {
                 Payment confirmations typically arrive quickly but can occasionally take a few minutes. Your workspace will be provisioned automatically once confirmed. Check your email for the magic-link.
               </p>
               <a href="mailto:support@sentinelfi.com" className="text-brand-primary underline text-sm font-bold">
-                Contact support if you don't receive access within 15 minutes.
+                Contact support if you don&apos;t receive access within 15 minutes.
               </a>
             </>
           )}

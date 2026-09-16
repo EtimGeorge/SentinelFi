@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    open-pull-requests-limit: 10
+    versioning-strategy: increase-if-necessary
+    ignore:
+      # Backend is on Nest 11; major bumps may break peer requirements.
+      - dependency-name: "@nestjs/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typeorm"
+        update-types: ["version-update:semver-major"]
+
+  # Use only one GitHub Actions updater file (both pull_request + schedule).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    commit-message:
+      prefix: "ci(deps)"
+
+  - package-ecosystem: "pip"
+    directory: "/ai-agent"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    commit-message:
+      prefix: "chore(deps-ai)"

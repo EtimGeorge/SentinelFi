@@ -15,8 +15,17 @@ SentinelFi is structured as a high-performance monorepo:
 
 *   **Scalability:** Multi-tenant Redis caching (IOREDS) for sub-second response times.
 *   **Resilience:** State-managed Circuit Breakers for AI outages and Global Rate Limiting.
-*   **Security:** Joi-based Environment Validation and PII-masking Log Interceptors.
+*   **Security:** Joi-based Environment Validation, PII-masking Log Interceptors, per-schema tenant isolation (`search_path`), and a production CSP.
 *   **Governance:** Automated AI Audit Trails and Global Soft-Delete safety nets.
+
+## 🔒 Security
+
+*   [**Security Policy**](SECURITY.md): reporting a vulnerability, scope, CI security gates (semgrep / gitleaks / npm audit / OSV / dependabot / ZAP).
+*   [**Security Tooling**](security/README.md): running the OWASP ZAP scans and the IDOR walkthrough locally.
+*   [**Hacking Guide**](security/HACKING.md): standing up a scanable compose stack, seeding tenant logins, and the hardening invariants to preserve.
+*   [**Known Gaps Register**](security/GAPS.md): accepted/deferred deviations and the fixed findings (settings schema pin, WBS sort + ORDER BY hardening).
+
+> ZAP scanning is **hard-denied against production**; it only ever targets the local compose stack or an explicit `STAGING_URL` secret.
 
 ## 🚀 Quick Start (Dockerized)
 

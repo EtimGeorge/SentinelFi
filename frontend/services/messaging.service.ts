@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../components/context/AuthContext';
 import api from '../lib/api';
+import { resolveMessagingWsOrigin } from '../lib/ws-url';
 
 export interface Message {
     id: string;
@@ -53,7 +54,9 @@ export const useMessaging = () => {
         const token = localStorage.getItem('sentinelfi_auth_token') || '';
         if (!token || !user) return;
 
-        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
+        // Env-derived origin (was hard-coded http://localhost:3001 — UX-P1-03);
+        // path is passed separately below, per socket.io conventions.
+        const wsUrl = resolveMessagingWsOrigin();
         
         // Initialize Socket.io client
         const newSocket = io(wsUrl, {

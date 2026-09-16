@@ -12,7 +12,10 @@ import { NotificationsService } from "./notifications.service";
 @WebSocketGateway({
   path: "/ws-notifications",
   cors: {
-    origin: "http://localhost:3000",
+    origin: (origin: string, callback) => {
+      const allowed = NotificationsGateway.allowedOrigins;
+      callback(null, !origin || allowed.includes(origin));
+    },
     credentials: true,
   },
 })
@@ -21,6 +24,33 @@ export class NotificationsGateway
 {
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(NotificationsGateway.name);
+
+  private static _allowedOrigins: string[] | null = null;
+
+  /**
+   * Resolve (once) the allowlist of WS origins. Derived from FRONTEND_URL plus
+   * FRONTEND_ALLOWED_ORIGINS (comma-separated, optional). Evaluated lazily at
+   * first connection — by then ConfigModule has loaded the .env into
+   * process.env. Falls back to the local dev origin.
+   */
+  static getAllowedOrigins(): string[] {
+    if (!this._allowedOrigins) {
+      const primary =
+        process.env.FRONTEND_URL?.split(",").map((s) => s.trim()) || [];
+      const extra = (process.env.FRONTEND_ALLOWED_ORIGINS || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const merged = [...primary, ...extra].filter(Boolean);
+      this._allowedOrigins =
+        merged.length > 0 ? merged : ["http://localhost:3000"];
+    }
+    return this._allowedOrigins;
+  }
+
+  static get allowedOrigins(): string[] {
+    return this.getAllowedOrigins();
+  }
 
   constructor(
     @Inject(forwardRef(() => NotificationsService))

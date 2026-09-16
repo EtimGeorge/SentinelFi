@@ -72,7 +72,7 @@ const TestimonialsPage: NextPageWithLayout = () => {
                 {[1,2,3,4,5].map(s => <Star key={s} className="w-5 h-5 text-yellow-400 fill-yellow-400" />)}
               </div>
               <p className="text-xl md:text-2xl font-medium text-white leading-relaxed mb-10 relative z-10 font-sora">
-                "{active.quote}"
+                &ldquo;{active.quote}&rdquo;
               </p>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                 <div className="flex items-center gap-4">

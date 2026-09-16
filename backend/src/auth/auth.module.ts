@@ -1,5 +1,7 @@
 import { Module, ValidationPipe, Logger } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import type { Cache } from "cache-manager";
 import { UserEntity } from "./user.entity";
 import { RoleEntity } from "./role.entity";
 import { PermissionEntity } from "./permission.entity";
@@ -17,6 +19,7 @@ import { InvitationService } from "./invitation.service";
 import { EmailModule } from "../email/email.module";
 import { TokenBlacklistService } from "./token-blacklist.service";
 import { PasswordResetEntity } from "./entities/password-reset.entity";
+import { RefreshTokenEntity } from "./refresh-token.entity";
 import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
 
 @Module({
@@ -28,6 +31,7 @@ import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
       PermissionEntity,
       InvitationEntity,
       PasswordResetEntity,
+      RefreshTokenEntity,
     ]),
     EmailModule,
     JwtModule.registerAsync({
@@ -59,22 +63,26 @@ import { RedisAuthCache, InMemoryAuthCache } from "./auth-cache";
     TokenBlacklistService,
     {
       provide: "IAuthCache",
-      useFactory: (configService: ConfigService, cacheManager: any) => {
-        try {
-          const useRedis =
-            configService.get("NODE_ENV") === "production" ||
-            configService.get("USE_REDIS") === "true";
-          if (useRedis && cacheManager) {
-            return new RedisAuthCache(cacheManager);
-          }
-          // FIX: Fallback to InMemoryAuthCache when Redis is unavailable or not configured
-          return new InMemoryAuthCache();
-        } catch (error) {
-          // FIX: Graceful fallback if cacheManager injection fails (e.g., Redis DNS failure)
-          return new InMemoryAuthCache();
+      useFactory: (configService: ConfigService, cacheManager?: Cache) => {
+        const useRedis =
+          configService.get("NODE_ENV") === "production" ||
+          configService.get("USE_REDIS") === "true";
+        if (useRedis && cacheManager) {
+          return new RedisAuthCache(cacheManager);
         }
+        // Dev default (and Redis-disabled builds): single-process memory cache.
+        if (useRedis && !cacheManager) {
+          Logger.warn(
+            "USE_REDIS requested but CACHE_MANAGER is unavailable — using InMemoryAuthCache (sessions will not be shared across nodes).",
+            "AuthModule",
+          );
+        }
+        return new InMemoryAuthCache();
       },
-      inject: [ConfigService, "CACHE_MANAGER"],
+      inject: [
+        ConfigService,
+        { token: CACHE_MANAGER, optional: true } as never,
+      ],
     },
     {
       provide: "APP_PIPE",

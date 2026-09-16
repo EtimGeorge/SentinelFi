@@ -63,6 +63,7 @@ ai-agent/.ruff_cache/
 *.swp
 *.ps1
 *.psm1
+!security/zap/*.ps1
 npm_audit_report.json
 output.md
 typecheck_errors.txt
@@ -76,3 +77,9 @@ test_key.py
 /pdf_extract/
 /tmp/
 /backups/
+
+# Agent scratch space
+/.workspace-temp/
+
+# Security tooling — keep scripts tracked, never commit report artifacts
+/security/zap/reports/

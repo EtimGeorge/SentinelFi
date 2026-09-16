@@ -1,0 +1,74 @@
+name: Security - PR
+
+on:
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: security-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Semgrep scan (rules targeting JS/TS injection, SSRF, authz issues)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/semgrep-rule-lints-javascript
+            p/typescript
+            p/javascript
+          severity: WARNING
+
+  audit:
+    name: npm audit (production deps, fail on high)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: npm ci
+        run: npm ci
+
+      # npm audit at the workspace root. Fail on high/critical; report only on moderate.
+      - name: npm audit
+        run: |
+          set +e
+          npm audit --audit-level=high
+          code=$?
+          if [ $code -eq 1 ]; then
+            echo "::error::npm audit found high/critical vulnerabilities for production deps."
+            exit 1
+          fi
+          if [ $code -eq 6 ]; then
+            echo "Blocking: npm audit requires a token for the private registry lookup."
+            exit 1
+          fi
+          exit 0
+
+  osv-scanner:
+    name: OSV scanner (lockfiles)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download OSV-Scanner (pinned)
+        run: |
+          version=2.1.0
+          url="https://github.com/google/osv-scanner/releases/download/v${version}/osv-scanner_${version}_linux_amd64.zip"
+          curl -sSL "$url" -o /tmp/osv.zip
+          unzip -o /tmp/osv.zip -d /tmp/osv >/dev/null
+          chmod +x /tmp/osv/osv-scanner
+
+      - name: Scan lockfiles
+        run: |
+          /tmp/osv/osv-scanner --recursive --format=table $GITHUB_WORKSPACE/package-lock.json || true
