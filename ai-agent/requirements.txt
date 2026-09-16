@@ -10,7 +10,7 @@ numpy==1.26.4
 pandas==2.2.2
 python-multipart==0.0.9
 psycopg2-binary==2.9.9
-python-dotenv==1.0.1
+python-dotenv==1.2.3
 slowapi==0.1.9
 structlog==24.1.0
 # OCR / Document Intelligence
