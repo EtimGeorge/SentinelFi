@@ -16,7 +16,7 @@ structlog==24.1.0
 # OCR / Document Intelligence
 pypdf==4.2.0
 python-docx==1.1.2
-Pillow==10.3.0
+Pillow==12.3.0
 pytesseract==0.3.10
 unstructured==0.14.3
 # Code quality
