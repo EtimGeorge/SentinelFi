@@ -89,12 +89,20 @@ describe('demo sandbox fixtures', () => {
 });
 
 describe('academy lessons', () => {
-  it('has a unique slug and checklist for every lesson', () => {
+  it('is a curriculum with unique slugs, checklists and integrity guard helpers', () => {
     const slugs = ACADEMY_LESSONS.map((l) => l.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
     for (const lesson of ACADEMY_LESSONS) {
       expect(lesson.checklist.length).toBeGreaterThan(0);
-      expect(lesson.videoUrl).toMatch(/^\/demos\/.+.mp4$|^https:\/\//);
+      // Every lesson has a real delivery mode: a video file OR guided content.
+      if (lesson.videoUrl) {
+        expect(['video', 'hybrid']).toContain(lesson.mode);
+        expect(lesson.videoUrl).toMatch(/^\/demos\/.+\.(mp4|webm)$|^https:\/\//);
+      } else {
+        expect(lesson.mode).toBe('guided');
+        // Guided lessons must resolve to an in-app surface or a reference guide.
+        expect(Boolean(lesson.pageKey) || Boolean(lesson.guideSlug)).toBe(true);
+      }
       expect(getLesson(lesson.slug)).toBe(lesson);
     }
   });

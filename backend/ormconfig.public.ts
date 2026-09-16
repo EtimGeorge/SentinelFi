@@ -18,6 +18,7 @@ const config: DataSourceOptions = {
     path.resolve(__dirname, 'src/auth/role.entity.ts'),
     path.resolve(__dirname, 'src/auth/permission.entity.ts'),
     path.resolve(__dirname, 'src/common/entities/approval-log.entity.ts'),
+    path.resolve(__dirname, 'src/marketing/academy-progress.entity.ts'),
   ],
   migrations: [
     path.resolve(__dirname, 'src/migrations/public/*.ts'), // Public schema migrations
