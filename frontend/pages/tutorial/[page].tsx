@@ -243,6 +243,27 @@ const TutorialPage: React.FC<TutorialPageProps> = ({ tutorial, allKeys }) => {
                         src={img} 
                         alt={`${section.heading} visual ${imi + 1}`}
                         style={{ width: '100%', display: 'block', height: 'auto', objectFit: 'cover' }}
+                        onError={(e) => {
+                          // ── Branded fallback (never a broken image) ─────────
+                          // The capture agent (scripts/capture-guide-images.mjs)
+                          // writes /guides/<pageKey>/<section>.webp after the
+                          // agent run. Until that lands, render a LOCAL branded
+                          // tile — never an external host, never a broken <img>.
+                          const target = e.currentTarget as HTMLImageElement;
+                          const branded = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+                            "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='450'>" +
+                            "<defs><linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'>" +
+                            "<stop offset='0' stop-color='#0f172a'/><stop offset='1' stop-color='#1e1b4b'/>" +
+                            "</linearGradient></defs>" +
+                            "<rect width='800' height='450' fill='url(#bg)'/>" +
+                            "<circle cx='400' cy='225' r='90' fill='none' stroke='#6366f1' stroke-width='2' stroke-dasharray='6 8' opacity='0.6'/>" +
+                            "<path d='M400 178v62l40 24' stroke='#a5b4fc' stroke-width='10' fill='none' stroke-linecap='round' stroke-linejoin='round'/>" +
+                            "<text x='400' y='352' text-anchor='middle' font-family='Inter,Arial' font-size='20' fill='#e2e8f0' font-weight='700'>Guide image on its way</text>" +
+                            "<text x='400' y='382' text-anchor='middle' font-family='Inter,Arial' font-size='13' fill='#64748b'>Run: npm run capture:guides -- --public</text>" +
+                            "</svg>"
+                          );
+                          if (target.src !== branded) target.src = branded;
+                        }}
                       />
                       <div style={{
                         position: 'absolute', bottom: 0, left: 0, right: 0, padding: '8px 12px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', fontSize: 10, color: '#fff', fontWeight: 500, borderTop: '1px solid rgba(255,255,255,0.1)',
