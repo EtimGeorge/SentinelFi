@@ -4,6 +4,7 @@ export enum OperationalBudgetType {
   COMPANY_WIDE = "company_wide",
   DEPARTMENTAL = "departmental",
   PROJECT_SPECIFIC = "project_specific",
+  RECURRING = "recurring",
 }
 
 export enum OperationalBudgetStatus {

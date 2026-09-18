@@ -32,6 +32,8 @@ export class FinanceCoreController {
     Role.AdminDirector,
     Role.AdminManager,
     Role.CEO,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.SuperAdmin,
   )
   async getFiscalYears() {
@@ -66,6 +68,8 @@ export class FinanceCoreController {
     Role.AdminDirector,
     Role.AdminManager,
     Role.CEO,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.SuperAdmin,
   )
   async getDepartments() {
@@ -112,6 +116,8 @@ export class FinanceCoreController {
     Role.AdminDirector,
     Role.AdminManager,
     Role.CEO,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.SuperAdmin,
   )
   async getChartOfAccounts() {
@@ -128,6 +134,8 @@ export class FinanceCoreController {
     Role.AdminDirector,
     Role.AdminManager,
     Role.CEO,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.SuperAdmin,
   )
   async getRequisitions(@Query() query: GetFinancialDocumentsDto) {
@@ -141,6 +149,8 @@ export class FinanceCoreController {
     Role.FinanceOfficer,
     Role.AdminDirector,
     Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.CEO,
     Role.SuperAdmin,
   )
@@ -169,6 +179,8 @@ export class FinanceCoreController {
     Role.FinanceOfficer,
     Role.AdminDirector,
     Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.CEO,
     Role.SuperAdmin,
   )
@@ -220,6 +232,8 @@ export class FinanceCoreController {
     Role.FinanceOfficer,
     Role.AdminDirector,
     Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.CEO,
     Role.SuperAdmin,
   )
@@ -252,14 +266,14 @@ export class FinanceCoreController {
     Role.FinanceOfficer,
     Role.AdminDirector,
     Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.CEO,
     Role.SuperAdmin,
   )
   async getInvoices(@Query() query: GetFinancialDocumentsDto) {
     return this.financeService.getInvoices(query);
   }
-
-  @Post("invoices")
   @Roles(
     Role.CFO,
     Role.FinanceManager,
@@ -293,6 +307,8 @@ export class FinanceCoreController {
     Role.FinanceOfficer,
     Role.AdminDirector,
     Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.CEO,
     Role.SuperAdmin,
   )
@@ -316,6 +332,29 @@ export class FinanceCoreController {
     res.end(buffer);
   }
 
+  @Post("invoices/:id/pay")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  async payInvoice(
+    @Param("id") id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id)
+      throw new UnauthorizedException("Tenant context missing.");
+    return this.financeService.payInvoice(
+      id,
+      req.user.tenant_id,
+      req.user.id,
+      req.user.roles?.[0]?.name,
+    );
+  }
+
   // --- Budget Consumption Analytics ---
 
   @Get("budget-consumption")
@@ -325,6 +364,8 @@ export class FinanceCoreController {
     Role.FinanceOfficer,
     Role.AdminDirector,
     Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.CEO,
     Role.SuperAdmin,
   )
@@ -347,6 +388,8 @@ export class FinanceCoreController {
     Role.FinanceOfficer,
     Role.AdminDirector,
     Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.CEO,
     Role.SuperAdmin,
   )
@@ -379,6 +422,8 @@ export class FinanceCoreController {
     Role.CFO,
     Role.FinanceManager,
     Role.AdminDirector,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
     Role.CEO,
     Role.SuperAdmin,
   )

@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import api from '../../../lib/api'; // Fix API hook to direct import
 import { useCurrency } from '../../../components/context/CurrencyContext';
+import { useAuth } from '../../../components/context/AuthContext';
 import PageContainer from '../../../components/Layout/PageContainer';
 import Card from '../../../components/common/Card';
 import Button from '../../../components/common/Button';
 import Input from '../../../components/common/Input';
 import Modal from '../../../components/common/Modal';
 import {
-  DollarSign, Settings, LayoutGrid, List, RefreshCcw, Briefcase, Activity, CheckCircle, Target, Trash2, Edit, AlertTriangle, Search, ChevronDown
+  DollarSign, Settings, LayoutGrid, List, RefreshCcw, Briefcase, Activity, CheckCircle, CheckCircle2, XCircle, Target, Trash2, Edit, AlertTriangle, Search, ChevronDown
 } from 'lucide-react';
 import DataTable from '../../../components/common/DataTable';
 import CategoryManager from '../../../components/budgets/CategoryManager';
@@ -28,6 +29,7 @@ interface OperationalExpense {
 
 const OperationalBudgetWorkspace: React.FC = () => {
   const { userCurrency, convertToDisplay } = useCurrency();
+  const { user } = useAuth();
   const [budgets, setBudgets] = useState<OperationalBudget[]>([]);
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
   const [view, setView] = useState<'workspace' | 'categories' | 'expenses'>('workspace');
@@ -41,6 +43,9 @@ const OperationalBudgetWorkspace: React.FC = () => {
   const [selectedExpense, setSelectedExpense] = useState<OperationalExpense | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isApproving, setIsApproving] = useState(false);
   const [editAmount, setEditAmount] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [isSubmittingCorrection, setIsSubmittingCorrection] = useState(false);
@@ -66,7 +71,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
     setLoadingExpenses(true);
     try {
       const res = await api.get('/operational-budgets/expense/all', {
-        params: { budget_id: selectedBudgetId }
+        params: { budget_id: selectedBudgetId, status: 'PENDING' }
       });
       setExpenses(res.data);
     } catch (error) {
@@ -124,6 +129,42 @@ const OperationalBudgetWorkspace: React.FC = () => {
       toast.error(`Recall failed: ${err.response?.data?.message || err.message}`);
     } finally {
       setIsSubmittingCorrection(false);
+    }
+  };
+
+  const handleApproveExpense = async (expense: OperationalExpense) => {
+    setIsApproving(true);
+    try {
+      await api.post(`/operational-budgets/expense/${expense.operational_expense_id}/approve`, {
+        tenant_id: user?.tenant_id,
+        actor_user_id: user?.id,
+      });
+      toast.success("Expense approved.");
+      fetchExpenses();
+    } catch (err: any) {
+      toast.error(`Approval failed: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const handleRejectExpense = async () => {
+    if (!selectedExpense) return;
+    setIsApproving(true);
+    try {
+      await api.post(`/operational-budgets/expense/${selectedExpense.operational_expense_id}/reject`, {
+        tenant_id: user?.tenant_id,
+        actor_user_id: user?.id,
+        reason: rejectReason || 'No reason provided',
+      });
+      toast.success("Expense rejected.");
+      setIsRejectModalOpen(false);
+      setRejectReason('');
+      fetchExpenses();
+    } catch (err: any) {
+      toast.error(`Rejection failed: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsApproving(false);
     }
   };
 
@@ -262,6 +303,8 @@ const OperationalBudgetWorkspace: React.FC = () => {
                   rows={expenses}
                   rowKey={(exp) => exp.operational_expense_id}
                   actions={[
+                    { key: 'approve', label: 'Approve', primary: true, icon: <CheckCircle2 size={14} />, onClick: (exp) => handleApproveExpense(exp) },
+                    { key: 'reject', label: 'Reject', danger: true, icon: <XCircle size={14} />, onClick: (exp) => { setSelectedExpense(exp); setRejectReason(''); setIsRejectModalOpen(true); } },
                     { key: 'edit', label: 'Edit Entry', icon: <Edit size={14} />, onClick: (exp) => openEditModal(exp) },
                     { key: 'delete', label: 'Void Entry', icon: <Trash2 size={14} />, danger: true, onClick: (exp) => { setSelectedExpense(exp); setIsDeleteModalOpen(true); } },
                   ]}
@@ -332,6 +375,35 @@ const OperationalBudgetWorkspace: React.FC = () => {
           <div className="flex gap-3 justify-center pt-6">
             <Button variant="outline" className="px-8 border-slate-800" onClick={() => setIsDeleteModalOpen(false)}>Cancel</Button>
             <Button className="bg-red-600 hover:bg-red-700 text-white px-8 font-black  text-xs" onClick={handleDeleteExpense} isLoading={isSubmittingCorrection}>Recall Expense</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Reject Modal */}
+      <Modal
+        isOpen={isRejectModalOpen}
+        onClose={() => setIsRejectModalOpen(false)}
+        title="Reject Operational Expense"
+      >
+        <div className="space-y-6 pt-4 text-center">
+          <div className="w-20 h-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+            <XCircle className="w-10 h-10" />
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tighter">Confirm Rejection?</h3>
+            <p className="text-sm text-slate-400 max-w-xs mx-auto mt-2 font-medium">
+              This will deny the pending expense <span className="text-white italic">{selectedExpense?.item_description}</span> and record the decision on the audit trail.
+            </p>
+          </div>
+          <Input
+            label="Rejection Reason"
+            placeholder="Required for audit trail"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+          />
+          <div className="flex gap-3 justify-center pt-6">
+            <Button variant="outline" className="px-8 border-slate-800" onClick={() => setIsRejectModalOpen(false)}>Cancel</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white px-8 font-black  text-xs" onClick={handleRejectExpense} isLoading={isApproving}>Reject Expense</Button>
           </div>
         </div>
       </Modal>

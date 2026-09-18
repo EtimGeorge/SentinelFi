@@ -67,7 +67,7 @@ const ExpenseDossierPage: React.FC = () => {
         title="Expense Transaction Dossier"
         subtitle={`Transaction Ref: ${expense.expense_id}`}
         headerContent={
-          <Link href="/expense/manage" className="flex items-center text-sm text-gray-400 hover:text-white transition">
+          <Link href="/financials/projects/expenses" className="flex items-center text-sm text-gray-400 hover:text-white transition">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to List
           </Link>
         }

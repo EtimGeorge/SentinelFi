@@ -6,6 +6,8 @@ import {
   Delete,
   Body,
   Param,
+  Req,
+  UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
 import { PayrollService } from "./payroll.service";
@@ -14,6 +16,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "@shared/types/role.enum";
 import { PayrollLineItemType } from "./entities/payroll-line-item.entity";
+import { AuthenticatedRequest } from "../common/interfaces/authenticated-request.interface";
 
 @Controller("finance/payroll")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -133,6 +136,26 @@ export class PayrollController {
   )
   postRun(@Param("id") id: string) {
     return this.payrollService.postRun(id);
+  }
+
+  @Delete("runs/:id/items/:itemId")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.SuperAdmin,
+    Role.CEO,
+    Role.TechnicalDirector,
+  )
+  deleteLineItem(
+    @Param("id") id: string,
+    @Param("itemId") itemId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id)
+      throw new UnauthorizedException("Tenant context missing.");
+    return this.payrollService.deleteLineItem(id, itemId, req.user.tenant_id);
   }
 
   @Delete("runs/:id")

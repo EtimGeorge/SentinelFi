@@ -142,6 +142,62 @@ export class OperationalBudgetsController {
   }
 
   /**
+   * API Endpoint: POST /api/v1/operational-budgets/expense/:id/approve
+   * Permissions: Admin, Finance, SuperAdmin
+   */
+  @Post("expense/:id/approve")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
+  async approveExpense(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.approveExpense(
+      id,
+      req.user.tenant_id,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  /**
+   * API Endpoint: POST /api/v1/operational-budgets/expense/:id/reject
+   * Permissions: Admin, Finance, SuperAdmin
+   */
+  @Post("expense/:id/reject")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
+  async rejectExpense(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() body: { reason?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.rejectExpense(
+      id,
+      req.user.tenant_id,
+      req.user.id,
+      req.user.role,
+      body?.reason,
+    );
+  }
+
+  /**
    * API Endpoint: GET /api/v1/operational-budgets/expense/all
    */
   @Get("expense/all")
@@ -266,6 +322,82 @@ export class OperationalBudgetsController {
   }
 
   /**
+   * API Endpoint: GET /api/v1/operational-budgets/export
+   * Permissions: All read roles
+   * Exports operational budget data to CSV, PDF, or XLSX.
+   * NOTE: Declared BEFORE /:id so "export" is not captured by the UUID param.
+   */
+  @Get("export")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.SuperAdmin,
+  )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async exportOperationalBudgets(
+    @Query() getOperationalBudgetsDto: GetOperationalBudgetsDto,
+    @Res({ passthrough: true }) res: Response,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<StreamableFile> {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    const exportFormat = getOperationalBudgetsDto.format || "csv"; // Default to CSV
+    const data =
+      await this.operationalBudgetsService.exportOperationalBudgetsToFormat(
+        getOperationalBudgetsDto,
+        exportFormat,
+        req.user.tenant_id,
+      );
+    const filename = `operational_budgets_export_${new Date().toISOString()}`;
+
+    let contentType: string;
+
+    switch (exportFormat) {
+      case "pdf":
+        contentType = "application/pdf";
+        res.set({
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.pdf"`,
+        });
+        break;
+      case "xlsx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        res.set({
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.xlsx"`,
+        });
+        break;
+      case "docx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        res.set({
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.docx"`,
+        });
+        break;
+      default: // csv
+        contentType = "text/csv";
+        res.set({
+          "Content-Type": contentType,
+          "Content-Disposition": `attachment; filename="${filename}.csv"`,
+        });
+        break;
+    }
+
+    // The service must return a Buffer for this to work
+    return new StreamableFile(data as Buffer);
+  }
+
+  /**
    * API Endpoint: GET /api/v1/operational-budgets/:id
    * Permissions: All read roles
    */
@@ -339,81 +471,6 @@ export class OperationalBudgetsController {
       );
     }
     await this.operationalBudgetsService.remove(id, req.user.tenant_id);
-  }
-
-  /**
-   * API Endpoint: GET /api/v1/operational-budgets/export
-   * Permissions: All read roles
-   * Exports operational budget data to CSV, PDF, or XLSX.
-   */
-  @Get("export")
-  @Roles(
-    Role.AdminDirector,
-    Role.AdminManager,
-    Role.CEO,
-    Role.CFO,
-    Role.FinanceManager,
-    Role.OperationalDirector,
-    Role.TechnicalDirector,
-    Role.SuperAdmin,
-  )
-  async exportOperationalBudgets(
-    @Query() getOperationalBudgetsDto: GetOperationalBudgetsDto,
-    @Res({ passthrough: true }) res: Response,
-    @Req() req: AuthenticatedRequest,
-    @Query("format") format?: "csv" | "pdf" | "xlsx" | "docx",
-  ): Promise<StreamableFile> {
-    if (!req.user || !req.user.tenant_id) {
-      throw new UnauthorizedException(
-        "User not authenticated or tenant ID is missing.",
-      );
-    }
-    const exportFormat = format || "csv"; // Default to CSV
-    const data =
-      await this.operationalBudgetsService.exportOperationalBudgetsToFormat(
-        getOperationalBudgetsDto,
-        exportFormat,
-        req.user.tenant_id,
-      );
-    const filename = `operational_budgets_export_${new Date().toISOString()}`;
-
-    let contentType: string;
-
-    switch (exportFormat) {
-      case "pdf":
-        contentType = "application/pdf";
-        res.set({
-          "Content-Type": contentType,
-          "Content-Disposition": `attachment; filename="${filename}.pdf"`,
-        });
-        break;
-      case "xlsx":
-        contentType =
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-        res.set({
-          "Content-Type": contentType,
-          "Content-Disposition": `attachment; filename="${filename}.xlsx"`,
-        });
-        break;
-      case "docx":
-        contentType =
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        res.set({
-          "Content-Type": contentType,
-          "Content-Disposition": `attachment; filename="${filename}.docx"`,
-        });
-        break;
-      default: // csv
-        contentType = "text/csv";
-        res.set({
-          "Content-Type": contentType,
-          "Content-Disposition": `attachment; filename="${filename}.csv"`,
-        });
-        break;
-    }
-
-    // The service must return a Buffer for this to work
-    return new StreamableFile(data as Buffer);
   }
 
   /**
@@ -509,6 +566,54 @@ export class OperationalBudgetsController {
       throw new UnauthorizedException("User not authenticated.");
     }
     return this.operationalBudgetsService.getBudgetGrid(id, req.user.tenant_id);
+  }
+
+  @Post(":id/planning-grid")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
+  async savePlanningGrid(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() body: { cells: any[] },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.savePlanningGrid(
+      id,
+      req.user.tenant_id,
+      body?.cells || [],
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Post(":id/submit-to-governance")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
+  async submitBudgetToGovernance(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.submitToGovernance(
+      id,
+      req.user.tenant_id,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Post("allocation")

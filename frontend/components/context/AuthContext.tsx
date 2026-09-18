@@ -822,19 +822,19 @@ export const ROLE_CONFIG: Record<Role, RoleConfig> = {
     defaultRoute: '/super', visible: ['/super', '/super/tenants', '/super/analytics', '/super/audit-log', '/super/billing', '/super/settings'] 
   },
   [Role.CEO]: { 
-    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/intelligence', '/reporting', '/settings'] 
+    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/intelligence', '/financials/operations', '/reporting', '/settings'] 
   },
   [Role.CFO]: { 
-    defaultRoute: '/financials/intelligence', visible: ['/financials/intelligence', '/dashboard/home', '/reporting', '/financials/approvals'] 
+    defaultRoute: '/financials/intelligence', visible: ['/financials/intelligence', '/dashboard/home', '/reporting', '/financials/approvals', '/financials/operations'] 
   },
   [Role.AdminDirector]: { 
-    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/intelligence', '/reporting', '/settings', '/admin', '/admin/users', '/admin/clients', '/admin/audit-log', '/admin/support'] 
+    defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/intelligence', '/financials/operations', '/reporting', '/settings', '/admin', '/admin/users', '/admin/clients', '/admin/audit-log', '/admin/support'] 
   },
   [Role.FinanceManager]: { 
-    defaultRoute: '/financials/projects/wbs?filter=pending&assigned=true', visible: ['/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses', '/financials/approvals', '/dashboard/home', '/financials/intelligence'] 
+    defaultRoute: '/financials/projects/wbs?filter=pending&assigned=true', visible: ['/financials/projects/wbs', '/financials/projects/budgets', '/financials/projects/expenses', '/financials/approvals', '/dashboard/home', '/financials/intelligence', '/financials/operations'] 
   },
   [Role.OperationalDirector]: { 
-    defaultRoute: '/financials/operations/procurement', visible: ['/financials/operations/procurement', '/financials/operations/payroll', '/financials/operations/manage', '/financials/projects', '/dashboard/home'] 
+    defaultRoute: '/financials/operations', visible: ['/financials/operations', '/financials/intelligence', '/financials/projects', '/reporting', '/dashboard/home'] 
   },
   [Role.TechnicalDirector]: { 
     defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/intelligence', '/financials/projects', '/financials/operations', '/admin', '/reporting'] 

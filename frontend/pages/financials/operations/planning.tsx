@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
+import { useAuth } from '../../../components/context/AuthContext';
+import { apiClient } from '../../../lib/api';
 import PageContainer from '../../../components/Layout/PageContainer';
 import Button from '../../../components/common/Button';
 import PlanningGrid from '../../../components/budget/PlanningGrid';
@@ -16,7 +18,8 @@ import toast from 'react-hot-toast';
 const OpexPlanningPage: React.FC = () => {
   const router = useRouter();
   const { convertToDisplay } = useCurrency();
-  const { fetchFiscalYears, fetchDepartments, fetchChartOfAccounts } = useFinanceCore();
+  const { user } = useAuth();
+  const { fetchFiscalYears, fetchDepartments, fetchChartOfAccounts, fetchReportBlob, downloadBlob } = useFinanceCore();
 
   const [fiscalYears, setFiscalYears] = useState<any[]>([]);
   const [selectedFy, setSelectedFy] = useState<any>(null);
@@ -45,15 +48,44 @@ const OpexPlanningPage: React.FC = () => {
 
   const handleSubmitToGovernance = async () => {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setIsSummaryModalOpen(false);
-    toast.success('Planning cycle submitted for Governance Review', {
-      duration: 4000, icon: '🏛️', style: {
-        background: '#0f172a', color: '#fff', border: '1px solid #1e293b'
+    try {
+      const res: any = await apiClient.get('/operational-budgets?limit=200');
+      const unwrapped = res?.operationalBudgets || res?.data?.operationalBudgets || res?.items || res?.data?.items || res?.data || res;
+      const list = Array.isArray(unwrapped) ? unwrapped : [];
+      const fyYear = selectedFy
+        ? parseInt(String(selectedFy.year_label || '').replace(/\D/g, ''), 10) || new Date(selectedFy.start_date || selectedFy.startDate).getFullYear()
+        : null;
+      const budget = list.find((b: any) => fyYear && new Date(b.start_date).getFullYear() === fyYear) || list[0];
+
+      if (!budget?.operational_budget_id) {
+        toast.error('No operational budget found for this fiscal cycle. Create one in Fiscal Setup first.');
+        return;
       }
-    });
-    setActiveTab('review');
+
+      await apiClient.post(`/operational-budgets/${budget.operational_budget_id}/submit-to-governance`, {
+        tenant_id: user?.tenant_id,
+        actor_user_id: user?.id,
+      });
+
+      toast.success('Planning cycle submitted for Governance Review', {
+        duration: 4000, icon: '🏛️', style: {
+          background: '#0f172a', color: '#fff', border: '1px solid #1e293b'
+        }
+      });
+      setActiveTab('review');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to submit planning cycle for governance review');
+    } finally {
+      setIsSubmitting(false);
+      setIsSummaryModalOpen(false);
+    }
+  };
+
+  const handleDownloadDossier = async () => {
+    const blob = await fetchReportBlob('/operational-budgets/export?format=pdf');
+    if (blob) {
+      downloadBlob(blob, `operational-budgets-${new Date().toISOString().split('T')[0]}.pdf`);
+    }
   };
 
   return (
@@ -171,7 +203,7 @@ const OpexPlanningPage: React.FC = () => {
               </div>
               <div className="flex justify-center gap-3 pt-6">
                 <Button variant="outline" className="px-8 border-slate-700" onClick={() => setActiveTab('budgeting')}>Review Snapshot</Button>
-                <Button variant="outline" className="px-8 border-slate-700">Download PDF Dossier</Button>
+                <Button variant="outline" className="px-8 border-slate-700" onClick={handleDownloadDossier}>Download PDF Dossier</Button>
               </div>
             </div>
           )}

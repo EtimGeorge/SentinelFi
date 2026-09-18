@@ -197,6 +197,59 @@ export class PayrollService {
     });
   }
 
+  async deleteLineItem(runId: string, lineItemId: string, tenantId: string) {
+    return await this.dataSource.transaction(async (manager) => {
+      const run = await manager.findOne(PayrollRunEntity, {
+        where: { id: runId, tenant_id: tenantId },
+      });
+      if (!run) throw new NotFoundException("Payroll run not found");
+      if (run.status === PayrollRunStatus.POSTED) {
+        throw new ConflictException(
+          "Cannot remove line items from a POSTED payroll run",
+        );
+      }
+
+      const item = await manager.findOne(PayrollLineItemEntity, {
+        where: {
+          id: lineItemId,
+          payroll_run_id: runId,
+          tenant_id: tenantId,
+        },
+      });
+      if (!item) throw new NotFoundException("Payroll line item not found");
+
+      await manager.remove(item);
+
+      // Recompute run totals from the remaining line items
+      const remaining = await manager.find(PayrollLineItemEntity, {
+        where: { payroll_run_id: runId, tenant_id: tenantId },
+      });
+
+      const isGross = (type: PayrollLineItemType) =>
+        type === PayrollLineItemType.BASE_SALARY ||
+        type === PayrollLineItemType.BONUS ||
+        type === PayrollLineItemType.COMMISSION;
+
+      run.total_gross_pay = remaining
+        .filter((li) => isGross(li.item_type))
+        .reduce((sum, li) => sum + Number(li.amount || 0), 0);
+      run.total_taxes_employer = remaining
+        .filter((li) => li.item_type === PayrollLineItemType.EMPLOYER_TAX)
+        .reduce((sum, li) => sum + Number(li.amount || 0), 0);
+      run.total_benefits_employer = remaining
+        .filter((li) => li.item_type === PayrollLineItemType.EMPLOYER_BENEFIT)
+        .reduce((sum, li) => sum + Number(li.amount || 0), 0);
+
+      await manager.save(run);
+
+      this.logger.log(
+        `[FINANCE-CORE] PAYROLL LINE ITEM REMOVED | ${run.run_identifier} | ${item.item_type}`,
+      );
+
+      return item;
+    });
+  }
+
   async deleteRun(id: string) {
     const run = await this.payrollRunRepo.findOne({
       where: { id, tenant_id: this.getTenantId() },

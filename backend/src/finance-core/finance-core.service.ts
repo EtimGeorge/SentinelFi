@@ -512,6 +512,37 @@ export class FinanceCoreService {
     return { data, total };
   }
 
+  async payInvoice(
+    invoiceId: string,
+    tenantId: string,
+    actorUserId: string,
+    actorRole?: string,
+  ) {
+    const invoice = await this.invoiceRepo.findOne({
+      where: { id: invoiceId, tenant_id: tenantId },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException(`Invoice ${invoiceId} not found.`);
+    }
+
+    if (invoice.status === InvoiceStatus.PAID) {
+      throw new ConflictException(
+        `Invoice ${invoice.invoice_number} is already paid.`,
+      );
+    }
+
+    invoice.status = InvoiceStatus.PAID;
+    invoice.updated_at = new Date();
+    const paid = await this.invoiceRepo.save(invoice);
+
+    this.logger.log(
+      `[FINANCE-CORE] INVOICE PAID | ${invoice.invoice_number} | By: ${actorRole} (${actorUserId})`,
+    );
+
+    return paid;
+  }
+
   private _applyFinancialFilters(
     queryBuilder: SelectQueryBuilder<any>,
     dto: GetFinancialDocumentsDto,

@@ -1,9 +1,12 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import PdfPreviewModal from '../../../components/modals/PdfPreviewModal';
 import PageContainer from '../../../components/Layout/PageContainer';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
+import { useAuth } from '../../../components/context/AuthContext';
+import { apiClient } from '../../../lib/api';
+import toast from 'react-hot-toast';
 import Card from '../../../components/common/Card';
 import Button from '../../../components/common/Button';
 import {
@@ -17,6 +20,7 @@ import Input from '../../../components/common/Input';
 import Select from '../../../components/common/Select';
 
 const P2PDeskPage: React.FC = () => {
+  const { user } = useAuth();
   const {
     loading, fetchRequisitions, fetchPurchaseOrders, fetchInvoices, createPurchaseOrder, fetchDepartments, fetchChartOfAccounts, createRequisition, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob
   } = useFinanceCore();
@@ -26,6 +30,8 @@ const P2PDeskPage: React.FC = () => {
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('requisitions');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterQuery, setFilterQuery] = useState('');
   const [costCenters, setCostCenters] = useState<any[]>([]);
   const [glAccounts, setGlAccounts] = useState<any[]>([]);
   const [formData, setFormData] = useState({
@@ -45,11 +51,11 @@ const P2PDeskPage: React.FC = () => {
     let filename = '';
 
     if (type === 'po') {
-      endpoint = `/procurement/purchase-orders/${id}/pdf`;
+      endpoint = `/finance-core/purchase-orders/${id}/pdf`;
       title = `Purchase Order ${docNumber}`;
       filename = `PO-${docNumber}.pdf`;
     } else if (type === 'invoice') {
-      endpoint = `/procurement/invoices/${id}/pdf`;
+      endpoint = `/finance-core/invoices/${id}/pdf`;
       title = `Invoice ${docNumber}`;
       filename = `Invoice-${docNumber}.pdf`;
     }
@@ -121,6 +127,59 @@ const P2PDeskPage: React.FC = () => {
     setFormData(prev => ({
       ...prev, currency: newCurrency, estimatedAmount: Number(newAmount.toFixed(2)), exchangeRate: newRate
     }));
+  };
+
+  const filteredRequisitions = useMemo(() => {
+    const q = filterQuery.trim().toLowerCase();
+    if (!q) return requisitions;
+    return requisitions.filter(r =>
+      r.description?.toLowerCase().includes(q) ||
+      r.requisition_number?.toLowerCase().includes(q) ||
+      r.vendor_name?.toLowerCase().includes(q) ||
+      r.costCenter?.name?.toLowerCase().includes(q)
+    );
+  }, [requisitions, filterQuery]);
+
+  const filteredPurchaseOrders = useMemo(() => {
+    const q = filterQuery.trim().toLowerCase();
+    if (!q) return purchaseOrders;
+    return purchaseOrders.filter(po =>
+      po.po_number?.toLowerCase().includes(q) ||
+      po.vendor_name?.toLowerCase().includes(q) ||
+      po.requisition?.description?.toLowerCase().includes(q)
+    );
+  }, [purchaseOrders, filterQuery]);
+
+  const filteredInvoices = useMemo(() => {
+    const q = filterQuery.trim().toLowerCase();
+    if (!q) return invoices;
+    return invoices.filter(inv =>
+      inv.invoice_number?.toLowerCase().includes(q) ||
+      inv.vendor_name?.toLowerCase().includes(q) ||
+      inv.costCenter?.name?.toLowerCase().includes(q)
+    );
+  }, [invoices, filterQuery]);
+
+  const handleOpenPoPdf = async (po: any) => {
+    const endpoint = `/finance-core/purchase-orders/${po.id}/pdf?tenant_id=${user?.tenant_id}`;
+    const blob = await fetchReportBlob(endpoint);
+    if (blob) {
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+    }
+  };
+
+  const handlePayInvoice = async (inv: any) => {
+    try {
+      await apiClient.post(`/finance-core/invoices/${inv.id}/pay`, {
+        tenant_id: user?.tenant_id,
+      });
+      toast.success(`Invoice ${inv.invoice_number} paid successfully.`);
+      setInvoices(prev => prev.filter(i => i.id !== inv.id));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to pay invoice');
+    }
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
@@ -228,13 +287,36 @@ const P2PDeskPage: React.FC = () => {
             </button>
           </div>
           <div className="flex gap-3 mb-3">
-            <Button variant="outline" size="sm" className="bg-brand-dark/50"><Filter className="w-3.5 h-3.5 mr-2" /> Filter</Button>
+            <Button variant="outline" size="sm" className="bg-brand-dark/50" onClick={() => setFilterOpen(o => !o)}><Filter className="w-3.5 h-3.5 mr-2" /> Filter</Button>
             <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)}>
               <Plus className="w-3.5 h-3.5 mr-2" />
               {activeTab === 'requisitions' ? 'New Requisition' : activeTab === 'purchase-orders' ? 'Generate PO' : 'Record Invoice'}
             </Button>
           </div>
         </div>
+
+        {filterOpen && (
+          <div className="mb-4">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                autoFocus
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                placeholder={`Filter ${activeTab === 'requisitions' ? 'requisitions' : activeTab === 'purchase-orders' ? 'purchase orders' : 'invoices'} by document number, vendor, or description...`}
+                className="w-full bg-brand-dark/60 border border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-primary"
+              />
+              {filterQuery && (
+                <button
+                  onClick={() => setFilterQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* New Requisition Modal */}
         <Modal
@@ -354,7 +436,7 @@ const P2PDeskPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {activeTab === 'requisitions' && requisitions.map(req => (
+              {activeTab === 'requisitions' && filteredRequisitions.map(req => (
                 <tr key={req.id} className="hover:bg-white/5 transition group">
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-white mb-0.5">{req.requisition_number}</p>
@@ -393,7 +475,7 @@ const P2PDeskPage: React.FC = () => {
                   </td>
                 </tr>
               ))}
-              {activeTab === 'purchase-orders' && purchaseOrders.map(po => (
+              {activeTab === 'purchase-orders' && filteredPurchaseOrders.map(po => (
                 <tr key={po.id} className="hover:bg-white/5 transition group">
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-white mb-0.5">{po.po_number}</p>
@@ -427,11 +509,11 @@ const P2PDeskPage: React.FC = () => {
                         <Eye className="w-3.5 h-3.5" />
                       </Button>
                     </Tooltip>
-                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">View</Button>
+                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition" onClick={() => handleOpenPoPdf(po)}>View</Button>
                   </td>
                 </tr>
               ))}
-              {activeTab === 'invoices' && invoices.map(inv => (
+              {activeTab === 'invoices' && filteredInvoices.map(inv => (
                 <tr key={inv.id} className="hover:bg-white/5 transition group">
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-white mb-0.5">{inv.invoice_number}</p>
@@ -464,13 +546,13 @@ const P2PDeskPage: React.FC = () => {
                         <Eye className="w-3.5 h-3.5" />
                       </Button>
                     </Tooltip>
-                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition">Pay</Button>
+                    <Button variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition" onClick={() => handlePayInvoice(inv)}>Pay</Button>
                   </td>
                 </tr>
               ))}
-              {((activeTab === 'requisitions' && requisitions.length === 0) ||
-                (activeTab === 'purchase-orders' && purchaseOrders.length === 0) ||
-                (activeTab === 'invoices' && invoices.length === 0)) && !loading && (
+              {((activeTab === 'requisitions' && filteredRequisitions.length === 0) ||
+                (activeTab === 'purchase-orders' && filteredPurchaseOrders.length === 0) ||
+                (activeTab === 'invoices' && filteredInvoices.length === 0)) && !loading && (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center opacity-40">

@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsDateString,
   IsUUID,
+  IsIn,
 } from "class-validator";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 import {
@@ -35,4 +36,8 @@ export class GetOperationalBudgetsDto extends PaginationDto {
   @IsOptional()
   @IsUUID()
   created_by_user_id?: string;
+
+  @IsOptional()
+  @IsIn(["csv", "pdf", "xlsx", "docx"])
+  format?: "csv" | "pdf" | "xlsx" | "docx";
 }

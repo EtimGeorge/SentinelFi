@@ -67,6 +67,18 @@ export interface OpexRollupResult {
 }
 // ---------------------------
 
+export interface PlanningGridCell {
+  operational_budget_category_id?: string;
+  categoryId?: string;
+  period_date?: string;
+  periodDate?: string;
+  amount?: number;
+  planned_amount?: number;
+  period_type?: PeriodType;
+  periodType?: PeriodType;
+}
+// ---------------------------
+
 @Injectable()
 export class OperationalBudgetsService {
   private readonly logger = new Logger(OperationalBudgetsService.name);
@@ -383,6 +395,101 @@ export class OperationalBudgetsService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async approveExpense(
+    expenseId: string,
+    tenantId: string,
+    approverUserId: string,
+    actorRole?: string,
+  ): Promise<OperationalExpenseEntity> {
+    const expense = await this.operationalExpenseRepository.findOne({
+      where: { operational_expense_id: expenseId, tenant_id: tenantId },
+    });
+
+    if (!expense) {
+      throw new NotFoundException(`Expense ${expenseId} not found.`);
+    }
+
+    if (expense.logged_by_user_id === approverUserId) {
+      throw new BadRequestException(
+        `[OPEX] SoD BLOCKED | Approver ${approverUserId} is also the submitter of expense ${expenseId}.`,
+      );
+    }
+
+    if (expense.status !== OperationalExpenseStatus.PENDING) {
+      throw new BadRequestException(
+        `[OPEX] Expense ${expenseId} is not PENDING (current status: ${expense.status}).`,
+      );
+    }
+
+    expense.status = OperationalExpenseStatus.APPROVED;
+    const approved = await this.operationalExpenseRepository.save(expense);
+
+    // Update category + budget actual spend (same as logExpense)
+    if (expense.operational_budget_category_id) {
+      const category = await this.dataSource
+        .getRepository(OperationalBudgetCategoryEntity)
+        .findOne({
+          where: {
+            operational_budget_category_id: expense.operational_budget_category_id,
+            tenant_id: tenantId,
+          },
+          relations: ["operationalBudget"],
+        });
+
+      if (category) {
+        category.actual_spent =
+          Number(category.actual_spent) + Number(expense.amount || 0);
+        await this.dataSource
+          .getRepository(OperationalBudgetCategoryEntity)
+          .save(category);
+
+        if (category.operationalBudget) {
+          const budget = category.operationalBudget;
+          budget.actual_spent =
+            Number(budget.actual_spent) + Number(expense.amount || 0);
+          await this.operationalBudgetRepository.save(budget);
+        }
+      }
+    }
+
+    this.logger.warn(
+      `[OPEX] APPROVED by ${actorRole} | ${expense.item_description} | Approver: ${approverUserId} (SoD: submitter ${expense.logged_by_user_id} != approver)`,
+    );
+
+    return approved;
+  }
+
+  async rejectExpense(
+    expenseId: string,
+    tenantId: string,
+    approverUserId: string,
+    actorRole?: string,
+    reason?: string,
+  ): Promise<OperationalExpenseEntity> {
+    const expense = await this.operationalExpenseRepository.findOne({
+      where: { operational_expense_id: expenseId, tenant_id: tenantId },
+    });
+
+    if (!expense) {
+      throw new NotFoundException(`Expense ${expenseId} not found.`);
+    }
+
+    if (expense.status !== OperationalExpenseStatus.PENDING) {
+      throw new BadRequestException(
+        `[OPEX] Expense ${expenseId} is not PENDING (current status: ${expense.status}).`,
+      );
+    }
+
+    expense.status = OperationalExpenseStatus.REJECTED;
+    const rejected = await this.operationalExpenseRepository.save(expense);
+
+    this.logger.warn(
+      `[OPEX] REJECTED by ${actorRole} | ${expense.item_description} | Reason: ${reason || "No reason provided"}`,
+    );
+
+    return rejected;
   }
 
   async findAllExpenses(
@@ -801,6 +908,197 @@ export class OperationalBudgetsService {
 
     // We should also roll up to the Parent Budget, but ensuring consistency in a distributed update requires locking or careful steps.
     // For now, we update the category. The Parent Budget update can be triggered or handled separately.
+  }
+
+  async savePlanningGrid(
+    budgetId: string,
+    tenantId: string,
+    cells: PlanningGridCell[],
+    actorUserId?: string,
+    actorRole?: string,
+  ): Promise<{ saved: number; categoriesUpdated: string[] }> {
+    const budget = await this.dataSource
+      .getRepository(OperationalBudgetEntity)
+      .findOne({
+        where: { operational_budget_id: budgetId, tenant_id: tenantId },
+      });
+
+    if (!budget) {
+      throw new NotFoundException(
+        `Operational Budget "${budgetId}" not found for this tenant.`,
+      );
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const categoryRepo =
+        queryRunner.manager.getRepository(OperationalBudgetCategoryEntity);
+      const allocationRepo = queryRunner.manager.getRepository(
+        OperationalBudgetPeriodAllocationEntity,
+      );
+      const touchedCategories = new Set<string>();
+
+      for (const cell of cells) {
+        const categoryId =
+          cell.operational_budget_category_id || cell.categoryId;
+        const periodDate = cell.period_date || cell.periodDate;
+        const amount = Number(cell.amount ?? cell.planned_amount ?? 0);
+        const periodType =
+          cell.period_type || cell.periodType || PeriodType.MONTHLY;
+
+        if (!categoryId || !periodDate) {
+          throw new BadRequestException(
+            "[OPEX] PLANNING GRID cell missing category or period date.",
+          );
+        }
+
+        const category = await categoryRepo.findOne({
+          where: {
+            operational_budget_category_id: categoryId,
+            operational_budget_id: budgetId,
+            tenant_id: tenantId,
+          },
+        });
+
+        if (!category) {
+          throw new NotFoundException(
+            `Budget Category "${categoryId}" not found in budget "${budgetId}".`,
+          );
+        }
+
+        const date = new Date(periodDate);
+
+        let allocation = await allocationRepo.findOne({
+          where: {
+            operational_budget_category_id: categoryId,
+            period_date: date,
+            tenant_id: tenantId,
+          },
+        });
+
+        if (allocation) {
+          allocation.planned_amount = amount;
+          allocation.period_type = periodType;
+        } else {
+          allocation = allocationRepo.create({
+            operational_budget_category_id: categoryId,
+            period_date: date,
+            planned_amount: amount,
+            period_type: periodType,
+            tenant_id: tenantId,
+          });
+        }
+
+        await allocationRepo.save(allocation);
+        touchedCategories.add(categoryId);
+      }
+
+      // Recalculate category totals for every touched category
+      for (const categoryId of touchedCategories) {
+        const { sum } = await allocationRepo
+          .createQueryBuilder("allocation")
+          .select("SUM(allocation.planned_amount)", "sum")
+          .where("allocation.operational_budget_category_id = :categoryId", {
+            categoryId,
+          })
+          .getRawOne();
+
+        await categoryRepo.update(categoryId, { budgeted_amount: sum || 0 });
+      }
+
+      // Roll up category totals into the parent budget
+      const categories = await categoryRepo.find({
+        where: { operational_budget_id: budgetId, tenant_id: tenantId },
+      });
+      budget.budgeted_amount = categories.reduce(
+        (sum, c) => sum + Number(c.budgeted_amount || 0),
+        0,
+      );
+      await queryRunner.manager.save(OperationalBudgetEntity, budget);
+
+      await queryRunner.commitTransaction();
+
+      this.logger.warn(
+        `[OPEX] PLANNING GRID SAVED | Budget: ${budget.name} | ${cells.length} cell(s) | By: ${actorRole} (${actorUserId})`,
+      );
+
+      return { saved: cells.length, categoriesUpdated: [...touchedCategories] };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async submitToGovernance(
+    budgetId: string,
+    tenantId: string,
+    userId: string,
+    actorRole?: string,
+  ): Promise<{
+    budgetId: string;
+    name: string;
+    submittedAt: Date;
+    pendingCount: number;
+    totalPendingAmount: number;
+    pendingExpenses: Array<{
+      operational_expense_id: string;
+      item_description: string;
+      amount: number;
+      expense_date: Date;
+      variance_flag: VarianceFlag;
+    }>;
+  }> {
+    const budget = await this.operationalBudgetRepository.findOne({
+      where: { operational_budget_id: budgetId, tenant_id: tenantId },
+    });
+
+    if (!budget) {
+      throw new NotFoundException(
+        `Operational Budget "${budgetId}" not found for this tenant.`,
+      );
+    }
+
+    const pendingExpenses = await this.findAllExpenses(tenantId, {
+      budget_id: budgetId,
+      status: OperationalExpenseStatus.PENDING,
+    });
+
+    const summary = {
+      budgetId,
+      name: budget.name,
+      submittedAt: new Date(),
+      pendingCount: pendingExpenses.length,
+      totalPendingAmount: pendingExpenses.reduce(
+        (sum, e) => sum + Number(e.amount || 0),
+        0,
+      ),
+      pendingExpenses: pendingExpenses.map((e) => ({
+        operational_expense_id: e.operational_expense_id,
+        item_description: e.item_description,
+        amount: Number(e.amount),
+        expense_date: e.expense_date,
+        variance_flag: e.variance_flag,
+      })),
+    };
+
+    this.logger.warn(
+      `[OPEX] SUBMITTED TO GOVERNANCE | Budget: ${budget.name} | ${pendingExpenses.length} pending expense(s) totaling ${summary.totalPendingAmount} | By: ${actorRole} (${userId})`,
+    );
+
+    if (pendingExpenses.length > 0) {
+      this.notificationsService.sendVarianceAlert(
+        "OPEX Governance Submission",
+        `${budget.name}: ${pendingExpenses.length} expense(s) totaling ${summary.totalPendingAmount} submitted for governance review.`,
+        "warning",
+      );
+    }
+
+    return summary;
   }
 
   /**

@@ -7,6 +7,8 @@ import Button from '../../../../components/common/Button';
 import Input from '../../../../components/common/Input';
 import { useFinanceCore } from '../../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../../components/context/CurrencyContext';
+import { useAuth } from '../../../../components/context/AuthContext';
+import { apiClient } from '../../../../lib/api';
 import {
   ArrowLeft, Plus, Trash2, CheckCircle2, Clock, AlertCircle, FileText, User, Users, Settings, ShieldCheck, Send, DollarSign
 } from 'lucide-react';
@@ -17,6 +19,7 @@ const PayrollRunDetailsPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
   const { convertToDisplay } = useCurrency();
+  const { user } = useAuth();
   const {
     loading, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchDepartments, fetchChartOfAccounts, fetchEmployees
   } = useFinanceCore();
@@ -83,6 +86,22 @@ const PayrollRunDetailsPage: React.FC = () => {
     if (confirm('POST TO LEDGER? This will finalize the expenditure and subtract from departmental budgets.')) {
       await postPayrollRun(id as string);
       loadData();
+    }
+  };
+
+  const handleDeleteLineItem = async (item: any) => {
+    if (!id || !item?.id) return;
+    if (!confirm('Delete this line item? This will reduce the run gross and cannot be undone.')) return;
+    try {
+      await apiClient.delete(`/finance/payroll/runs/${id}/items/${item.id}`, {
+        params: { tenant_id: user?.tenant_id },
+      });
+      toast.success('Line item removed.');
+      setRun((prev: any) => prev
+        ? { ...prev, lineItems: (prev.lineItems || []).filter((i: any) => i.id !== item.id) }
+        : prev);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to delete line item');
     }
   };
 
@@ -201,7 +220,7 @@ const PayrollRunDetailsPage: React.FC = () => {
                 rowKey={(item: any) => item.id}
                 emptyMessage="No line items added yet. Click 'Add Employee' to begin."
                 actions={[
-                  { key: 'delete', label: 'Delete', icon: <Trash2 size={16} />, danger: true, visible: (item: any) => run.status === 'DRAFT', onClick: () => {} },
+                  { key: 'delete', label: 'Delete', icon: <Trash2 size={16} />, danger: true, visible: (item: any) => run.status === 'DRAFT', onClick: (item: any) => handleDeleteLineItem(item) },
                 ]}
               />
             </Card>

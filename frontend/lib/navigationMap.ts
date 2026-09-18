@@ -73,19 +73,19 @@ export const navigationMap: NavItem[] = [
   {
     name: 'Corporate Operations', icon: Briefcase, path: '/financials/operations', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager], children: [
         {
-            name: 'OPEX Planning', icon: CalendarClock, path: '/financials/operations/planning', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+                name: 'OPEX Planning', icon: CalendarClock, path: '/financials/operations/planning', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager],
         },
         {
             name: 'P2P Procurement', icon: ShoppingCart, path: '/financials/operations/procurement', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager],
         },
         {
-            name: 'Payroll Desk', icon: CreditCard, path: '/financials/operations/payroll', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+            name: 'Payroll Desk', icon: CreditCard, path: '/financials/operations/payroll', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.FinanceManager],
         },
         {
-            name: 'Corporate Analytics', icon: Gauge, path: '/financials/operations/analytics', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+            name: 'Corporate Analytics', icon: Gauge, path: '/financials/operations/analytics', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.OperationalDirector, Role.TechnicalDirector, Role.FinanceManager],
         },
         {
-            name: 'Fiscal Setup', icon: Wrench, path: '/financials/operations/setup', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+            name: 'Fiscal Setup', icon: Wrench, path: '/financials/operations/setup', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.FinanceManager],
         },
     ]
   },

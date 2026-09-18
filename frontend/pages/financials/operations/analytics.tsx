@@ -5,6 +5,8 @@ import Card from '../../../components/common/Card';
 import Button from '../../../components/common/Button';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
+import { useAuth } from '../../../components/context/AuthContext';
+import { apiClient } from '../../../lib/api';
 import {
   BarChart2, TrendingUp, TrendingDown, Calendar, Filter, Download, AlertTriangle, CheckCircle2, Layers, PieChart, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
@@ -15,13 +17,15 @@ import { HelpCircle } from 'lucide-react';
 
 const CorporateAnalyticsPage: React.FC = () => {
   const { convertToDisplay } = useCurrency();
+  const { user } = useAuth();
   const {
-    loading, fetchFiscalYears, fetchDepartments, fetchOperationalAnalytics
+    loading, fetchFiscalYears, fetchDepartments, fetchOperationalAnalytics, fetchReportBlob, downloadBlob
   } = useFinanceCore();
 
   const [fiscalYears, setFiscalYears] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [rollupData, setRollupData] = useState<any>(null);
 
   // Filters
   const [selectedYearId, setSelectedYearId] = useState('');
@@ -51,7 +55,43 @@ const CorporateAnalyticsPage: React.FC = () => {
   const loadAnalytics = async () => {
     const res = await fetchOperationalAnalytics(selectedYearId, selectedCostCenterId || undefined);
     if (res) setAnalyticsData(res.data);
+    try {
+      const rollup: any = await apiClient.get('/operational-budgets/rollup', {
+        params: { tenant_id: user?.tenant_id },
+      });
+      setRollupData(rollup?.data || rollup);
+    } catch {
+      setRollupData(null);
+    }
   };
+
+  const handleExportPdf = async () => {
+    const blob = await fetchReportBlob('/operational-budgets/export?format=pdf');
+    if (blob) {
+      downloadBlob(blob, `operational-budgets-${new Date().toISOString().split('T')[0]}.pdf`);
+    }
+  };
+
+  const spendTrend = useMemo(() => {
+    if (!analyticsData || analyticsData.periods.length < 2) return null;
+    const withActual = (analyticsData.periods as any[]).filter((p: any) => Number(p.actual) > 0);
+    if (withActual.length < 2) return null;
+    const last = withActual[withActual.length - 1];
+    const prev = withActual[withActual.length - 2];
+    if (!Number(prev.actual)) return null;
+    const pct = ((Number(last.actual) - Number(prev.actual)) / Number(prev.actual)) * 100;
+    return { pct, up: pct >= 0 };
+  }, [analyticsData]);
+
+  const spendDrivers = useMemo(() => {
+    const cats = (rollupData?.budgets || []).flatMap((b: any) => b.categories || []);
+    const total = cats.reduce((s: number, c: any) => s + Number(c.actual || 0), 0);
+    return cats
+      .slice()
+      .sort((a: any, b: any) => Number(b.actual || 0) - Number(a.actual || 0))
+      .slice(0, 2)
+      .map((c: any) => ({ name: c.name, pct: total > 0 ? (Number(c.actual) / total) * 100 : 0 }));
+  }, [rollupData]);
 
   const getHealthColor = (variancePercent: number) => {
     if (variancePercent < 0) return 'text-red-400';
@@ -106,7 +146,7 @@ const CorporateAnalyticsPage: React.FC = () => {
                 ))}
               </select>
             </div>
-            <Button variant="outline" size="sm" icon={<Download className="w-4 h-4" />}>Export PDF</Button>
+            <Button variant="outline" size="sm" icon={<Download className="w-4 h-4" />} onClick={handleExportPdf}>Export PDF</Button>
           </div>
         }
       >
@@ -126,9 +166,11 @@ const CorporateAnalyticsPage: React.FC = () => {
                   <h3 className="text-3xl font-black text-white tracking-tighter">
                     {((analyticsData.totals.actual / (analyticsData.totals.allocated || 1)) * 100).toFixed(1)}%
                   </h3>
-                  <span className="text-xs font-bold text-emerald-400 flex items-center bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
-                    <ArrowUpRight size={10} className="mr-0.5" /> 2.1%
-                  </span>
+                  {spendTrend !== null && (
+                    <span className={`text-xs font-bold flex items-center bg-emerald-500/10 px-1.5 py-0.5 rounded-full ${spendTrend.up ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {spendTrend.up ? <ArrowUpRight size={10} className="mr-0.5" /> : <ArrowDownRight size={10} className="mr-0.5" />} {Math.abs(spendTrend.pct).toFixed(1)}%
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -250,16 +292,23 @@ const CorporateAnalyticsPage: React.FC = () => {
                         </Tooltip>
                       </div>
                       <div className="space-y-3">
-                        <div className="flex items-center gap-3 text-[11px] p-3 bg-slate-950/40 border border-slate-800/40 rounded-xl">
-                          <div className="w-2.5 h-2.5 rounded-full bg-brand-primary shadow-[0_0_5px_rgba(var(--brand-primary-rgb),0.5)]" />
-                          <span className="text-slate-400 font-bold uppercase tracking-tight">Fixed Salaries</span>
-                          <span className="ml-auto font-black text-white italic">62%</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[11px] p-3 bg-slate-950/40 border border-slate-800/40 rounded-xl">
-                          <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-[0_0_5px_rgba(234,179,8,0.5)]" />
-                          <span className="text-slate-400 font-bold uppercase tracking-tight">Marketing Opex</span>
-                          <span className="ml-auto font-black text-white italic">18%</span>
-                        </div>
+                        {spendDrivers.length > 0 && (
+                          <div className="flex items-center gap-3 text-[11px] p-3 bg-slate-950/40 border border-slate-800/40 rounded-xl">
+                            <div className="w-2.5 h-2.5 rounded-full bg-brand-primary shadow-[0_0_5px_rgba(var(--brand-primary-rgb),0.5)] shrink-0" />
+                            <span className="text-slate-400 font-bold uppercase tracking-tight flex-1 min-w-0 truncate">{spendDrivers[0].name}</span>
+                            <span className="ml-auto font-black text-white italic">{spendDrivers[0].pct.toFixed(0)}%</span>
+                          </div>
+                        )}
+                        {spendDrivers.length > 1 && (
+                          <div className="flex items-center gap-3 text-[11px] p-3 bg-slate-950/40 border border-slate-800/40 rounded-xl">
+                            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-[0_0_5px_rgba(234,179,8,0.5)] shrink-0" />
+                            <span className="text-slate-400 font-bold uppercase tracking-tight flex-1 min-w-0 truncate">{spendDrivers[1].name}</span>
+                            <span className="ml-auto font-black text-white italic">{spendDrivers[1].pct.toFixed(0)}%</span>
+                          </div>
+                        )}
+                        {spendDrivers.length === 0 && (
+                          <p className="text-[11px] text-slate-600 font-semibold italic">No category spend recorded this period.</p>
+                        )}
                       </div>
                     </div>
                   </div>
