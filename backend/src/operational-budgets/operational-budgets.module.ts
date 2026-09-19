@@ -11,9 +11,10 @@ import { OperationalBudgetsService } from "./operational-budgets.service";
 import { OperationalBudgetsController } from "./operational-budgets.controller";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { CommonModule } from "../common/common.module";
+import { AuditModule } from "../audit/audit.module";
 
 @Module({
-  imports: [NotificationsModule, CommonModule],
+  imports: [NotificationsModule, CommonModule, AuditModule],
   controllers: [OperationalBudgetsController],
   providers: [
     {

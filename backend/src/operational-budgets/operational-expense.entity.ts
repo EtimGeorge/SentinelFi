@@ -16,6 +16,7 @@ export enum OperationalExpenseStatus {
   PENDING = "PENDING",
   APPROVED = "APPROVED",
   REJECTED = "REJECTED",
+  REVERSED = "REVERSED",
 }
 
 @Entity("operational_expense")

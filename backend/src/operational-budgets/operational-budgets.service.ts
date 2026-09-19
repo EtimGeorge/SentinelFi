@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
   Inject,
 } from "@nestjs/common";
@@ -16,8 +17,9 @@ import {
   OperationalExpenseEntity,
   OperationalExpenseStatus,
 } from "./operational-expense.entity";
-import { PayrollEntryEntity } from "./payroll-entry.entity";
+import { PayrollEntryEntity, PayrollEntryStatus } from "./payroll-entry.entity";
 import { BudgetCategoryEntity } from "./budget-category.entity";
+import { AuditService } from "../audit/audit.service";
 import {
   OperationalBudgetPeriodAllocationEntity,
   PeriodType,
@@ -97,6 +99,7 @@ export class OperationalBudgetsService {
     private allocationRepository: Repository<OperationalBudgetPeriodAllocationEntity>,
     private readonly budgetControlService: BudgetControlService,
     private readonly notificationsService: NotificationsService,
+    private readonly auditService: AuditService,
   ) {}
 
   // Centralized Governance Constants
@@ -114,6 +117,70 @@ export class OperationalBudgetsService {
     "SuperAdmin",
     "Finance Officer",
   ];
+
+  private isOverrideRoleFor(flag: VarianceFlag, role?: string): boolean {
+    if (!role) return false;
+    if (flag === VarianceFlag.CRITICAL_VARIANCE) {
+      return this.CRITICAL_OVERRIDE_ROLES.includes(role);
+    }
+    if (flag === VarianceFlag.MAJOR_VARIANCE) {
+      return this.MAJOR_OVERRIDE_ROLES.includes(role);
+    }
+    return true;
+  }
+
+  private varianceRequiresOverride(
+    flag: VarianceFlag,
+  ): flag is VarianceFlag.CRITICAL_VARIANCE | VarianceFlag.MAJOR_VARIANCE {
+    return (
+      flag === VarianceFlag.CRITICAL_VARIANCE ||
+      flag === VarianceFlag.MAJOR_VARIANCE
+    );
+  }
+
+  private async writeExpenseAudit(
+    userId: string,
+    tenantId: string,
+    expenseId: string,
+    before: unknown,
+    after: unknown,
+  ): Promise<void> {
+    const description = `[OPEX] EXPENSE MUTATION | before: ${JSON.stringify(before ?? {})} after: ${JSON.stringify(after ?? {})}`;
+    this.auditService.log(
+      userId,
+      "OPEX_EXPENSE_MUTATION",
+      tenantId,
+      description,
+      {
+        before: before ?? null,
+        after: after ?? null,
+        targetType: "OPERATIONAL_EXPENSE",
+        targetId: expenseId,
+      },
+    );
+    this.logger.log(description);
+  }
+
+  private expenseSnapshot(
+    e: OperationalExpenseEntity,
+  ): Record<string, unknown> {
+    return {
+      operational_expense_id: e.operational_expense_id,
+      tenant_id: e.tenant_id,
+      operational_budget_category_id: e.operational_budget_category_id,
+      item_description: e.item_description,
+      amount: Number(e.amount),
+      expense_date: e.expense_date,
+      vendor: e.vendor,
+      receipt_url: e.receipt_url,
+      status: e.status,
+      logged_by_user_id: e.logged_by_user_id,
+      variance_flag: e.variance_flag,
+      override_reason: e.override_reason ?? null,
+      created_at: e.created_at,
+      updated_at: e.updated_at,
+    };
+  }
 
   async logExpense(
     expenseData: Partial<OperationalExpenseEntity>,
@@ -159,7 +226,7 @@ export class OperationalBudgetsService {
         // Tiered Variance Checking
         if (budgetLimit <= 0) {
           finalFlag = VarianceFlag.CRITICAL_VARIANCE;
-          const msg = `CRITICAL OVERRUN on OPEX Budget ${budget.name}: Budget has $0 defined, but expense is being logged.`;
+          const msg = `[OPEX] VARIANCE TIER CRITICAL | ${budget.name}: Budget has $0 defined, but expense is being logged.`;
           this.notificationsService.sendVarianceAlert(
             "Critical OPEX Overrun",
             msg,
@@ -175,13 +242,19 @@ export class OperationalBudgetsService {
           } else {
             finalFlag = VarianceFlag.MINOR_VARIANCE;
           }
+
+          this.notificationsService.sendVarianceAlert(
+            `${finalFlag.replace(/_/g, " ")}`,
+            `[OPEX] VARIANCE TIER ${finalFlag} | ${budget.name} | ${variancePercentage.toFixed(2)}% over budget (${(projectedTotal - budgetLimit).toFixed(2)} excess).`,
+            finalFlag === VarianceFlag.CRITICAL_VARIANCE ||
+              finalFlag === VarianceFlag.MAJOR_VARIANCE
+              ? "error"
+              : "warning",
+          );
         }
 
         // Governance Decisions
-        if (
-          finalFlag === VarianceFlag.CRITICAL_VARIANCE ||
-          finalFlag === VarianceFlag.MAJOR_VARIANCE
-        ) {
+        if (this.varianceRequiresOverride(finalFlag)) {
           const isCritical = finalFlag === VarianceFlag.CRITICAL_VARIANCE;
           const isAuthorizedAtAll = isCritical
             ? actorRole && this.CRITICAL_OVERRIDE_ROLES.includes(actorRole)
@@ -199,17 +272,17 @@ export class OperationalBudgetsService {
           }
 
           if (isAuthorizedAtAll) {
-            finalFlag = VarianceFlag.OVERRIDE_APPLIED;
-            finalStatus = OperationalExpenseStatus.APPROVED;
-            this.logger.warn(
-              `[OPEX] AUTHORIZED OVERRIDE by ${actorRole} | Budget: ${budget.name} | Reason: ${expenseData.override_reason}`,
-            );
-          } else {
-            finalStatus = OperationalExpenseStatus.PENDING;
-            this.logger.log(
-              `[OPEX] PENDING APPROVAL routed for ${actorRole} | Budget: ${budget.name}`,
+            // SoD: at log time the actor IS the submitter — an overrun that
+            // requires an override must be approved by a DIFFERENT approver.
+            throw new ForbiddenException(
+              "[OPEX] SoD BLOCKED: approver cannot approve own submission",
             );
           }
+
+          finalStatus = OperationalExpenseStatus.PENDING;
+          this.logger.log(
+            `[OPEX] PENDING APPROVAL routed for ${actorRole || "unknown"} | Budget: ${budget.name}`,
+          );
         } else {
           finalStatus = OperationalExpenseStatus.APPROVED; // Auto-approve if no critical/major variance
         }
@@ -237,16 +310,28 @@ export class OperationalBudgetsService {
       tenant_id: tenantId,
     });
 
-    return this.operationalExpenseRepository.save(expense);
+    const saved = await this.operationalExpenseRepository.save(expense);
+    await this.writeExpenseAudit(userId, tenantId, saved.operational_expense_id, null, saved);
+    return saved;
   }
 
   async logPayrollEntry(
     payrollData: Partial<PayrollEntryEntity>,
     userId: string,
     tenantId: string,
+    actorRole?: string,
   ): Promise<PayrollEntryEntity> {
+    const entryStatus = payrollData.status ?? PayrollEntryStatus.PAID;
+    if (entryStatus === ("APPROVED" as PayrollEntryStatus)) {
+      // SoD: a submitter cannot self-approve their own payroll entry at log time.
+      throw new ForbiddenException(
+        "[OPEX] SoD BLOCKED: approver cannot approve own submission",
+      );
+    }
+
     const entry = this.payrollEntryRepository.create({
       ...payrollData,
+      status: entryStatus,
       processed_by_user_id: userId,
       tenant_id: tenantId,
     });
@@ -261,27 +346,59 @@ export class OperationalBudgetsService {
       });
       if (budget) {
         // Validate budget constraint
-        await this.budgetControlService.validateAndAlertOperationalExpense(
-          budget,
-          Number(payrollData.net_pay || 0),
-        );
+        const health =
+          await this.budgetControlService.validateAndAlertOperationalExpense(
+            budget,
+            Number(payrollData.net_pay || 0),
+          );
 
-        budget.actual_spent =
-          Number(budget.actual_spent) + Number(payrollData.net_pay || 0);
-        await this.operationalBudgetRepository.save(budget);
+        if (health === "OVER_BUDGET" && entry.status === PayrollEntryStatus.PAID) {
+          // SoD: over-budget payroll cannot be self-approved at log time —
+          // route to PENDING for a separate approver.
+          entry.status = PayrollEntryStatus.PENDING;
+          this.logger.warn(
+            `[OPEX] PENDING APPROVAL routed for ${actorRole || "unknown"} | Budget: ${budget.name}`,
+          );
+        }
+
+        if (entry.status === PayrollEntryStatus.PAID) {
+          budget.actual_spent =
+            Number(budget.actual_spent) + Number(payrollData.net_pay || 0);
+          await this.operationalBudgetRepository.save(budget);
+        }
       }
     }
 
     return this.payrollEntryRepository.save(entry);
   }
 
-  async deleteExpense(expenseId: string, tenantId: string): Promise<void> {
+  async deleteExpense(
+    expenseId: string,
+    tenantId: string,
+    actorUserId?: string,
+  ): Promise<void> {
     const expense = await this.operationalExpenseRepository.findOne({
       where: { operational_expense_id: expenseId, tenant_id: tenantId },
     });
 
     if (!expense) {
       throw new NotFoundException(`Expense ${expenseId} not found.`);
+    }
+
+    if (expense.status === OperationalExpenseStatus.APPROVED) {
+      throw new BadRequestException(
+        "APPROVED expense cannot be deleted; initiate a reversal/journal entry instead",
+      );
+    }
+
+    if (actorUserId) {
+      await this.writeExpenseAudit(
+        actorUserId,
+        tenantId,
+        expenseId,
+        expense,
+        null,
+      );
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -335,6 +452,8 @@ export class OperationalBudgetsService {
     expenseId: string,
     updateData: Partial<OperationalExpenseEntity>,
     tenantId: string,
+    actorUserId?: string,
+    actorRole?: string,
   ): Promise<OperationalExpenseEntity> {
     const expense = await this.operationalExpenseRepository.findOne({
       where: { operational_expense_id: expenseId, tenant_id: tenantId },
@@ -344,15 +463,109 @@ export class OperationalBudgetsService {
       throw new NotFoundException(`Expense ${expenseId} not found.`);
     }
 
+    // Mass-assignment guard: only a whitelisted subset of columns is ever
+    // copied onto the entity (defense in depth beyond the DTO whitelist).
+    const safeData: Pick<
+      Partial<OperationalExpenseEntity>,
+      | "operational_budget_category_id"
+      | "item_description"
+      | "amount"
+      | "expense_date"
+      | "vendor"
+      | "receipt_url"
+      | "status"
+      | "variance_flag"
+      | "override_reason"
+    > = updateData;
+
+    const requestedStatus = safeData.status;
+
+    if (requestedStatus && requestedStatus !== expense.status) {
+      this.enforceExpenseStatusTransition(
+        expense,
+        requestedStatus,
+        actorUserId,
+        actorRole,
+      );
+    }
+
+    const beforeSnapshot = this.expenseSnapshot(expense);
+    const oldAmount = Number(expense.amount);
+    const newAmount =
+      safeData.amount !== undefined ? Number(safeData.amount) : oldAmount;
+    const amountDelta = newAmount - oldAmount;
+    const newCategoryId =
+      (safeData.operational_budget_category_id as string | undefined) ??
+      expense.operational_budget_category_id;
+    const reparenting =
+      newCategoryId !== expense.operational_budget_category_id;
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const amountDelta =
-        Number(updateData.amount ?? expense.amount) - Number(expense.amount);
+      if (reparenting) {
+        const oldCategory = await queryRunner.manager.findOne(
+          OperationalBudgetCategoryEntity,
+          {
+            where: {
+              operational_budget_category_id:
+                expense.operational_budget_category_id,
+              tenant_id: tenantId,
+            },
+            relations: ["operationalBudget"],
+          },
+        );
+        const newCategory = await queryRunner.manager.findOne(
+          OperationalBudgetCategoryEntity,
+          {
+            where: {
+              operational_budget_category_id: newCategoryId,
+              tenant_id: tenantId,
+            },
+            relations: ["operationalBudget"],
+          },
+        );
 
-      if (amountDelta !== 0 && expense.operational_budget_category_id) {
+        if (!newCategory) {
+          throw new BadRequestException(
+            `Target budget category ${newCategoryId} not found for this tenant.`,
+          );
+        }
+
+        if (oldCategory) {
+          oldCategory.actual_spent =
+            Number(oldCategory.actual_spent) - oldAmount;
+          await queryRunner.manager.save(
+            OperationalBudgetCategoryEntity,
+            oldCategory,
+          );
+          if (oldCategory.operationalBudget) {
+            oldCategory.operationalBudget.actual_spent =
+              Number(oldCategory.operationalBudget.actual_spent) - oldAmount;
+            await queryRunner.manager.save(
+              OperationalBudgetEntity,
+              oldCategory.operationalBudget,
+            );
+          }
+        }
+
+        newCategory.actual_spent =
+          Number(newCategory.actual_spent) + newAmount;
+        await queryRunner.manager.save(
+          OperationalBudgetCategoryEntity,
+          newCategory,
+        );
+        if (newCategory.operationalBudget) {
+          newCategory.operationalBudget.actual_spent =
+            Number(newCategory.operationalBudget.actual_spent) + newAmount;
+          await queryRunner.manager.save(
+            OperationalBudgetEntity,
+            newCategory.operationalBudget,
+          );
+        }
+      } else if (amountDelta !== 0 && expense.operational_budget_category_id) {
         const category = await queryRunner.manager.findOne(
           OperationalBudgetCategoryEntity,
           {
@@ -376,24 +589,79 @@ export class OperationalBudgetsService {
           // Adjust budget spend
           if (category.operationalBudget) {
             const budget = category.operationalBudget;
-            budget.actual_spent = Number(budget.actual_spent) + amountDelta;
+            budget.actual_spent =
+              Number(budget.actual_spent) + amountDelta;
             await queryRunner.manager.save(OperationalBudgetEntity, budget);
           }
         }
       }
 
-      Object.assign(expense, updateData);
+      Object.assign(expense, safeData);
       const saved = await queryRunner.manager.save(
         OperationalExpenseEntity,
         expense,
       );
       await queryRunner.commitTransaction();
+
+      if (actorUserId) {
+        await this.writeExpenseAudit(
+          actorUserId,
+          tenantId,
+          expenseId,
+          beforeSnapshot,
+          this.expenseSnapshot(saved),
+        );
+      }
+
       return saved;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
     } finally {
       await queryRunner.release();
+    }
+  }
+
+  private enforceExpenseStatusTransition(
+    expense: OperationalExpenseEntity,
+    nextStatus: OperationalExpenseStatus,
+    actorUserId?: string,
+    actorRole?: string,
+  ): void {
+    if (expense.status === OperationalExpenseStatus.APPROVED) {
+      throw new BadRequestException(
+        "APPROVED expense cannot be modified; initiate a reversal/journal entry instead",
+      );
+    }
+
+    if (expense.status === OperationalExpenseStatus.REVERSED) {
+      throw new BadRequestException(
+        "REVERSED expense is terminal and cannot be modified.",
+      );
+    }
+
+    if (
+      nextStatus === OperationalExpenseStatus.APPROVED ||
+      nextStatus === OperationalExpenseStatus.REJECTED
+    ) {
+      if (
+        actorUserId &&
+        expense.logged_by_user_id &&
+        expense.logged_by_user_id === actorUserId
+      ) {
+        throw new BadRequestException(
+          "[OPEX] SoD BLOCKED: approver cannot approve own submission",
+        );
+      }
+
+      if (
+        this.varianceRequiresOverride(expense.variance_flag) &&
+        !this.isOverrideRoleFor(expense.variance_flag, actorRole)
+      ) {
+        throw new BadRequestException(
+          `OPEX overrun approval for ${expense.variance_flag} requires an authorized override role.`,
+        );
+      }
     }
   }
 
@@ -412,8 +680,21 @@ export class OperationalBudgetsService {
     }
 
     if (expense.logged_by_user_id === approverUserId) {
-      throw new BadRequestException(
-        `[OPEX] SoD BLOCKED | Approver ${approverUserId} is also the submitter of expense ${expenseId}.`,
+      throw new ForbiddenException(
+        "[OPEX] SoD BLOCKED: approver cannot approve own submission",
+      );
+    }
+
+    if (
+      this.varianceRequiresOverride(expense.variance_flag) &&
+      !this.isOverrideRoleFor(expense.variance_flag, actorRole)
+    ) {
+      throw new ForbiddenException(
+        `OPEX overrun approval for ${expense.variance_flag} requires one of: ${
+          expense.variance_flag === VarianceFlag.CRITICAL_VARIANCE
+            ? this.CRITICAL_OVERRIDE_ROLES
+            : this.MAJOR_OVERRIDE_ROLES
+        }.`,
       );
     }
 
@@ -423,8 +704,16 @@ export class OperationalBudgetsService {
       );
     }
 
+    const beforeSnapshot = this.expenseSnapshot(expense);
     expense.status = OperationalExpenseStatus.APPROVED;
     const approved = await this.operationalExpenseRepository.save(expense);
+    await this.writeExpenseAudit(
+      approverUserId,
+      tenantId,
+      expenseId,
+      beforeSnapshot,
+      this.expenseSnapshot(approved),
+    );
 
     // Update category + budget actual spend (same as logExpense)
     if (expense.operational_budget_category_id) {
@@ -482,8 +771,22 @@ export class OperationalBudgetsService {
       );
     }
 
+    if (expense.logged_by_user_id === approverUserId) {
+      throw new ForbiddenException(
+        "[OPEX] SoD BLOCKED: approver cannot reject own submission",
+      );
+    }
+
+    const beforeSnapshot = this.expenseSnapshot(expense);
     expense.status = OperationalExpenseStatus.REJECTED;
     const rejected = await this.operationalExpenseRepository.save(expense);
+    await this.writeExpenseAudit(
+      approverUserId,
+      tenantId,
+      expenseId,
+      beforeSnapshot,
+      this.expenseSnapshot(rejected),
+    );
 
     this.logger.warn(
       `[OPEX] REJECTED by ${actorRole} | ${expense.item_description} | Reason: ${reason || "No reason provided"}`,
@@ -1167,7 +1470,7 @@ export class OperationalBudgetsService {
     if (endDate) expenseQb.andWhere("e.expense_date <= :endDate", { endDate });
 
     expenseQb
-      .andWhere("e.status != 'REJECTED'")
+      .andWhere("e.status NOT IN ('REJECTED', 'REVERSED')")
       .groupBy("e.operational_budget_category_id");
 
     const actualByCategory: {
@@ -1278,9 +1581,15 @@ export class OperationalBudgetsService {
       base_salary: number;
       operational_budget_id: string;
       employee_id?: string;
+      bonus?: number;
+      overtime?: number;
+      other_allowances?: number;
+      pension_deduction?: number;
+      tax_deduction?: number;
     }[],
     userId: string,
     tenantId: string,
+    actorRole?: string,
   ): Promise<PayrollEntryEntity[]> {
     const results: PayrollEntryEntity[] = [];
     const now = new Date();
@@ -1288,22 +1597,52 @@ export class OperationalBudgetsService {
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
     this.logger.log(
-      `Running Payroll Bot for ${payrollTemplate.length} employees on tenant ${tenantId}`,
+      `Running Payroll Bot for ${payrollTemplate.length} employees on tenant ${tenantId} by ${actorRole || "unknown"}`,
     );
 
     for (const item of payrollTemplate) {
-      // Calculate simple net pay (ignoring tax/pension for bot simplicity unless specified)
+      const {
+        base_salary,
+        bonus = 0,
+        overtime = 0,
+        other_allowances = 0,
+        pension_deduction = 0,
+        tax_deduction = 0,
+        ...rest
+      } = item;
+
+      const netPay = Number(
+        (
+          base_salary +
+          bonus +
+          overtime +
+          other_allowances -
+          pension_deduction -
+          tax_deduction
+        ).toFixed(2),
+      );
+
+      // SoD: the bot never self-approves payroll — entries that clear the
+      // budget constraint are logged as PAID by the run initiator, and the
+      // initiator is the submitter (approval remains a separate workflow).
       const entry = await this.logPayrollEntry(
         {
-          ...item,
+          ...rest,
+          base_salary,
+          bonus,
+          overtime,
+          other_allowances,
+          pension_deduction,
+          tax_deduction,
           pay_period_start: startOfMonth,
           pay_period_end: endOfMonth,
           payment_date: now,
-          net_pay: Number(item.base_salary),
-          status: "PAID",
+          net_pay: netPay,
+          status: PayrollEntryStatus.PAID,
         },
         userId,
         tenantId,
+        actorRole,
       );
       results.push(entry);
     }

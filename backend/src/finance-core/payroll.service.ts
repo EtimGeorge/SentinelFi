@@ -3,6 +3,7 @@ import {
   Logger,
   ConflictException,
   NotFoundException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, DataSource, In } from "typeorm";
@@ -35,11 +36,14 @@ export class PayrollService {
     return this.cls.get("tenant_id");
   }
 
-  async createRun(data: {
-    runIdentifier: string;
-    fiscalPeriodId: string;
-    runDate: string;
-  }) {
+  async createRun(
+    data: {
+      runIdentifier: string;
+      fiscalPeriodId: string;
+      runDate: string;
+    },
+    createdByUserId?: string,
+  ) {
     const tenantId = this.getTenantId();
     const run = this.payrollRunRepo.create({
       tenant_id: tenantId,
@@ -50,6 +54,7 @@ export class PayrollService {
       total_gross_pay: 0,
       total_taxes_employer: 0,
       total_benefits_employer: 0,
+      created_by_user_id: createdByUserId ?? null,
     });
     return this.payrollRunRepo.save(run);
   }
@@ -166,13 +171,23 @@ export class PayrollService {
     });
   }
 
-  async approveRun(id: string) {
+  async approveRun(id: string, approverUserId?: string) {
     const run = await this.payrollRunRepo.findOne({
       where: { id, tenant_id: this.getTenantId() },
     });
     if (!run) throw new NotFoundException("Payroll run not found");
     if (run.status !== PayrollRunStatus.DRAFT)
       throw new ConflictException("Only DRAFT runs can be approved");
+
+    if (
+      approverUserId &&
+      run.created_by_user_id &&
+      run.created_by_user_id === approverUserId
+    ) {
+      throw new ForbiddenException(
+        "[FINANCE-CORE] SoD BLOCKED: approver cannot approve own payroll run",
+      );
+    }
 
     run.status = PayrollRunStatus.APPROVED;
     return this.payrollRunRepo.save(run);

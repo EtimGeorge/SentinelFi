@@ -7,7 +7,7 @@ export class CompleteTenantMissingTables1771230000000 implements MigrationInterf
     // --- 1. ENUMS ---
     await queryRunner.query(`
             DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lpo_status_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lpo_status_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "lpo_status_enum" AS ENUM('OPEN', 'PARTIALLY_PAID', 'CLOSED', 'CANCELLED');
                 END IF;
             END $$;
@@ -75,25 +75,25 @@ export class CompleteTenantMissingTables1771230000000 implements MigrationInterf
     await queryRunner.query(`
             DO $$ BEGIN
                 -- project_audit -> project
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_audit_project') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_audit_project' AND connamespace = current_schema()::regnamespace) THEN
                     ALTER TABLE "project_audit" ADD CONSTRAINT "FK_project_audit_project" FOREIGN KEY ("project_id") REFERENCES "project"("project_id") ON DELETE CASCADE ON UPDATE NO ACTION;
                 END IF;
                 -- project_audit -> user
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_audit_performer') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_audit_performer' AND connamespace = current_schema()::regnamespace) THEN
                     ALTER TABLE "project_audit" ADD CONSTRAINT "FK_project_audit_performer" FOREIGN KEY ("performed_by_user_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
                 END IF;
                 
                 -- project_inflow -> project
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_inflow_project') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_inflow_project' AND connamespace = current_schema()::regnamespace) THEN
                     ALTER TABLE "project_inflow" ADD CONSTRAINT "FK_project_inflow_project" FOREIGN KEY ("project_id") REFERENCES "project"("project_id") ON DELETE NO ACTION ON UPDATE NO ACTION;
                 END IF;
 
                 -- lpo -> project
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_lpo_project') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_lpo_project' AND connamespace = current_schema()::regnamespace) THEN
                     ALTER TABLE "lpo" ADD CONSTRAINT "FK_lpo_project" FOREIGN KEY ("project_id") REFERENCES "project"("project_id") ON DELETE NO ACTION ON UPDATE NO ACTION;
                 END IF;
                 -- lpo -> wbs
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_lpo_wbs') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_lpo_wbs' AND connamespace = current_schema()::regnamespace) THEN
                     ALTER TABLE "lpo" ADD CONSTRAINT "FK_lpo_wbs" FOREIGN KEY ("wbs_id") REFERENCES "wbs_budget"("wbs_id") ON DELETE NO ACTION ON UPDATE NO ACTION;
                 END IF;
             END $$;

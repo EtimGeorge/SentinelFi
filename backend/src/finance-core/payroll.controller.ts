@@ -34,6 +34,7 @@ export class PayrollController {
     Role.TechnicalDirector,
   )
   createRun(
+    @Req() req: AuthenticatedRequest,
     @Body()
     data: {
       runIdentifier: string;
@@ -41,7 +42,9 @@ export class PayrollController {
       runDate: string;
     },
   ) {
-    return this.payrollService.createRun(data);
+    if (!req.user || !req.user.tenant_id)
+      throw new UnauthorizedException("Tenant context missing.");
+    return this.payrollService.createRun(data, req.user.id);
   }
 
   @Get("kpis")
@@ -120,8 +123,13 @@ export class PayrollController {
     Role.CEO,
     Role.TechnicalDirector,
   )
-  approveRun(@Param("id") id: string) {
-    return this.payrollService.approveRun(id);
+  approveRun(
+    @Param("id") id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id)
+      throw new UnauthorizedException("Tenant context missing.");
+    return this.payrollService.approveRun(id, req.user.id);
   }
 
   @Patch("runs/:id/post")

@@ -27,6 +27,12 @@ import { OperationalBudgetsService } from "./operational-budgets.service";
 import { CreateOperationalBudgetDto } from "./dto/create-operational-budget.dto";
 import { UpdateOperationalBudgetDto } from "./dto/update-operational-budget.dto";
 import { GetOperationalBudgetsDto } from "./dto/get-operational-budgets.dto";
+import { CreateOperationalExpenseDto } from "./dto/create-operational-expense.dto";
+import { UpdateOperationalExpenseDto } from "./dto/update-operational-expense.dto";
+import { LogPayrollEntryDto } from "./dto/log-payroll-entry.dto";
+import { RunPayrollBotDto } from "./dto/run-payroll-bot.dto";
+import { UpsertAllocationDto } from "./dto/upsert-allocation.dto";
+import { OperationalBudgetExportQueryDto } from "./dto/operational-budget-export.dto";
 
 @Controller("operational-budgets") // Base path is /api/v1/operational-budgets
 @UseGuards(RolesGuard)
@@ -34,6 +40,19 @@ export class OperationalBudgetsController {
   constructor(
     private readonly operationalBudgetsService: OperationalBudgetsService,
   ) {}
+
+  /**
+   * Resolve the actor's primary role name from the request payload.
+   * JwtStrategy attaches `roles: SimpleRole[]` (shared UserPayload); the
+   * legacy singular `role` field is kept as a fallback.
+   */
+  private getActorRole(req: AuthenticatedRequest): string | undefined {
+    const user = req.user as {
+      roles?: { name: string }[];
+      role?: string;
+    } | undefined;
+    return user?.roles?.[0]?.name ?? user?.role ?? undefined;
+  }
 
   /**
    * API Endpoint: POST /api/v1/operational-budgets
@@ -78,18 +97,21 @@ export class OperationalBudgetsController {
     Role.FinanceManager,
     Role.SuperAdmin,
   )
-  async logExpense(@Body() expenseData: any, @Req() req: AuthenticatedRequest) {
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async logExpense(
+    @Body() expenseData: CreateOperationalExpenseDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     if (!req.user || !req.user.tenant_id) {
       throw new UnauthorizedException(
         "User not authenticated or tenant ID is missing.",
       );
     }
-    const actorRole = req.user.role;
     return this.operationalBudgetsService.logExpense(
       expenseData,
       req.user.id,
       req.user.tenant_id,
-      actorRole,
+      this.getActorRole(req),
     );
   }
 
@@ -104,9 +126,10 @@ export class OperationalBudgetsController {
     Role.FinanceManager,
     Role.SuperAdmin,
   )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async updateExpense(
     @Param("id", new ParseUUIDPipe()) id: string,
-    @Body() updateData: any,
+    @Body() updateData: UpdateOperationalExpenseDto,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
@@ -116,6 +139,8 @@ export class OperationalBudgetsController {
       id,
       updateData,
       req.user.tenant_id,
+      req.user.id,
+      this.getActorRole(req),
     );
   }
 
@@ -138,7 +163,11 @@ export class OperationalBudgetsController {
     if (!req.user || !req.user.tenant_id) {
       throw new UnauthorizedException("User not authenticated.");
     }
-    await this.operationalBudgetsService.deleteExpense(id, req.user.tenant_id);
+    await this.operationalBudgetsService.deleteExpense(
+      id,
+      req.user.tenant_id,
+      req.user.id,
+    );
   }
 
   /**
@@ -164,7 +193,7 @@ export class OperationalBudgetsController {
       id,
       req.user.tenant_id,
       req.user.id,
-      req.user.role,
+      this.getActorRole(req),
     );
   }
 
@@ -192,7 +221,7 @@ export class OperationalBudgetsController {
       id,
       req.user.tenant_id,
       req.user.id,
-      req.user.role,
+      this.getActorRole(req),
       body?.reason,
     );
   }
@@ -243,7 +272,11 @@ export class OperationalBudgetsController {
     Role.FinanceManager,
     Role.SuperAdmin,
   )
-  async logPayroll(@Body() payrollData: any, @Req() req: AuthenticatedRequest) {
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async logPayroll(
+    @Body() payrollData: LogPayrollEntryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     if (!req.user || !req.user.tenant_id) {
       throw new UnauthorizedException(
         "User not authenticated or tenant ID is missing.",
@@ -253,6 +286,7 @@ export class OperationalBudgetsController {
       payrollData,
       req.user.id,
       req.user.tenant_id,
+      this.getActorRole(req),
     );
   }
 
@@ -340,7 +374,7 @@ export class OperationalBudgetsController {
   )
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async exportOperationalBudgets(
-    @Query() getOperationalBudgetsDto: GetOperationalBudgetsDto,
+    @Query() getOperationalBudgetsDto: OperationalBudgetExportQueryDto,
     @Res({ passthrough: true }) res: Response,
     @Req() req: AuthenticatedRequest,
   ): Promise<StreamableFile> {
@@ -486,8 +520,9 @@ export class OperationalBudgetsController {
     Role.FinanceManager,
     Role.SuperAdmin,
   )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async triggerPayrollBot(
-    @Body() payload: { template: any[] },
+    @Body() payload: RunPayrollBotDto,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
@@ -499,6 +534,7 @@ export class OperationalBudgetsController {
       payload.template,
       req.user.id,
       req.user.tenant_id,
+      this.getActorRole(req),
     );
   }
 
@@ -589,7 +625,7 @@ export class OperationalBudgetsController {
       req.user.tenant_id,
       body?.cells || [],
       req.user.id,
-      req.user.role,
+      this.getActorRole(req),
     );
   }
 
@@ -612,7 +648,7 @@ export class OperationalBudgetsController {
       id,
       req.user.tenant_id,
       req.user.id,
-      req.user.role,
+      this.getActorRole(req),
     );
   }
 
@@ -624,14 +660,10 @@ export class OperationalBudgetsController {
     Role.FinanceManager,
     Role.SuperAdmin,
   )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async upsertAllocation(
     @Body()
-    body: {
-      operational_budget_category_id: string;
-      period_date: string;
-      amount: number;
-      period_type: any;
-    },
+    body: UpsertAllocationDto,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {

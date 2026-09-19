@@ -11,6 +11,13 @@ import {
 import { OperationalBudgetEntity } from "./operational-budget.entity";
 import { UserEntity } from "../auth/user.entity";
 
+export enum PayrollEntryStatus {
+  PENDING = "PENDING",
+  PAID = "PAID",
+  FAILED = "FAILED",
+  REVERSED = "REVERSED",
+}
+
 @Entity({ name: "payroll_entry" })
 export class PayrollEntryEntity {
   @PrimaryGeneratedColumn("uuid")
@@ -62,8 +69,12 @@ export class PayrollEntryEntity {
   @Column({ type: "date" })
   payment_date!: Date;
 
-  @Column({ type: "varchar", length: 50, default: "PAID" })
-  status!: string; // PAID, PENDING, FAILED
+  @Column({
+    type: "enum",
+    enum: PayrollEntryStatus,
+    default: PayrollEntryStatus.PAID,
+  })
+  status!: PayrollEntryStatus;
 
   @CreateDateColumn({ type: "timestamptz" })
   created_at!: Date;

@@ -22,7 +22,7 @@ export class AddReportingAndMessagingTables1773164796059 implements MigrationInt
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'document_control_report_type_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'document_control_report_type_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "document_control_report_type_enum" AS ENUM('CAPEX_SUMMARY', 'OPEX_EFFICIENCY', 'VARIANCE_ANALYSIS', 'PAYROLL_SUMMARY', 'PROCUREMENT_FUNNEL', 'ANOMALY_DETECTION');
                 END IF;
             END $$;
@@ -39,7 +39,7 @@ export class AddReportingAndMessagingTables1773164796059 implements MigrationInt
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'report_schedule_report_type_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'report_schedule_report_type_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "report_schedule_report_type_enum" AS ENUM('CAPEX_SUMMARY', 'OPEX_EFFICIENCY', 'VARIANCE_ANALYSIS', 'PAYROLL_SUMMARY', 'PROCUREMENT_FUNNEL', 'ANOMALY_DETECTION');
                 END IF;
             END $$;
@@ -48,7 +48,7 @@ export class AddReportingAndMessagingTables1773164796059 implements MigrationInt
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'report_schedule_frequency_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'report_schedule_frequency_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "report_schedule_frequency_enum" AS ENUM('DAILY', 'WEEKLY', 'MONTHLY');
                 END IF;
             END $$;

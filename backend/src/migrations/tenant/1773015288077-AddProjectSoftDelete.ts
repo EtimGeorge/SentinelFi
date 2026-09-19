@@ -60,7 +60,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'wbs_template_industry_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'wbs_template_industry_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "wbs_template_industry_enum" AS ENUM('IT', 'CONSTRUCTION', 'OIL_GAS', 'GENERAL');
                 END IF;
             END $$;
@@ -147,7 +147,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_class_base_type_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_class_base_type_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "account_class_base_type_enum" AS ENUM('ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE');
                 END IF;
             END $$;
@@ -218,7 +218,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'p2p_invoice_status_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'p2p_invoice_status_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "p2p_invoice_status_enum" AS ENUM('RECEIVED', 'UNDER_REVIEW', 'APPROVED', 'PAID', 'REJECTED');
                 END IF;
             END $$;
@@ -251,7 +251,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'p2p_purchase_order_status_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'p2p_purchase_order_status_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "p2p_purchase_order_status_enum" AS ENUM('ISSUED', 'PARTIALLY_FULFILLED', 'FULFILLED', 'CANCELLED');
                 END IF;
             END $$;
@@ -280,7 +280,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'p2p_requisition_status_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'p2p_requisition_status_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "p2p_requisition_status_enum" AS ENUM('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED');
                 END IF;
             END $$;
@@ -334,7 +334,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'fiscal_period_period_type_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'fiscal_period_period_type_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "fiscal_period_period_type_enum" AS ENUM('MONTH', 'QUARTER');
                 END IF;
             END $$;
@@ -366,7 +366,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payroll_run_status_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payroll_run_status_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "payroll_run_status_enum" AS ENUM('DRAFT', 'REVIEW', 'APPROVED', 'POSTED');
                 END IF;
             END $$;
@@ -396,7 +396,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payroll_line_item_item_type_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payroll_line_item_item_type_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "payroll_line_item_item_type_enum" AS ENUM('BASE_SALARY', 'BONUS', 'COMMISSION', 'EMPLOYER_TAX', 'EMPLOYER_BENEFIT');
                 END IF;
             END $$;
@@ -425,7 +425,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'budget_ledger_budget_type_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'budget_ledger_budget_type_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "budget_ledger_budget_type_enum" AS ENUM('PRIMARY_ALLOCATION', 'SUPPLEMENT', 'TRANSFER_IN', 'TRANSFER_OUT');
                 END IF;
             END $$;
@@ -515,7 +515,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'operational_budget_period_allocation_period_type_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'operational_budget_period_allocation_period_type_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "operational_budget_period_allocation_period_type_enum" AS ENUM('MONTHLY', 'WEEKLY', 'DAILY', 'CUSTOM');
                 END IF;
             END $$;
@@ -525,7 +525,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'operational_budget_period_allocation' AND column_name = 'period_type') THEN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'operational_budget_period_allocation' AND column_name = 'period_type') THEN AND table_schema = current_schema()
                     ALTER TABLE "operational_budget_period_allocation" ALTER COLUMN "period_type" DROP DEFAULT;
                     ALTER TABLE "operational_budget_period_allocation" ALTER COLUMN "period_type" TYPE "operational_budget_period_allocation_period_type_enum" USING "period_type"::text::"operational_budget_period_allocation_period_type_enum";
                     ALTER TABLE "operational_budget_period_allocation" ALTER COLUMN "period_type" SET DEFAULT 'MONTHLY';

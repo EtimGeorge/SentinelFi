@@ -52,7 +52,7 @@ export class EnsureSoftDeleteParity1776000000000 implements MigrationInterface {
     const fkExists = await queryRunner.query(`
             SELECT 1 FROM information_schema.table_constraints
             WHERE constraint_name = 'FK_wbs_category_parent'
-            AND table_name = 'wbs_category'
+            AND table_name = 'wbs_category' AND table_schema = current_schema()
         `);
     if (fkExists.length === 0) {
       try {

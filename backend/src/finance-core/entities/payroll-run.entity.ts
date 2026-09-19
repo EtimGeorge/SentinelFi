@@ -38,6 +38,10 @@ export class PayrollRunEntity {
   @JoinColumn({ name: "fiscal_period_id" })
   fiscalPeriod!: FiscalPeriodEntity;
 
+  @Index()
+  @Column({ type: "uuid", nullable: true })
+  created_by_user_id!: string | null;
+
   @Column({ type: "date" })
   run_date!: Date;
 

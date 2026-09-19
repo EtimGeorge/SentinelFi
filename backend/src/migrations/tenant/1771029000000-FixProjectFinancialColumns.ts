@@ -7,19 +7,19 @@ export class FixProjectFinancialColumns1771029000000 implements MigrationInterfa
     // Add missing financial columns to the project table with idempotency
     await queryRunner.query(`
             DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'currency') THEN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'currency') THEN AND table_schema = current_schema()
                     ALTER TABLE "project" ADD "currency" character varying(10) NOT NULL DEFAULT 'NGN';
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'contract_value') THEN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'contract_value') THEN AND table_schema = current_schema()
                     ALTER TABLE "project" ADD "contract_value" numeric(19,4) NOT NULL DEFAULT '0';
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'contingency_percent') THEN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'contingency_percent') THEN AND table_schema = current_schema()
                     ALTER TABLE "project" ADD "contingency_percent" numeric(5,2) NOT NULL DEFAULT '0';
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'vat_rate') THEN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'vat_rate') THEN AND table_schema = current_schema()
                     ALTER TABLE "project" ADD "vat_rate" numeric(5,2) NOT NULL DEFAULT '7.5';
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'wht_rate') THEN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'wht_rate') THEN AND table_schema = current_schema()
                     ALTER TABLE "project" ADD "wht_rate" numeric(5,2) NOT NULL DEFAULT '5.0';
                 END IF;
             END $$;

@@ -23,7 +23,7 @@ export class TenantClientArchitecture1770291298000 implements MigrationInterface
     // Note: We use string-based check for the enum type
     await queryRunner.query(`
             DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ceo_annotation_target_type_enum') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ceo_annotation_target_type_enum' AND typnamespace = current_schema()::regnamespace) THEN
                     CREATE TYPE "ceo_annotation_target_type_enum" AS ENUM('WBS', 'EXPENSE');
                 END IF;
             END $$;
@@ -48,7 +48,7 @@ export class TenantClientArchitecture1770291298000 implements MigrationInterface
     // 3. Alter Project table (lives in tenant schema)
     await queryRunner.query(`
             DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'client_id') THEN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'project' AND column_name = 'client_id') THEN
                     ALTER TABLE "project" ADD "client_id" uuid;
                 END IF;
             END $$;
@@ -57,13 +57,13 @@ export class TenantClientArchitecture1770291298000 implements MigrationInterface
     // 4. Constraints
     await queryRunner.query(`
             DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_clients_tenant') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_clients_tenant' AND connamespace = current_schema()::regnamespace AND conrelid = 'clients'::regclass) THEN
                     ALTER TABLE "clients" ADD CONSTRAINT "FK_clients_tenant" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("tenant_id") ON DELETE NO ACTION ON UPDATE NO ACTION;
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_client') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_project_client' AND connamespace = current_schema()::regnamespace AND conrelid = 'project'::regclass) THEN
                     ALTER TABLE "project" ADD CONSTRAINT "FK_project_client" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_ceo_annotation_author') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_ceo_annotation_author' AND connamespace = current_schema()::regnamespace AND conrelid = 'ceo_annotation'::regclass) THEN
                     ALTER TABLE "ceo_annotation" ADD CONSTRAINT "FK_ceo_annotation_author" FOREIGN KEY ("author_id") REFERENCES "public"."user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
                 END IF;
             END $$;
