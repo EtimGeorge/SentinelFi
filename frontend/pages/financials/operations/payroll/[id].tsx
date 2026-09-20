@@ -8,7 +8,8 @@ import Input from '../../../../components/common/Input';
 import { useFinanceCore } from '../../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../../components/context/CurrencyContext';
 import { useAuth } from '../../../../components/context/AuthContext';
-import { apiClient } from '../../../../lib/api';
+import ConfirmDialog from '../../../../components/common/ConfirmDialog';
+import { TableSkeleton } from '../../../../components/common/LoadingSkeleton';
 import {
   ArrowLeft, Plus, Trash2, CheckCircle2, Clock, AlertCircle, FileText, User, Users, Settings, ShieldCheck, Send, DollarSign
 } from 'lucide-react';
@@ -21,7 +22,7 @@ const PayrollRunDetailsPage: React.FC = () => {
   const { convertToDisplay } = useCurrency();
   const { user } = useAuth();
   const {
-    loading, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchDepartments, fetchChartOfAccounts, fetchEmployees
+    loading, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchDepartments, fetchChartOfAccounts, fetchEmployees, deletePayrollLineItem
   } = useFinanceCore();
 
   const [run, setRun] = useState<any>(null);
@@ -36,6 +37,8 @@ const PayrollRunDetailsPage: React.FC = () => {
   const [glAccountId, setGlAccountId] = useState('');
   const [itemType, setItemType] = useState('BASE_SALARY');
   const [amount, setAmount] = useState(0);
+  const [confirmAction, setConfirmAction] = useState<any>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -75,41 +78,50 @@ const PayrollRunDetailsPage: React.FC = () => {
     }
   };
 
-  const handleApprove = async () => {
-    if (confirm('Are you sure you want to approve this payroll run? This will lock it from further editing.')) {
-      await approvePayrollRun(id as string);
-      loadData();
-    }
+  const handleApprove = () => {
+    setConfirmAction({ type: 'approve' });
   };
 
-  const handlePost = async () => {
-    if (confirm('POST TO LEDGER? This will finalize the expenditure and subtract from departmental budgets.')) {
-      await postPayrollRun(id as string);
-      loadData();
-    }
+  const handlePost = () => {
+    setConfirmAction({ type: 'post' });
   };
 
-  const handleDeleteLineItem = async (item: any) => {
-    if (!id || !item?.id) return;
-    if (!confirm('Delete this line item? This will reduce the run gross and cannot be undone.')) return;
+  const handleDeleteLineItem = (item: any) => {
+    setConfirmAction({ type: 'delete', item });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    setConfirmBusy(true);
     try {
-      await apiClient.delete(`/finance/payroll/runs/${id}/items/${item.id}`, {
-        params: { tenant_id: user?.tenant_id },
-      });
-      toast.success('Line item removed.');
-      setRun((prev: any) => prev
-        ? { ...prev, lineItems: (prev.lineItems || []).filter((i: any) => i.id !== item.id) }
-        : prev);
+      if (confirmAction.type === 'approve') {
+        await approvePayrollRun(id as string);
+        toast.success('Payroll run approved and locked from editing.');
+        loadData();
+      } else if (confirmAction.type === 'post') {
+        await postPayrollRun(id as string);
+        toast.success('Payroll run posted to the General Ledger.');
+        loadData();
+      } else if (confirmAction.type === 'delete' && confirmAction.item?.id) {
+        await deletePayrollLineItem(id as string, confirmAction.item.id, { tenant_id: user?.tenant_id });
+        toast.success('Line item removed.');
+        setRun((prev: any) => prev
+          ? { ...prev, lineItems: (prev.lineItems || []).filter((i: any) => i.id !== confirmAction.item.id) }
+          : prev);
+      }
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Failed to delete line item');
+      toast.error(err?.response?.data?.message || 'Failed to process payroll action');
+    } finally {
+      setConfirmBusy(false);
+      setConfirmAction(null);
     }
   };
 
   if (!run && loading) {
     return (
       <>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Clock className="w-8 h-8 text-gray-700 animate-pulse" />
+        <div className="bg-brand-dark/40 rounded-2xl border border-gray-800 overflow-hidden">
+          <TableSkeleton columns={4} rows={6} />
         </div>
       </>
     );
@@ -402,6 +414,22 @@ const PayrollRunDetailsPage: React.FC = () => {
             </div>
           </div>
         )}
+        <ConfirmDialog
+          open={!!confirmAction}
+          title={confirmAction?.type === 'delete' ? 'Delete Line Item' : confirmAction?.type === 'post' ? 'Post Payroll Run' : 'Approve Payroll Run'}
+          message={
+            confirmAction?.type === 'delete'
+              ? 'Remove this line item from the payroll run?'
+              : confirmAction?.type === 'post'
+                ? 'Are you sure you want to post this payroll run to the General Ledger?'
+                : 'Approve this payroll run? This will lock it from further editing.'
+          }
+          confirmLabel={confirmAction?.type === 'delete' ? 'Delete' : confirmAction?.type === 'post' ? 'Post' : 'Approve'}
+          tone={confirmAction?.type === 'delete' ? 'danger' : 'default'}
+          busy={confirmBusy}
+          onConfirm={handleConfirmAction}
+          onCancel={() => setConfirmAction(null)}
+        />
       </PageContainer>
     </>
   );

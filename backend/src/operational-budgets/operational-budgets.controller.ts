@@ -33,6 +33,9 @@ import { LogPayrollEntryDto } from "./dto/log-payroll-entry.dto";
 import { RunPayrollBotDto } from "./dto/run-payroll-bot.dto";
 import { UpsertAllocationDto } from "./dto/upsert-allocation.dto";
 import { OperationalBudgetExportQueryDto } from "./dto/operational-budget-export.dto";
+import { GetOpexAnalyticsDto } from "./dto/get-opex-analytics.dto";
+import { GetOperationalExpensesDto } from "./dto/get-operational-expenses.dto";
+import { UpdateBudgetCategoryDto } from "./dto/update-budget-category.dto";
 
 @Controller("operational-budgets") // Base path is /api/v1/operational-budgets
 @UseGuards(RolesGuard)
@@ -239,15 +242,9 @@ export class OperationalBudgetsController {
     Role.CEO,
     Role.OperationalDirector,
   )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async findAllOperationalExpenses(
-    @Query()
-    query: {
-      budget_id?: string;
-      category_id?: string;
-      status?: string;
-      startDate?: string;
-      endDate?: string;
-    },
+    @Query() query: GetOperationalExpensesDto,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
@@ -322,6 +319,38 @@ export class OperationalBudgetsController {
       budget_id,
       type,
     });
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/operational-budgets/analytics?from=&to=
+   * Canonical unified OPEX analytics envelope (single FE source of truth).
+   * Declared BEFORE /:id so "analytics" is not captured by the UUID param.
+   * Permissions: All read roles
+   */
+  @Get("analytics")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.SuperAdmin,
+  )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async getOpexAnalytics(
+    @Query() query: GetOpexAnalyticsDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.getOpexAnalytics(
+      req.user.tenant_id,
+      query.from,
+      query.to,
+    );
   }
 
   /**
@@ -579,6 +608,52 @@ export class OperationalBudgetsController {
       body.type,
       req.user.tenant_id,
       body.description,
+    );
+  }
+
+  @Patch("categories/:id")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async updateCategory(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateBudgetCategoryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.updateCategory(
+      id,
+      dto,
+      req.user.tenant_id,
+    );
+  }
+
+  @Delete("categories/:id")
+  @HttpCode(HttpStatus.OK)
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
+  async deleteCategory(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.deleteCategory(
+      id,
+      req.user.tenant_id,
     );
   }
 

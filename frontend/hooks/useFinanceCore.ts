@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { apiClient } from '../lib/api';
 import toast from 'react-hot-toast';
+import { OpexAnalytics } from '@shared/types/operational-budget';
 
 export const useFinanceCore = () => {
     const [loading, setLoading] = useState(false);
@@ -268,6 +269,121 @@ export const useFinanceCore = () => {
         }
     }, []);
 
+    // --- OPEX Budgets (canonical analytics + management) ---
+
+    const getOpexAnalytics = useCallback(async (params?: { fiscalYearId?: string; costCenterId?: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.get<OpexAnalytics>('/operational-budgets/analytics', { params });
+        } catch (error) {
+            toast.error('Error fetching OPEX analytics');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const fetchOperationalBudgets = useCallback(async () => {
+        setLoading(true);
+        try {
+            return await apiClient.get('/operational-budgets');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const fetchOperationalExpenses = useCallback(async (budgetId: string, status?: string) => {
+        setLoading(true);
+        try {
+            return await apiClient.get('/operational-budgets/expense/all', {
+                params: { budget_id: budgetId, ...(status ? { status } : {}) }
+            });
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const updateOperationalExpense = useCallback(async (id: string, data: { amount: number; item_description: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.patch(`/operational-budgets/expense/${id}`, data);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const deleteOperationalExpense = useCallback(async (id: string) => {
+        setLoading(true);
+        try {
+            return await apiClient.delete(`/operational-budgets/expense/${id}`);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const approveOperationalExpense = useCallback(async (id: string, payload: { tenant_id?: string; actor_user_id?: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.post(`/operational-budgets/expense/${id}/approve`, payload);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const rejectOperationalExpense = useCallback(async (id: string, payload: { tenant_id?: string; actor_user_id?: string; reason: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.post(`/operational-budgets/expense/${id}/reject`, payload);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const submitOperationalBudgetToGovernance = useCallback(async (budgetId: string, payload: { tenant_id?: string; actor_user_id?: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.post(`/operational-budgets/${budgetId}/submit-to-governance`, payload);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const payInvoice = useCallback(async (id: string, payload: { tenant_id?: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.post(`/finance-core/invoices/${id}/pay`, payload);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const deletePayrollLineItem = useCallback(async (runId: string, itemId: string, params?: { tenant_id?: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.delete(`/finance/payroll/runs/${runId}/items/${itemId}`, { params });
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const createDepartment = useCallback(async (data: { name: string; code: string; parentId?: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.post('/finance-core/departments', data);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const createCostCenter = useCallback(async (data: { name: string; code: string; departmentId: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.post('/finance-core/cost-centers', data);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     const fetchCapexDashboard = useCallback(async (projectId?: string) => {
         setLoading(true);
         try {
@@ -396,7 +512,7 @@ export const useFinanceCore = () => {
     }, []);
 
     return {
-        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense,
+        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter,
     };
 };
 

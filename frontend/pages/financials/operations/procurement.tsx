@@ -5,10 +5,13 @@ import PageContainer from '../../../components/Layout/PageContainer';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
 import { useAuth } from '../../../components/context/AuthContext';
-import { apiClient } from '../../../lib/api';
 import toast from 'react-hot-toast';
 import Card from '../../../components/common/Card';
 import Button from '../../../components/common/Button';
+import Tabs from '../../../components/common/Tabs';
+import { ErrorBoundary } from '../../../components/common/ErrorBoundary';
+import EmptyState from '../../../components/common/EmptyState';
+import { TableSkeleton } from '../../../components/common/LoadingSkeleton';
 import {
   FileText, ShoppingCart, Receipt, Plus, Search, Filter, ArrowUpRight, Clock, CheckCircle2, AlertCircle, Package, ArrowRight, Download, Printer, Eye, BrainCircuit
 } from 'lucide-react';
@@ -22,7 +25,7 @@ import Select from '../../../components/common/Select';
 const P2PDeskPage: React.FC = () => {
   const { user } = useAuth();
   const {
-    loading, fetchRequisitions, fetchPurchaseOrders, fetchInvoices, createPurchaseOrder, fetchDepartments, fetchChartOfAccounts, createRequisition, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob
+    fetchRequisitions, fetchPurchaseOrders, fetchInvoices, createPurchaseOrder, fetchDepartments, fetchChartOfAccounts, createRequisition, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, payInvoice
   } = useFinanceCore();
   const { convertToDisplay, convertAmount, availableCurrencies } = useCurrency();
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -32,6 +35,7 @@ const P2PDeskPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
+  const [tabLoading, setTabLoading] = useState(false);
   const [costCenters, setCostCenters] = useState<any[]>([]);
   const [glAccounts, setGlAccounts] = useState<any[]>([]);
   const [formData, setFormData] = useState({
@@ -71,15 +75,20 @@ const P2PDeskPage: React.FC = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      if (activeTab === 'requisitions') {
-        const res = await fetchRequisitions();
-        setRequisitions(res.data || []);
-      } else if (activeTab === 'purchase-orders') {
-        const res = await fetchPurchaseOrders();
-        setPurchaseOrders(res.data || []);
-      } else if (activeTab === 'invoices') {
-        const res = await fetchInvoices();
-        setInvoices(res.data || []);
+      setTabLoading(true);
+      try {
+        if (activeTab === 'requisitions') {
+          const res = await fetchRequisitions();
+          setRequisitions(res.data || []);
+        } else if (activeTab === 'purchase-orders') {
+          const res = await fetchPurchaseOrders();
+          setPurchaseOrders(res.data || []);
+        } else if (activeTab === 'invoices') {
+          const res = await fetchInvoices();
+          setInvoices(res.data || []);
+        }
+      } finally {
+        setTabLoading(false);
       }
     };
     loadData();
@@ -172,7 +181,7 @@ const P2PDeskPage: React.FC = () => {
 
   const handlePayInvoice = async (inv: any) => {
     try {
-      await apiClient.post(`/finance-core/invoices/${inv.id}/pay`, {
+      await payInvoice(inv.id, {
         tenant_id: user?.tenant_id,
       });
       toast.success(`Invoice ${inv.invoice_number} paid successfully.`);
@@ -209,6 +218,7 @@ const P2PDeskPage: React.FC = () => {
         title="Procure-to-Pay Desk"
         subtitle="The command center for corporate spend management and commitment tracking."
       >
+        <ErrorBoundary>
         {/* Spend KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="bg-brand-dark/40 border-gray-800">
@@ -262,30 +272,16 @@ const P2PDeskPage: React.FC = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center justify-between gap-4 mb-6 border-b border-gray-800 pb-px">
-          <div className="flex gap-8">
-            <button
-              onClick={() => setActiveTab('requisitions')}
-              className={`pb-4 text-sm font-bold tracking-tight transition relative ${activeTab === 'requisitions' ? 'text-brand-primary' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              Requisitions
-              {activeTab === 'requisitions' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-primary rounded-full shadow-[0_0_10px_rgba(var(--brand-primary-rgb),0.5)]" />}
-            </button>
-            <button
-              onClick={() => setActiveTab('purchase-orders')}
-              className={`pb-4 text-sm font-bold tracking-tight transition relative ${activeTab === 'purchase-orders' ? 'text-brand-primary' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              Purchase Orders
-              {activeTab === 'purchase-orders' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-primary rounded-full shadow-[0_0_10px_rgba(var(--brand-primary-rgb),0.5)]" />}
-            </button>
-            <button
-              onClick={() => setActiveTab('invoices')}
-              className={`pb-4 text-sm font-bold tracking-tight transition relative ${activeTab === 'invoices' ? 'text-brand-primary' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              Invoices
-              {activeTab === 'invoices' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-primary rounded-full shadow-[0_0_10px_rgba(var(--brand-primary-rgb),0.5)]" />}
-            </button>
-          </div>
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <Tabs
+            tabs={[
+              { key: 'requisitions', label: 'Requisitions', icon: <FileText className="w-3.5 h-3.5" /> },
+              { key: 'purchase-orders', label: 'Purchase Orders', icon: <ShoppingCart className="w-3.5 h-3.5" /> },
+              { key: 'invoices', label: 'Invoices', icon: <Receipt className="w-3.5 h-3.5" /> },
+            ]}
+            active={activeTab}
+            onChange={(key) => setActiveTab(key)}
+          />
           <div className="flex gap-3 mb-3">
             <Button variant="outline" size="sm" className="bg-brand-dark/50" onClick={() => setFilterOpen(o => !o)}><Filter className="w-3.5 h-3.5 mr-2" /> Filter</Button>
             <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)}>
@@ -423,6 +419,11 @@ const P2PDeskPage: React.FC = () => {
         </Modal>
 
         {/* Data Table */}
+        {tabLoading ? (
+          <div className="bg-brand-dark/40 rounded-2xl border border-gray-800 overflow-hidden p-6">
+            <TableSkeleton columns={6} rows={6} />
+          </div>
+        ) : (
         <div className="bg-brand-dark/40 rounded-2xl border border-gray-800 overflow-hidden">
           <table className="w-full text-left">
             <thead>
@@ -552,20 +553,22 @@ const P2PDeskPage: React.FC = () => {
               ))}
               {((activeTab === 'requisitions' && filteredRequisitions.length === 0) ||
                 (activeTab === 'purchase-orders' && filteredPurchaseOrders.length === 0) ||
-                (activeTab === 'invoices' && filteredInvoices.length === 0)) && !loading && (
+                (activeTab === 'invoices' && filteredInvoices.length === 0)) && !tabLoading && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center justify-center opacity-40">
-                        <Package className="w-12 h-12 mb-4 text-gray-500" />
-                        <p className="text-sm font-bold text-white">No {activeTab} found</p>
-                        <p className="text-xs text-gray-500">Initiate a formal spending workflow to see data here.</p>
-                      </div>
+                    <td colSpan={6} className="px-6">
+                      <EmptyState
+                        icon={<Package className="w-10 h-10 text-gray-500" />}
+                        title={`No ${activeTab} found`}
+                        subtitle="Initiate a formal spending workflow to see data here."
+                      />
                     </td>
                   </tr>
                 )}
             </tbody>
           </table>
         </div>
+        )}
+
       {/* PDF Preview Modal Integration */}
       {isPreviewOpen && (
         <PdfPreviewModal
@@ -583,6 +586,7 @@ const P2PDeskPage: React.FC = () => {
           }}
         />
       )}
+        </ErrorBoundary>
       </PageContainer>
     </>
   );

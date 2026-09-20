@@ -7,19 +7,22 @@ import {
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
 import { useCurrency } from '../../../components/context/CurrencyContext';
 import { useAuth } from '../../../components/context/AuthContext';
-import { apiClient } from '../../../lib/api';
 import PageContainer from '../../../components/Layout/PageContainer';
 import Button from '../../../components/common/Button';
 import PlanningGrid from '../../../components/budget/PlanningGrid';
 import Modal from '../../../components/common/Modal';
 import Tooltip from '../../../components/common/Tooltip';
+import Tabs from '../../../components/common/Tabs';
+import { ErrorBoundary } from '../../../components/common/ErrorBoundary';
+import EmptyState from '../../../components/common/EmptyState';
+import { TableSkeleton } from '../../../components/common/LoadingSkeleton';
 import toast from 'react-hot-toast';
 
 const OpexPlanningPage: React.FC = () => {
   const router = useRouter();
   const { convertToDisplay } = useCurrency();
   const { user } = useAuth();
-  const { fetchFiscalYears, fetchDepartments, fetchChartOfAccounts, fetchReportBlob, downloadBlob } = useFinanceCore();
+  const { loading, fetchFiscalYears, fetchDepartments, fetchChartOfAccounts, fetchReportBlob, downloadBlob, fetchOperationalBudgets, submitOperationalBudgetToGovernance } = useFinanceCore();
 
   const [fiscalYears, setFiscalYears] = useState<any[]>([]);
   const [selectedFy, setSelectedFy] = useState<any>(null);
@@ -49,7 +52,7 @@ const OpexPlanningPage: React.FC = () => {
   const handleSubmitToGovernance = async () => {
     setIsSubmitting(true);
     try {
-      const res: any = await apiClient.get('/operational-budgets?limit=200');
+      const res: any = await fetchOperationalBudgets();
       const unwrapped = res?.operationalBudgets || res?.data?.operationalBudgets || res?.items || res?.data?.items || res?.data || res;
       const list = Array.isArray(unwrapped) ? unwrapped : [];
       const fyYear = selectedFy
@@ -62,7 +65,7 @@ const OpexPlanningPage: React.FC = () => {
         return;
       }
 
-      await apiClient.post(`/operational-budgets/${budget.operational_budget_id}/submit-to-governance`, {
+      await submitOperationalBudgetToGovernance(budget.operational_budget_id, {
         tenant_id: user?.tenant_id,
         actor_user_id: user?.id,
       });
@@ -119,31 +122,19 @@ const OpexPlanningPage: React.FC = () => {
         }
       >
         {/* Workspace Tab Navigation */}
-        <div className="flex bg-slate-900/60 p-1 rounded-2xl border border-white/5 self-start mb-10 backdrop-blur-xl elev-lg">
-          <button
-            onClick={() => setActiveTab('setup')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-black  transition-all flex items-center gap-2 ${activeTab === 'setup' ? 'bg-brand-primary text-black shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.4)]' : 'text-slate-500 hover:text-white'}`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            Temporal Setup
-          </button>
-          <button
-            onClick={() => setActiveTab('budgeting')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-black  transition-all flex items-center gap-2 ${activeTab === 'budgeting' ? 'bg-brand-primary text-black shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.4)]' : 'text-slate-500 hover:text-white'}`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            Planning Matrix
-          </button>
-          <button
-            onClick={() => setActiveTab('review')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-black  transition-all flex items-center gap-2 ${activeTab === 'review' ? 'bg-brand-primary text-black shadow-[0_0_20px_rgba(var(--brand-primary-rgb),0.4)]' : 'text-slate-500 hover:text-white'}`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Governance Audit
-          </button>
-        </div>
+        <ErrorBoundary>
+          <Tabs
+            tabs={[
+              { key: 'setup', label: 'Temporal Setup', icon: <Calendar className="w-3.5 h-3.5" /> },
+              { key: 'budgeting', label: 'Planning Matrix', icon: <Layers className="w-3.5 h-3.5" /> },
+              { key: 'review', label: 'Governance Audit', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
+            ]}
+            active={activeTab}
+            onChange={(key) => setActiveTab(key as 'setup' | 'budgeting' | 'review')}
+            className="self-start mb-10"
+          />
 
-        {/* Content Area */}
+          {/* Content Area */}
         <div className="flex-1 bg-slate-900/30 backdrop-blur-md border border-slate-800 rounded-3xl overflow-hidden elev-lg min-h-[600px] flex flex-col relative group">
           <div className="absolute top-0 right-0 w-96 h-96 bg-brand-primary/5 rounded-full -mr-48 -mt-48 blur-3xl opacity-50 pointer-events-none" />
 
@@ -173,16 +164,16 @@ const OpexPlanningPage: React.FC = () => {
             </div>
           ) : activeTab === 'budgeting' ? (
             <div className="flex-1 overflow-hidden relative z-10">
-              {coa.length > 0 ? (
+              {loading ? (
+                <div className="p-6"><TableSkeleton columns={5} rows={8} /></div>
+              ) : coa.length > 0 ? (
                 <PlanningGrid coa={coa} departments={departments} fiscalYear={selectedFy} />
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-20 text-center">
-                  <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center text-slate-700 mb-4 border border-slate-800">
-                    <Info size={32} />
-                  </div>
-                  <h3 className="text-lg font-black text-slate-300 uppercase tracking-tighter">No Chart Architecture</h3>
-                  <p className="text-slate-500 text-sm mt-1 max-w-xs">Connecting with core Ledger system...</p>
-                </div>
+                <EmptyState
+                  icon={<Info className="w-10 h-10 text-slate-600" />}
+                  title="No Chart Architecture"
+                  subtitle="Connecting with core Ledger system..."
+                />
               )}
             </div>
           ) : (
@@ -208,6 +199,7 @@ const OpexPlanningPage: React.FC = () => {
             </div>
           )}
         </div>
+        </ErrorBoundary>
       </PageContainer>
 
       {/* Submission Summary Modal */}

@@ -3,15 +3,23 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
   Logger,
   Inject,
 } from "@nestjs/common";
-import { Repository, Like, Between, DataSource } from "typeorm";
+import {
+  Repository,
+  Like,
+  Between,
+  DataSource,
+  LessThanOrEqual,
+} from "typeorm";
 import { TENANT_DATA_SOURCE } from "../database/constants";
 import { OperationalBudgetEntity } from "./operational-budget.entity";
 import { CreateOperationalBudgetDto } from "./dto/create-operational-budget.dto";
 import { UpdateOperationalBudgetDto } from "./dto/update-operational-budget.dto";
 import { GetOperationalBudgetsDto } from "./dto/get-operational-budgets.dto";
+import { UpdateBudgetCategoryDto } from "./dto/update-budget-category.dto";
 import { OperationalBudgetCategoryEntity } from "./operational-budget-category.entity";
 import {
   OperationalExpenseEntity,
@@ -29,7 +37,15 @@ import { PdfUtility } from "../common/pdf.utility";
 import { ExcelUtility } from "../common/excel.utility";
 import { WordUtility } from "../common/word.utility";
 import { Buffer } from "buffer";
-import { VarianceFlag } from "@shared/types";
+import {
+  VarianceFlag,
+  OpexAnalytics,
+  OpexAnalyticsSeries,
+  OpexAnalyticsSeriesDepartment,
+  OpexAnalyticsPeriodRow,
+  OpexAnalyticsMonthlyTrend,
+  OpexAnalyticsRecentExpense,
+} from "@shared/types";
 import { NotificationsService } from "../notifications/notifications.service";
 
 // ---- OPEX Rollup Types ----
@@ -182,6 +198,61 @@ export class OperationalBudgetsService {
     };
   }
 
+  /**
+   * Keep the period-allocation `actual_amount` in sync when a settled
+   * expense/payroll consumes budget. Allocations are the only period view of a
+   * budget, so this writes the most-recent allocation covering the amount date
+   * (period_date <= date). Never let a secondary analytics write fail the
+   * primary ledger operation.
+   */
+  private async bumpPeriodAllocationActual(
+    scopeId: string,
+    byBudget: boolean,
+    tenantId: string,
+    amountDate: Date,
+    delta: number,
+  ): Promise<void> {
+    if (!delta) return;
+    try {
+      let allocation: OperationalBudgetPeriodAllocationEntity | null;
+      if (!byBudget) {
+        allocation = await this.allocationRepository.findOne({
+          where: {
+            operational_budget_category_id: scopeId,
+            tenant_id: tenantId,
+            period_date: LessThanOrEqual(amountDate),
+          },
+          order: { period_date: "DESC" },
+        });
+      } else {
+        // Payroll links to the budget, not a category: attribute the amount to
+        // the most-recent period allocation across the budget's categories.
+        allocation = await this.allocationRepository
+          .createQueryBuilder("allocation")
+          .innerJoin(
+            OperationalBudgetCategoryEntity,
+            "cat",
+            "cat.operational_budget_category_id = allocation.operational_budget_category_id",
+          )
+          .where("cat.operational_budget_id = :budgetId", { budgetId: scopeId })
+          .andWhere("allocation.tenant_id = :tenantId", { tenantId })
+          .andWhere("allocation.period_date <= :amountDate", { amountDate })
+          .orderBy("allocation.period_date", "DESC")
+          .getOne();
+      }
+
+      if (!allocation) return;
+      allocation.actual_amount = Number(allocation.actual_amount) + delta;
+      await this.allocationRepository.save(allocation);
+    } catch (error) {
+      this.logger.warn(
+        `[OPEX] period allocation actual_amount write skipped: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   async logExpense(
     expenseData: Partial<OperationalExpenseEntity>,
     userId: string,
@@ -298,6 +369,16 @@ export class OperationalBudgetsService {
           budget.actual_spent =
             Number(budget.actual_spent) + Number(expenseData.amount || 0);
           await this.operationalBudgetRepository.save(budget);
+
+          await this.bumpPeriodAllocationActual(
+            category.operational_budget_category_id,
+            false,
+            tenantId,
+            expenseData.expense_date
+              ? new Date(expenseData.expense_date)
+              : new Date(),
+            Number(expenseData.amount || 0),
+          );
         }
       }
     }
@@ -365,6 +446,16 @@ export class OperationalBudgetsService {
           budget.actual_spent =
             Number(budget.actual_spent) + Number(payrollData.net_pay || 0);
           await this.operationalBudgetRepository.save(budget);
+
+          await this.bumpPeriodAllocationActual(
+            payrollData.operational_budget_id,
+            true,
+            tenantId,
+            payrollData.payment_date
+              ? new Date(payrollData.payment_date)
+              : new Date(),
+            Number(payrollData.net_pay || 0),
+          );
         }
       }
     }
@@ -803,9 +894,20 @@ export class OperationalBudgetsService {
       status?: string;
       startDate?: string;
       endDate?: string;
+      page?: number;
+      limit?: number;
     } = {},
-  ): Promise<OperationalExpenseEntity[]> {
-    const { budget_id, category_id, status, startDate, endDate } = filters;
+  ): Promise<{ data: OperationalExpenseEntity[]; total: number }> {
+    const {
+      budget_id,
+      category_id,
+      status,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+    } = filters;
+    const skip = (page - 1) * limit;
 
     const queryBuilder = this.operationalExpenseRepository
       .createQueryBuilder("expense")
@@ -837,9 +939,13 @@ export class OperationalBudgetsService {
       );
     }
 
-    queryBuilder.orderBy("expense.expense_date", "DESC");
+    const [data, total] = await queryBuilder
+      .orderBy("expense.expense_date", "DESC")
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
-    return queryBuilder.getMany();
+    return { data, total };
   }
 
   async create(
@@ -1131,6 +1237,81 @@ export class OperationalBudgetsService {
     return this.budgetCategoryRepository.save(category);
   }
 
+  async updateCategory(
+    id: string,
+    dto: UpdateBudgetCategoryDto,
+    tenantId: string,
+  ): Promise<BudgetCategoryEntity> {
+    const category = await this.budgetCategoryRepository.findOne({
+      where: { id },
+    });
+
+    if (!category || category.tenant_id !== tenantId) {
+      throw new NotFoundException(
+        `Budget category "${id}" not found for this tenant.`,
+      );
+    }
+
+    if (category.is_system_default) {
+      throw new BadRequestException(
+        "System default categories cannot be modified.",
+      );
+    }
+
+    Object.assign(category, dto);
+    category.updated_at = new Date();
+    return this.budgetCategoryRepository.save(category);
+  }
+
+  async deleteCategory(
+    id: string,
+    tenantId: string,
+  ): Promise<BudgetCategoryEntity> {
+    const category = await this.budgetCategoryRepository.findOne({
+      where: { id },
+    });
+
+    if (!category || category.tenant_id !== tenantId) {
+      throw new NotFoundException(
+        `Budget category "${id}" not found for this tenant.`,
+      );
+    }
+
+    if (category.is_system_default) {
+      throw new BadRequestException(
+        "System default categories cannot be deleted.",
+      );
+    }
+
+    // Guard: block deletion while any expense references this category. The
+    // catalog table has no FK to expenses, so usage is resolved by the shared
+    // category name against the tenant's operational budget categories.
+    const inUseRows = (await this.dataSource.query(
+      `SELECT COUNT(*)::int AS count
+         FROM operational_expense e
+         JOIN operational_budget_category obc
+           ON obc.operational_budget_category_id = e.operational_budget_category_id
+        WHERE e.tenant_id = $1
+          AND obc.tenant_id = $1
+          AND obc.name = $2
+          AND e.deleted_at IS NULL`,
+      [tenantId, category.name],
+    )) as { count: number | string }[];
+
+    const inUseCount = Number(inUseRows?.[0]?.count ?? 0);
+    if (inUseCount > 0) {
+      throw new ConflictException(
+        `Budget category "${category.name}" is in use by ${inUseCount} expense(s) and cannot be deleted.`,
+      );
+    }
+
+    // Soft-delete: this entity has no deleted_at column, so the existing
+    // is_active flag is the soft-delete signal (getAvailableCategories filters it).
+    category.is_active = false;
+    category.updated_at = new Date();
+    return this.budgetCategoryRepository.save(category);
+  }
+
   // --- Grid & Allocation Management ---
 
   async getBudgetGrid(
@@ -1197,6 +1378,16 @@ export class OperationalBudgetsService {
   }
 
   private async recalculateCategoryTotal(categoryId: string) {
+    const category = await this.dataSource
+      .getRepository(OperationalBudgetCategoryEntity)
+      .findOne({
+        where: { operational_budget_category_id: categoryId },
+      });
+
+    if (!category) {
+      return;
+    }
+
     const { sum } = await this.allocationRepository
       .createQueryBuilder("allocation")
       .select("SUM(allocation.planned_amount)", "sum")
@@ -1209,8 +1400,23 @@ export class OperationalBudgetsService {
       .getRepository(OperationalBudgetCategoryEntity)
       .update(categoryId, { budgeted_amount: sum || 0 });
 
-    // We should also roll up to the Parent Budget, but ensuring consistency in a distributed update requires locking or careful steps.
-    // For now, we update the category. The Parent Budget update can be triggered or handled separately.
+    // Roll up to the owning Parent Budget: budgeted_amount = SUM of its categories.
+    const { catSum } = await this.dataSource
+      .getRepository(OperationalBudgetCategoryEntity)
+      .createQueryBuilder("cat")
+      .select("SUM(cat.budgeted_amount)", "catSum")
+      .where("cat.operational_budget_id = :budgetId", {
+        budgetId: category.operational_budget_id,
+      })
+      .getRawOne();
+
+    await this.operationalBudgetRepository.update(
+      category.operational_budget_id,
+      {
+        budgeted_amount: catSum || 0,
+        updated_at: new Date(),
+      },
+    );
   }
 
   async savePlanningGrid(
@@ -1366,10 +1572,13 @@ export class OperationalBudgetsService {
       );
     }
 
-    const pendingExpenses = await this.findAllExpenses(tenantId, {
-      budget_id: budgetId,
-      status: OperationalExpenseStatus.PENDING,
-    });
+    const pendingExpenses = (
+      await this.findAllExpenses(tenantId, {
+        budget_id: budgetId,
+        status: OperationalExpenseStatus.PENDING,
+        limit: 1000,
+      })
+    ).data;
 
     const summary = {
       budgetId,
@@ -1568,6 +1777,240 @@ export class OperationalBudgetsService {
         efficiencyScore,
         topBurningCategories,
       },
+    };
+  }
+
+  /**
+   * CANONICAL UNIFIED OPEX ANALYTICS — single typed envelope consumed by the
+   * analytics page. Reuses getOpexRollup for the budget→category aggregation
+   * and augments it with payroll, committed (PENDING) amounts, period
+   * allocations, recent expenses and a monthly trend.
+   */
+  async getOpexAnalytics(
+    tenantId: string,
+    from?: string,
+    to?: string,
+  ): Promise<OpexAnalytics> {
+    const rollup = await this.getOpexRollup(tenantId, {
+      startDate: from,
+      endDate: to,
+    });
+
+    // Committed (encumbered) expense amounts per category.
+    const pendingExpenseQb = this.operationalExpenseRepository
+      .createQueryBuilder("e")
+      .select("e.operational_budget_category_id", "category_id")
+      .addSelect("SUM(e.amount)", "committed")
+      .where("e.tenant_id = :tenantId", { tenantId })
+      .andWhere("e.status = :status", {
+        status: OperationalExpenseStatus.PENDING,
+      });
+    if (from) pendingExpenseQb.andWhere("e.expense_date >= :from", { from });
+    if (to) pendingExpenseQb.andWhere("e.expense_date <= :to", { to });
+    pendingExpenseQb.groupBy("e.operational_budget_category_id");
+
+    const committedByCategory = new Map<string, number>(
+      (await pendingExpenseQb.getRawMany()).map((r) => [
+        r.category_id,
+        parseFloat(r.committed) || 0,
+      ]),
+    );
+
+    // Settled (PAID) vs encumbered (PENDING) payroll per budget.
+    const payrollQb = this.payrollEntryRepository
+      .createQueryBuilder("p")
+      .select("p.operational_budget_id", "budget_id")
+      .addSelect(
+        `SUM(CASE WHEN p.status = '${PayrollEntryStatus.PAID}' THEN p.net_pay ELSE 0 END)`,
+        "paid",
+      )
+      .addSelect(
+        `SUM(CASE WHEN p.status = '${PayrollEntryStatus.PENDING}' THEN p.net_pay ELSE 0 END)`,
+        "pending",
+      )
+      .where("p.tenant_id = :tenantId", { tenantId });
+    if (from) payrollQb.andWhere("p.payment_date >= :from", { from });
+    if (to) payrollQb.andWhere("p.payment_date <= :to", { to });
+    payrollQb.groupBy("p.operational_budget_id");
+
+    const payrollByBudget = new Map<
+      string,
+      { paid: number; pending: number }
+    >(
+      (await payrollQb.getRawMany()).map((r) => [
+        r.budget_id,
+        { paid: parseFloat(r.paid) || 0, pending: parseFloat(r.pending) || 0 },
+      ]),
+    );
+
+    // Department ownership per budget (for byDepartment rollup keys).
+    const budgetMeta = await this.operationalBudgetRepository
+      .createQueryBuilder("b")
+      .select(["b.operational_budget_id", "b.department_id"])
+      .where("b.tenant_id = :tenantId", { tenantId })
+      .getRawMany();
+    const deptByBudget = new Map<string, string | null>(
+      budgetMeta.map((r) => [r.operational_budget_id, r.department_id ?? null]),
+    );
+
+    const byCategory: OpexAnalyticsSeries[] = [];
+    const byDepartmentMap = new Map<string, OpexAnalyticsSeriesDepartment>();
+    let totalCommitted = 0;
+
+    for (const budget of rollup.budgets) {
+      const payroll = payrollByBudget.get(budget.budget_id) ?? {
+        paid: 0,
+        pending: 0,
+      };
+      let categoryCommitted = 0;
+
+      for (const cat of budget.categories) {
+        const committed = committedByCategory.get(cat.id) ?? 0;
+        categoryCommitted += committed;
+        byCategory.push({
+          categoryId: cat.id,
+          name: cat.name,
+          budgeted: cat.budgeted,
+          actual: cat.actual,
+          committed,
+          variance: cat.budgeted - cat.actual,
+        });
+      }
+
+      const deptKey = deptByBudget.get(budget.budget_id) ?? budget.budget_id;
+      const row: OpexAnalyticsSeriesDepartment = byDepartmentMap.get(deptKey) ?? {
+        departmentId: deptKey,
+        name: budget.name,
+        budgeted: 0,
+        actual: 0,
+        committed: 0,
+        variance: 0,
+      };
+      row.budgeted += budget.budgeted;
+      row.actual += budget.actual + payroll.paid;
+      row.committed += categoryCommitted + payroll.pending;
+      row.variance = row.budgeted - row.actual;
+      byDepartmentMap.set(deptKey, row);
+
+      totalCommitted += categoryCommitted + payroll.pending;
+    }
+
+    const byDepartment = [...byDepartmentMap.values()];
+
+    // Period allocations (planned vs written-back actual) grouped by month.
+    const allocationQb = this.allocationRepository
+      .createQueryBuilder("a")
+      .select("TO_CHAR(a.period_date, 'YYYY-MM')", "period")
+      .addSelect("SUM(a.planned_amount)", "budgeted")
+      .addSelect("SUM(a.actual_amount)", "actual")
+      .where("a.tenant_id = :tenantId", { tenantId });
+    if (from) allocationQb.andWhere("a.period_date >= :from", { from });
+    if (to) allocationQb.andWhere("a.period_date <= :to", { to });
+    allocationQb.groupBy("TO_CHAR(a.period_date, 'YYYY-MM')");
+
+    const allocationByPeriod = await allocationQb.getRawMany();
+    const allocationMap = new Map(allocationByPeriod.map((r) => [r.period, r]));
+
+    const committedMonthlyQb = this.operationalExpenseRepository
+      .createQueryBuilder("e")
+      .select("TO_CHAR(e.expense_date, 'YYYY-MM')", "period")
+      .addSelect("SUM(e.amount)", "committed")
+      .where("e.tenant_id = :tenantId", { tenantId })
+      .andWhere("e.status = :status", {
+        status: OperationalExpenseStatus.PENDING,
+      });
+    if (from) committedMonthlyQb.andWhere("e.expense_date >= :from", { from });
+    if (to) committedMonthlyQb.andWhere("e.expense_date <= :to", { to });
+    committedMonthlyQb.groupBy("TO_CHAR(e.expense_date, 'YYYY-MM')");
+
+    const committedByPeriod = new Map<string, number>(
+      (await committedMonthlyQb.getRawMany()).map((r) => [
+        r.period,
+        parseFloat(r.committed) || 0,
+      ]),
+    );
+
+    const periodKeys = Array.from(
+      new Set([...allocationMap.keys(), ...committedByPeriod.keys()]),
+    ).sort();
+
+    const byPeriod: OpexAnalyticsPeriodRow[] = periodKeys.map((key) => {
+      const alloc = allocationMap.get(key);
+      return {
+        period: key,
+        budgeted: alloc ? parseFloat(alloc.budgeted) || 0 : 0,
+        actual: alloc ? parseFloat(alloc.actual) || 0 : 0,
+        committed: committedByPeriod.get(key) ?? 0,
+      };
+    });
+
+    // Monthly trend: budgeted from allocations, actual from the ledger.
+    const trendActualQb = this.operationalExpenseRepository
+      .createQueryBuilder("e")
+      .select("TO_CHAR(e.expense_date, 'YYYY-MM')", "month")
+      .addSelect("SUM(e.amount)", "actual")
+      .where("e.tenant_id = :tenantId", { tenantId })
+      .andWhere("e.status NOT IN ('REJECTED', 'REVERSED')");
+    if (from) trendActualQb.andWhere("e.expense_date >= :from", { from });
+    if (to) trendActualQb.andWhere("e.expense_date <= :to", { to });
+    trendActualQb.groupBy("TO_CHAR(e.expense_date, 'YYYY-MM')");
+
+    const trendActualByMonth = new Map<string, number>(
+      (await trendActualQb.getRawMany()).map((r) => [
+        r.month,
+        parseFloat(r.actual) || 0,
+      ]),
+    );
+
+    const monthlyTrend: OpexAnalyticsMonthlyTrend[] = periodKeys.map((key) => {
+      const alloc = allocationMap.get(key);
+      return {
+        month: key,
+        budgeted: alloc ? parseFloat(alloc.budgeted) || 0 : 0,
+        actual: trendActualByMonth.get(key) ?? 0,
+      };
+    });
+
+    const recentQb = this.operationalExpenseRepository
+      .createQueryBuilder("e")
+      .leftJoinAndSelect("e.category", "category")
+      .where("e.tenant_id = :tenantId", { tenantId });
+    if (from) recentQb.andWhere("e.expense_date >= :from", { from });
+    if (to) recentQb.andWhere("e.expense_date <= :to", { to });
+    recentQb.orderBy("e.expense_date", "DESC").take(10);
+    const recentExpenses: OpexAnalyticsRecentExpense[] = (
+      await recentQb.getMany()
+    ).map((e) => ({
+      id: e.operational_expense_id,
+      date: e.expense_date.toISOString(),
+      description: e.item_description,
+      amount: Number(e.amount),
+      category: e.category?.name ?? null,
+      status: e.status,
+    }));
+
+    const totalPaidPayroll = [...payrollByBudget.values()].reduce(
+      (sum, r) => sum + r.paid,
+      0,
+    );
+    const totalBudgeted = rollup.summary.totalBudgeted;
+    const totalActual = rollup.summary.totalActual + totalPaidPayroll;
+    const variance = totalBudgeted - totalActual;
+
+    return {
+      totals: {
+        budgeted: totalBudgeted,
+        actual: totalActual,
+        committed: totalCommitted,
+        variance,
+        variancePct:
+          totalBudgeted !== 0 ? (variance / totalBudgeted) * 100 : 0,
+      },
+      byCategory,
+      byDepartment,
+      byPeriod,
+      recentExpenses,
+      monthlyTrend,
     };
   }
 

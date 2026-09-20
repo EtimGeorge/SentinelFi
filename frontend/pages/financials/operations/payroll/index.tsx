@@ -10,6 +10,8 @@ import {
   Users, Plus, Calendar, CheckCircle2, Clock, AlertCircle, TrendingUp, FileText, ArrowRight
 } from 'lucide-react';
 import DataTable from '../../../../components/common/DataTable';
+import { ErrorBoundary } from '../../../../components/common/ErrorBoundary';
+import { KPISkeleton, TableSkeleton } from '../../../../components/common/LoadingSkeleton';
 import { useRouter } from 'next/router';
 import toast from 'react-hot-toast';
 
@@ -84,9 +86,14 @@ const PayrollDeskPage: React.FC = () => {
           </Button>
         }
       >
+        <ErrorBoundary>
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
+        <div className="mb-8">
+          {loading && !kpis ? (
+            <KPISkeleton />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-brand-primary/5 rounded-full -mr-12 -mt-12 group-hover:scale-110 transition-transform duration-700" />
             <div className="flex items-start justify-between">
               <div>
@@ -134,11 +141,16 @@ const PayrollDeskPage: React.FC = () => {
               <Users className="w-5 h-5 text-emerald-400" />
             </div>
           </div>
+            </div>
+          )}
         </div>
 
         {/* Payroll Runs Table */}
         <Card title="Executive Payroll Cycles" subtitle="Listing of all salary runs and their current lifecycle status.">
-          <DataTable
+          {loading && runs.length === 0 ? (
+            <TableSkeleton columns={5} rows={6} />
+          ) : (
+            <DataTable
             columns={[
               { key: 'run_identifier', label: 'Run Identifier', tier: 'P0', get: (run) => (
                 <div className="font-bold text-gray-100 flex items-center gap-2">
@@ -175,6 +187,7 @@ const PayrollDeskPage: React.FC = () => {
               { key: 'details', label: 'Details', icon: <ArrowRight className="w-4 h-4" />, primary: true, onClick: (run) => router.push(`/financials/operations/payroll/${run.id}`) },
             ]}
           />
+          )}
         </Card>
 
         {/* New Run Modal */}
@@ -235,6 +248,7 @@ const PayrollDeskPage: React.FC = () => {
             </div>
           </div>
         )}
+        </ErrorBoundary>
       </PageContainer>
     </>
   );
