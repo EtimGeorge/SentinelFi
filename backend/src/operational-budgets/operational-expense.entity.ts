@@ -11,6 +11,10 @@ import {
 } from "typeorm";
 import { OperationalBudgetCategoryEntity } from "./operational-budget-category.entity";
 import { VarianceFlag } from "@shared/types";
+import {
+  EncumbranceStatus,
+  VarianceClassification,
+} from "@shared/types";
 
 export enum OperationalExpenseStatus {
   PENDING = "PENDING",
@@ -74,6 +78,26 @@ export class OperationalExpenseEntity {
 
   @Column({ type: "text", nullable: true })
   override_reason?: string;
+
+  // ─── Phase 4 — Encumbrance & Control (4.1 / 4.5) ───────────────────────
+  @Column({
+    type: "enum",
+    enum: EncumbranceStatus,
+    enumName: "opex_encumbrance_status_enum",
+    default: EncumbranceStatus.RELEASED,
+  })
+  encumbrance_status!: EncumbranceStatus;
+
+  @Column({ type: "decimal", precision: 19, scale: 4, default: 0 })
+  encumbered_amount!: number;
+
+  @Column({
+    type: "enum",
+    enum: VarianceClassification,
+    enumName: "opex_variance_classification_enum",
+    nullable: true,
+  })
+  variance_classification!: VarianceClassification | null;
 
   @CreateDateColumn({ type: "timestamp" })
   created_at!: Date;

@@ -25,6 +25,7 @@ import {
   OperationalExpenseEntity,
   OperationalExpenseStatus,
 } from "./operational-expense.entity";
+import { OpexEncumbranceEntity } from "./opex-encumbrance.entity";
 import { PayrollEntryEntity, PayrollEntryStatus } from "./payroll-entry.entity";
 import { BudgetCategoryEntity } from "./budget-category.entity";
 import { AuditService } from "../audit/audit.service";
@@ -45,6 +46,12 @@ import {
   OpexAnalyticsPeriodRow,
   OpexAnalyticsMonthlyTrend,
   OpexAnalyticsRecentExpense,
+  EncumbranceStatus,
+  EncumbranceSourceType,
+  VarianceClassification,
+  OpexEncumbranceRecord,
+  OpexNeedsAttentionItem,
+  OpexNeedsAttentionResult,
 } from "@shared/types";
 import { NotificationsService } from "../notifications/notifications.service";
 
@@ -109,6 +116,8 @@ export class OperationalBudgetsService {
     private payrollEntryRepository: Repository<PayrollEntryEntity>,
     @Inject("OPERATIONALEXPENSE_REPOSITORY")
     private operationalExpenseRepository: Repository<OperationalExpenseEntity>,
+    @Inject("OPEXENCUMBRANCE_REPOSITORY")
+    private encumbranceRepository: Repository<OpexEncumbranceEntity>,
     @Inject("BUDGETCATEGORY_REPOSITORY")
     private budgetCategoryRepository: Repository<BudgetCategoryEntity>,
     @Inject("OPERATIONALBUDGETPERIODALLOCATION_REPOSITORY")
@@ -193,6 +202,9 @@ export class OperationalBudgetsService {
       logged_by_user_id: e.logged_by_user_id,
       variance_flag: e.variance_flag,
       override_reason: e.override_reason ?? null,
+      encumbrance_status: e.encumbrance_status,
+      encumbered_amount: Number(e.encumbered_amount || 0),
+      variance_classification: e.variance_classification ?? null,
       created_at: e.created_at,
       updated_at: e.updated_at,
     };
@@ -253,6 +265,132 @@ export class OperationalBudgetsService {
     }
   }
 
+  // ─── Phase 4 — Encumbrance Lifecycle (4.1) ─────────────────────────────
+
+  /**
+   * Create a soft-hold (RESERVED) encumbrance on a budget pipeline source.
+   * EPS sourcing rules:
+   *   - EXPENSE rows are raised at logExpense()/approval time.
+   *   - REQUISITION rows are raised at P2P requisition submission.
+   *   - PURCHASE_ORDER rows are raised at PO issuance (and FIRMED).
+   */
+  async createEncumbrance(input: {
+    tenantId: string;
+    sourceType: EncumbranceSourceType;
+    sourceId: string;
+    amount: number;
+    operationalBudgetId?: string | null;
+    operationalBudgetCategoryId?: string | null;
+    status?: EncumbranceStatus;
+    notes?: string | null;
+  }): Promise<OpexEncumbranceEntity> {
+    const encumbrance = this.encumbranceRepository.create({
+      tenant_id: input.tenantId,
+      source_type: input.sourceType,
+      source_id: input.sourceId,
+      amount: input.amount,
+      operational_budget_id: input.operationalBudgetId ?? null,
+      operational_budget_category_id:
+        input.operationalBudgetCategoryId ?? null,
+      status: input.status ?? EncumbranceStatus.RESERVED,
+      notes: input.notes ?? null,
+    });
+    return this.encumbranceRepository.save(encumbrance);
+  }
+
+  /**
+   * Transition the most-recent encumbrance for a source to a target status.
+   * BEING_REDUNDANT is deliberately NOT a state — liquidation/release paths
+   * pass through the full FIRM→(LIQUIDATED|RELEASED) states so the ledger
+   * always carries the completed lifecycle.
+   */
+  async transitionEncumbrance(
+    sourceType: EncumbranceSourceType,
+    sourceId: string,
+    toStatus: EncumbranceStatus,
+    tenantId: string,
+  ): Promise<OpexEncumbranceEntity | null> {
+    const active = await this.encumbranceRepository.findOne({
+      where: {
+        tenant_id: tenantId,
+        source_type: sourceType,
+        source_id: sourceId,
+        status: EncumbranceStatus.RESERVED,
+      },
+      order: { created_at: "DESC" },
+    });
+    if (!active) return null;
+    active.status = toStatus;
+    return this.encumbranceRepository.save(active);
+  }
+
+  /** Liquidate (realise as actual spend) every active encumbrance for a source. */
+  async liquidateEncumbrancesForSource(
+    sourceType: EncumbranceSourceType,
+    sourceId: string,
+    tenantId: string,
+  ): Promise<number> {
+    const result = await this.encumbranceRepository
+      .createQueryBuilder("enc")
+      .update()
+      .set({ status: EncumbranceStatus.LIQUIDATED, updated_at: new Date() })
+      .where("enc.tenant_id = :tenantId", { tenantId })
+      .andWhere("enc.source_type = :sourceType", { sourceType })
+      .andWhere("enc.source_id = :sourceId", { sourceId })
+      .andWhere("enc.status IN (:...statuses)", {
+        statuses: [EncumbranceStatus.RESERVED, EncumbranceStatus.FIRM],
+      })
+      .execute();
+    return result.affected ?? 0;
+  }
+
+  /** Release (cancel the hold) every active encumbrance for a source. */
+  async releaseEncumbrancesForSource(
+    sourceType: EncumbranceSourceType,
+    sourceId: string,
+    tenantId: string,
+  ): Promise<number> {
+    const result = await this.encumbranceRepository
+      .createQueryBuilder("enc")
+      .update()
+      .set({ status: EncumbranceStatus.RELEASED, updated_at: new Date() })
+      .where("enc.tenant_id = :tenantId", { tenantId })
+      .andWhere("enc.source_type = :sourceType", { sourceType })
+      .andWhere("enc.source_id = :sourceId", { sourceId })
+      .andWhere("enc.status IN (:...statuses)", {
+        statuses: [EncumbranceStatus.RESERVED, EncumbranceStatus.FIRM],
+      })
+      .execute();
+    return result.affected ?? 0;
+  }
+
+  /** Active (non-terminal) encumbrances against a budget — the committed pipeline. */
+  async getActiveEncumbrancesForBudget(
+    budgetId: string,
+    tenantId: string,
+  ): Promise<OpexEncumbranceRecord[]> {
+    const rows = await this.encumbranceRepository.find({
+      where: {
+        tenant_id: tenantId,
+        operational_budget_id: budgetId,
+        status: EncumbranceStatus.RESERVED,
+      },
+      order: { created_at: "DESC" },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      tenant_id: r.tenant_id,
+      source_type: r.source_type,
+      source_id: r.source_id,
+      status: r.status,
+      amount: Number(r.amount),
+      operational_budget_id: r.operational_budget_id,
+      operational_budget_category_id: r.operational_budget_category_id,
+      created_at: r.created_at.toISOString(),
+      updated_at: r.updated_at ? r.updated_at.toISOString() : null,
+    }));
+  }
+
   async logExpense(
     expenseData: Partial<OperationalExpenseEntity>,
     userId: string,
@@ -261,6 +399,14 @@ export class OperationalBudgetsService {
   ): Promise<OperationalExpenseEntity> {
     let finalStatus = expenseData.status || OperationalExpenseStatus.PENDING; // Could be explicitly set
     let finalFlag = VarianceFlag.NO_VARIANCE;
+    let finalClassification: VarianceClassification | null = null;
+    // Encumbrance target resolved when the expense is tied to a budget category.
+    let encumbranceRef: {
+      budgetId: string | null;
+      categoryId: string | null;
+      amount: number;
+      raised: boolean;
+    } = { budgetId: null, categoryId: null, amount: 0, raised: false };
 
     // Automatically deduct from associated operational budget category if specified
     if (expenseData.operational_budget_category_id) {
@@ -278,6 +424,12 @@ export class OperationalBudgetsService {
 
       if (category && category.operationalBudget) {
         const budget = category.operationalBudget;
+        encumbranceRef = {
+          budgetId: budget.operational_budget_id,
+          categoryId: category.operational_budget_category_id,
+          amount: Number(expenseData.amount || 0),
+          raised: true,
+        };
 
         // Re-use logic from WbsService but adapt for OPEX limit vs Actual Spread
         const totalActual = Number(budget.actual_spent || 0);
@@ -288,41 +440,42 @@ export class OperationalBudgetsService {
           `SELECT COALESCE(SUM(amount), 0) as total FROM operational_expense WHERE category_operational_budget_category_id = $1 AND tenant_id = $2 AND status = 'PENDING'`,
           [category.operational_budget_category_id, tenantId],
         );
-        // We'll estimate overrun based just on budget limits to mimic wbs
+        const committedTotal = parseFloat(pendingResults[0]?.total || 0);
+
+        // Phase 4 (4.3 / 4.4): dual AND-threshold variance check with the
+        // category's configured tolerance + min-amount escalation floor.
+        const varianceResult =
+          await this.budgetControlService.validateOperationalExpenseVariance({
+            budgetName: budget.name,
+            budgeted: budgetLimit,
+            actualSpent: totalActual,
+            committedAmount: committedTotal,
+            amount: Number(expenseData.amount || 0),
+            categoryTolerancePct: category.variance_tolerance_pct ?? null,
+            categoryMinAmount: category.variance_min_amount ?? null,
+          });
+        finalFlag = varianceResult.flag;
+
+        // Phase 4 (4.5): variance classification — PERMANENT when the whole
+        // budget exceeds its limit; TIMING otherwise (period shift with
+        // budget-level headroom).
         const projectedTotal =
           totalActual +
-          parseFloat(pendingResults[0]?.total || 0) +
+          committedTotal +
           Number(expenseData.amount || 0);
-
-        // Tiered Variance Checking
-        if (budgetLimit <= 0) {
-          finalFlag = VarianceFlag.CRITICAL_VARIANCE;
-          const msg = `[OPEX] VARIANCE TIER CRITICAL | ${budget.name}: Budget has $0 defined, but expense is being logged.`;
-          this.notificationsService.sendVarianceAlert(
-            "Critical OPEX Overrun",
-            msg,
-            "error",
-          );
-        } else if (projectedTotal > budgetLimit) {
-          const variancePercentage =
-            ((projectedTotal - budgetLimit) / budgetLimit) * 100;
-          if (variancePercentage >= 10) {
-            finalFlag = VarianceFlag.CRITICAL_VARIANCE;
-          } else if (variancePercentage >= 5) {
-            finalFlag = VarianceFlag.MAJOR_VARIANCE;
-          } else {
-            finalFlag = VarianceFlag.MINOR_VARIANCE;
-          }
-
-          this.notificationsService.sendVarianceAlert(
-            `${finalFlag.replace(/_/g, " ")}`,
-            `[OPEX] VARIANCE TIER ${finalFlag} | ${budget.name} | ${variancePercentage.toFixed(2)}% over budget (${(projectedTotal - budgetLimit).toFixed(2)} excess).`,
-            finalFlag === VarianceFlag.CRITICAL_VARIANCE ||
-              finalFlag === VarianceFlag.MAJOR_VARIANCE
-              ? "error"
-              : "warning",
-          );
+        let classification: VarianceClassification | null = null;
+        if (projectedTotal > budgetLimit) {
+          const budgetCommitted = committedTotal;
+          const budgetProjected =
+            Number(budget.actual_spent || 0) +
+            budgetCommitted +
+            Number(expenseData.amount || 0);
+          classification =
+            budgetProjected > Number(budget.budgeted_amount || 0)
+              ? VarianceClassification.PERMANENT_VARIANCE
+              : VarianceClassification.TIMING_VARIANCE;
         }
+        finalClassification = classification;
 
         // Governance Decisions
         if (this.varianceRequiresOverride(finalFlag)) {
@@ -387,11 +540,38 @@ export class OperationalBudgetsService {
       ...expenseData,
       status: finalStatus,
       variance_flag: finalFlag,
+      variance_classification: finalClassification,
+      encumbrance_status:
+        finalStatus === OperationalExpenseStatus.PENDING
+          ? EncumbranceStatus.RESERVED
+          : finalStatus === OperationalExpenseStatus.APPROVED
+            ? EncumbranceStatus.LIQUIDATED
+            : EncumbranceStatus.RELEASED,
+      encumbered_amount:
+        finalStatus === OperationalExpenseStatus.APPROVED ||
+        finalStatus === OperationalExpenseStatus.PENDING
+          ? Number(expenseData.amount || 0)
+          : 0,
       logged_by_user_id: userId,
       tenant_id: tenantId,
     });
 
     const saved = await this.operationalExpenseRepository.save(expense);
+
+    // Phase 4 (4.1): raise the encumbrance ledger row for the expense source.
+    if (encumbranceRef.raised) {
+      await this.createEncumbrance({
+        tenantId,
+        sourceType: EncumbranceSourceType.EXPENSE,
+        sourceId: saved.operational_expense_id,
+        amount: Number(saved.amount || 0),
+        operationalBudgetId: encumbranceRef.budgetId,
+        operationalBudgetCategoryId: encumbranceRef.categoryId,
+        status: saved.encumbrance_status,
+        notes: `OPEX expense "${saved.item_description}" (${finalStatus})`,
+      });
+    }
+
     await this.writeExpenseAudit(userId, tenantId, saved.operational_expense_id, null, saved);
     return saved;
   }
@@ -530,7 +710,157 @@ export class OperationalBudgetsService {
       }
 
       await queryRunner.manager.delete(OperationalExpenseEntity, expenseId);
+
+      // Phase 4 (4.1): release any reserved hold on the deleted expense.
+      await queryRunner.manager
+        .getRepository(OpexEncumbranceEntity)
+        .createQueryBuilder("enc")
+        .update()
+        .set({ status: EncumbranceStatus.RELEASED })
+        .where("enc.tenant_id = :tenantId", { tenantId })
+        .andWhere("enc.source_type = :sourceType", {
+          sourceType: EncumbranceSourceType.EXPENSE,
+        })
+        .andWhere("enc.source_id = :sourceId", { sourceId: expenseId })
+        .andWhere("enc.status IN (:...statuses)", {
+          statuses: [EncumbranceStatus.RESERVED, EncumbranceStatus.FIRM],
+        })
+        .execute();
       await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Phase 4 (4.9) — Reversal journal for APPROVED expense deletion.
+   *
+   * APPROVED expenses are immutable via update/delete; when an error is later
+   * found the correct remediation is a reversal that:
+   *   - decrements category + budget actual_spent (inverse journal entry),
+   *   - writes back a negative period-allocation actual,
+   *   - releases + liquidates the encumbrance trail (RELEASED),
+   *   - marks the expense REVERSED (terminal) with the reversal reason.
+   */
+  async reverseExpense(
+    expenseId: string,
+    tenantId: string,
+    actorUserId: string,
+    actorRole?: string,
+    reason?: string,
+  ): Promise<OperationalExpenseEntity> {
+    const expense = await this.operationalExpenseRepository.findOne({
+      where: { operational_expense_id: expenseId, tenant_id: tenantId },
+    });
+
+    if (!expense) {
+      throw new NotFoundException(`Expense ${expenseId} not found.`);
+    }
+
+    if (expense.status !== OperationalExpenseStatus.APPROVED) {
+      throw new BadRequestException(
+        `[OPEX] Only APPROVED expenses can be reversed (current status: ${expense.status}).`,
+      );
+    }
+
+    const beforeSnapshot = this.expenseSnapshot(expense);
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      if (expense.operational_budget_category_id) {
+        const category = await queryRunner.manager.findOne(
+          OperationalBudgetCategoryEntity,
+          {
+            where: {
+              operational_budget_category_id:
+                expense.operational_budget_category_id,
+              tenant_id: tenantId,
+            },
+            relations: ["operationalBudget"],
+          },
+        );
+
+        if (category) {
+          // Inverse journal entry: reduce settled spend on category + budget.
+          category.actual_spent =
+            Number(category.actual_spent) - Number(expense.amount);
+          await queryRunner.manager.save(
+            OperationalBudgetCategoryEntity,
+            category,
+          );
+
+          if (category.operationalBudget) {
+            const budget = category.operationalBudget;
+            budget.actual_spent =
+              Number(budget.actual_spent) - Number(expense.amount);
+            await queryRunner.manager.save(OperationalBudgetEntity, budget);
+          }
+
+          await this.bumpPeriodAllocationActual(
+            category.operational_budget_category_id,
+            false,
+            tenantId,
+            expense.expense_date,
+            -Number(expense.amount || 0),
+          );
+        }
+      }
+
+      expense.status = OperationalExpenseStatus.REVERSED;
+      expense.encumbrance_status = EncumbranceStatus.RELEASED;
+      expense.encumbered_amount = 0;
+      const reversed = await queryRunner.manager.save(
+        OperationalExpenseEntity,
+        expense,
+      );
+
+      // Release/liquidate the encumbrance trail for the reversed expense.
+      await queryRunner.manager
+        .getRepository(OpexEncumbranceEntity)
+        .createQueryBuilder("enc")
+        .update()
+        .set({ status: EncumbranceStatus.RELEASED })
+        .where("enc.tenant_id = :tenantId", { tenantId })
+        .andWhere("enc.source_type = :sourceType", {
+          sourceType: EncumbranceSourceType.EXPENSE,
+        })
+        .andWhere("enc.source_id = :sourceId", { sourceId: expenseId })
+        .andWhere("enc.status IN (:...statuses)", {
+          statuses: [
+            EncumbranceStatus.RESERVED,
+            EncumbranceStatus.FIRM,
+            EncumbranceStatus.LIQUIDATED,
+          ],
+        })
+        .execute();
+
+      await queryRunner.commitTransaction();
+
+      await this.auditService.log(
+        actorUserId,
+        "OPEX_EXPENSE_REVERSAL",
+        tenantId,
+        `[OPEX] EXPENSE REVERSAL | before: ${JSON.stringify(beforeSnapshot)} after: ${JSON.stringify(this.expenseSnapshot(reversed))} | reason: ${reason || "No reason provided"}`,
+        {
+          before: beforeSnapshot,
+          after: this.expenseSnapshot(reversed),
+          targetType: "OPERATIONAL_EXPENSE",
+          targetId: expenseId,
+          reversalReason: reason ?? null,
+        },
+      );
+
+      this.logger.warn(
+        `[OPEX] REVERSED by ${actorRole} (${actorUserId}) | ${expense.item_description} | ${expense.amount} | Reason: ${reason || "No reason provided"}`,
+      );
+
+      return reversed;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -797,7 +1127,23 @@ export class OperationalBudgetsService {
 
     const beforeSnapshot = this.expenseSnapshot(expense);
     expense.status = OperationalExpenseStatus.APPROVED;
+    expense.encumbrance_status = EncumbranceStatus.LIQUIDATED;
     const approved = await this.operationalExpenseRepository.save(expense);
+
+    // Phase 4 (4.1): firm + settle the expense encumbrance in one approval pass
+    // (OPEX has no separate payment step — approval IS settlement).
+    await this.transitionEncumbrance(
+      EncumbranceSourceType.EXPENSE,
+      expenseId,
+      EncumbranceStatus.FIRM,
+      tenantId,
+    );
+    await this.liquidateEncumbrancesForSource(
+      EncumbranceSourceType.EXPENSE,
+      expenseId,
+      tenantId,
+    );
+
     await this.writeExpenseAudit(
       approverUserId,
       tenantId,
@@ -870,7 +1216,17 @@ export class OperationalBudgetsService {
 
     const beforeSnapshot = this.expenseSnapshot(expense);
     expense.status = OperationalExpenseStatus.REJECTED;
+    expense.encumbrance_status = EncumbranceStatus.RELEASED;
+    expense.encumbered_amount = 0;
     const rejected = await this.operationalExpenseRepository.save(expense);
+
+    // Phase 4 (4.1): release any reserved hold on the rejected expense.
+    await this.releaseEncumbrancesForSource(
+      EncumbranceSourceType.EXPENSE,
+      expenseId,
+      tenantId,
+    );
+
     await this.writeExpenseAudit(
       approverUserId,
       tenantId,
@@ -1323,6 +1679,98 @@ export class OperationalBudgetsService {
       where: { operational_budget_id, tenant_id: tenantId },
       relations: ["allocations"],
       order: { name: "ASC" },
+    });
+  }
+
+  /**
+   * Phase 4 (4.6) — Rolling forecast bridge for a budget.
+   *
+   * Per-period forecast = actuals settled in that period + the encumbered
+   * pipeline (RESERVED holds + EXPENSE/FIRM-committed) that will realise in
+   * that period. No new column is persisted — the bridge is computed on read
+   * so the planning grid can visualise actual → forecast → plan side by side.
+   */
+  async getBudgetForecastBridge(
+    operational_budget_id: string,
+    tenantId: string,
+  ): Promise<
+    Array<{
+      period: string;
+      plan: number;
+      actual: number;
+      committed: number;
+      forecast: number;
+    }>
+  > {
+    const categories = await this.dataSource
+      .getRepository(OperationalBudgetCategoryEntity)
+      .find({
+        where: { operational_budget_id, tenant_id: tenantId },
+        relations: ["allocations", "expenses"],
+      });
+
+    const periodToPlan = new Map<string, number>();
+    const periodToActual = new Map<string, number>();
+    const periodToCommitted = new Map<string, number>();
+
+    for (const cat of categories) {
+      for (const alloc of cat.allocations || []) {
+        const key = alloc.period_date.toISOString().slice(0, 7);
+        periodToPlan.set(
+          key,
+          (periodToPlan.get(key) ?? 0) + Number(alloc.planned_amount || 0),
+        );
+      }
+      for (const expense of cat.expenses || []) {
+        const key = expense.expense_date.toISOString().slice(0, 7);
+        const amount = Number(expense.amount || 0);
+        if (
+          expense.status === OperationalExpenseStatus.PENDING &&
+          expense.encumbrance_status === EncumbranceStatus.RESERVED
+        ) {
+          periodToCommitted.set(
+            key,
+            (periodToCommitted.get(key) ?? 0) + amount,
+          );
+        } else if (
+          expense.status === OperationalExpenseStatus.APPROVED ||
+          expense.status === OperationalExpenseStatus.PENDING
+        ) {
+          // APPROVED realises as actual; PENDING encumbrances are committed.
+          if (expense.status === OperationalExpenseStatus.APPROVED) {
+            periodToActual.set(
+              key,
+              (periodToActual.get(key) ?? 0) + amount,
+            );
+          } else {
+            periodToCommitted.set(
+              key,
+              (periodToCommitted.get(key) ?? 0) + amount,
+            );
+          }
+        }
+      }
+    }
+
+    const keys = Array.from(
+      new Set([
+        ...periodToPlan.keys(),
+        ...periodToActual.keys(),
+        ...periodToCommitted.keys(),
+      ]),
+    ).sort();
+
+    return keys.map((period) => {
+      const plan = periodToPlan.get(period) ?? 0;
+      const actual = periodToActual.get(period) ?? 0;
+      const committed = periodToCommitted.get(period) ?? 0;
+      return {
+        period,
+        plan,
+        actual,
+        committed,
+        forecast: actual + committed,
+      };
     });
   }
 
@@ -1864,16 +2312,44 @@ export class OperationalBudgetsService {
       };
       let categoryCommitted = 0;
 
+      const budgetCommittedTotal = budget.categories.reduce(
+        (sum, cat) => sum + (committedByCategory.get(cat.id) ?? 0),
+        0,
+      );
+      // Phase 4 (4.5): whole-budget overrun wins — PERMANENT_VARIANCE on every
+      // offending category; otherwise a category alone over its line is a
+      // TIMING_VARIANCE (period shift with budget-level headroom).
+      const budgetProjected =
+        Number(budget.actual || 0) +
+        budgetCommittedTotal +
+        (payroll.pending || 0);
+      const budgetLevelOverrun =
+        budgetProjected > Number(budget.budgeted || 0);
+
       for (const cat of budget.categories) {
         const committed = committedByCategory.get(cat.id) ?? 0;
         categoryCommitted += committed;
+        const catProjected = Number(cat.actual || 0) + committed;
+        const variance = cat.budgeted - cat.actual;
+        const variancePct =
+          Number(cat.budgeted) > 0
+            ? (variance / Number(cat.budgeted)) * 100
+            : 0;
+        const classification: VarianceClassification | null =
+          budgetLevelOverrun
+            ? VarianceClassification.PERMANENT_VARIANCE
+            : catProjected > Number(cat.budgeted || 0)
+              ? VarianceClassification.TIMING_VARIANCE
+              : null;
         byCategory.push({
           categoryId: cat.id,
           name: cat.name,
           budgeted: cat.budgeted,
           actual: cat.actual,
           committed,
-          variance: cat.budgeted - cat.actual,
+          variance,
+          variancePct,
+          classification,
         });
       }
 
@@ -1885,11 +2361,14 @@ export class OperationalBudgetsService {
         actual: 0,
         committed: 0,
         variance: 0,
+        variancePct: 0,
       };
       row.budgeted += budget.budgeted;
       row.actual += budget.actual + payroll.paid;
       row.committed += categoryCommitted + payroll.pending;
       row.variance = row.budgeted - row.actual;
+      row.variancePct =
+        row.budgeted > 0 ? (row.variance / row.budgeted) * 100 : 0;
       byDepartmentMap.set(deptKey, row);
 
       totalCommitted += categoryCommitted + payroll.pending;
@@ -1987,6 +2466,10 @@ export class OperationalBudgetsService {
       amount: Number(e.amount),
       category: e.category?.name ?? null,
       status: e.status,
+      // Phase 4 (4.1): surface the encumbrance state per expense.
+      encumbranceStatus: e.encumbrance_status ?? null,
+      // Phase 4 (4.5): timing vs permanent variance classification.
+      classification: e.variance_classification ?? null,
     }));
 
     const totalPaidPayroll = [...payrollByBudget.values()].reduce(
@@ -2005,12 +2488,126 @@ export class OperationalBudgetsService {
         variance,
         variancePct:
           totalBudgeted !== 0 ? (variance / totalBudgeted) * 100 : 0,
+        // Phase 4 (4.2): pipeline-adjusted headroom — budgeted minus actual
+        // minus committed. This is the real "remaining" a planner can commit.
+        remaining: totalBudgeted - totalActual - totalCommitted,
+        // Phase 4 (4.6): rolling forecast — settled actuals plus the
+        // encumbered pipeline yet to be realised.
+        forecast: totalActual + totalCommitted,
       },
       byCategory,
       byDepartment,
       byPeriod,
       recentExpenses,
       monthlyTrend,
+    };
+  }
+
+  /**
+   * Phase 4 (4.10) — Single "needs attention" queue for OPEX.
+   *
+   * Consolidates the three operational control surfaces into one stream:
+   *   - PENDING_OPEX_APPROVAL: expenses waiting for a governance approver
+   *     (incl. overruns already routed to PENDING at log time).
+   *   - OPEX_OVERRUN: variance-flagged budget/category overruns that have
+   *     settled or are projected beyond the plan.
+   *   - VARIANCE_FLAGGED_EXPENSE: individual expenses with a non-NO variance
+   *     flag (MAJOR/CRITICAL settled items needing manager awareness).
+   */
+  async getOpexNeedsAttention(
+    tenantId: string,
+    limit = 50,
+  ): Promise<OpexNeedsAttentionResult> {
+    const items: OpexNeedsAttentionItem[] = [];
+
+    const pending = await this.operationalExpenseRepository
+      .createQueryBuilder("e")
+      .leftJoinAndSelect("e.category", "category")
+      .where("e.tenant_id = :tenantId", { tenantId })
+      .andWhere("e.status = :status", {
+        status: OperationalExpenseStatus.PENDING,
+      })
+      .orderBy("e.expense_date", "DESC")
+      .take(limit)
+      .getMany();
+
+    for (const expense of pending) {
+      items.push({
+        id: expense.operational_expense_id,
+        kind: "PENDING_OPEX_APPROVAL",
+        description: expense.item_description,
+        amount: Number(expense.amount || 0),
+        severity: expense.variance_flag,
+        classification: expense.variance_classification ?? null,
+        documentRef: null,
+        occurredAt: expense.expense_date.toISOString(),
+        category: expense.category?.name ?? null,
+      });
+    }
+
+    const rolledUp = await this.getOpexAnalytics(tenantId);
+
+    const overruns = rolledUp.byCategory.filter(
+      (c) => c.actual + c.committed > c.budgeted,
+    );
+    for (const cat of overruns.slice(0, limit - items.length)) {
+      const overrun = Number((cat.actual + cat.committed - cat.budgeted).toFixed(2));
+      items.push({
+        id: cat.categoryId,
+        kind: "OPEX_OVERRUN",
+        description: `Category "${cat.name}" is ${overrun.toFixed(2)} over its ${cat.budgeted.toFixed(2)} plan (${cat.actual.toFixed(2)} actual + ${cat.committed.toFixed(2)} committed).`,
+        amount: overrun,
+        severity:
+          (cat.variancePct ?? 0) >= 10
+            ? VarianceFlag.CRITICAL_VARIANCE
+            : (cat.variancePct ?? 0) >= 5
+              ? VarianceFlag.MAJOR_VARIANCE
+              : VarianceFlag.MINOR_VARIANCE,
+        classification: cat.classification ?? null,
+        documentRef: null,
+        occurredAt: new Date().toISOString(),
+        category: cat.name,
+      });
+    }
+
+    const flagged = await this.operationalExpenseRepository
+      .createQueryBuilder("e")
+      .leftJoinAndSelect("e.category", "category")
+      .leftJoinAndSelect("category.operationalBudget", "budget")
+      .where("e.tenant_id = :tenantId", { tenantId })
+      .andWhere(
+        "e.variance_flag IN (:...flags)",
+        { flags: [VarianceFlag.MAJOR_VARIANCE, VarianceFlag.CRITICAL_VARIANCE] },
+      )
+      .orderBy("e.expense_date", "DESC")
+      .limit(Math.max(limit - items.length, 0))
+      .getMany();
+
+    for (const expense of flagged) {
+      items.push({
+        id: expense.operational_expense_id,
+        kind: "VARIANCE_FLAGGED_EXPENSE",
+        description: expense.item_description,
+        amount: Number(expense.amount || 0),
+        severity: expense.variance_flag,
+        classification: expense.variance_classification ?? null,
+        documentRef: expense.category?.operationalBudget?.name ?? null,
+        occurredAt: expense.expense_date.toISOString(),
+        category: expense.category?.name ?? null,
+        budget: expense.category?.operationalBudget?.name ?? null,
+      });
+    }
+
+    return {
+      items: items.slice(0, limit),
+      totalPendingAmount: pending.reduce(
+        (sum, e) => sum + Number(e.amount || 0),
+        0,
+      ),
+      totalOverrunAmount: overruns.reduce(
+        (sum, c) => sum + Math.max(0, Number(c.actual + c.committed - c.budgeted)),
+        0,
+      ),
     };
   }
 

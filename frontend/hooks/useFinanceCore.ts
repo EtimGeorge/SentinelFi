@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { apiClient } from '../lib/api';
 import toast from 'react-hot-toast';
 import { OpexAnalytics } from '@shared/types/operational-budget';
+import { OpexNeedsAttentionResult } from '@shared/types/operational-budget';
+import { ThreeWayMatchResult } from '@shared/types/operational-budget';
 
 export const useFinanceCore = () => {
     const [loading, setLoading] = useState(false);
@@ -511,8 +513,108 @@ export const useFinanceCore = () => {
         }
     }, []);
 
+    // --- Phase 4: Encumbrance, Receipts, 3-Way Match, Needs-Attention ---
+
+    const reverseOperationalExpense = useCallback(async (id: string, reason?: string) => {
+        setLoading(true);
+        try {
+            return await apiClient.post(`/operational-budgets/expense/${id}/reverse`, { reason });
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const getOpexNeedsAttention = useCallback(async (limit?: number): Promise<OpexNeedsAttentionResult | null> => {
+        setLoading(true);
+        try {
+            const res = await apiClient.get<OpexNeedsAttentionResult>('/operational-budgets/needs-attention', {
+                params: limit ? { limit } : {},
+            });
+            return res;
+        } catch (error) {
+            toast.error('Error fetching OPEX needs-attention queue');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const getProcurementNeedsAttention = useCallback(async () => {
+        setLoading(true);
+        try {
+            return await apiClient.get('/finance-core/procurement-needs-attention');
+        } catch (error) {
+            toast.error('Error fetching procurement needs-attention queue');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const getBudgetForecastBridge = useCallback(async (budgetId: string) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.get(
+                `/operational-budgets/${budgetId}/forecast-bridge`,
+            );
+            return Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+        } catch (error) {
+            toast.error('Error fetching forecast bridge');
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const recordReceipt = useCallback(async (data: {
+        purchaseOrderId: string;
+        receivedDate: string;
+        quantity: number;
+        unitAmount: number;
+        notes?: string;
+    }) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.post('/finance-core/receipts', data);
+            toast.success('Receipt recorded');
+            return res;
+        } catch (error) {
+            toast.error('Failed to record receipt');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const getPurchaseOrderReceipts = useCallback(async (purchaseOrderId: string) => {
+        setLoading(true);
+        try {
+            return await apiClient.get(`/finance-core/purchase-orders/${purchaseOrderId}/receipts`);
+        } catch (error) {
+            toast.error('Error fetching receipts');
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const getThreeWayMatch = useCallback(async (purchaseOrderId: string): Promise<ThreeWayMatchResult | null> => {
+        setLoading(true);
+        try {
+            const res = await apiClient.get<ThreeWayMatchResult>(
+                `/finance-core/purchase-orders/${purchaseOrderId}/three-way-match`,
+            );
+            return res;
+        } catch (error) {
+            toast.error('Error running three-way match');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     return {
-        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter,
+        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter, reverseOperationalExpense, getOpexNeedsAttention, getProcurementNeedsAttention, getBudgetForecastBridge, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch,
     };
 };
 

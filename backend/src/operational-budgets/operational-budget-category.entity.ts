@@ -35,6 +35,19 @@ export class OperationalBudgetCategoryEntity {
   @Column({ type: "decimal", precision: 10, scale: 2, default: 0 })
   actual_spent!: number; // Sum of related OperationalExpenseEntity amounts
 
+  // ─── Phase 4 — Category-Specific Variance Tolerance (4.4) ──────────────
+  // Percentage headroom (e.g. 15 = tolerate up to 15% overrun before flagging).
+  // Lower values are stricter, so Payroll can be governed more tightly than
+  // discretionary categories.
+  @Column({ type: "decimal", precision: 5, scale: 2, nullable: true })
+  variance_tolerance_pct!: number | null;
+
+  // AND-threshold (4.3): minimum absolute overrun amount required before the
+  // % tier escalates. Prevents $5 overruns on a small category from tripping
+  // a CRITICAL flag when both dimensions must exceed their bounds.
+  @Column({ type: "decimal", precision: 19, scale: 4, nullable: true })
+  variance_min_amount!: number | null;
+
   @ManyToOne(
     () => OperationalBudgetEntity,
     (operationalBudget) => operationalBudget.categories,

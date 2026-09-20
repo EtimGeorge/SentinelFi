@@ -43,9 +43,13 @@ const ApprovalsPage = () => {
     (state) => state.setUnreadNotificationsCount,
   );
   const [activeTab, setActiveTab] = useState<
-    "PROJECT" | "OPERATIONAL" | "OVERRUNS"
+    "PROJECT" | "OPERATIONAL" | "OVERRUNS" | "NEEDS_ATTENTION"
   >("PROJECT");
   const [loading, setLoading] = useState(true);
+  const [needsLoading, setNeedsLoading] = useState(false);
+  const [needsItems, setNeedsItems] = useState<any[]>([]);
+  const [needsTotals, setNeedsTotals] = useState<{ totalPendingAmount: number; totalOverrunAmount: number }>({ totalPendingAmount: 0, totalOverrunAmount: 0 });
+  const [procurementNeeds, setProcurementNeeds] = useState<{ pendingRequisitions: any[]; awaitingFulfilment: any[]; overdueInvoices: any[] }>({ pendingRequisitions: [], awaitingFulfilment: [], overdueInvoices: [] });
   const [expandedProjects, setExpandedProjects] = useState<
     Record<string, boolean>
   >({});
@@ -175,6 +179,48 @@ const ApprovalsPage = () => {
       setLoading(false);
     }
   }, [isAuthorized]);
+
+  const fetchNeedsAttention = async () => {
+    setNeedsLoading(true);
+    try {
+      const [opexRes, procRes] = await Promise.all([
+        apiClient.get("/operational-budgets/needs-attention"),
+        apiClient.get("/finance-core/procurement-needs-attention"),
+      ]);
+      const opex = (Array.isArray(opexRes) ? opexRes : opexRes?.data) || { items: [], totalPendingAmount: 0, totalOverrunAmount: 0 };
+      setNeedsItems(opex.items || []);
+      setNeedsTotals({
+        totalPendingAmount: opex.totalPendingAmount || 0,
+        totalOverrunAmount: opex.totalOverrunAmount || 0,
+      });
+      const proc = (Array.isArray(procRes) ? procRes : procRes?.data) || {};
+      setProcurementNeeds({
+        pendingRequisitions: proc.pendingRequisitions || [],
+        awaitingFulfilment: proc.awaitingFulfilment || [],
+        overdueInvoices: proc.overdueInvoices || [],
+      });
+    } catch (error: any) {
+      toast.error(`Needs-Attention Sync Error: ${error?.response?.data?.message || error.message}`);
+    } finally {
+      setNeedsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthorized && activeTab === "NEEDS_ATTENTION") {
+      fetchNeedsAttention();
+    }
+  }, [activeTab, isAuthorized]);
+
+  const handleExpenseAction = async (id: string, kind: string, action: "APPROVE" | "REJECT") => {
+    try {
+      await apiClient.post(`/operational-budgets/expense/${id}/${action === "APPROVE" ? "approve" : "reject"}`);
+      toast.success(`${action === "APPROVE" ? "Approved" : "Rejected"} OPEX expense`);
+      setNeedsItems((prev) => prev.filter((i) => !(i.id === id && i.kind === kind)));
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || `Failed to ${action.toLowerCase()} expense`);
+    }
+  };
 
   // Hierarchical Grouping: Project -> WBS Tree
   const groupedProjects = useMemo(() => {
@@ -371,7 +417,9 @@ const ApprovalsPage = () => {
       ? Math.ceil(filteredProjectIds.length / itemsPerPage)
       : activeTab === "OPERATIONAL"
         ? Math.ceil(filteredOpexItems.length / itemsPerPage)
-        : Math.ceil(filteredOverrunItems.length / itemsPerPage);
+        : activeTab === "OVERRUNS"
+          ? Math.ceil(filteredOverrunItems.length / itemsPerPage)
+          : 1;
 
   const paginatedCostCenterKeys = Object.keys(groupedCostCenters).slice(
     (currentPage - 1) * itemsPerPage, currentPage * itemsPerPage,
@@ -472,6 +520,16 @@ const ApprovalsPage = () => {
                     <AlertCircle className="w-4 h-4" />
                     Overrun Queue
                   </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab("NEEDS_ATTENTION");
+                      setCurrentPage(1);
+                    }}
+                    className={`px-8 py-3 rounded-xl text-xs font-black uppercase flex items-center gap-2  transition-all duration-300 ${activeTab === "NEEDS_ATTENTION" ? "bg-yellow-500/20 text-yellow-400 elev-lg shadow-yellow-500/10 scale-105 border border-yellow-500/50" : "text-slate-500 hover:text-yellow-400 hover:bg-yellow-500/10"}`}
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    Needs Attention
+                  </button>
                 </div>
               </div>
 
@@ -488,10 +546,12 @@ const ApprovalsPage = () => {
                     ? "Search by project or description..."
                     : activeTab === "OPERATIONAL"
                       ? "Search by req number or vendor..."
-                      : "Search overruns by project, wbs, or description..."
+                      : activeTab === "OVERRUNS"
+                        ? "Search overruns by project, wbs, or description..."
+                        : "Needs-Attention is a live exception feed; filters not required."
                 }
                 filters={
-                  activeTab === "PROJECT" || activeTab === "OVERRUNS"
+                  activeTab === "PROJECT" || activeTab === "OVERRUNS" || activeTab === "NEEDS_ATTENTION"
                     ? []
                     : [
                         {
@@ -915,6 +975,147 @@ const ApprovalsPage = () => {
                       ]}
                       emptyMessage="There are no pending budget overrun requests awaiting governance action."
                     />
+                  </div>
+                </div>
+              ))}
+
+            {activeTab === "NEEDS_ATTENTION" &&
+              (needsLoading ? (
+                <div className="flex justify-center py-24">
+                  <Spinner />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Exception Summary Strip */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-5">
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-tight">Pending OPEX Approvals</p>
+                      <p className="text-2xl font-black text-yellow-400 mt-1">{needsItems.filter(i => i.kind === "PENDING_OPEX_APPROVAL").length}</p>
+                      <p className="text-xs text-slate-500 font-mono mt-1">{formatAmount(needsTotals.totalPendingAmount, "NGN")}</p>
+                    </div>
+                    <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-5">
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-tight">Variance Overrun Exposure</p>
+                      <p className="text-2xl font-black text-red-400 mt-1">{needsItems.filter(i => i.kind === "OPEX_OVERRUN").length}</p>
+                      <p className="text-xs text-slate-500 font-mono mt-1">{formatAmount(needsTotals.totalOverrunAmount, "NGN")}</p>
+                    </div>
+                    <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-5">
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-tight">Procurement Slack</p>
+                      <p className="text-2xl font-black text-blue-400 mt-1">
+                        {procurementNeeds.pendingRequisitions.length + procurementNeeds.awaitingFulfilment.length + procurementNeeds.overdueInvoices.length}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">Requisitions + fulfilment + overdue invoices</p>
+                    </div>
+                  </div>
+
+                  {/* OPEX Needs-Attention Feed */}
+                  <div className="overflow-hidden rounded-3xl border border-yellow-900/40 bg-slate-900/20 backdrop-blur-sm p-3 md:p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <AlertCircle className="w-4 h-4 text-yellow-400" />
+                      <h3 className="text-sm font-black text-yellow-400 uppercase tracking-tight">Operational Exception Feed</h3>
+                    </div>
+                    {needsItems.length === 0 ? (
+                      <EmptyState icon={<CheckCircle />} title="No OPEX Exceptions" subtitle="All pending expenses and variance flags are aligned within tolerance." />
+                    ) : (
+                      <DataTable
+                        columns={[
+                          {
+                            key: "kind", label: "Type", tier: "P1", minWidth: 150, get: (item) => (
+                              <span className={`text-[11px] font-black uppercase px-2 py-1 rounded-full border ${item.kind === "OPEX_OVERRUN" ? "bg-red-500/10 text-red-400 border-red-500/30" : item.kind === "VARIANCE_FLAGGED_EXPENSE" ? "bg-orange-500/10 text-orange-400 border-orange-500/30" : "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"}`}>
+                                {item.kind.replace(/_/g, " ")}
+                              </span>
+                            ),
+                          },
+                          {
+                            key: "description", label: "Item", tier: "P0", minWidth: 260, title: (item) => item.description, get: (item) => (
+                              <span className="text-sm font-bold text-slate-200 truncate">{item.description}</span>
+                            ),
+                          },
+                          {
+                            key: "severity", label: "Severity", tier: "P2", minWidth: 120, get: (item) => (
+                              <span className={`text-xs font-black px-2 py-1 rounded uppercase ${item.severity === "CRITICAL_VARIANCE" ? "bg-red-500/20 text-red-400" : item.severity === "MAJOR_VARIANCE" ? "bg-orange-500/20 text-orange-400" : item.severity ? "bg-slate-800 text-slate-400" : "bg-slate-800 text-slate-500"}`}>
+                                {item.severity?.replace(/_/g, " ") || "STANDARD"}
+                              </span>
+                            ),
+                          },
+                          {
+                            key: "classification", label: "Class", tier: "P2", minWidth: 120, get: (item) => (
+                              <span className={`text-xs font-black px-2 py-1 rounded ${item.classification === "PERMANENT_VARIANCE" ? "bg-red-500/10 text-red-400" : item.classification === "TIMING_VARIANCE" ? "bg-yellow-500/10 text-yellow-400" : "text-slate-600"}`}>
+                                {item.classification?.replace(/_/g, " ") || "—"}
+                              </span>
+                            ),
+                          },
+                          {
+                            key: "amount", label: "Amount", tier: "P0", minWidth: 130, cellClassName: "text-right font-black text-white whitespace-nowrap", get: (item) =>
+                              formatAmount(item.amount, "NGN"),
+                          },
+                        ]}
+                        rows={needsItems}
+                        rowKey={(item) => `${item.kind}:${item.id}`}
+                        actions={[
+                          {
+                            key: "approve", label: "Approve", primary: true, icon: <CheckCircle className="w-4 h-4" />, visible: (item) => item.kind === "PENDING_OPEX_APPROVAL", onClick: (item) =>
+                              handleExpenseAction(item.id, item.kind, "APPROVE"),
+                          },
+                          {
+                            key: "reject", label: "Reject", danger: true, icon: <XCircle className="w-4 h-4" />, visible: (item) => item.kind === "PENDING_OPEX_APPROVAL", onClick: (item) =>
+                              handleExpenseAction(item.id, item.kind, "REJECT"),
+                          },
+                        ]}
+                        emptyMessage="No operational exceptions in the feed."
+                      />
+                    )}
+                  </div>
+
+                  {/* Procurement Slack View */}
+                  <div className="overflow-hidden rounded-3xl border border-blue-900/40 bg-slate-900/20 backdrop-blur-sm p-3 md:p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Clock className="w-4 h-4 text-blue-400" />
+                      <h3 className="text-sm font-black text-blue-400 uppercase tracking-tight">Procurement Slack — Awaiting Action</h3>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div>
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-tight mb-2">Pending Requisitions ({procurementNeeds.pendingRequisitions.length})</p>
+                        <div className="space-y-2">
+                          {procurementNeeds.pendingRequisitions.slice(0, 6).map((r: any) => (
+                            <div key={r.id} className="p-3 bg-slate-950/50 border border-slate-800 rounded-xl">
+                              <p className="text-xs font-bold text-white truncate">{r.requisition_number} · {r.description}</p>
+                              <p className="text-xs text-slate-500 font-mono mt-1">{convertToDisplay(r.estimated_amount, r.currency || "NGN")}</p>
+                            </div>
+                          ))}
+                          {procurementNeeds.pendingRequisitions.length === 0 && (
+                            <p className="text-xs text-slate-600 italic">No pending requisitions.</p>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-tight mb-2">Awaiting Fulfilment ({procurementNeeds.awaitingFulfilment.length})</p>
+                        <div className="space-y-2">
+                          {procurementNeeds.awaitingFulfilment.slice(0, 6).map((po: any) => (
+                            <div key={po.id} className="p-3 bg-slate-950/50 border border-slate-800 rounded-xl">
+                              <p className="text-xs font-bold text-white truncate">{po.po_number} · {po.vendor_name}</p>
+                              <p className="text-xs text-slate-500 font-mono mt-1">{convertToDisplay(po.committed_amount, po.currency || "NGN")}</p>
+                            </div>
+                          ))}
+                          {procurementNeeds.awaitingFulfilment.length === 0 && (
+                            <p className="text-xs text-slate-600 italic">All POs fulfilled.</p>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-tight mb-2">Overdue Invoices ({procurementNeeds.overdueInvoices.length})</p>
+                        <div className="space-y-2">
+                          {procurementNeeds.overdueInvoices.slice(0, 6).map((inv: any) => (
+                            <div key={inv.id} className="p-3 bg-slate-950/50 border border-slate-800 rounded-xl">
+                              <p className="text-xs font-bold text-white truncate">{inv.invoice_number} · {inv.vendor_name}</p>
+                              <p className="text-xs text-slate-500 font-mono mt-1">{convertToDisplay(inv.amount, inv.currency || "NGN")}</p>
+                            </div>
+                          ))}
+                          {procurementNeeds.overdueInvoices.length === 0 && (
+                            <p className="text-xs text-slate-600 italic">No overdue invoices.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}

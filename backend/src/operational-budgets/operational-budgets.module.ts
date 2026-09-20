@@ -4,6 +4,7 @@ import { TENANT_DATA_SOURCE } from "../database/constants";
 import { OperationalBudgetEntity } from "./operational-budget.entity";
 import { OperationalBudgetCategoryEntity } from "./operational-budget-category.entity";
 import { OperationalExpenseEntity } from "./operational-expense.entity";
+import { OpexEncumbranceEntity } from "./opex-encumbrance.entity";
 import { PayrollEntryEntity } from "./payroll-entry.entity";
 import { BudgetCategoryEntity } from "./budget-category.entity";
 import { OperationalBudgetPeriodAllocationEntity } from "./operational-budget-period-allocation.entity";
@@ -33,6 +34,12 @@ import { AuditModule } from "../audit/audit.module";
       provide: "OPERATIONALEXPENSE_REPOSITORY",
       useFactory: (dataSource: DataSource) =>
         dataSource.getRepository(OperationalExpenseEntity),
+      inject: [TENANT_DATA_SOURCE],
+    },
+    {
+      provide: "OPEXENCUMBRANCE_REPOSITORY",
+      useFactory: (dataSource: DataSource) =>
+        dataSource.getRepository(OpexEncumbranceEntity),
       inject: [TENANT_DATA_SOURCE],
     },
     {

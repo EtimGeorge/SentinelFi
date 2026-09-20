@@ -22,7 +22,7 @@ const OpexPlanningPage: React.FC = () => {
   const router = useRouter();
   const { convertToDisplay } = useCurrency();
   const { user } = useAuth();
-  const { loading, fetchFiscalYears, fetchDepartments, fetchChartOfAccounts, fetchReportBlob, downloadBlob, fetchOperationalBudgets, submitOperationalBudgetToGovernance } = useFinanceCore();
+  const { loading, fetchFiscalYears, fetchDepartments, fetchChartOfAccounts, fetchReportBlob, downloadBlob, fetchOperationalBudgets, submitOperationalBudgetToGovernance, getBudgetForecastBridge } = useFinanceCore();
 
   const [fiscalYears, setFiscalYears] = useState<any[]>([]);
   const [selectedFy, setSelectedFy] = useState<any>(null);
@@ -33,6 +33,32 @@ const OpexPlanningPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'setup' | 'budgeting' | 'review'>('budgeting');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [bridge, setBridge] = useState<any[]>([]);
+  const [bridgeLoading, setBridgeLoading] = useState(false);
+
+  useEffect(() => {
+    const loadBridge = async () => {
+      setBridgeLoading(true);
+      try {
+        const res: any = await fetchOperationalBudgets();
+        const unwrapped = res?.operationalBudgets || res?.data?.operationalBudgets || res?.items || res?.data?.items || res?.data || res;
+        const list = Array.isArray(unwrapped) ? unwrapped : [];
+        const fyYear = selectedFy
+          ? parseInt(String(selectedFy.year_label || '').replace(/\D/g, ''), 10) || new Date(selectedFy.start_date || selectedFy.startDate).getFullYear()
+          : null;
+        const budget = list.find((b: any) => fyYear && new Date(b.start_date).getFullYear() === fyYear) || list[0];
+        if (budget?.operational_budget_id) {
+          const rows = await getBudgetForecastBridge(budget.operational_budget_id);
+          setBridge(Array.isArray(rows) ? rows : []);
+        } else {
+          setBridge([]);
+        }
+      } finally {
+        setBridgeLoading(false);
+      }
+    };
+    if (activeTab === 'budgeting') loadBridge();
+  }, [activeTab, selectedFy, fetchOperationalBudgets, getBudgetForecastBridge]);
 
   useEffect(() => {
     const init = async () => {
@@ -167,7 +193,56 @@ const OpexPlanningPage: React.FC = () => {
               {loading ? (
                 <div className="p-6"><TableSkeleton columns={5} rows={8} /></div>
               ) : coa.length > 0 ? (
-                <PlanningGrid coa={coa} departments={departments} fiscalYear={selectedFy} />
+                <div className="flex flex-col h-full">
+                  {/* Phase 4 (4.6): Forecast Bridge Pulse */}
+                  {bridgeLoading ? (
+                    <div className="p-4 border-b border-slate-800"><TableSkeleton columns={4} rows={1} /></div>
+                  ) : bridge.length > 0 ? (
+                    <div className="p-4 border-b border-slate-800 bg-slate-900/40">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)] animate-pulse" />
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Forecast Bridge — Actualized + Encumbered Pipeline</p>
+                        <Tooltip content="Per-period plan vs settled spend + committed encumbrances. Forecast = Actual + Committed. A forecast that exceeds plan signals overrun before payment lands.">
+                          <HelpCircle className="w-3 h-3 text-slate-600 hover:text-blue-400 transition cursor-help" />
+                        </Tooltip>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left min-w-[1100px]">
+                          <thead>
+                            <tr className="text-[11px] uppercase text-slate-600 font-black">
+                              <th className="py-1.5 px-3">Period</th>
+                              <th className="py-1.5 px-3 text-right">Plan</th>
+                              <th className="py-1.5 px-3 text-right">Settled Actual</th>
+                              <th className="py-1.5 px-3 text-right">Committed Pipeline</th>
+                              <th className="py-1.5 px-3 text-right">Forecast</th>
+                              <th className="py-1.5 px-3 text-right">Delta</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {bridge.map((row: any, i: number) => {
+                              const delta = row.forecast - row.plan;
+                              return (
+                                <tr key={i} className="border-t border-slate-800/40 text-xs font-mono">
+                                  <td className="py-2 px-3 font-black text-slate-300 uppercase tracking-tight">{row.period}</td>
+                                  <td className="py-2 px-3 text-right text-slate-400">{convertToDisplay(row.plan, 'NGN')}</td>
+                                  <td className="py-2 px-3 text-right text-brand-primary font-black">{convertToDisplay(row.actual, 'NGN')}</td>
+                                  <td className="py-2 px-3 text-right text-yellow-400">{convertToDisplay(row.committed, 'NGN')}</td>
+                                  <td className="py-2 px-3 text-right text-blue-400 font-black">{convertToDisplay(row.forecast, 'NGN')}</td>
+                                  <td className={`py-2 px-3 text-right font-black ${delta <= 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                    {delta <= 0 ? 'OVER' : `${((row.plan > 0 ? 1 - row.forecast / row.plan : 1) * 100).toFixed(1)}% headroom`}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="flex-1 overflow-hidden">
+                    <PlanningGrid coa={coa} departments={departments} fiscalYear={selectedFy} />
+                  </div>
+                </div>
               ) : (
                 <EmptyState
                   icon={<Info className="w-10 h-10 text-slate-600" />}

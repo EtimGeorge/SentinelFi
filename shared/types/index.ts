@@ -1,4 +1,6 @@
 export * from './variance-flag.enum';
+export * from './encumbrance-status.enum';
+export * from './variance-classification.enum';
 export * from './wbs-budget-status.enum';
 export * from './industry.enum';
 export * from './approval-status.enum';

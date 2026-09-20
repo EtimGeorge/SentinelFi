@@ -230,6 +230,37 @@ export class OperationalBudgetsController {
   }
 
   /**
+   * API Endpoint: POST /api/v1/operational-budgets/expense/:id/reverse
+   * Phase 4 (4.9): reversal journal for an APPROVED expense — restores the
+   * budget's actual spend via an inverse journal and releases the hold.
+   * Permissions: Finance governance roles
+   */
+  @Post("expense/:id/reverse")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+  )
+  async reverseExpense(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() body: { reason?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.reverseExpense(
+      id,
+      req.user.tenant_id,
+      req.user.id,
+      this.getActorRole(req),
+      body?.reason,
+    );
+  }
+
+  /**
    * API Endpoint: GET /api/v1/operational-budgets/expense/all
    */
   @Get("expense/all")
@@ -350,6 +381,37 @@ export class OperationalBudgetsController {
       req.user.tenant_id,
       query.from,
       query.to,
+    );
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/operational-budgets/needs-attention
+   * Phase 4 (4.10): single OPEX "needs attention" queue — pending approvals,
+   * category overruns, and variance-flagged expenses.
+   * Permissions: All read/governance roles
+   */
+  @Get("needs-attention")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.SuperAdmin,
+  )
+  async getOpexNeedsAttention(
+    @Req() req: AuthenticatedRequest,
+    @Query("limit") limit?: string,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    const parsedLimit = limit ? parseInt(limit, 10) || 50 : 50;
+    return this.operationalBudgetsService.getOpexNeedsAttention(
+      req.user.tenant_id,
+      parsedLimit,
     );
   }
 
@@ -677,6 +739,35 @@ export class OperationalBudgetsController {
       throw new UnauthorizedException("User not authenticated.");
     }
     return this.operationalBudgetsService.getBudgetGrid(id, req.user.tenant_id);
+  }
+
+  /**
+   * API Endpoint: GET /api/v1/operational-budgets/:id/forecast-bridge
+   * Phase 4 (4.6): rolling forecast bridge (actual → forecast → plan) per
+   * period for the planning grid.
+   * Declared BEFORE /:id/planning-grid generic patterns are unaffected.
+   */
+  @Get(":id/forecast-bridge")
+  @Roles(
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CFO,
+    Role.FinanceManager,
+    Role.SuperAdmin,
+    Role.CEO,
+    Role.OperationalDirector,
+  )
+  async getBudgetForecastBridge(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.operationalBudgetsService.getBudgetForecastBridge(
+      id,
+      req.user.tenant_id,
+    );
   }
 
   @Post(":id/planning-grid")

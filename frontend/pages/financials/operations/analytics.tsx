@@ -83,6 +83,34 @@ const CorporateAnalyticsPage: React.FC = () => {
     return 'text-green-400';
   };
 
+  const ClassificationBadge = ({ classification }: { classification?: string | null }) => {
+    if (!classification) return <span className="text-xs font-semibold text-slate-600 italic">—</span>;
+    if (classification === 'PERMANENT_VARIANCE') {
+      return (
+        <Tooltip content="Structural overspend vs the full operational budget — requires reallocation or re-baselining.">
+          <span className="inline-flex items-center gap-1 text-[11px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full cursor-help">PERMANENT</span>
+        </Tooltip>
+      );
+    }
+    return (
+      <Tooltip content="Timing variance — spending shifted periods but still inside the overall budget envelope.">
+        <span className="inline-flex items-center gap-1 text-[11px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full cursor-help">TIMING</span>
+      </Tooltip>
+    );
+  };
+
+  const EncumbranceBadge = ({ status }: { status?: string | null }) => {
+    const map: Record<string, { label: string; cls: string }> = {
+        RESERVED: { label: 'RESERVED', cls: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+        FIRM: { label: 'FIRM', cls: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
+        LIQUIDATED: { label: 'LIQUIDATED', cls: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+        RELEASED: { label: 'RELEASED', cls: 'text-slate-400 bg-slate-500/10 border-slate-500/20' },
+    };
+    const item = status ? map[status] : null;
+    if (!item) return <span className="text-xs font-semibold text-slate-600 italic">—</span>;
+    return <span className={`inline-flex items-center text-[11px] font-black border px-2 py-0.5 rounded-full ${item.cls}`}>{item.label}</span>;
+  };
+
   // Calculate some derived metrics
   const burnRate = useMemo(() => {
     if (!analytics || analytics.monthlyTrend.length === 0) return 0;
@@ -201,6 +229,62 @@ const CorporateAnalyticsPage: React.FC = () => {
                   </div>
                   <h3 className="text-3xl font-black text-yellow-500 tracking-tighter">{convertToDisplay(analytics.totals.committed, 'NGN')}</h3>
                   <p className="text-xs text-slate-500 font-bold mt-2">Avg. Monthly Burn {convertToDisplay(burnRate, 'NGN')}</p>
+                </div>
+              </div>
+
+              {/* Phase 4 — Pipeline-Adjusted Headroom + Rolling Forecast */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group border-b-4 border-b-emerald-500/40">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-black text-slate-500 ">Remaining Headroom</p>
+                    <Tooltip content="Pipeline-adjusted remaining spend = Budgeted − Settled − Committed. This is the real capacity a planner can still commit.">
+                      <HelpCircle className="w-3 h-3 text-slate-700 hover:text-emerald-500 transition cursor-help" />
+                    </Tooltip>
+                  </div>
+                  <h3 className={`text-3xl font-black tracking-tighter ${analytics.totals.remaining < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {convertToDisplay(analytics.totals.remaining, 'NGN')}
+                  </h3>
+                  <span className={`text-xs font-bold flex items-center bg-emerald-500/10 px-1.5 py-0.5 rounded-full mt-2 w-fit ${analytics.totals.remaining < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {analytics.totals.remaining < 0 ? 'Oversubscribed' : 'Available to commit'}
+                  </span>
+                </div>
+
+                <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-black text-slate-500 ">Rolling Forecast</p>
+                    <Tooltip content="Forecast = settled actuals + the encumbered pipeline yet to be realised. The bridge the plan must absorb.">
+                      <HelpCircle className="w-3 h-3 text-slate-700 hover:text-blue-400 transition cursor-help" />
+                    </Tooltip>
+                  </div>
+                  <h3 className="text-3xl font-black text-blue-400 tracking-tighter">{convertToDisplay(analytics.totals.forecast, 'NGN')}</h3>
+                  <p className="text-xs text-slate-500 font-bold mt-2">Actuals + Encumbered Pipeline</p>
+                </div>
+
+                <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <p className="text-xs font-black text-slate-500 ">Variance Classification</p>
+                    <Tooltip content="Variances classified as PERMANENT (structural overspend vs the full budget) or TIMING (period shift with budget-level headroom).">
+                      <HelpCircle className="w-3 h-3 text-slate-700 hover:text-brand-primary transition cursor-help" />
+                    </Tooltip>
+                  </div>
+                  <div className="flex flex-col gap-2 mt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-black text-red-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> PERMANENT
+                      </span>
+                      <span className="font-black text-white font-mono">
+                        {analytics.byCategory.filter((c) => c.classification === 'PERMANENT_VARIANCE').length}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-black text-yellow-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" /> TIMING
+                      </span>
+                      <span className="font-black text-white font-mono">
+                        {analytics.byCategory.filter((c) => c.classification === 'TIMING_VARIANCE').length}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -328,6 +412,9 @@ const CorporateAnalyticsPage: React.FC = () => {
                         { key: 'variance', label: 'Variance', tier: 'P2', cellClassName: 'text-right font-mono text-xs font-black', get: (c: OpexAnalyticsSeries) => (
                           <span className={getHealthColor(c.budgeted > 0 ? (c.variance / c.budgeted) * 100 : 0)}>{convertToDisplay(c.variance, 'NGN')}</span>
                         )},
+                        { key: 'classification', label: 'Class', tier: 'P2', cellClassName: 'text-center', get: (c: OpexAnalyticsSeries) => (
+                          <ClassificationBadge classification={c.classification} />
+                        )},
                       ]}
                       rows={analytics.byCategory}
                       rowKey={(c) => c.categoryId}
@@ -443,6 +530,12 @@ const CorporateAnalyticsPage: React.FC = () => {
                       )},
                       { key: 'status', label: 'Status', tier: 'P2', get: (e: OpexAnalyticsRecentExpense) => (
                         <span className="text-[11px] font-black text-brand-primary uppercase tracking-tight">{e.status}</span>
+                      )},
+                      { key: 'classification', label: 'Class', tier: 'P2', cellClassName: 'text-center', get: (e: OpexAnalyticsRecentExpense) => (
+                        <ClassificationBadge classification={e.classification} />
+                      )},
+                      { key: 'encumbranceStatus', label: 'Encumbrance', tier: 'P2', cellClassName: 'text-center', get: (e: OpexAnalyticsRecentExpense) => (
+                        <EncumbranceBadge status={e.encumbranceStatus} />
                       )},
                       { key: 'amount', label: 'Amount', tier: 'P0', cellClassName: 'text-right font-mono text-xs text-white font-black', get: (e: OpexAnalyticsRecentExpense) => convertToDisplay(e.amount, 'NGN') },
                     ]}

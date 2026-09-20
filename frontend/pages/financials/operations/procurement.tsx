@@ -25,7 +25,7 @@ import Select from '../../../components/common/Select';
 const P2PDeskPage: React.FC = () => {
   const { user } = useAuth();
   const {
-    fetchRequisitions, fetchPurchaseOrders, fetchInvoices, createPurchaseOrder, fetchDepartments, fetchChartOfAccounts, createRequisition, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, payInvoice
+    fetchRequisitions, fetchPurchaseOrders, fetchInvoices, createPurchaseOrder, fetchDepartments, fetchChartOfAccounts, createRequisition, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, payInvoice, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch
   } = useFinanceCore();
   const { convertToDisplay, convertAmount, availableCurrencies } = useCurrency();
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -41,6 +41,12 @@ const P2PDeskPage: React.FC = () => {
   const [formData, setFormData] = useState({
     description: '', estimatedAmount: 0, costCenterId: '', glAccountId: '', vendorName: '', currency: 'USD', exchangeRate: 1.0, requiredByDate: ''
   });
+  const [poWarning, setPoWarning] = useState<any>(null);
+  const [receiptTarget, setReceiptTarget] = useState<any>(null);
+  const [receiptForm, setReceiptForm] = useState({ receivedDate: new Date().toISOString().slice(0, 10), quantity: 1, unitAmount: 0, notes: '' });
+  const [matchTarget, setMatchTarget] = useState<any>(null);
+  const [matchResult, setMatchResult] = useState<any>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
 
   // PDF Preview State
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -119,9 +125,42 @@ const P2PDeskPage: React.FC = () => {
   };
 
   const handleIssuePO = async (reqId: string) => {
-    await createPurchaseOrder(reqId);
-    const res = await fetchRequisitions();
-    setRequisitions(res.data || []);
+    const res = await createPurchaseOrder(reqId);
+    setPoWarning(res?.data?.varianceWarning || null);
+    if (res?.data?.varianceWarning) {
+      toast(`Purchase Order issued with budget override — residual risk ${(res.data.varianceWarning.variancePct ?? 0).toFixed(1)}% variance.`, { icon: '⚠️' });
+    }
+    const res2 = await fetchRequisitions();
+    setRequisitions(res2.data || []);
+    const pos = await fetchPurchaseOrders();
+    setPurchaseOrders(pos.data || []);
+  };
+
+  const handleRecordReceipt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!receiptTarget) return;
+    const res = await recordReceipt({
+      purchaseOrderId: receiptTarget.id,
+      receivedDate: receiptForm.receivedDate,
+      quantity: Number(receiptForm.quantity),
+      unitAmount: Number(receiptForm.unitAmount),
+      notes: receiptForm.notes || undefined,
+    });
+    if (res) {
+      setReceiptTarget(null);
+      setReceiptForm({ receivedDate: new Date().toISOString().slice(0, 10), quantity: 1, unitAmount: 0, notes: '' });
+      const pos = await fetchPurchaseOrders();
+      setPurchaseOrders(pos.data || []);
+    }
+  };
+
+  const handleOpenMatch = async (po: any) => {
+    setMatchTarget(po);
+    setMatchResult(null);
+    setMatchLoading(true);
+    const result = await getThreeWayMatch(po.id);
+    setMatchResult(result);
+    setMatchLoading(false);
   };
 
   const handleCurrencyChange = (newCurrency: string) => {
@@ -314,6 +353,21 @@ const P2PDeskPage: React.FC = () => {
           </div>
         )}
 
+        {poWarning && (
+          <div className="mb-4 flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3">
+            <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs font-black text-yellow-400 uppercase tracking-tight">Budget Variance Override</p>
+              <p className="text-xs text-slate-300 mt-1">
+                This PO was issued despite exceeding the category control threshold.
+                Projected variance is <span className="font-mono font-black text-yellow-400">{(poWarning.variancePct ?? 0).toFixed(1)}%</span>
+                {poWarning.severity ? ` (${poWarning.severity})` : ''}. Review category allocations before further commitments.
+              </p>
+            </div>
+            <button onClick={() => setPoWarning(null)} className="text-yellow-500 hover:text-yellow-300 transition"><X className="w-4 h-4" /></button>
+          </div>
+        )}
+
         {/* New Requisition Modal */}
         <Modal
           isOpen={isModalOpen}
@@ -500,6 +554,26 @@ const P2PDeskPage: React.FC = () => {
                     <StatusBadge status={po.status} />
                   </td>
                   <td className="px-6 py-4 text-right flex justify-end gap-2">
+                    <Tooltip content="Record incoming goods/services receipt against this PO (feeds the 3-way match)." position="left">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setReceiptTarget(po)}
+                        className="opacity-0 group-hover:opacity-100 transition border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white"
+                      >
+                        <Receipt className="w-3.5 h-3.5" />
+                      </Button>
+                    </Tooltip>
+                    <Tooltip content="Run the three-way match: PO vs Receipts vs Invoice." position="left">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenMatch(po)}
+                        className="opacity-0 group-hover:opacity-100 transition border-brand-secondary/30 text-brand-secondary hover:bg-brand-secondary hover:text-white"
+                      >
+                        <BrainCircuit className="w-3.5 h-3.5" />
+                      </Button>
+                    </Tooltip>
                     <Tooltip content="Review formal Purchase Order document (PDF).">
                       <Button 
                         variant="outline" 
@@ -568,6 +642,121 @@ const P2PDeskPage: React.FC = () => {
           </table>
         </div>
         )}
+
+      {/* Record Receipt Modal */}
+      <Modal
+        isOpen={!!receiptTarget}
+        onClose={() => setReceiptTarget(null)}
+        title={receiptTarget ? `Record Receipt — ${receiptTarget.po_number}` : 'Record Receipt'}
+        size="md"
+      >
+        <form onSubmit={handleRecordReceipt} className="space-y-5 py-2">
+          <div className="p-4 bg-black/30 rounded-xl border border-gray-800">
+            <p className="text-xs font-black text-gray-500 mb-1.5">PO Commitment</p>
+            <p className="text-sm font-bold text-white font-mono">{convertToDisplay(receiptTarget?.committed_amount || 0, receiptTarget?.currency || 'NGN')}</p>
+            <p className="text-xs text-gray-500 mt-1">Recording a receipt advances the encumbrance (FIRM) toward settlement and feeds the three-way match.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Input
+              label="Received Date"
+              type="date"
+              value={receiptForm.receivedDate}
+              onChange={(e) => setReceiptForm({ ...receiptForm, receivedDate: e.target.value })}
+              required
+            />
+            <Input
+              label="Quantity"
+              type="number"
+              min={1}
+              value={receiptForm.quantity}
+              onChange={(e) => setReceiptForm({ ...receiptForm, quantity: e.target.value as any })}
+              required
+            />
+            <Input
+              label="Unit Amount"
+              type="number"
+              min={0}
+              step="0.01"
+              value={receiptForm.unitAmount}
+              onChange={(e) => setReceiptForm({ ...receiptForm, unitAmount: e.target.value as any })}
+              required
+            />
+          </div>
+          <Input
+            label="Notes (Optional)"
+            placeholder="Delivery note, batch reference..."
+            value={receiptForm.notes}
+            onChange={(e) => setReceiptForm({ ...receiptForm, notes: e.target.value })}
+          />
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
+            <Button type="button" variant="outline" onClick={() => setReceiptTarget(null)}>Cancel</Button>
+            <Button type="submit" variant="primary">Record Receipt</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Three-Way Match Modal */}
+      <Modal
+        isOpen={!!matchTarget}
+        onClose={() => { setMatchTarget(null); setMatchResult(null); }}
+        title={matchTarget ? `Three-Way Match — ${matchTarget.po_number}` : 'Three-Way Match'}
+        size="lg"
+      >
+        {matchLoading ? (
+          <div className="py-10 flex justify-center">
+            <div className="animate-spin w-6 h-6 border-2 border-brand-primary border-t-transparent rounded-full" />
+          </div>
+        ) : matchResult ? (
+          <div className="space-y-5 py-2">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-xl ${matchResult.status === 'MATCHED' ? 'bg-emerald-500/10' : matchResult.status === 'PARTIAL_MATCH' ? 'bg-yellow-500/10' : 'bg-red-500/10'}`}>
+                <CheckCircle2 className={`w-5 h-5 ${matchResult.status === 'MATCHED' ? 'text-emerald-400' : matchResult.status === 'PARTIAL_MATCH' ? 'text-yellow-400' : 'text-red-400'}`} />
+              </div>
+              <div>
+                <p className="text-sm font-black text-white uppercase tracking-tight">{matchResult.status?.replace(/_/g, ' ')}</p>
+                <p className="text-xs text-gray-500">PO {matchTarget.po_number} — {matchResult.status === 'MATCHED' ? 'quantities & amounts reconcile' : matchResult.status === 'PARTIAL_MATCH' ? 'partial delivery reconciliation' : 'discrepancy detected'}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 bg-black/30 rounded-xl border border-gray-800">
+                <p className="text-xs font-black text-gray-500 mb-1.5">PO Committed</p>
+                <p className="text-sm font-black text-brand-primary font-mono">{convertToDisplay(matchResult.poAmount, 'NGN')}</p>
+              </div>
+              <div className="p-4 bg-black/30 rounded-xl border border-gray-800">
+                <p className="text-xs font-black text-gray-500 mb-1.5">Receipted</p>
+                <p className="text-sm font-black text-yellow-400 font-mono">{convertToDisplay(matchResult.receiptTotal, 'NGN')}</p>
+              </div>
+              <div className="p-4 bg-black/30 rounded-xl border border-gray-800">
+                <p className="text-xs font-black text-gray-500 mb-1.5">Invoiced</p>
+                <p className="text-sm font-black text-alert-warning font-mono">{convertToDisplay(matchResult.invoiceTotal, 'NGN')}</p>
+              </div>
+            </div>
+
+            {matchResult.discrepancyMessage && (
+              <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-red-300 font-medium">{matchResult.discrepancyMessage}</p>
+              </div>
+            )}
+
+            {matchResult.overCommitment?.committedPipeline != null && (
+              <div className="flex items-start gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3">
+                <Info className="w-4 h-4 text-yellow-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-yellow-300 font-medium">
+                  Pipeline snapshot — committed pipeline:
+                  <span className="font-mono font-black ml-1">{convertToDisplay(matchResult.overCommitment.committedPipeline, 'NGN')}</span>
+                  against budget:
+                  <span className="font-mono font-black ml-1">{convertToDisplay(matchResult.overCommitment.budgetLimit, 'NGN')}</span>
+                  — category headroom is <span className={`font-black ${matchResult.overCommitment.remaining >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{convertToDisplay(matchResult.overCommitment.remaining, 'NGN')}</span>.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <EmptyState icon={<BrainCircuit className="w-10 h-10 text-gray-500" />} title="No Match Data" subtitle="Unable to compute the three-way match for this purchase order." />
+        )}
+      </Modal>
 
       {/* PDF Preview Modal Integration */}
       {isPreviewOpen && (
