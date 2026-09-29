@@ -439,6 +439,13 @@ export class TenantService {
 
   /**
    * Deletes a tenant record from the public schema and drops its associated PostgreSQL schema.
+   *
+   * Ordering here is load-bearing, not cosmetic. The row's provisioning status is
+   * quarantined and the per-process status cache is invalidated BEFORE any
+   * physical state is touched, so no request can ever be served against a schema
+   * that is mid-teardown. Every failure path out of this method therefore ends in
+   * a typed HTTP error (403/503/500) rather than Postgres surfacing
+   * `relation "..." does not exist` from the fall-through to `public`.
    */
   async deleteTenant(id: string): Promise<void> {
     const tenant = await this.tenantRepository.findOne({
@@ -470,21 +477,69 @@ export class TenantService {
       throw new NotFoundException(`Tenant with ID ${id} not found.`);
     }
 
-    // 1. Drop the schema first. If this fails, we don't delete the record.
+    // 1. Quarantine the row BEFORE touching physical state.
+    //
+    //    This previously dropped the schema first and deleted the row second,
+    //    with no status change in between. A request arriving inside that window
+    //    read an ACTIVE row, had its `search_path` pointed at a schema the next
+    //    statement removed, and — because Postgres silently ignores a missing
+    //    schema and falls through to `public` — died with the opaque
+    //    `relation "project" does not exist` 500 instead of a typed rejection.
+    //
+    //    FAILED is the only non-servable value the shared enum defines. A
+    //    dedicated DELETING state would ripple into the SuperAdmin UI and the
+    //    public-schema migration without buying extra safety: JwtAuthGuard rejects
+    //    any non-ACTIVE row with a retryable 503, which is precisely the behaviour
+    //    this window needs.
+    //
+    //    `is_active` is deliberately left untouched. It describes the
+    //    subscription, not the schema, and flipping it would misreport *why* the
+    //    tenant is unreachable if the drop below fails and an operator retries.
+    await this.tenantRepository.update(
+      { tenant_id: id },
+      {
+        provisioning_status: TenantProvisioningStatus.FAILED,
+        provisioning_error:
+          "Tenant deletion started: the workspace is closed while its schema is dropped.",
+      },
+    );
+
+    // 2. Invalidate AFTER the write. Invalidating before it would let a
+    //    concurrent request re-cache the pre-update ACTIVE row and keep serving
+    //    this tenant for the rest of the entry's 60s TTL.
+    JwtAuthGuard.invalidateTenantStatus(id);
+
+    // 3. Drop the schema. If this fails the row is deliberately kept: it is the
+    //    only authoritative record of `schema_name`, so it is what an operator
+    //    needs to finish the job. The row is already FAILED, so the tenant stays
+    //    unreachable and the failure surfaces as a typed 503 — never a 500.
     await this.dropTenantSchema(tenant.schema_name);
 
-    // 2. Delete the record from the public tenants table
-    const result = await this.tenantRepository.delete({ tenant_id: id });
+    // 4. Delete the record from the public tenants table, clearing the cache
+    //    regardless of outcome: the row either no longer exists (so
+    //    TENANT_NOT_FOUND is the truthful answer, not a cached FAILED result) or
+    //    the delete failed with the schema already gone. Unconditionally
+    //    clearing is cheaper than reasoning about which entry could be stale.
+    let affected: number | null | undefined;
+    try {
+      const deleteResult = await this.tenantRepository.delete({ tenant_id: id });
+      affected = deleteResult.affected;
+    } finally {
+      JwtAuthGuard.invalidateTenantStatus(id);
+    }
 
-    if (result.affected === 0) {
+    if (affected === 0) {
       this.auditService
         .log(
           "SYSTEM",
           "TENANT_DELETION_FAILED",
           id,
-          `Failed to delete tenant record for ID ${id} after schema drop.`,
+          `Failed to delete tenant record for ID ${id} after its schema '${tenant.schema_name}' was dropped. The tenant is marked FAILED and is unreachable; retry the deletion.`,
           {
             reason: `Failed to delete tenant record for ID ${id} after schema drop.`,
+            schema_name: tenant.schema_name,
+            schema_dropped: true,
+            requires_retry: true,
           },
           "SYSTEM",
         )
@@ -494,7 +549,7 @@ export class TenantService {
           ),
         );
       throw new InternalServerErrorException(
-        `Failed to delete tenant record for ID ${id}.`,
+        `Failed to delete tenant record for ID ${id}. Its schema was already dropped and the tenant is marked FAILED; retry the deletion.`,
       );
     }
 
