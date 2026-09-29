@@ -81,5 +81,15 @@ test_key.py
 # Agent scratch space
 /.workspace-temp/
 
+# Local agent tooling state (anima workspace cache)
+/.anima/
+
+# Credential backups — never commit secrets
+.env.prod.neon-backup
+.env.*.neon-backup
+
+# Playwright capture leftovers (capture scripts rename these to <lesson-slug>.webm)
+/frontend/public/demos/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*.webm
+
 # Security tooling — keep scripts tracked, never commit report artifacts
 /security/zap/reports/
