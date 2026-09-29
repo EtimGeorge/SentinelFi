@@ -35,7 +35,7 @@ const CorporateAnalyticsPage: React.FC = () => {
         fetchFiscalYears(), fetchDepartments()
       ]);
       setFiscalYears(fy || []);
-      setDepartments(depts.data || []);
+      setDepartments(depts || []);
 
       if (fy && fy.length > 0) {
         setSelectedYearId(fy[0].id);
@@ -52,11 +52,22 @@ const CorporateAnalyticsPage: React.FC = () => {
 
   const loadAnalytics = async () => {
     const data = await getOpexAnalytics({ fiscalYearId: selectedYearId, costCenterId: selectedCostCenterId || undefined });
-    setAnalytics(data);
+    // Normalise every field of the envelope, `totals` included. A partial
+    // payload reaching this point would otherwise survive the truthiness check
+    // below and crash on the first `analytics.totals.*` dereference.
+    setAnalytics(data ? {
+      ...data,
+      totals: data.totals,
+      byPeriod: data.byPeriod ?? [],
+      byCategory: data.byCategory ?? [],
+      byDepartment: data.byDepartment ?? [],
+      monthlyTrend: data.monthlyTrend ?? [],
+      recentExpenses: data.recentExpenses ?? [],
+    } : null);
   };
 
   const spendTrend = useMemo(() => {
-    if (!analytics || analytics.byPeriod.length < 2) return null;
+    if (!analytics?.byPeriod || analytics.byPeriod.length < 2) return null;
     const withActual = analytics.byPeriod.filter(p => Number(p.actual) > 0);
     if (withActual.length < 2) return null;
     const last = withActual[withActual.length - 1];
@@ -67,8 +78,8 @@ const CorporateAnalyticsPage: React.FC = () => {
   }, [analytics]);
 
   const spendDrivers = useMemo(() => {
-    if (!analytics) return [];
-    const cats = analytics.byCategory;
+    if (!analytics?.byCategory) return [];
+    const cats = analytics?.byCategory;
     const total = cats.reduce((s, c) => s + Number(c.actual || 0), 0);
     return cats
       .slice()
@@ -113,9 +124,9 @@ const CorporateAnalyticsPage: React.FC = () => {
 
   // Calculate some derived metrics
   const burnRate = useMemo(() => {
-    if (!analytics || analytics.monthlyTrend.length === 0) return 0;
+    if (!analytics?.monthlyTrend || analytics.monthlyTrend.length === 0) return 0;
     const totalActual = analytics.totals.actual;
-    const monthsPassed = analytics.monthlyTrend.filter(m => m.actual > 0).length || 1;
+    const monthsPassed = analytics?.monthlyTrend.filter(m => m.actual > 0).length || 1;
     return totalActual / monthsPassed;
   }, [analytics]);
 

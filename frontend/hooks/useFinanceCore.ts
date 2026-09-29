@@ -276,7 +276,19 @@ export const useFinanceCore = () => {
     const getOpexAnalytics = useCallback(async (params?: { fiscalYearId?: string; costCenterId?: string }) => {
         setLoading(true);
         try {
-            return await apiClient.get<OpexAnalytics>('/operational-budgets/analytics', { params });
+            const data = await apiClient.get<OpexAnalytics>('/operational-budgets/analytics', { params });
+            // `api` sets validateStatus to `status < 500`, so 4xx responses
+            // resolve as successes and hand back NestJS's error envelope
+            // ({ statusCode, message, error }) instead of a payload. Without this
+            // check the caller receives a truthy object with no `totals` and
+            // crashes on first dereference. Treat a non-conforming body as the
+            // failure it actually is.
+            if (!data || typeof data !== 'object' || !data.totals) {
+                const message = (data as { message?: string } | null)?.message;
+                toast.error(message || 'Error fetching OPEX analytics');
+                return null;
+            }
+            return data;
         } catch (error) {
             toast.error('Error fetching OPEX analytics');
             return null;
