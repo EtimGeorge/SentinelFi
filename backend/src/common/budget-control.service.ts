@@ -203,4 +203,162 @@ export class BudgetControlService {
 
     return "NO_VARIANCE";
   }
+
+  /**
+   * Phase 4 (4.3 / 4.4) — Dual AND-threshold variance check for OPEX.
+   *
+   * A tier only escalates when BOTH dimensions breach their bounds:
+   *   - percentage overrun  >= tier threshold (10% CRITICAL, 5% MAJOR)
+   *   - absolute overrun    >= category variance_min_amount (AND-threshold)
+   *
+   * If only the percentage breaches (a sub-threshold $ overrun — e.g. a $5
+   * overshoot on a heavily-timed category) the tier is downgraded so small
+   * amounts never trip a CRITICAL hard block. Category variance_tolerance_pct
+   * additionally suppresses escalation while the overrun stays inside the
+   * configured percentage headroom.
+   *
+   * Zero-budget behaviour matches validateWbsExpense: any spend is CRITICAL.
+   */
+  async validateOperationalExpenseVariance(params: {
+    budgetName: string;
+    budgeted: number;
+    actualSpent: number;
+    committedAmount: number;
+    amount: number;
+    categoryTolerancePct?: number | null;
+    categoryMinAmount?: number | null;
+  }): Promise<VarianceCheckResult> {
+    const {
+      budgetName,
+      budgeted,
+      actualSpent,
+      committedAmount,
+      amount,
+      categoryTolerancePct = null,
+      categoryMinAmount = null,
+    } = params;
+
+    const budgetLimit = Number(budgeted || 0);
+    const projectedTotal =
+      Number(actualSpent || 0) + Number(committedAmount || 0) + Number(amount || 0);
+
+    if (budgetLimit <= 0) {
+      const msg = `CRITICAL OVERRUN on budget "${budgetName}": budget has $0 defined, but $${projectedTotal.toFixed(2)} of spend is being committed.`;
+      this.notificationsService.sendVarianceAlert(
+        "Critical Budget Overrun",
+        msg,
+        "error",
+      );
+      return {
+        flag: VarianceFlag.CRITICAL_VARIANCE,
+        action: "BLOCK",
+        variancePercentage: 100,
+        overrunAmount: projectedTotal,
+        message: `Hard block: budget "${budgetName}" has $0 budget defined. CFO/CEO override required.`,
+        requiredRoles: ["CFO", "CEO", "Admin Director", "SuperAdmin"],
+      };
+    }
+
+    if (projectedTotal <= budgetLimit) {
+      return {
+        flag: VarianceFlag.NO_VARIANCE,
+        action: "ALLOW",
+        variancePercentage: 0,
+        overrunAmount: 0,
+        message: "Expense is within budget limits.",
+      };
+    }
+
+    const overrunAmount = projectedTotal - budgetLimit;
+    const variancePercentage = (overrunAmount / budgetLimit) * 100;
+
+    // Category percentage tolerance (4.4): while the overrun sits inside the
+    // configured headroom, it stays a MINOR WARN regardless of raw % tier.
+    const tolerancePct =
+      categoryTolerancePct !== null && categoryTolerancePct !== undefined
+        ? Number(categoryTolerancePct)
+        : 0;
+    if (tolerancePct > 0 && variancePercentage <= tolerancePct) {
+      this.notificationsService.sendVarianceAlert(
+        "Minor Budget Variance",
+        `Minor variance on budget "${budgetName}": ${variancePercentage.toFixed(1)}% over budget (within ${tolerancePct}% category tolerance).`,
+        "warning",
+      );
+      return {
+        flag: VarianceFlag.MINOR_VARIANCE,
+        action: "WARN",
+        variancePercentage,
+        overrunAmount,
+        message: `Overrun of ${variancePercentage.toFixed(1)}% on "${budgetName}" is within the ${tolerancePct}% category tolerance.`,
+      };
+    }
+
+    // AND-threshold (4.3): escalate only when the absolute overrun also
+    // exceeds the category minimum spend bound.
+    const minAmount =
+      categoryMinAmount !== null && categoryMinAmount !== undefined
+        ? Number(categoryMinAmount)
+        : 0;
+    const pctBreachOnAmount =
+      minAmount > 0 && overrunAmount < minAmount;
+
+    let flag: VarianceFlag;
+    if (variancePercentage >= 10 && !pctBreachOnAmount) {
+      flag = VarianceFlag.CRITICAL_VARIANCE;
+    } else if (variancePercentage >= 5 && !pctBreachOnAmount) {
+      flag = VarianceFlag.MAJOR_VARIANCE;
+    } else {
+      flag = VarianceFlag.MINOR_VARIANCE;
+    }
+
+    if (flag === VarianceFlag.MINOR_VARIANCE && pctBreachOnAmount) {
+      this.notificationsService.sendVarianceAlert(
+        "Minor Budget Variance",
+        `Minor variance on budget "${budgetName}": overrun of $${overrunAmount.toFixed(2)} is below the $${minAmount.toFixed(2)} escalation threshold.`,
+        "warning",
+      );
+      return {
+        flag: VarianceFlag.MINOR_VARIANCE,
+        action: "WARN",
+        variancePercentage,
+        overrunAmount,
+        message: `Overrun on "${budgetName}" is below the $${minAmount.toFixed(2)} escalation threshold (${variancePercentage.toFixed(1)}% / $${overrunAmount.toFixed(2)}).`,
+      };
+    }
+
+    if (flag === VarianceFlag.CRITICAL_VARIANCE) {
+      const msg = `CRITICAL OVERRUN on budget "${budgetName}": ${variancePercentage.toFixed(1)}% over budget ($${overrunAmount.toFixed(2)} excess).`;
+      this.notificationsService.sendVarianceAlert(
+        "Critical Budget Overrun",
+        msg,
+        "error",
+      );
+      return {
+        flag: VarianceFlag.CRITICAL_VARIANCE,
+        action: "BLOCK",
+        variancePercentage,
+        overrunAmount,
+        message: `Hard block: a ${variancePercentage.toFixed(1)}% overrun on "${budgetName}" requires CFO or CEO override with documented justification.`,
+        requiredRoles: ["CFO", "CEO", "Admin Director", "SuperAdmin"],
+      };
+    }
+
+    const msg = `Major variance on budget "${budgetName}": ${variancePercentage.toFixed(1)}% over budget ($${overrunAmount.toFixed(2)} excess).`;
+    this.notificationsService.sendVarianceAlert("Major Budget Variance", msg, "error");
+    return {
+      flag: VarianceFlag.MAJOR_VARIANCE,
+      action: "REQUIRE_OVERRIDE",
+      variancePercentage,
+      overrunAmount,
+      message: `A ${variancePercentage.toFixed(1)}% overrun on "${budgetName}" requires Finance Manager approval with an override reason.`,
+      requiredRoles: [
+        "Finance Manager",
+        "CFO",
+        "CEO",
+        "Admin Director",
+        "SuperAdmin",
+        "Finance Officer",
+      ],
+    };
+  }
 }

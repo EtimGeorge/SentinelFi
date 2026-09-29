@@ -274,6 +274,7 @@ export class FinanceCoreController {
   async getInvoices(@Query() query: GetFinancialDocumentsDto) {
     return this.financeService.getInvoices(query);
   }
+  @Post("invoices")
   @Roles(
     Role.CFO,
     Role.FinanceManager,
@@ -352,6 +353,104 @@ export class FinanceCoreController {
       req.user.tenant_id,
       req.user.id,
       req.user.roles?.[0]?.name,
+    );
+  }
+
+  // --- Receipts & 3-Way Match (Phase 4.8) ---
+
+  @Post("receipts")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.FinanceOfficer,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
+  async recordReceipt(
+    @Body()
+    body: {
+      purchaseOrderId: string;
+      receivedDate: string;
+      quantity: number;
+      unitAmount: number;
+      notes?: string;
+    },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user) throw new UnauthorizedException("User not authenticated.");
+    return this.financeService.recordReceipt({
+      purchaseOrderId: body.purchaseOrderId,
+      receivedByUserId: req.user.id,
+      receivedDate: body.receivedDate,
+      quantity: body.quantity,
+      unitAmount: body.unitAmount,
+      notes: body.notes,
+    });
+  }
+
+  @Get("purchase-orders/:id/receipts")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.FinanceOfficer,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
+  async getPurchaseOrderReceipts(
+    @Param("id") id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user.tenant_id)
+      throw new UnauthorizedException("Tenant context missing.");
+    return this.financeService.getPurchaseOrderReceipts(id, req.user.tenant_id);
+  }
+
+  @Get("purchase-orders/:id/three-way-match")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.FinanceOfficer,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
+  async getThreeWayMatch(
+    @Param("id") id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user.tenant_id)
+      throw new UnauthorizedException("Tenant context missing.");
+    return this.financeService.getThreeWayMatch(id, req.user.tenant_id);
+  }
+
+  @Get("procurement-needs-attention")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.FinanceOfficer,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
+  async getProcurementNeedsAttention(@Req() req: AuthenticatedRequest) {
+    if (!req.user.tenant_id)
+      throw new UnauthorizedException("Tenant context missing.");
+    return this.financeService.getProcurementNeedsAttention(
+      req.user.tenant_id,
     );
   }
 

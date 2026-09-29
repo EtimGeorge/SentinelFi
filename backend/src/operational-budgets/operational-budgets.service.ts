@@ -13,6 +13,7 @@ import {
   Between,
   DataSource,
   LessThanOrEqual,
+  SelectQueryBuilder,
 } from "typeorm";
 import { TENANT_DATA_SOURCE } from "../database/constants";
 import { OperationalBudgetEntity } from "./operational-budget.entity";
@@ -28,6 +29,8 @@ import {
 import { OpexEncumbranceEntity } from "./opex-encumbrance.entity";
 import { PayrollEntryEntity, PayrollEntryStatus } from "./payroll-entry.entity";
 import { BudgetCategoryEntity } from "./budget-category.entity";
+import { FiscalYearEntity } from "../finance-core/entities/fiscal-year.entity";
+import { CostCenterEntity } from "../finance-core/entities/cost-center.entity";
 import { AuditService } from "../audit/audit.service";
 import {
   OperationalBudgetPeriodAllocationEntity,
@@ -54,6 +57,19 @@ import {
   OpexNeedsAttentionResult,
 } from "@shared/types";
 import { NotificationsService } from "../notifications/notifications.service";
+
+/**
+ * Normalise a Postgres `date` column to `YYYY-MM-DD`.
+ *
+ * TypeORM hydrates `timestamptz` to a `Date`, but leaves `date` as a plain
+ * string (`"2026-01-01"`) because the driver has no time component to parse.
+ * Both shapes reach this helper depending on the column type, and an
+ * unconditional `.toISOString()` throws a TypeError on the string case.
+ */
+function toDateOnly(value: Date | string): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
 
 // ---- OPEX Rollup Types ----
 export interface OpexCategoryRollup {
@@ -122,6 +138,10 @@ export class OperationalBudgetsService {
     private budgetCategoryRepository: Repository<BudgetCategoryEntity>,
     @Inject("OPERATIONALBUDGETPERIODALLOCATION_REPOSITORY")
     private allocationRepository: Repository<OperationalBudgetPeriodAllocationEntity>,
+    @Inject("FISCALYEAR_REPOSITORY")
+    private fiscalYearRepository: Repository<FiscalYearEntity>,
+    @Inject("COSTCENTER_REPOSITORY")
+    private costCenterRepository: Repository<CostCenterEntity>,
     private readonly budgetControlService: BudgetControlService,
     private readonly notificationsService: NotificationsService,
     private readonly auditService: AuditService,
@@ -2076,9 +2096,10 @@ export class OperationalBudgetsService {
       endDate?: string;
       budget_id?: string;
       type?: string;
+      department_id?: string;
     } = {},
   ): Promise<OpexRollupResult> {
-    const { startDate, endDate, budget_id, type } = filters;
+    const { startDate, endDate, budget_id, type, department_id } = filters;
 
     // Step 1: Fetch all active budgets for tenant
     const budgetQb = this.operationalBudgetRepository
@@ -2089,6 +2110,13 @@ export class OperationalBudgetsService {
     if (budget_id)
       budgetQb.andWhere("b.operational_budget_id = :budget_id", { budget_id });
     if (type) budgetQb.andWhere("b.type = :type", { type });
+    // Budgets carry no cost-center column, so a cost-center selection arrives
+    // here already resolved to its owning department. NULL department_id is
+    // deliberately excluded — an unassigned budget belongs to no cost center.
+    if (department_id)
+      budgetQb.andWhere("b.department_id = :department_id", {
+        department_id,
+      });
 
     const budgets = await budgetQb.getMany();
 
@@ -2233,16 +2261,93 @@ export class OperationalBudgetsService {
    * analytics page. Reuses getOpexRollup for the budget→category aggregation
    * and augments it with payroll, committed (PENDING) amounts, period
    * allocations, recent expenses and a monthly trend.
+   *
+   * `fiscalYearId` is the authoritative window when present and supersedes the
+   * raw `from`/`to` pair. `costCenterId` resolves to its owning department,
+   * because `operational_budget` is department-scoped and carries no
+   * cost-center column.
    */
   async getOpexAnalytics(
     tenantId: string,
-    from?: string,
-    to?: string,
+    filters: {
+      from?: string;
+      to?: string;
+      fiscalYearId?: string;
+      costCenterId?: string;
+    } = {},
   ): Promise<OpexAnalytics> {
+    let from = filters.from;
+    let to = filters.to;
+    let departmentId: string | undefined;
+
+    if (filters.fiscalYearId) {
+      const fiscalYear = await this.fiscalYearRepository.findOne({
+        where: {
+          id: filters.fiscalYearId,
+          tenant_id: tenantId,
+        },
+      });
+      if (!fiscalYear) {
+        throw new NotFoundException(
+          `Fiscal year ${filters.fiscalYearId} not found.`,
+        );
+      }
+      from = toDateOnly(fiscalYear.start_date);
+      to = toDateOnly(fiscalYear.end_date);
+    }
+
+    if (filters.costCenterId) {
+      const costCenter = await this.costCenterRepository.findOne({
+        where: { id: filters.costCenterId, tenant_id: tenantId },
+        select: ["id", "department_id"],
+      });
+      if (!costCenter) {
+        throw new NotFoundException(
+          `Cost center ${filters.costCenterId} not found.`,
+        );
+      }
+      departmentId = costCenter.department_id;
+    }
+
     const rollup = await this.getOpexRollup(tenantId, {
       startDate: from,
       endDate: to,
+      department_id: departmentId,
     });
+
+    // Every sub-query below aggregates over expenses, payroll and allocations,
+    // none of which are department-scoped themselves. Narrowing them to the
+    // budgets/categories that survived the rollup is what stops a department
+    // filter from silently leaking other departments' spend into the totals.
+    const visibleBudgetIds = new Set(rollup.budgets.map((b) => b.budget_id));
+    const visibleCategoryIds = new Set(
+      rollup.budgets.flatMap((b) => (b.categories ?? []).map((c) => c.id)),
+    );
+
+    const scopeIn = (
+      qb: SelectQueryBuilder<any>,
+      column: string,
+      values: Set<string>,
+    ): SelectQueryBuilder<any> => {
+      if (!departmentId) return qb;
+      if (!values.size) {
+        // Nothing in scope — force an empty result rather than dropping the
+        // predicate, which would return the entire tenant instead.
+        return qb.andWhere("1 = 0");
+      }
+      return qb.andWhere(`${column} IN (:...__scopeIds)`, {
+        __scopeIds: [...values],
+      });
+    };
+
+    const scopeByCategory = (qb: SelectQueryBuilder<any>, alias = "e") =>
+      scopeIn(
+        qb,
+        `${alias}.operational_budget_category_id`,
+        visibleCategoryIds,
+      );
+    const scopeByBudget = (qb: SelectQueryBuilder<any>, alias = "p") =>
+      scopeIn(qb, `${alias}.operational_budget_id`, visibleBudgetIds);
 
     // Committed (encumbered) expense amounts per category.
     const pendingExpenseQb = this.operationalExpenseRepository
@@ -2253,6 +2358,7 @@ export class OperationalBudgetsService {
       .andWhere("e.status = :status", {
         status: OperationalExpenseStatus.PENDING,
       });
+    scopeByCategory(pendingExpenseQb);
     if (from) pendingExpenseQb.andWhere("e.expense_date >= :from", { from });
     if (to) pendingExpenseQb.andWhere("e.expense_date <= :to", { to });
     pendingExpenseQb.groupBy("e.operational_budget_category_id");
@@ -2277,6 +2383,7 @@ export class OperationalBudgetsService {
         "pending",
       )
       .where("p.tenant_id = :tenantId", { tenantId });
+    scopeByBudget(payrollQb);
     if (from) payrollQb.andWhere("p.payment_date >= :from", { from });
     if (to) payrollQb.andWhere("p.payment_date <= :to", { to });
     payrollQb.groupBy("p.operational_budget_id");
@@ -2383,6 +2490,7 @@ export class OperationalBudgetsService {
       .addSelect("SUM(a.planned_amount)", "budgeted")
       .addSelect("SUM(a.actual_amount)", "actual")
       .where("a.tenant_id = :tenantId", { tenantId });
+    scopeByCategory(allocationQb, "a");
     if (from) allocationQb.andWhere("a.period_date >= :from", { from });
     if (to) allocationQb.andWhere("a.period_date <= :to", { to });
     allocationQb.groupBy("TO_CHAR(a.period_date, 'YYYY-MM')");
@@ -2398,6 +2506,7 @@ export class OperationalBudgetsService {
       .andWhere("e.status = :status", {
         status: OperationalExpenseStatus.PENDING,
       });
+    scopeByCategory(committedMonthlyQb);
     if (from) committedMonthlyQb.andWhere("e.expense_date >= :from", { from });
     if (to) committedMonthlyQb.andWhere("e.expense_date <= :to", { to });
     committedMonthlyQb.groupBy("TO_CHAR(e.expense_date, 'YYYY-MM')");
@@ -2430,6 +2539,7 @@ export class OperationalBudgetsService {
       .addSelect("SUM(e.amount)", "actual")
       .where("e.tenant_id = :tenantId", { tenantId })
       .andWhere("e.status NOT IN ('REJECTED', 'REVERSED')");
+    scopeByCategory(trendActualQb);
     if (from) trendActualQb.andWhere("e.expense_date >= :from", { from });
     if (to) trendActualQb.andWhere("e.expense_date <= :to", { to });
     trendActualQb.groupBy("TO_CHAR(e.expense_date, 'YYYY-MM')");
@@ -2454,6 +2564,7 @@ export class OperationalBudgetsService {
       .createQueryBuilder("e")
       .leftJoinAndSelect("e.category", "category")
       .where("e.tenant_id = :tenantId", { tenantId });
+    scopeByCategory(recentQb);
     if (from) recentQb.andWhere("e.expense_date >= :from", { from });
     if (to) recentQb.andWhere("e.expense_date <= :to", { to });
     recentQb.orderBy("e.expense_date", "DESC").take(10);

@@ -379,8 +379,12 @@ export class OperationalBudgetsController {
     }
     return this.operationalBudgetsService.getOpexAnalytics(
       req.user.tenant_id,
-      query.from,
-      query.to,
+      {
+        from: query.from,
+        to: query.to,
+        fiscalYearId: query.fiscalYearId,
+        costCenterId: query.costCenterId,
+      },
     );
   }
 

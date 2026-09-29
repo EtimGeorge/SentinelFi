@@ -19,6 +19,7 @@ import { WbsCategoryEntity } from "../wbs/wbs-category.entity";
 import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
 import { OperationalBudgetCategoryEntity } from "../operational-budgets/operational-budget-category.entity";
 import { OperationalExpenseEntity } from "../operational-budgets/operational-expense.entity";
+import { OpexEncumbranceEntity } from "../operational-budgets/opex-encumbrance.entity";
 import { PayrollEntryEntity } from "../operational-budgets/payroll-entry.entity";
 import { UserEntity } from "../auth/user.entity";
 import { RoleEntity } from "../auth/role.entity"; // NEW
@@ -47,6 +48,7 @@ import { BudgetLedgerEntity } from "../finance-core/entities/budget-ledger.entit
 import { P2PRequisitionEntity } from "../finance-core/entities/p2p-requisition.entity";
 import { P2PPurchaseOrderEntity } from "../finance-core/entities/p2p-purchase-order.entity";
 import { P2PInvoiceEntity } from "../finance-core/entities/p2p-invoice.entity";
+import { P2PReceiptEntity } from "../finance-core/entities/p2p-receipt.entity";
 import { PayrollRunEntity } from "../finance-core/entities/payroll-run.entity";
 import { PayrollLineItemEntity } from "../finance-core/entities/payroll-line-item.entity";
 
@@ -115,6 +117,7 @@ export class TenantMigrationService {
         OperationalBudgetEntity,
         OperationalBudgetCategoryEntity,
         OperationalExpenseEntity,
+        OpexEncumbranceEntity,
         PayrollEntryEntity,
         BudgetCategoryEntity,
         OperationalBudgetPeriodAllocationEntity,
@@ -137,6 +140,7 @@ export class TenantMigrationService {
         P2PRequisitionEntity,
         P2PPurchaseOrderEntity,
         P2PInvoiceEntity,
+        P2PReceiptEntity,
         PayrollRunEntity,
         PayrollLineItemEntity,
       ],

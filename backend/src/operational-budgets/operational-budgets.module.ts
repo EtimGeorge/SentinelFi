@@ -8,6 +8,8 @@ import { OpexEncumbranceEntity } from "./opex-encumbrance.entity";
 import { PayrollEntryEntity } from "./payroll-entry.entity";
 import { BudgetCategoryEntity } from "./budget-category.entity";
 import { OperationalBudgetPeriodAllocationEntity } from "./operational-budget-period-allocation.entity";
+import { FiscalYearEntity } from "../finance-core/entities/fiscal-year.entity";
+import { CostCenterEntity } from "../finance-core/entities/cost-center.entity";
 import { OperationalBudgetsService } from "./operational-budgets.service";
 import { OperationalBudgetsController } from "./operational-budgets.controller";
 import { NotificationsModule } from "../notifications/notifications.module";
@@ -58,6 +60,18 @@ import { AuditModule } from "../audit/audit.module";
       provide: "OPERATIONALBUDGETPERIODALLOCATION_REPOSITORY",
       useFactory: (dataSource: DataSource) =>
         dataSource.getRepository(OperationalBudgetPeriodAllocationEntity),
+      inject: [TENANT_DATA_SOURCE],
+    },
+    {
+      provide: "FISCALYEAR_REPOSITORY",
+      useFactory: (dataSource: DataSource) =>
+        dataSource.getRepository(FiscalYearEntity),
+      inject: [TENANT_DATA_SOURCE],
+    },
+    {
+      provide: "COSTCENTER_REPOSITORY",
+      useFactory: (dataSource: DataSource) =>
+        dataSource.getRepository(CostCenterEntity),
       inject: [TENANT_DATA_SOURCE],
     },
     OperationalBudgetsService,

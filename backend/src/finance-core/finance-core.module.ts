@@ -20,6 +20,7 @@ import { TENANT_DATA_SOURCE } from "../database/constants";
 import { P2PRequisitionEntity } from "./entities/p2p-requisition.entity";
 import { P2PPurchaseOrderEntity } from "./entities/p2p-purchase-order.entity";
 import { P2PInvoiceEntity } from "./entities/p2p-invoice.entity";
+import { P2PReceiptEntity } from "./entities/p2p-receipt.entity";
 import { PayrollRunEntity } from "./entities/payroll-run.entity";
 import { PayrollLineItemEntity } from "./entities/payroll-line-item.entity";
 
@@ -33,6 +34,7 @@ import { PayrollController } from "./payroll.controller";
 import { CommonModule } from "../common/common.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { TenantModule } from "../tenants/tenant.module";
+import { OperationalBudgetsModule } from "../operational-budgets/operational-budgets.module";
 
 @Module({
   imports: [
@@ -49,6 +51,7 @@ import { TenantModule } from "../tenants/tenant.module";
         P2PRequisitionEntity,
         P2PPurchaseOrderEntity,
         P2PInvoiceEntity,
+        P2PReceiptEntity,
         PayrollRunEntity,
         PayrollLineItemEntity,
         ApprovalLogEntity,
@@ -58,6 +61,7 @@ import { TenantModule } from "../tenants/tenant.module";
     CommonModule, // Provides DOAService
     NotificationsModule, // Provides NotificationsService
     TenantModule, // Provides TenantService for branding
+    OperationalBudgetsModule, // Encumbrance lifecycle + budget capacity checks
   ],
   providers: [FinanceCoreService, PayrollService],
   controllers: [FinanceCoreController, PayrollController],

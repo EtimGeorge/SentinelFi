@@ -26,6 +26,7 @@ import { SettingsEntity } from "../../settings/settings.entity";
 import { OperationalBudgetEntity } from "../../operational-budgets/operational-budget.entity";
 import { OperationalBudgetCategoryEntity } from "../../operational-budgets/operational-budget-category.entity";
 import { OperationalExpenseEntity } from "../../operational-budgets/operational-expense.entity";
+import { OpexEncumbranceEntity } from "../../operational-budgets/opex-encumbrance.entity";
 import { PayrollEntryEntity } from "../../operational-budgets/payroll-entry.entity";
 import { BudgetCategoryEntity } from "../../operational-budgets/budget-category.entity";
 import { OperationalBudgetPeriodAllocationEntity } from "../../operational-budgets/operational-budget-period-allocation.entity";
@@ -47,6 +48,7 @@ import { BudgetLedgerEntity } from "../../finance-core/entities/budget-ledger.en
 import { P2PRequisitionEntity } from "../../finance-core/entities/p2p-requisition.entity";
 import { P2PPurchaseOrderEntity } from "../../finance-core/entities/p2p-purchase-order.entity";
 import { P2PInvoiceEntity } from "../../finance-core/entities/p2p-invoice.entity";
+import { P2PReceiptEntity } from "../../finance-core/entities/p2p-receipt.entity";
 import { PayrollRunEntity } from "../../finance-core/entities/payroll-run.entity";
 import { PayrollLineItemEntity } from "../../finance-core/entities/payroll-line-item.entity";
 import { DocumentControlEntity } from "../entities/document-control.entity";
@@ -187,6 +189,8 @@ export class DatabaseConfig {
       P2PRequisitionEntity,
       P2PPurchaseOrderEntity,
       P2PInvoiceEntity,
+      P2PReceiptEntity,
+      OpexEncumbranceEntity,
       PayrollRunEntity,
       PayrollLineItemEntity,
       ApprovalLogEntity,

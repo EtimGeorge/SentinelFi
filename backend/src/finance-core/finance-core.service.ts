@@ -26,6 +26,7 @@ import {
   POStatus,
 } from "./entities/p2p-purchase-order.entity";
 import { P2PInvoiceEntity, InvoiceStatus } from "./entities/p2p-invoice.entity";
+import { P2PReceiptEntity } from "./entities/p2p-receipt.entity";
 import { BudgetLedgerEntity } from "./entities/budget-ledger.entity";
 import { PayrollLineItemEntity } from "./entities/payroll-line-item.entity";
 import { PayrollRunStatus } from "./entities/payroll-run.entity";
@@ -48,6 +49,12 @@ import * as hbs from "handlebars";
 import { format } from "date-fns";
 import { PdfGenerationService } from "../common/pdf-generation.service";
 import { TenantService } from "../tenants/tenant.service";
+import { EncumbranceStatus, EncumbranceSourceType } from "@shared/types";
+import { ThreeWayMatchResult } from "@shared/types";
+import { OperationalBudgetsService } from "../operational-budgets/operational-budgets.service";
+import { BudgetControlService } from "../common/budget-control.service";
+import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
+import { OperationalBudgetStatus } from "@shared/types";
 
 @Injectable()
 export class FinanceCoreService {
@@ -76,6 +83,8 @@ export class FinanceCoreService {
     private poRepo: Repository<P2PPurchaseOrderEntity>,
     @InjectRepository(P2PInvoiceEntity, TENANT_DATA_SOURCE)
     private invoiceRepo: Repository<P2PInvoiceEntity>,
+    @InjectRepository(P2PReceiptEntity, TENANT_DATA_SOURCE)
+    private receiptRepo: Repository<P2PReceiptEntity>,
     @InjectRepository(BudgetLedgerEntity, TENANT_DATA_SOURCE)
     private budgetLedgerRepo: Repository<BudgetLedgerEntity>,
     @InjectRepository(PayrollLineItemEntity, TENANT_DATA_SOURCE)
@@ -86,6 +95,8 @@ export class FinanceCoreService {
     private readonly notificationsService: NotificationsService,
     private readonly pdfService: PdfGenerationService,
     private readonly tenantService: TenantService,
+    private readonly operationalBudgetsService: OperationalBudgetsService,
+    private readonly budgetControlService: BudgetControlService,
   ) {}
 
   private getTenantId(): string {
@@ -294,7 +305,61 @@ export class FinanceCoreService {
     });
     await this.approvalLogRepo.save(log);
 
+    // Phase 4 (4.1): raise a soft-hold (RESERVED) on the requisition pipeline.
+    // Resolve the matching active operational budget via cost-center department.
+    const budgetId = await this.resolveOperationalBudgetForCostCenter(
+      tenantId,
+      data.costCenterId,
+    );
+    await this.operationalBudgetsService.createEncumbrance({
+      tenantId,
+      sourceType: EncumbranceSourceType.REQUISITION,
+      sourceId: requisition.id,
+      amount: baseAmount,
+      operationalBudgetId: budgetId,
+      operationalBudgetCategoryId: null,
+      status: EncumbranceStatus.RESERVED,
+      notes: `Requisition ${reqNumber}: ${data.description}`,
+    });
+
     return requisition;
+  }
+
+  /**
+   * Phase 4 (4.7): resolve the ACTIVE operational budget covering a
+   * cost-center's department so spend can be checked against an OPEX plan.
+   * Prefers a budget whose date-range spans today; falls back to the most
+   * recent active budget for the department.
+   */
+  private async resolveOperationalBudgetForCostCenter(
+    tenantId: string,
+    costCenterId: string,
+  ): Promise<string | null> {
+    const costCenter = await this.costCenterRepo.findOne({
+      where: { tenant_id: tenantId, id: costCenterId },
+      relations: ["department"],
+    });
+    const departmentId = costCenter?.department?.id ?? costCenter?.department_id;
+    if (!departmentId) return null;
+
+    const budgets = await this.dataSource
+      .getRepository(OperationalBudgetEntity)
+      .find({
+        where: {
+          tenant_id: tenantId,
+          department_id: departmentId,
+          status: OperationalBudgetStatus.ACTIVE,
+        },
+      });
+    if (!budgets.length) return null;
+
+    const now = new Date();
+    const spanning = budgets.find(
+      (b) =>
+        (!b.start_date || new Date(b.start_date) <= now) &&
+        (!b.end_date || new Date(b.end_date) >= now),
+    );
+    return (spanning ?? budgets[0]).operational_budget_id;
   }
 
   async getRequisitions(dto: GetFinancialDocumentsDto) {
@@ -344,6 +409,7 @@ export class FinanceCoreService {
     return await this.dataSource.transaction(async (manager) => {
       const requisition = await manager.findOne(P2PRequisitionEntity, {
         where: { id: requisitionId, tenant_id: tenantId },
+        relations: ["costCenter"],
       });
 
       if (!requisition) {
@@ -362,6 +428,76 @@ export class FinanceCoreService {
         requisition.estimated_amount,
         requisition.currency,
       );
+
+      // Phase 4 (4.7): real-time budget capacity check against the matching
+      // active OPEX budget before the commitment is firmed as a PO.
+      let varianceWarning: {
+        budgeted: number;
+        actual: number;
+        committed: number;
+        overrunAmount: number;
+        variancePct: number;
+        flag: string;
+      } | null = null;
+      const budgetId = requisition.costCenter
+        ? await this.resolveOperationalBudgetForCostCenter(
+            tenantId,
+            requisition.costCenter.id,
+          )
+        : null;
+      if (budgetId) {
+        const budget = await manager.findOne(OperationalBudgetEntity, {
+          where: {
+            operational_budget_id: budgetId,
+            tenant_id: tenantId,
+          },
+        });
+        if (budget) {
+          const activeEncumbrances =
+            await this.operationalBudgetsService.getActiveEncumbrancesForBudget(
+              budgetId,
+              tenantId,
+            );
+          const committedPipeline = activeEncumbrances.reduce(
+            (sum, enc) => sum + Number(enc.amount || 0),
+            0,
+          );
+          const check =
+            await this.budgetControlService.validateOperationalExpenseVariance({
+              budgetName: budget.name,
+              budgeted: Number(budget.budgeted_amount || 0),
+              actualSpent: Number(budget.actual_spent || 0),
+              committedAmount: committedPipeline,
+              amount: Number(
+                Number(requisition.base_amount) || 
+                Number(requisition.estimated_amount) || 0
+              ),
+            });
+          if (check.action === "BLOCK") {
+            throw new ConflictException(
+              `[OPEX-CONTROL] PO #blocked: ${check.message}`,
+            );
+          }
+          if (check.action === "REQUIRE_OVERRIDE" || check.action === "WARN") {
+            varianceWarning = {
+              budgeted: Number(budget.budgeted_amount || 0),
+              actual: Number(budget.actual_spent || 0),
+              committed:
+                committedPipeline +
+                Number(
+                  Number(requisition.base_amount) || 
+                  Number(requisition.estimated_amount) || 0
+                ),
+              overrunAmount: check.overrunAmount,
+              variancePct: check.variancePercentage,
+              flag: check.flag,
+            };
+            this.logger.warn(
+              `[OPEX-CONTROL] PO issuing with ${check.flag} on "${budget.name}": ${check.message}`,
+            );
+          }
+        }
+      }
 
       // 2. Update requisition status
       requisition.status = DocumentStatus.APPROVED;
@@ -385,7 +521,31 @@ export class FinanceCoreService {
         status: POStatus.ISSUED,
       });
 
-      return await manager.save(po);
+      const savedPo = await manager.save(po);
+
+      // Phase 4 (4.1): the requisition's soft-hold is released now that the
+      // commitment is firmed — the PO carries the FIRM hold going forward.
+      await this.operationalBudgetsService.releaseEncumbrancesForSource(
+        EncumbranceSourceType.REQUISITION,
+        requisitionId,
+        tenantId,
+      );
+      await this.operationalBudgetsService.createEncumbrance({
+        tenantId,
+        sourceType: EncumbranceSourceType.PURCHASE_ORDER,
+        sourceId: savedPo.id,
+        amount: Number(requisition.base_amount ?? requisition.estimated_amount),
+        operationalBudgetId: budgetId,
+        operationalBudgetCategoryId: null,
+        status: EncumbranceStatus.FIRM,
+        notes: `Purchase order ${poNumber} committed`,
+      });
+
+      const result = savedPo as P2PPurchaseOrderEntity & {
+        varianceWarning?: typeof varianceWarning;
+      };
+      if (varianceWarning) result.varianceWarning = varianceWarning;
+      return result;
     });
   }
 
@@ -426,6 +586,13 @@ export class FinanceCoreService {
         comments: "Requisition rejected",
       });
       await manager.save(log);
+
+      // Phase 4 (4.1): release the reserved hold on the rejected requisition.
+      await this.operationalBudgetsService.releaseEncumbrancesForSource(
+        EncumbranceSourceType.REQUISITION,
+        requisitionId,
+        tenantId,
+      );
 
       return requisition;
     });
@@ -486,7 +653,23 @@ export class FinanceCoreService {
       base_amount: baseAmount,
     });
 
-    return this.invoiceRepo.save(invoice);
+    const saved = await this.invoiceRepo.save(invoice);
+
+    // Phase 4 (4.8): a PO-backed invoice nudges fulfilment status toward
+    // FULFILLED so the pipeline reflects physical completeness (a three-way
+    // match is validated via the dedicated endpoint).
+    if (data.poId) {
+      const po = await this.poRepo.findOne({
+        where: { id: data.poId, tenant_id: tenantId },
+      });
+      if (po && po.status === POStatus.ISSUED) {
+        po.status = POStatus.PARTIALLY_FULFILLED;
+        po.updated_at = new Date();
+        await this.poRepo.save(po);
+      }
+    }
+
+    return saved;
   }
 
   async getInvoices(dto: GetFinancialDocumentsDto) {
@@ -536,11 +719,248 @@ export class FinanceCoreService {
     invoice.updated_at = new Date();
     const paid = await this.invoiceRepo.save(invoice);
 
+    // Phase 4 (4.1): paying the invoice realises the PO commitment — liquidate.
+    if (invoice.purchase_order_id) {
+      await this.operationalBudgetsService.liquidateEncumbrancesForSource(
+        EncumbranceSourceType.PURCHASE_ORDER,
+        invoice.purchase_order_id,
+        tenantId,
+      );
+      const po = await this.poRepo.findOne({
+        where: { id: invoice.purchase_order_id, tenant_id: tenantId },
+      });
+      if (po && po.status === POStatus.ISSUED) {
+        po.status = POStatus.FULFILLED;
+        po.updated_at = new Date();
+        await this.poRepo.save(po);
+      }
+    }
+
     this.logger.log(
       `[FINANCE-CORE] INVOICE PAID | ${invoice.invoice_number} | By: ${actorRole} (${actorUserId})`,
     );
 
     return paid;
+  }
+
+  // ─── Phase 4 (4.8) — Receipts & 3-Way Match ─────────────────────────────
+
+  /** Record goods/services received against a purchase order. */
+  async recordReceipt(input: {
+    purchaseOrderId: string;
+    receivedByUserId: string;
+    receivedDate: string;
+    quantity: number;
+    unitAmount: number;
+    notes?: string;
+  }) {
+    const tenantId = this.getTenantId();
+
+    const po = await this.poRepo.findOne({
+      where: { id: input.purchaseOrderId, tenant_id: tenantId },
+    });
+    if (!po) {
+      throw new NotFoundException(
+        `Purchase order ${input.purchaseOrderId} not found.`,
+      );
+    }
+    if (po.status === POStatus.CANCELLED) {
+      throw new ConflictException(
+        `Cannot record a receipt against cancelled PO ${po.po_number}.`,
+      );
+    }
+
+    const amount = Number(input.quantity) * Number(input.unitAmount);
+
+    const receipt = this.receiptRepo.create({
+      tenant_id: tenantId,
+      purchase_order_id: input.purchaseOrderId,
+      received_by_user_id: input.receivedByUserId,
+      received_date: new Date(input.receivedDate),
+      quantity: input.quantity,
+      unit_amount: input.unitAmount,
+      amount,
+      notes: input.notes ?? null,
+    });
+
+    const saved = await this.receiptRepo.save(receipt);
+
+    const receivedTotal = await this.receiptTotalForPo(tenantId, po.id);
+    if (receivedTotal >= Number(po.committed_amount || 0)) {
+      po.status = POStatus.FULFILLED;
+      po.updated_at = new Date();
+      await this.poRepo.save(po);
+    } else if (po.status === POStatus.ISSUED) {
+      po.status = POStatus.PARTIALLY_FULFILLED;
+      po.updated_at = new Date();
+      await this.poRepo.save(po);
+    }
+
+    return saved;
+  }
+
+  private async receiptTotalForPo(
+    tenantId: string,
+    purchaseOrderId: string,
+  ): Promise<number> {
+    const { total } = await this.receiptRepo
+      .createQueryBuilder("r")
+      .select("COALESCE(SUM(r.amount), 0)", "total")
+      .where("r.tenant_id = :tenantId", { tenantId })
+      .andWhere("r.purchase_order_id = :purchaseOrderId", {
+        purchaseOrderId,
+      })
+      .getRawOne();
+    return Number(total) || 0;
+  }
+
+  async getPurchaseOrderReceipts(purchaseOrderId: string, tenantId: string) {
+    await this.poRepo.findOneOrFail({
+      where: { id: purchaseOrderId, tenant_id: tenantId },
+    });
+    return this.receiptRepo.find({
+      where: { tenant_id: tenantId, purchase_order_id: purchaseOrderId },
+      order: { received_date: "DESC" },
+    });
+  }
+
+  /**
+   * Phase 4 (4.8) — Three-way match: PO (order) vs Receipts (received) vs
+   * Invoice (billed). Returns a MATCHED / PARTIAL_MATCH / MISMATCH verdict
+   * plus the over-commitment context against the linked OPEX budget when the
+   * PO was firmed under an active budget.
+   */
+  async getThreeWayMatch(purchaseOrderId: string, tenantId: string) {
+    const po = await this.poRepo.findOne({
+      where: { id: purchaseOrderId, tenant_id: tenantId },
+      relations: ["requisition", "invoices", "receipts"],
+    });
+    if (!po) {
+      throw new NotFoundException(
+        `Purchase order ${purchaseOrderId} not found.`,
+      );
+    }
+
+    const poAmount = Number(po.committed_amount || 0);
+
+    const receivedTotal = (po.receipts || []).reduce(
+      (sum, r) => sum + Number(r.amount || 0),
+      0,
+    );
+    const invoicedTotal = (po.invoices || [])
+      .filter((inv) => inv.status !== InvoiceStatus.REJECTED)
+      .reduce(
+        (sum, inv) =>
+          sum + Number(Number(inv.base_amount) || Number(inv.amount) || 0),
+        0,
+      );
+
+    const variance = invoicedTotal - poAmount;
+
+    let status: "MATCHED" | "PARTIAL_MATCH" | "MISMATCH";
+    if (invoicedTotal === 0) {
+      status = "PARTIAL_MATCH"; // PO issued, nothing billed yet
+    } else if (
+      Math.abs(variance) <= Number(po.committed_amount || 0) * 0.01
+    ) {
+      status = "MATCHED";
+    } else if (invoicedTotal < poAmount) {
+      status = "PARTIAL_MATCH";
+    } else {
+      status = "MISMATCH";
+    }
+
+    let overCommitment: ThreeWayMatchResult["overCommitment"] = null;
+    let budgetId: string | null = null;
+    if (po.requisition?.cost_center_id) {
+      budgetId = await this.resolveOperationalBudgetForCostCenter(
+        tenantId,
+        po.requisition.cost_center_id,
+      );
+    }
+    if (budgetId) {
+      const budget = await this.dataSource
+        .getRepository(OperationalBudgetEntity)
+        .findOne({
+          where: { operational_budget_id: budgetId, tenant_id: tenantId },
+        });
+      if (budget) {
+        const activeEncumbrances =
+          await this.operationalBudgetsService.getActiveEncumbrancesForBudget(
+            budgetId,
+            tenantId,
+          );
+        const committed = activeEncumbrances.reduce(
+          (sum, enc) => sum + Number(enc.amount || 0),
+          0,
+        );
+        const actual = Number(budget.actual_spent || 0);
+        const overrunAmount = Math.max(
+          0,
+          Number(budget.actual_spent || 0) +
+            committed -
+            Number(budget.budgeted_amount || 0),
+        );
+        overCommitment = {
+          budgeted: Number(budget.budgeted_amount || 0),
+          actual,
+          committed,
+          overrunAmount,
+          variancePct:
+            Number(budget.budgeted_amount || 0) > 0
+              ? (overrunAmount / Number(budget.budgeted_amount)) * 100
+              : 0,
+        };
+      }
+    }
+
+    const result: ThreeWayMatchResult = {
+      poId: po.id,
+      poNumber: po.po_number,
+      poAmount,
+      receivedAmount: receivedTotal,
+      invoicedAmount: invoicedTotal,
+      variance,
+      status,
+      overCommitment: overCommitment ?? null,
+    };
+    return result;
+  }
+
+  /**
+   * Phase 4 (4.10) — Procure-to-pay side of the merged "needs attention" queue:
+   * pending requisitions, issued POs awaiting fulfilment, and overdue invoices.
+   */
+  async getProcurementNeedsAttention(tenantId: string) {
+    const pendingRequisitions = await this.requisitionRepo.find({
+      where: { tenant_id: tenantId, status: DocumentStatus.PENDING_APPROVAL },
+      order: { created_at: "ASC" },
+      take: 25,
+    });
+    const issuedPos = await this.poRepo.find({
+      where: { tenant_id: tenantId, status: POStatus.PARTIALLY_FULFILLED },
+      order: { created_at: "ASC" },
+      take: 25,
+    });
+    const overdueInvoices = await this.invoiceRepo
+      .createQueryBuilder("inv")
+      .where("inv.tenant_id = :tenantId", { tenantId })
+      .andWhere("inv.status IN (:...statuses)", {
+        statuses: [InvoiceStatus.RECEIVED, InvoiceStatus.UNDER_REVIEW],
+      })
+      .andWhere(
+        "(inv.due_date IS NOT NULL AND inv.due_date < CURRENT_DATE) OR inv.status = :received",
+        { received: InvoiceStatus.RECEIVED },
+      )
+      .orderBy("inv.invoice_date", "ASC")
+      .take(25)
+      .getMany();
+
+    return {
+      pendingRequisitions,
+      awaitingFulfilment: issuedPos,
+      overdueInvoices,
+    };
   }
 
   private _applyFinancialFilters(

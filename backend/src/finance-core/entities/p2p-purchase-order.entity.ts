@@ -11,6 +11,7 @@ import {
 } from "typeorm";
 import { P2PRequisitionEntity } from "@src/finance-core/entities/p2p-requisition.entity";
 import { P2PInvoiceEntity } from "@src/finance-core/entities/p2p-invoice.entity";
+import { P2PReceiptEntity } from "@src/finance-core/entities/p2p-receipt.entity";
 
 export enum POStatus {
   ISSUED = "ISSUED",
@@ -59,6 +60,9 @@ export class P2PPurchaseOrderEntity {
 
   @OneToMany(() => P2PInvoiceEntity, (inv) => inv.purchaseOrder)
   invoices!: P2PInvoiceEntity[];
+
+  @OneToMany(() => P2PReceiptEntity, (receipt) => receipt.purchaseOrder)
+  receipts!: P2PReceiptEntity[];
 
   @CreateDateColumn({ type: "timestamptz" })
   created_at!: Date;
