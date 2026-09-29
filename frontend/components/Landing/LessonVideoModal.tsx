@@ -114,7 +114,9 @@ export default function LessonVideoModal({ lesson, onClose }: { lesson: AcademyL
     if (!lesson.quiz || answers.some((a) => a === null)) return;
     const correct = lesson.quiz.filter((q, i) => q.answer === answers[i]).length;
     const passed = correct === lesson.quiz.length;
-    const finished = markQuizResult(lesson, passed) || lesson.checklist.every((_, i) => checked.includes(i));
+    // Only a passing quiz contributes to completion (checklist parity kept for
+    // the UI state); markQuizResult itself never completes on a failed quiz.
+    const finished = Boolean(passed) && (markQuizResult(lesson, passed) || lesson.checklist.every((_, i) => checked.includes(i)));
     setQuizPassed(passed);
     if (finished) setCompleted(true);
   };

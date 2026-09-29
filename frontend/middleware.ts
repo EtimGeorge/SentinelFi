@@ -26,6 +26,12 @@ const PUBLIC_PATTERNS: RegExp[] = [
   // Public API routes (must not be redirected to /login)
   /^\/api\/v1\/auth\/(login|register|forgot-password|reset-password|invitation|health)(\/|$)/,
   /^\/api\/v1\/health(\/|$)/,
+  // Public Academy/demo media (marketing lesson recordings under public/demos).
+  // Scoped to the /demos/ namespace + media extensions only — never app routes.
+  // Regression: these requests were redirected to /login, so the browser
+  // received HTML where it expected video bytes → FFmpegDemuxer open failure
+  // in <video> (see __tests__/middleware.test.ts).
+  /^\/demos\/[\w@.-]+\.(webm|mp4|png|jpg|jpeg|webp)$/,
 ];
 
 const SUPER_PREFIX = /^\/super(\/|$)/;

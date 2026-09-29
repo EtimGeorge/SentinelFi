@@ -135,8 +135,12 @@ export function markChecklistItem(lesson: AcademyLesson, item: string, done: boo
   if (done) checklistDone.add(item);
   else checklistDone.delete(item);
   const next: LessonProgress = { ...prev, checklistDone: [...checklistDone] };
+  // Completion gate: a lesson with a quiz is only complete once EVERY checklist
+  // item is done AND the quiz has been passed. Lessons without a quiz complete
+  // on the checklist alone.
+  const quizSatisfied = lesson.quiz?.length ? next.quizPassed === true : true;
   const allChecked = lesson.checklist.every((c) => checklistDone.has(c));
-  if (allChecked && !next.completed) {
+  if (allChecked && quizSatisfied && !next.completed) {
     next.completed = true;
     next.completedAt = next.completedAt ?? new Date().toISOString();
     trackMarketingEvent('marketing.lesson_complete', { label: lesson.slug });
@@ -150,7 +154,9 @@ export function markQuizResult(lesson: AcademyLesson, passed: boolean): boolean 
   const ledger = readLedger();
   const prev: LessonProgress = ledger[lesson.slug] ?? { completed: false };
   const next: LessonProgress = { ...prev, quizPassed: passed };
-  const allChecked = (next.checklistDone ?? []).length === lesson.checklist.length;
+  // A failed attempt never completes the lesson. Membership is validated
+  // against the actual checklist items (not just count parity).
+  const allChecked = passed && lesson.checklist.every((c) => (next.checklistDone ?? []).includes(c));
   if (allChecked && !next.completed) {
     next.completed = true;
     next.completedAt = next.completedAt ?? new Date().toISOString();
