@@ -9,7 +9,9 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "jest --watchAll",
-    "test:ci": "jest --ci --watchAll=false"
+    "test:ci": "jest --ci --watchAll=false",
+    "capture:demos": "node scripts/capture-demo-videos.mjs",
+    "capture:academy": "node scripts/capture-academy-videos.mjs"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.11",

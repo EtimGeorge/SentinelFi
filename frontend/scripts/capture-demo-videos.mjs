@@ -35,16 +35,28 @@
 // DemoSandbox component.
 
 import { chromium } from 'playwright';
-import { mkdirSync, existsSync, statSync, readdirSync, renameSync } from 'node:fs';
+import { mkdirSync, existsSync, statSync, readdirSync, renameSync, appendFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..', '..');
 const PUBLIC_DEMOS = join(PROJECT_ROOT, 'frontend', 'public', 'demos');
 
+// ── TEMPORARY DEBUG TRACING (remove once the capture hang is resolved) ──────
+// CAPTURE_DEBUG=1 appends one timestamped line per blocking call to
+// .workspace-temp/capture-trace.log so a hung run shows the exact call.
+const DEBUG = process.env.CAPTURE_DEBUG === '1';
+const DEBUG_LOG = join(PROJECT_ROOT, '.workspace-temp', 'capture-trace.log');
+function dbg(step, extra = '') {
+  const line = `${new Date().toISOString()}  ${step}${extra ? `  ${extra}` : ''}`;
+  console.log(`[trace] ${line}`);
+  if (DEBUG) { try { appendFileSync(DEBUG_LOG, `${line}\n`); } catch { /* ignore */ } }
+}
+
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-const VIEWPORT = { width: 1280, height: 720 };
+const VIEWPORT = { width: 1920, height: 1080 };
 
 const ROLES = [
   { key: 'CEO',    label: 'Executive (CEO)',     slug: 'demo-sandbox-ceo' },
@@ -57,7 +69,7 @@ function ensureDemosDir() {
   return PUBLIC_DEMOS;
 }
 
-async function waitForScenarioComplete(page, timeoutMs = 20_000) {
+async function waitForScenarioComplete(page, timeoutMs = 30_000) {
   await page.waitForSelector('text=Scenario complete.', {
     state: 'visible',
     timeout: timeoutMs,
@@ -65,8 +77,10 @@ async function waitForScenarioComplete(page, timeoutMs = 20_000) {
 }
 
 async function startAutoPlay(page) {
-  await page.click('button:has-text("Auto-play tour")');
+  dbg('startAutoPlay: clicking Auto-play tour (10s cap)');
+  await page.click('button:has-text("Auto-play tour")', { timeout: 10_000 });
   await page.waitForTimeout(600);
+  dbg('startAutoPlay: clicked, tour running');
 }
 
 async function switchRole(page, roleKey) {
@@ -79,10 +93,9 @@ async function switchRole(page, roleKey) {
   });
 }
 
-async function ffmpegAvailable() {
+function ffmpegAvailable() {
   try {
-    const { execSync } = require('node:child_process');
-    execSync('ffmpeg -version', { stdio: 'ignore', timeout: 5000 });
+    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore', timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -100,11 +113,11 @@ function convertWebmToMp4(webmPath) {
     return null;
   }
   const mp4Path = webmPath.replace(/\.webm$/, '.mp4');
-  const { execSync } = require('node:child_process');
   try {
-    execSync(
-      `ffmpeg -y -i "${webmPath}" -c:v libx264 -preset medium -crf 23 ` +
-        `-c:a aac -b:a 128k "${mp4Path}"`,
+    execFileSync(
+      'ffmpeg',
+      ['-y', '-i', webmPath, '-c:v', 'libx264', '-preset', 'medium', '-crf', '23',
+        '-c:a', 'aac', '-b:a', '128k', mp4Path],
       { stdio: 'inherit', timeout: 120_000 },
     );
     console.log(`  ✓  Converted  ${mp4Path}`);
@@ -126,6 +139,7 @@ async function recordRoleVideo(
   // Track existing files to find the new one after recording.
   const beforeFiles = new Set(readdirSync(demosDir));
 
+  dbg(`${role.key}: creating browser context`);
   const context = await browser.newContext({
     viewport: VIEWPORT,
     recordVideo: {
@@ -133,18 +147,22 @@ async function recordRoleVideo(
       size: VIEWPORT,
     },
   });
+  dbg(`${role.key}: context ready, opening page`);
 
   const page = await context.newPage();
+  dbg(`${role.key}: page open, goto (hard 10s cap)`);
 
   try {
     await page.goto(BASE_URL + '/landing/workflows', {
       waitUntil: 'networkidle',
-      timeout: 30_000,
+      timeout: 10_000,
     });
+    dbg(`${role.key}: goto done, waiting for scenario UI (10s cap)`);
     await page.waitForSelector('text=Guided scenario', {
       state: 'visible',
       timeout: 10_000,
     });
+    dbg(`${role.key}: scenario UI visible`);
 
     if (role.key !== 'CEO') {
       await switchRole(page, role.key);
@@ -152,8 +170,11 @@ async function recordRoleVideo(
 
     await startAutoPlay(page);
     await waitForScenarioComplete(page);
+    dbg(`${role.key}: scenario complete`);
   } finally {
+    dbg(`${role.key}: closing context (video flush)`);
     await context.close();
+    dbg(`${role.key}: context closed`);
   }
 
   // Find the newly created video file (Playwright uses hashed names).
@@ -191,19 +212,23 @@ async function recordWalkthroughVideo(browser, demosDir) {
   });
 
   const page = await context.newPage();
+  dbg('walkthrough: page open, goto (hard 10s cap)');
 
   try {
     await page.goto(BASE_URL + '/landing/workflows', {
       waitUntil: 'networkidle',
-      timeout: 30_000,
+      timeout: 10_000,
     });
+    dbg('walkthrough: goto done');
     await page.waitForSelector('text=Guided scenario', {
       state: 'visible',
       timeout: 10_000,
     });
+    dbg('walkthrough: scenario UI visible');
 
     await startAutoPlay(page);
     await waitForScenarioComplete(page);
+    dbg('walkthrough: CEO leg complete');
 
     await switchRole(page, 'PM');
     await page.waitForTimeout(800);
@@ -244,9 +269,12 @@ async function main() {
   console.log('  Viewport:', `${VIEWPORT.width}×${VIEWPORT.height}  (16:9)`);
   console.log('═'.repeat(56));
 
+  dbg('main: entered (before any await)');
   const demosDir = ensureDemosDir();
 
-  const browser = await chromium.launch({ headless: true });
+  dbg('main: launching chromium (30s cap)');
+  const browser = await chromium.launch({ headless: true, timeout: 30_000 });
+  dbg('main: chromium launched');
   try {
     // ── Per-role recordings ────────────────────────────────────────────────
     for (const role of ROLES) {
