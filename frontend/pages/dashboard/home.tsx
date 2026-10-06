@@ -167,7 +167,7 @@ const DashboardHome: React.FC = () => {
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <KpiCard
               label="Burn Rate"
-              value={<span className="font-mono">{metrics?.burnRatePercentage.toFixed(1) || '—'}%</span>}
+              value={<span className="font-mono">{metrics?.burnRatePercentage?.toFixed(1) || '—'}%</span>}
               tone={(metrics?.burnRatePercentage ?? 0) > 90 ? 'critical' : (metrics?.burnRatePercentage ?? 0) > 75 ? 'warning' : 'neutral'}
               footer={metrics?.estimatedExhaustionDate ? (
                 <span className="text-caption">Funds exhausted by {new Date(metrics.estimatedExhaustionDate).toLocaleDateString()}</span>
