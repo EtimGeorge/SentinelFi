@@ -9,6 +9,21 @@ import { InternalServerErrorException, Logger } from "@nestjs/common";
  * work. That silent no-op is unobservable at the call site, so it is turned
  * into a hard, immediate failure here instead.
  */
+/**
+ * A tenant migration is a `*.ts`/`*.js` file that exports a migration class.
+ *
+ * Spec/test files live in the same directory so they can reach the real
+ * migrations, and a plain `*.ts` glob matches them too. TypeORM `require()`s
+ * every file the glob matches, so an included `*.spec.ts` executes
+ * `describe(...)` at module scope and the DataSource dies with
+ * "describe is not defined" — which fails EVERY tenant migration run, not just
+ * the spec's own suite. Excluding them here is what keeps provisioning working.
+ */
+export function isTenantMigrationFile(fileName: string): boolean {
+  if (fileName.includes(".spec.") || fileName.includes(".test.")) return false;
+  return fileName.endsWith(".ts") || fileName.endsWith(".js");
+}
+
 function assertMigrationsResolve(
   glob: string,
   dir: string,
@@ -17,7 +32,9 @@ function assertMigrationsResolve(
 ): void {
   let files: string[];
   try {
-    files = fs.readdirSync(dir).filter((f) => f.endsWith(extension));
+    files = fs
+      .readdirSync(dir)
+      .filter((f) => isTenantMigrationFile(f) && f.endsWith(extension));
   } catch (err) {
     throw new InternalServerErrorException(
       `Tenant migrations directory could not be read: "${dir}" (${
@@ -47,8 +64,11 @@ function assertMigrationsResolve(
  *
  * FAIL-LOUD: throws if the resolved directory contains no migrations, because
  * an empty glob is silently equivalent to "provision an empty schema".
+ *
+ * Returns a glob ARRAY so `*.spec.*` / `*.test.*` can be excluded by negation.
+ * TypeORM accepts `string | string[]` for `migrations`.
  */
-export function getTenantMigrationsPath(): string {
+export function getTenantMigrationsPath(): string[] {
   const logger = new Logger("PathUtils");
 
   // __dirname is somewhere in src/ or dist/ depending on the runtime.
@@ -64,23 +84,31 @@ export function getTenantMigrationsPath(): string {
   );
 
   const extension = isProduction ? ".js" : ".ts";
-  const glob = path.join(migrationsDir, `*${extension}`);
+  const globs = [
+    path.join(migrationsDir, `*${extension}`),
+    `!${path.join(migrationsDir, `*.spec${extension}`)}`,
+    `!${path.join(migrationsDir, `*.test${extension}`)}`,
+  ];
 
-  assertMigrationsResolve(glob, migrationsDir, extension, logger);
+  assertMigrationsResolve(globs[0], migrationsDir, extension, logger);
 
-  return glob;
+  return globs;
 }
 
 /**
  * Number of tenant migration files visible to the current runtime. Used by the
  * provisioning verifier to detect the "migrations ran but applied nothing" case.
+ * Must count exactly what the glob resolves to, so spec/test files are excluded
+ * here too — otherwise the count over-reports and the zero-migration guard
+ * never fires.
  */
 export function countTenantMigrationFiles(): number {
-  const glob = getTenantMigrationsPath();
-  const dir = path.dirname(glob);
-  const extension = path.extname(glob);
+  const dir = path.dirname(getTenantMigrationsPath()[0]);
+  const extension = path.extname(getTenantMigrationsPath()[0]);
   try {
-    return fs.readdirSync(dir).filter((f) => f.endsWith(extension)).length;
+    return fs
+      .readdirSync(dir)
+      .filter((f) => isTenantMigrationFile(f) && f.endsWith(extension)).length;
   } catch {
     return 0;
   }

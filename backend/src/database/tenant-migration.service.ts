@@ -4,9 +4,8 @@ import {
   Logger,
   InternalServerErrorException,
 } from "@nestjs/common";
-import { DataSource, DataSourceOptions } from "typeorm";
+import { DataSource, DataSourceOptions, MigrationInterface } from "typeorm";
 import { ConfigService } from "@nestjs/config";
-import * as path from "path";
 
 // Import all entities that are part of the tenant schema
 import { ProjectEntity } from "../projects/project.entity";
@@ -58,7 +57,22 @@ export class TenantMigrationService {
 
   constructor(private configService: ConfigService) {}
 
-  async runTenantMigrations(schemaName: string): Promise<void> {
+  /**
+   * Applies tenant migrations to a single tenant schema.
+   *
+   * @param schemaName Tenant schema to migrate (validated before any interpolation).
+   * @param only Optional allow-list of migration class names. Omit to run every
+   *   pending migration, which is what new-tenant provisioning needs. Pass it when
+   *   a specific migration cannot run for a given tenant because the tenant
+   *   predates the base schema that migration ALTERs — e.g. a tenant that never
+   *   received the finance-core tables cannot run a migration that does
+   *   `ALTER TABLE payroll_run ADD COLUMN`, and running it anyway aborts the
+   *   whole run and leaves the remaining migrations unapplied.
+   */
+  async runTenantMigrations(
+    schemaName: string,
+    only?: string[],
+  ): Promise<void> {
     // Every schema name reaching this point is about to be interpolated into a
     // DataSource `schema` option and into `information_schema` lookups. Validate
     // it here as well so a tampered `tenants.schema_name` row can never be used
@@ -97,8 +111,6 @@ export class TenantMigrationService {
 
     const isNeon = sanitizedUrl.includes("neon.tech");
     const hasSslMode = sanitizedUrl.includes("sslmode=");
-
-    const isProduction = process.env.NODE_ENV === "production";
 
     // Define tenant-specific DataSource options
     const tenantDataSourceOptions: DataSourceOptions = {
@@ -144,7 +156,7 @@ export class TenantMigrationService {
         PayrollRunEntity,
         PayrollLineItemEntity,
       ],
-      migrations: [getTenantMigrationsPath()],
+      migrations: getTenantMigrationsPath(),
       migrationsTableName: "tenant_migrations", // Dedicated migrations table for tenant schemas
       synchronize: false, // Always false in production
       logging: ["error", "warn"], // Only log errors and warnings for migrations
@@ -171,9 +183,47 @@ export class TenantMigrationService {
         );
       }
 
+      // Optional per-migration allow-list. `runMigrations()` reads the
+      // `migrations` array directly, so narrowing it here applies exactly these
+      // and skips the rest — the skipped ones stay "pending" in
+      // `tenant_migrations` and will be applied by a later run once the tenant
+      // has the base relations they depend on.
+      let selected: string[] | undefined;
+      if (only && only.length > 0) {
+        const allow = new Set(only);
+        const available = new Set(
+          tenantDataSource.migrations.map((m: MigrationInterface) => m.name),
+        );
+        const unknown = only.filter((n: string) => !available.has(n));
+        if (unknown.length > 0) {
+          throw new InternalServerErrorException(
+            `Requested migration(s) not found for schema "${schemaName}": ${unknown.join(
+              ", ",
+            )}. Available: ${[...available].join(", ")}`,
+          );
+        }
+        // `DataSource.migrations` is typed `readonly` but `runMigrations()` reads
+        // this exact array at execution time, so narrowing it here is the
+        // supported way to apply a subset without re-globbing migration classes.
+        const executable = tenantDataSource as {
+          migrations: MigrationInterface[];
+        };
+        executable.migrations = executable.migrations.filter(
+          (m: MigrationInterface) => m.name !== undefined && allow.has(m.name),
+        );
+        selected = only;
+        this.logger.warn(
+          `Applying an explicit SUBSET of migrations for schema "${schemaName}": ${only.join(
+            ", ",
+          )}. Remaining migrations stay pending for this tenant.`,
+        );
+      }
+
       const applied = await tenantDataSource.runMigrations();
       this.logger.log(
-        `Migrations successfully run for schema: "${schemaName}" (${applied.length} applied).`,
+        `Migrations successfully run for schema: "${schemaName}" (${applied.length} applied${
+          selected ? `, subset: ${selected.join(", ")}` : ""
+        }).`,
       );
 
       // POST-MIGRATION VERIFICATION (R1f): `runMigrations()` reporting success is
@@ -183,11 +233,12 @@ export class TenantMigrationService {
       // "tidy" them into plurals: `users`/`audit_log` live in the public schema
       // and are deliberately NOT in this list.
       const requiredTables = ["project", "wbs_budget", "operational_budget"];
-      const presentRows: Array<{ table_name: string }> = await tenantDataSource.query(
-        `SELECT table_name FROM information_schema.tables
+      const presentRows: Array<{ table_name: string }> =
+        await tenantDataSource.query(
+          `SELECT table_name FROM information_schema.tables
           WHERE table_schema = $1 AND table_name = ANY($2::text[])`,
-        [schemaName, requiredTables],
-      );
+          [schemaName, requiredTables],
+        );
       const present = new Set(presentRows.map((r) => r.table_name));
       const missing = requiredTables.filter((t) => !present.has(t));
 

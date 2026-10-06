@@ -32,6 +32,8 @@ import { BudgetCategoryEntity } from "../../operational-budgets/budget-category.
 import { OperationalBudgetPeriodAllocationEntity } from "../../operational-budgets/operational-budget-period-allocation.entity";
 import { CEOAnnotationEntity } from "../../dashboard/annotation.entity";
 import { SubscriptionEntity } from "../../billing/entities/subscription.entity";
+import { BillingInvoiceEntity } from "../../billing/entities/billing-invoice.entity";
+import { ProcessedWebhookEntity } from "../../billing/entities/processed-webhook.entity";
 import { EmailLogEntity } from "../../email/email-log.entity";
 import { RefreshTokenEntity } from "../../auth/refresh-token.entity";
 import { AcademyProgressEntity } from "../../marketing/academy-progress.entity";
@@ -202,6 +204,8 @@ export class DatabaseConfig {
       ConversationMemberEntity,
       NotificationEntity,
       SubscriptionEntity,
+      BillingInvoiceEntity,
+      ProcessedWebhookEntity,
       EmailLogEntity,
       RefreshTokenEntity,
       AcademyProgressEntity,
@@ -215,6 +219,7 @@ export class DatabaseConfig {
   private static readonly MAX_RETRY_ATTEMPTS = 3;
   private static readonly RETRY_DELAY = 1000;
   private static readonly KEEP_ALIVE_INTERVAL = 45000; // 45s (Keep Neon compute HOT)
+  private static readonly PING_TIMEOUT_MS = 5000; // Liveness ping budget
   private static dataSourceRef: DataSource | null = null;
   private static circuitBreaker = new ConnectionCircuitBreaker();
   private static isReconnecting = false;
@@ -299,6 +304,26 @@ export class DatabaseConfig {
    * @param {DataSource} dataSource - The TypeORM DataSource instance.
    * @returns {Promise<boolean>} True if connection is valid, false otherwise.
    */
+  /**
+   * Distinguishes pool SATURATION from a genuinely DEAD connection.
+   *
+   * When every connection is busy running a long query, a `SELECT 1` cannot be
+   * serviced in time. That is a load problem, not a connectivity problem, and
+   * treating it as one is actively harmful: destroying the pool aborts the
+   * in-flight queries that are about to finish and leaves every subsequent
+   * caller failing with "Cannot use a pool after calling end on the pool".
+   */
+  private static isPoolSaturated(dataSource: DataSource): boolean {
+    try {
+      const pool = (dataSource.driver as any).master;
+      if (!pool) return false;
+      const { totalCount, idleCount, waitingCount } = pool;
+      return waitingCount > 0 || (totalCount > 0 && idleCount === 0);
+    } catch {
+      return false;
+    }
+  }
+
   static async validateConnection(dataSource: DataSource): Promise<boolean> {
     if (!this.circuitBreaker.canAttemptConnection()) {
       this.logger.warn(
@@ -307,8 +332,25 @@ export class DatabaseConfig {
       return false;
     }
 
+    // A busy pool is not a broken pool. Report it as healthy so the health
+    // check does not trip the breaker and tear down live connections.
+    if (this.isPoolSaturated(dataSource)) {
+      this.logger.warn(
+        "Pool is saturated (no idle connections); skipping liveness ping",
+      );
+      return true;
+    }
+
     try {
-      const result = await dataSource.query("SELECT 1 as ping");
+      const result = await Promise.race([
+        dataSource.query("SELECT 1 as ping"),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Liveness ping timed out")),
+            DatabaseConfig.PING_TIMEOUT_MS,
+          ),
+        ),
+      ]);
       if (result && result[0]?.ping === 1) {
         this.circuitBreaker.recordSuccess();
         return true;
@@ -336,6 +378,18 @@ export class DatabaseConfig {
     if (this.isReconnecting) {
       this.logger.debug(
         "Reconnection already in progress, skipping duplicate attempt",
+      );
+      return;
+    }
+
+    // Refuse to tear the pool down while it is merely saturated. Destroying a
+    // busy pool is what turns one slow query into a site-wide outage: every
+    // in-flight caller fails with "Cannot use a pool after calling end on the
+    // pool" and the pool stays down for the whole backoff window. A saturated
+    // pool will drain on its own; wait instead of resetting.
+    if (this.isPoolSaturated(dataSource)) {
+      this.logger.warn(
+        "⏳ Reconnection requested but pool is saturated; deferring to let in-flight queries drain",
       );
       return;
     }
