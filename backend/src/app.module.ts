@@ -164,10 +164,6 @@ import { envValidationSchema } from "./common/config/env-validation.schema";
   controllers: [],
   providers: [
     {
-      provide: APP_GUARD,
-      useClass: MaintenanceGuard, // Runs first: short-circuits if platform under maintenance
-    },
-    {
       provide: APP_INTERCEPTOR,
       useClass: CorrelationInterceptor,
     },
@@ -185,11 +181,15 @@ import { envValidationSchema } from "./common/config/env-validation.schema";
     },
     {
       provide: APP_GUARD,
-      useClass: TenancyGuard, // Runs second: resolves tenant context from the authenticated user
+      useClass: TenancyGuard, // Runs third: resolves tenant context from the authenticated user
     },
     {
       provide: APP_GUARD,
-      useClass: TenantAccessGuard, // Runs third: enforces tenant-level access control
+      useClass: MaintenanceGuard, // Runs fourth: reads per-tenant settings, so it must follow TenancyGuard
+    },
+    {
+      provide: APP_GUARD,
+      useClass: TenantAccessGuard, // Runs fifth: enforces tenant-level access control
     },
   ],
 })

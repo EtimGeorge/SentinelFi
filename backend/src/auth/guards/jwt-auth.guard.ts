@@ -13,6 +13,8 @@ import { Observable } from "rxjs";
 import { IS_PUBLIC_KEY } from "../../common/decorators/public.decorator";
 import { Role } from "@shared/types/role.enum";
 import { DataSource } from "typeorm";
+import { ClsService } from "nestjs-cls";
+import { runInMasterSchema } from "../../database/tenancy-aware-data-source";
 import { TenantEntity } from "../../tenants/tenant.entity";
 import { TenantProvisioningStatus } from "@shared/types/tenant-provisioning-status.enum";
 
@@ -49,6 +51,7 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
   constructor(
     private reflector: Reflector,
     private dataSource: DataSource,
+    private cls: ClsService,
   ) {
     super();
   }
@@ -114,18 +117,23 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
         tenant = cached;
       } else {
         const tenantRepository = this.dataSource.getRepository(TenantEntity);
-        tenant = await tenantRepository.findOne({
-          where: { tenant_id: user.tenant_id },
-                    select: [
-            "tenant_id",
-            "is_active",
-            "expires_at",
-            "grace_period_until",
-            "deleted_at",
-            "provisioning_status", // R1e: guarded below
-          ],
-          withDeleted: true, // soft-deleted tenants must be explicitly rejected below
-        });
+        // TenantEntity lives in the master schema, and this check runs before
+        // TenancyGuard resolves a tenant. Declare the master context explicitly
+        // instead of inheriting an unresolved one.
+        tenant = await runInMasterSchema(this.cls, () =>
+          tenantRepository.findOne({
+            where: { tenant_id: user.tenant_id },
+            select: [
+              "tenant_id",
+              "is_active",
+              "expires_at",
+              "grace_period_until",
+              "deleted_at",
+              "provisioning_status", // R1e: guarded below
+            ],
+            withDeleted: true, // soft-deleted tenants must be explicitly rejected below
+          }),
+        );
 
         if (tenant) {
           JwtAuthGuard.TENANT_STATUS_CACHE.set(user.tenant_id, {

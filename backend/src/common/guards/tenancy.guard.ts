@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { ClsService } from "nestjs-cls";
+import { runInMasterSchema } from "../../database/tenancy-aware-data-source";
 import { DataSource } from "typeorm";
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 import { TenantProvisioningStatus } from "@shared/types/tenant-provisioning-status.enum";
@@ -176,17 +177,19 @@ export class TenancyGuard implements CanActivate {
       return null;
     }
 
-    const rows = (await this.dataSource.query(
-      `SELECT t.tenant_id::text     AS tenant_id,
-              t.schema_name         AS schema_name,
-              t.provisioning_status AS provisioning_status,
-              (n.oid IS NOT NULL)   AS schema_exists
-         FROM public.tenants t
-         LEFT JOIN pg_catalog.pg_namespace n
-                ON n.nspname = t.schema_name
-        WHERE t.tenant_id = $1::uuid
-        LIMIT 1`,
-      [tenantId],
+    const rows = (await runInMasterSchema(this.cls, () =>
+      this.dataSource.query(
+        `SELECT t.tenant_id::text     AS tenant_id,
+                t.schema_name         AS schema_name,
+                t.provisioning_status AS provisioning_status,
+                (n.oid IS NOT NULL)   AS schema_exists
+           FROM public.tenants t
+           LEFT JOIN pg_catalog.pg_namespace n
+                  ON n.nspname = t.schema_name
+          WHERE t.tenant_id = $1::uuid
+          LIMIT 1`,
+        [tenantId],
+      ),
     )) as Array<{
       tenant_id: string;
       schema_name: string;

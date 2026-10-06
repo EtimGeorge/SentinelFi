@@ -15,6 +15,8 @@ import { Role } from "@shared/types/role.enum";
 import { CorrelatedLogger } from "../common/logger/correlated-logger";
 import { TokenBlacklistService } from "./token-blacklist.service";
 import { IAuthCache } from "./auth-cache";
+import { ClsService } from "nestjs-cls";
+import { runInMasterSchema } from "../database/tenancy-aware-data-source";
 
 const cookieExtractor = (req: Request): string | null => {
   const logger = new CorrelatedLogger("CookieExtractor");
@@ -51,6 +53,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly dataSource: DataSource,
     private readonly tokenBlacklist: TokenBlacklistService,
     @Inject("IAuthCache") private readonly authCache: IAuthCache,
+    private readonly cls: ClsService,
   ) {
     const constructorLogger = new CorrelatedLogger(
       JwtStrategy.name + ":Constructor",
@@ -155,10 +158,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // 3. Cache MISS & No In-Flight: Create new validation promise
       validationPromise = (async () => {
         const queryStartTime = Date.now();
-        const user = await this.usersRepository.findOne({
-          where: { id: userId, is_active: true },
-          relations: ["roles", "roles.permissions", "tenant"],
-        });
+        // UserEntity is pinned to the master schema (`@Entity({ schema: "public" })`),
+        // and so are its `roles` / `permissions` / `tenant` relations. This lookup
+        // therefore runs before TenancyGuard has resolved a tenant, and must declare
+        // the master context explicitly rather than inheriting an unresolved one.
+        const user = await runInMasterSchema(this.cls, () =>
+          this.usersRepository.findOne({
+            where: { id: userId, is_active: true },
+            relations: ["roles", "roles.permissions", "tenant"],
+          }),
+        );
 
         if (!user) {
           this.logger.warn(
