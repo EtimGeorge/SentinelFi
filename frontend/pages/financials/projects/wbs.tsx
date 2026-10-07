@@ -1040,7 +1040,7 @@ const WBSManagerPage: React.FC = () => {
                       onClick={() => setIsImportModalOpen(true)}
                       className="w-full flex items-center justify-center p-3 border-2 border-dashed border-gray-700 rounded-lg text-gray-400 hover:border-brand-primary hover:bg-brand-primary/5 transition"
                     >
-                      <Upload className="w-5 h-5 mr-2" /> Bulk Import CSV
+                      <Upload className="w-5 h-5 mr-2" /> Bulk Import (CSV or Excel)
                     </button>
                   )}
                   <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">

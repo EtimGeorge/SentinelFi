@@ -922,6 +922,33 @@ export class ProjectsService {
     };
   }
 
+  /**
+   * Fetches a project WITHOUT any relations.
+   *
+   * `findOne` eagerly loads `createdBy` and `client`. Because `UserEntity.roles`
+   * is declared with `eager: true`, that single relation makes TypeORM join
+   * public.user -> public.user_roles -> public.roles and issue a wide
+   * `SELECT DISTINCT` over the whole user + role graph. On a report/export path
+   * that only needs a name and a code, that join is pure overhead and was
+   * observed to take >150s and trip the connection circuit breaker, taking
+   * unrelated endpoints down with it.
+   *
+   * Use this for PDF/report generation. Use `findOne` where the caller actually
+   * renders author/client metadata.
+   */
+  async findOneBasic(
+    project_id: string,
+    tenantId: string,
+  ): Promise<ProjectEntity> {
+    const project = await this.projectRepository.findOne({
+      where: { project_id, tenant_id: tenantId },
+    });
+    if (!project) {
+      throw new NotFoundException(`Project with ID "${project_id}" not found.`);
+    }
+    return project;
+  }
+
   async findOne(project_id: string, tenantId: string): Promise<ProjectEntity> {
     const project = await this.projectRepository.findOne({
       where: { project_id, tenant_id: tenantId },

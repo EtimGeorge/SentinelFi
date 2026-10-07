@@ -6,8 +6,7 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from "@nestjs/common";
-import * as ExcelJS from "exceljs";
-import { ClsService } from "nestjs-cls";
+import { ClsServiceManager } from "nestjs-cls";
 import { InjectRepository } from "@nestjs/typeorm";
 import {
   Repository,
@@ -37,6 +36,21 @@ import { UpdateWbsCategoryDto } from "./dto/update-wbs-category.dto";
 import { CreateWbsCategoryDto } from "./dto/create-wbs-category.dto";
 import { WbsTemplateEntity } from "./wbs-template.entity";
 import {
+  analyseDelimitedText,
+  analyseSpreadsheetFile,
+  codeKey,
+  describeImportBlockers,
+  importableRows,
+  toCreateWbsBudgetPayload,
+  SpreadsheetTooLargeError,
+  MAX_IMPORT_BYTES,
+  MAX_DATA_ROWS,
+  type MappedRow,
+  type WbsImportAnalysis,
+  type WbsImportResult,
+  type WbsImportMode,
+} from "./utils/wbs-spreadsheet-import.util";
+import {
   UserPayload,
   WbsBudgetStatus,
   VarianceFlag,
@@ -48,6 +62,7 @@ import { ProjectEntity } from "../projects/project.entity";
 import { ProjectsService } from "../projects/projects.service";
 import { UserEntity } from "../auth/user.entity"; // NEW: Import UserEntity
 import { Buffer } from "buffer"; // Needed for export methods
+import { randomUUID } from "crypto";
 import { NotificationsService } from "../notifications/notifications.service"; // NEW: Import NotificationsService
 import { BudgetControlService } from "../common/budget-control.service";
 import { DOAService } from "../common/doa.service";
@@ -72,8 +87,34 @@ import {
 
 
 
-interface WbsBudgetRollupQueryResult {
-  wbs_id: string;
+/**
+ * Rows written per INSERT during a spreadsheet import. Chunking keeps a
+ * 5,000-row file from becoming one multi-megabyte statement, while staying
+ * large enough that the whole import is a handful of round trips.
+ */
+const WBS_IMPORT_CHUNK = 100;
+
+/** Sentinel for the top level of the tree when keying siblings. */
+const ROOT_SIBLING_KEY = "__root__";
+
+/** Marks an id that exists only inside a dry run and was never persisted. */
+const PREVIEW_ID_PREFIX = "preview:";
+
+/**
+ * Category labels are matched across spreadsheets written by hand, so case,
+ * spacing and punctuation are normalised before comparison. "Civil Works ",
+ * "civil-works" and "CIVIL WORKS" are the same category to an operator.
+ */
+function normaliseCategoryKey(label: string | null | undefined): string {
+  return String(label ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+interface WbsBudgetRollupQueryResult {  wbs_id: string;
   parent_wbs_id: string | null;
   wbs_code: string;
   description: string;
@@ -118,6 +159,38 @@ export class WbsService {
     private readonly forensicsService: FinancialForensicsService,
     private readonly currencyService: CurrencyService,
   ) {}
+
+  /**
+   * Intermittent `relation "wbs_budget" does not exist` is a search_path problem,
+   * not a missing-table problem, so the log line has to answer two questions at
+   * once: which request produced it, and which schema the pooled connection was
+   * actually pointed at. A bare error message cannot distinguish these:
+   *
+   *   - SCHEMA_NAME resolved to "public" (or is missing) while tenant_id is a
+   *     real tenant -> the guard/CLS fallback routed the query to the wrong
+   *     schema.
+   *   - SCHEMA_NAME is a valid tenant schema            -> the pooled
+   *     connection was reused without search_path being re-applied.
+   *
+   * The correlation id is the join key between the client-visible failure and
+   * this server-side line, so it is always included.
+   */
+  private tenancySnapshot(tenantId?: string | null): string {
+    let correlationId = "no-cid";
+    let clsTenantId: string | null = null;
+    let schemaName: string | null = null;
+    try {
+      const cls = ClsServiceManager.getClsService();
+      correlationId = cls.get("X-Correlation-Id") ?? "no-cid";
+      clsTenantId = cls.get("tenant_id") ?? null;
+      schemaName = cls.get("SCHEMA_NAME") ?? null;
+    } catch {
+      // CLS unavailable (bootstrap/tests). The schema is reported as unknown
+      // rather than guessed, because guessing here is what hides the bug.
+      correlationId = "cls-unavailable";
+    }
+    return `[CID: ${correlationId}] [tenant_id: ${clsTenantId ?? "null"}] [requested_tenant: ${tenantId ?? "null"}] [SCHEMA_NAME: ${schemaName ?? "UNSET->public"}]`;
+  }
 
   // Centralized Governance Constants for "Bulletproof" Verification
   private readonly CRITICAL_OVERRIDE_ROLES = [
@@ -579,7 +652,7 @@ export class WbsService {
     } catch (err) {
       await queryRunner.rollbackTransaction();
       this.logger.error(
-        `[WBS] logLiveExpenseEntry transaction failed: ${(err as Error).message}`,
+        `[WBS] logLiveExpenseEntry transaction failed: ${this.tenancySnapshot(tenant_id)} ${(err as Error).message}`,
       );
       throw err;
     } finally {
@@ -1770,12 +1843,12 @@ export class WbsService {
       return { data, total };
     } catch (err: any) {
       this.logger.error(
-        `[WBS] Database query failed with sortBy='${sortBy}'. Error: ${err.message}`,
+        `[WBS] Database query failed with sortBy='${sortBy}'. ${this.tenancySnapshot(tenant_id)} pgCode=${err?.code ?? "n/a"} Error: ${err.message}`,
       );
 
       // Safety Fallback: Use basic Alphanumeric sorting on wbs_code
       this.logger.warn(
-        `[WBS] Falling back to standard string-based WBS sorting.`,
+        `[WBS] Falling back to standard string-based WBS sorting. ${this.tenancySnapshot(tenant_id)}`,
       );
       const fallbackQuery = this.wbsBudgetRepository
         .createQueryBuilder("wbs")
@@ -1866,7 +1939,7 @@ export class WbsService {
       return { data, total };
     } catch (err: any) {
       this.logger.error(
-        `[WBS] Database query failed for live expenses. Error: ${err.message}`,
+        `[WBS] Database query failed for live expenses. ${this.tenancySnapshot(tenant_id)} pgCode=${err?.code ?? "n/a"} Error: ${err.message}`,
       );
       // Safety Fallback: Retry without sort
       const fallbackQuery = this.liveExpenseRepository
@@ -2225,103 +2298,25 @@ export class WbsService {
     };
   }
 
+  /**
+   * Import WBS line items from CSV/TSV text. Parsing, header detection, column
+   * mapping and validation all live in the spreadsheet engine, so pasted text
+   * and an uploaded file are understood exactly the same way.
+   */
   async importWbsFromCsv(
     projectId: string,
     csvContent: string,
     userId: string,
     tenant_id: string,
-  ): Promise<{ imported: number; errors: string[] }> {
-    const lines = csvContent.split(/\r?\n/).filter((line) => line.trim());
-    if (lines.length <= 1)
-      return { imported: 0, errors: ["CSV is empty or missing data"] };
-
-    // Basic CSV parser that handles quoted strings
-    const parseCsvLine = (line: string) => {
-      const result = [];
-      let current = "";
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (char === '"' && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === "," && !inQuotes) {
-          result.push(current.trim());
-          current = "";
-        } else {
-          current += char;
-        }
-      }
-      result.push(current.trim());
-      return result;
-    };
-
-    const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
-    const dataRows = lines.slice(1);
-
-    const importDtos: any[] = [];
-    const errors: string[] = [];
-
-    for (let i = 0; i < dataRows.length; i++) {
-      const row = parseCsvLine(dataRows[i]);
-      const dto: any = { project_id: projectId };
-
-      headers.forEach((header, index) => {
-        const val = row[index];
-        if (!val) return;
-
-        if (header.includes("code")) dto.wbs_code = val;
-        else if (header.includes("description")) dto.description = val;
-        else if (header.includes("unit cost"))
-          dto.unit_cost_budgeted = parseFloat(val) || 0;
-        else if (header.includes("quantity"))
-          dto.quantity_budgeted = parseFloat(val) || 0;
-        else if (header.includes("days"))
-          dto.days_budgeted = parseInt(val) || 1;
-        else if (header.includes("parent")) dto.parent_wbs_code = val; // Store for matching
-      });
-
-      if (!dto.wbs_code || !dto.description) {
-        errors.push(`Row ${i + 2}: Missing WBS Code or Description`);
-        continue;
-      }
-      importDtos.push(dto);
-    }
-
-    if (importDtos.length === 0) return { imported: 0, errors };
-
-    // Step 2: Resolve parent-child relationships if parent codes are provided
-    // This requires two passes or a clever mapping.
-    // Since createWbsBudgetDraftBatch handles flat lists, we'll implement a localized version here
-    // that resolves codes to parent IDs within this batch or against existing ones.
-
-    const codeToId: Record<string, string> = {};
-    let importedCount = 0;
-
-    // We process one by one to handle hierarchy correctly within the import
-    for (const dto of importDtos) {
-      const parentId = dto.parent_wbs_code
-        ? codeToId[dto.parent_wbs_code]
-        : null;
-      try {
-        const savedItem = await this.createWbsBudgetDraft(
-          {
-            ...dto,
-            parent_wbs_id: parentId,
-          },
-          userId,
-          tenant_id,
-        );
-        codeToId[dto.wbs_code] = savedItem.wbs_id;
-        importedCount++;
-      } catch (err: any) {
-        errors.push(`Failed to import ${dto.wbs_code}: ${err.message}`);
-      }
-    }
-
-    return { imported: importedCount, errors };
+    mode?: WbsImportMode,
+  ): Promise<WbsImportResult> {
+    return this.runWbsImport({
+      analysis: analyseDelimitedText(csvContent),
+      projectId,
+      userId,
+      tenant_id,
+      mode,
+    });
   }
 
   async reorderWbsItems(
@@ -2348,81 +2343,504 @@ export class WbsService {
     }
   }
 
+  /**
+   * Import WBS line items from an uploaded spreadsheet. Accepts whatever the
+   * browser sends (.xlsx, .xls or a CSV picked through the same control) and
+   * decides how to read it from the bytes rather than from the extension the
+   * client happened to report.
+   */
   async importWbsFromExcel(
     projectId: string,
     fileBuffer: Buffer,
     userId: string,
     tenant_id: string,
-  ): Promise<{ imported: number; errors: string[] }> {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(fileBuffer as any);
-    const worksheet = workbook.getWorksheet(1);
-    if (!worksheet) {
-      throw new BadRequestException("No worksheet found in Excel file.");
-    }
-
-    const importDtos: any[] = [];
-    const errors: string[] = [];
-
-    const headers: string[] = [];
-    worksheet.getRow(1).eachCell((cell) => {
-      headers.push(cell.text.toLowerCase());
+    fileName?: string,
+    mode?: WbsImportMode,
+  ): Promise<WbsImportResult> {
+    return this.runWbsImport({
+      analysis: await this.analyseUpload({ fileBuffer, fileName }),
+      projectId,
+      userId,
+      tenant_id,
+      mode,
     });
+  }
 
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
-
-      const dto: any = { project_id: projectId };
-      row.eachCell((cell, colNumber) => {
-        const header = headers[colNumber - 1];
-        if (!header) return;
-        const val = cell.text;
-
-        if (header.includes("code") && !header.includes("parent"))
-          dto.wbs_code = val;
-        else if (header.includes("description")) dto.description = val;
-        else if (header.includes("unit cost"))
-          dto.unit_cost_budgeted = parseFloat(val) || 0;
-        else if (header.includes("quantity"))
-          dto.quantity_budgeted = parseFloat(val) || 1;
-        else if (header.includes("days"))
-          dto.days_budgeted = parseInt(val) || 1;
-        else if (header.includes("total"))
-          dto.total_cost_budgeted = parseFloat(val) || 0;
-        else if (header.includes("parent")) dto.parent_wbs_code = val;
-      });
-
-      if (!dto.wbs_code || !dto.description) {
-        errors.push(`Row ${rowNumber}: Missing WBS Code or Description`);
-        return;
-      }
-      importDtos.push(dto);
+  /**
+   * Dry run of a spreadsheet import. Performs the same analysis and the same
+   * conflict checks as the real import and writes nothing, so the operator can
+   * see which sheet was read, how the columns were mapped, how many rows will be
+   * created, which codes already exist and which rows are blocked — before a
+   * single line item lands in the database.
+   */
+  async previewWbsImport(params: {
+    projectId: string;
+    userId: string;
+    tenant_id: string;
+    csvContent?: string;
+    fileBuffer?: Buffer;
+    fileName?: string;
+    mode?: WbsImportMode;
+  }): Promise<WbsImportResult> {
+    return this.runWbsImport({
+      analysis: await this.analyseUpload({
+        fileBuffer: params.fileBuffer,
+        fileName: params.fileName,
+        csvContent: params.csvContent,
+      }),
+      projectId: params.projectId,
+      userId: params.userId,
+      tenant_id: params.tenant_id,
+      mode: params.mode,
+      dryRun: true,
     });
+  }
 
-    const codeToId: Record<string, string> = {};
-    let importedCount = 0;
-
-    for (const dto of importDtos) {
-      const parentId = dto.parent_wbs_code
-        ? codeToId[dto.parent_wbs_code]
-        : null;
-      try {
-        const savedItem = await this.createWbsBudgetDraft(
-          {
-            ...dto,
-            parent_wbs_id: parentId,
-          },
-          userId,
-          tenant_id,
+  /**
+   * One parse path for every upload: a workbook, a CSV/TSV that arrived as a
+   * file, or CSV text pasted into the request body. The two import endpoints used
+   * to disagree about delimiters, header rows and which worksheet to read
+   * because each parsed the file itself; neither can any more.
+   */
+  private async analyseUpload(params: {
+    fileBuffer?: Buffer;
+    fileName?: string;
+    csvContent?: string;
+  }): Promise<WbsImportAnalysis> {
+    const buffer = params.fileBuffer;
+    if (buffer && buffer.length > 0) {
+      if (buffer.length > MAX_IMPORT_BYTES) {
+        const sizeMb = (buffer.length / 1024 / 1024).toFixed(1);
+        const limitMb = MAX_IMPORT_BYTES / 1024 / 1024;
+        throw new BadRequestException(
+          `That file is ${sizeMb} MB and the import limit is ${limitMb} MB. Remove the rows you do not need, or split the sheet and import it in parts.`,
         );
-        codeToId[dto.wbs_code] = savedItem.wbs_id;
-        importedCount++;
-      } catch (err: any) {
-        errors.push(`Failed to import ${dto.wbs_code}: ${err.message}`);
+      }
+      let analysis: WbsImportAnalysis;
+      try {
+        ({ analysis } = await analyseSpreadsheetFile(
+          params.fileName ?? "upload",
+          buffer,
+        ));
+      } catch (err) {
+        // A workbook is a ZIP, so a file that passes the byte limit can still
+        // inflate to gigabytes. ExcelJS throws a generic Error for that and for
+        // a corrupt payload; both are "wrong file", not "server fault", and
+        // leaving them as a 500 tells the operator nothing actionable.
+        if (err instanceof SpreadsheetTooLargeError) {
+          throw new BadRequestException(err.message);
+        }
+        this.logger.warn(
+          `[WBS] Upload could not be read as a spreadsheet: ${(err as Error).message}`,
+        );
+        throw new BadRequestException(
+          `The uploaded file could not be read as a spreadsheet. If it is a real .xls, re-save it as .xlsx: ${(err as Error).message}`,
+        );
+      }
+      return analysis;
+    }
+    if (params.csvContent && params.csvContent.trim().length > 0) {
+      return analyseDelimitedText(params.csvContent);
+    }
+
+    throw new BadRequestException(
+      "Nothing to import: attach a spreadsheet (.xlsx, .xls, .csv) or paste the CSV text.",
+    );
+  }
+
+  /**
+   * Blocking findings for the caller. When nothing at all can be imported the
+   * blockers explain why the file was rejected; otherwise the per-row issues are
+   * what still has to be fixed before those specific rows can be brought in.
+   */
+  private wbsImportIssues(
+    analysis: WbsImportAnalysis,
+    importable: MappedRow[],
+  ): string[] {
+    if (importable.length === 0) {
+      return describeImportBlockers(analysis);
+    }
+    return analysis.rows
+      .filter((row) => row.issues.length > 0)
+      .map((row) => `Row ${row.sourceRow}: ${row.issues.join("; ")}`);
+  }
+
+  /**
+   * Turns an analysis into line items. One code path serves both the preview and
+   * the real import so a preview can never drift from what the import will do.
+   *
+   * Rows arrive parents-first, so a parent's id is always known before its
+   * children are written. Codes that already exist in this project are linked to
+   * and reported rather than written a second time: re-importing the same sheet
+   * must never double a budget, which is exactly what the old importer did.
+   */
+  private async runWbsImport(params: {
+    analysis: WbsImportAnalysis;
+    projectId: string;
+    userId: string;
+    tenant_id: string;
+    mode?: WbsImportMode;
+    dryRun?: boolean;
+  }): Promise<WbsImportResult> {
+    const { analysis, projectId, userId, tenant_id } = params;
+    const mode: WbsImportMode = params.mode ?? "create";
+    const dryRun = params.dryRun ?? false;
+
+    // A file that was only partly read must never be committed. Reporting the
+    // rows that DID fit as a successful import is how a budget silently loses
+    // 40% of its line items with nothing in the audit trail to show for it.
+    if (analysis.truncated && !dryRun) {
+      throw new BadRequestException(
+        `This file is too large to import: ${analysis.droppedRows} data row(s) beyond row ${MAX_DATA_ROWS} were not read, so nothing was imported rather than importing it in part. Split the sheet into files of at most ${MAX_DATA_ROWS} rows and import them one at a time.`,
+      );
+    }
+
+    const rows = importableRows(analysis);
+    const errors: string[] = this.wbsImportIssues(analysis, rows);
+    const warnings: string[] = [...analysis.warnings];
+    const created: WbsImportResult["created"] = [];
+    const updated: WbsImportResult["updated"] = [];
+    const skippedExisting: WbsImportResult["skippedExisting"] = [];
+
+    const finish = (): WbsImportResult => ({
+      imported: created.length + updated.length,
+      errors,
+      created,
+      updated,
+      skippedExisting,
+      rows: analysis.rows,
+      warnings,
+      summary: analysis.summary,
+      truncated: analysis.truncated,
+      droppedRows: analysis.droppedRows,
+      headerRow: analysis.headerRow,
+      columns: analysis.columns,
+      currencies: analysis.currencies,
+      dryRun,
+    });
+
+    const project = await this.dataSource
+      .getRepository(ProjectEntity)
+      .findOne({ where: { project_id: projectId, tenant_id } });
+    if (!project) {
+      throw new NotFoundException(
+        `Project with ID ${projectId} not found in tenant ${tenant_id}`,
+      );
+    }
+
+    // ── Pre-resolve everything the writer needs, in two queries ─────────────
+    // createWbsBudgetDraft costs ~5 round trips per row (project, category, max
+    // sort_order, insert, contract check), so the old loop turned a 500-row file
+    // into ~2,500 queries. Everything a row needs is resolved once, up front.
+    const [existingItems, categories] = await Promise.all([
+      this.wbsBudgetRepository.find({
+        where: { project_id: projectId, tenant_id },
+        select: ["wbs_id", "wbs_code", "parent_wbs_id", "sort_order"],
+      }),
+      this.wbsCategoryRepository.find({
+        where: { tenant_id, is_active: true },
+        select: ["id", "name", "code"],
+      }),
+    ]);
+
+    const codeToId = new Map<string, string>();
+    // sort_order continues from the highest existing sibling, so an import does
+    // not renumber a tree the operator has already arranged by hand.
+    const sortCursor = new Map<string, number>();
+    for (const item of existingItems) {
+      codeToId.set(codeKey(item.wbs_code), item.wbs_id);
+      const siblingKey = item.parent_wbs_id ?? ROOT_SIBLING_KEY;
+      const current = sortCursor.get(siblingKey);
+      if (current === undefined || item.sort_order > current) {
+        sortCursor.set(siblingKey, item.sort_order);
       }
     }
 
-    return { imported: importedCount, errors };
+    // Cost categories are tenant-owned labels, so the file's "Cost Type" text is
+    // resolved against THIS tenant's categories rather than invented. An
+    // unmatched label is a warning, not a blocker: the line item still belongs
+    // in the budget, it just is not classified.
+    const categoryIds = new Map<string, string>();
+    for (const category of categories) {
+      categoryIds.set(normaliseCategoryKey(category.name), category.id);
+      if (category.code) {
+        categoryIds.set(normaliseCategoryKey(category.code), category.id);
+      }
+    }
+    const unknownCategories = new Set<string>();
+
+    // ── Plan every write before performing any of them ──────────────────────
+    const planned: Array<{ row: MappedRow; entity: WbsBudgetEntity }> = [];
+    const updatePlans: Array<{ wbs_id: string; patch: Record<string, unknown> }> = [];
+
+    for (const row of rows) {
+      const payload = toCreateWbsBudgetPayload(row, projectId);
+      const key = codeKey(payload.wbs_code);
+
+      let categoryId: string | null = null;
+      if (payload.category_label) {
+        categoryId =
+          categoryIds.get(normaliseCategoryKey(payload.category_label)) ?? null;
+        if (!categoryId) unknownCategories.add(payload.category_label);
+      }
+
+      const parentId = payload.parent_wbs_code
+        ? (codeToId.get(codeKey(payload.parent_wbs_code)) ?? null)
+        : null;
+      if (payload.parent_wbs_code && !parentId) {
+        errors.push(
+          `Row ${row.sourceRow}: its parent "${payload.parent_wbs_code}" is neither in this file nor in this project, so this row was not imported.`,
+        );
+        continue;
+      }
+
+      const alreadyThere = codeToId.get(key);
+      if (alreadyThere && !alreadyThere.startsWith(PREVIEW_ID_PREFIX)) {
+        if (mode === "skip") {
+          skippedExisting.push({ wbs_code: row.wbs_code, sourceRow: row.sourceRow });
+          continue;
+        }
+        if (mode === "create") {
+          errors.push(
+            `Row ${row.sourceRow} (${row.wbs_code}): a line item with this WBS code already exists in the project. Import with mode "update" to overwrite it or "skip" to leave it unchanged.`,
+          );
+          continue;
+        }
+        // mode "update": keep the id, the position in the tree and the creation
+        // timestamp; refresh only the values the file actually states.
+        updatePlans.push({
+          wbs_id: alreadyThere,
+          patch: {
+            description: payload.description,
+            unit_cost_budgeted: payload.unit_cost_budgeted,
+            quantity_budgeted: payload.quantity_budgeted,
+            days_budgeted: payload.days_budgeted,
+            total_cost_budgeted: payload.total_cost_budgeted,
+            uom: payload.uom ?? null,
+            category_id: categoryId,
+            parent_wbs_id: parentId,
+            custom_metadata: this.buildImportProvenance(row, analysis, projectId),
+          },
+        });
+        updated.push({
+          wbs_code: row.wbs_code,
+          wbs_id: alreadyThere,
+          sourceRow: row.sourceRow,
+        });
+        continue;
+      }
+
+      if (alreadyThere) {
+        // A code duplicated inside the file: the parser already flagged the
+        // second one, so it never reaches here.
+        continue;
+      }
+
+      const siblingKey = parentId ?? ROOT_SIBLING_KEY;
+      const nextSort = (sortCursor.get(siblingKey) ?? -1) + 1;
+      sortCursor.set(siblingKey, nextSort);
+
+      const entity = new WbsBudgetEntity();
+      entity.wbs_id = dryRun ? `${PREVIEW_ID_PREFIX}${key}` : randomUUID();
+      entity.project_id = projectId;
+      entity.parent_wbs_id = parentId;
+      entity.category_id = categoryId;
+      entity.wbs_code = payload.wbs_code;
+      entity.description = payload.description;
+      entity.unit_cost_budgeted = payload.unit_cost_budgeted;
+      entity.quantity_budgeted = payload.quantity_budgeted;
+      entity.days_budgeted = payload.days_budgeted;
+      entity.total_cost_budgeted = payload.total_cost_budgeted;
+      entity.uom = payload.uom ?? null;
+      entity.status = WbsBudgetStatus.DRAFT;
+      entity.sort_order = nextSort;
+      entity.tenant_id = tenant_id;
+      entity.user = { id: userId } as UserEntity;
+      entity.custom_metadata = this.buildImportProvenance(row, analysis, projectId);
+
+      planned.push({ row, entity });
+      // Registering the id immediately is what lets a later row in the same
+      // file point at this one. resolveHierarchy guarantees a parent is always
+      // planned before its children, so the FK is satisfied within the chunk.
+      codeToId.set(key, entity.wbs_id);
+    }
+
+    if (unknownCategories.size > 0) {
+      warnings.push(
+        `${unknownCategories.size} cost categor${unknownCategories.size === 1 ? "y" : "ies"} in the file match no active category in this tenant and were left unclassified: ${[...unknownCategories].slice(0, 10).join(", ")}.`,
+      );
+    }
+    if (skippedExisting.length > 0) {
+      warnings.push(
+        `${skippedExisting.length} row(s) already existed in the project and were left unchanged (mode "skip").`,
+      );
+    }
+    if (updatePlans.length > 0) {
+      warnings.push(
+        `${updatePlans.length} existing line item(s) were updated. Their ids, positions in the tree and creation timestamps were preserved.`,
+      );
+    }
+    if (errors.length > 0) {
+      warnings.push(
+        `${errors.length} row(s) could not be imported and were not written.`,
+      );
+    }
+
+    // `created` is only filled in once the write is known to have happened, so a
+    // rolled-back import can never report rows that do not exist.
+    const recordCreated = () => {
+      for (const { row, entity } of planned) {
+        created.push({
+          wbs_code: row.wbs_code,
+          wbs_id: entity.wbs_id,
+          sourceRow: row.sourceRow,
+        });
+      }
+    };
+
+    if (dryRun) {
+      recordCreated();
+      warnings.push(
+        "Dry run: nothing was written. The preview ids below are placeholders, not database ids.",
+      );
+      return finish();
+    }
+
+    if (planned.length === 0 && updatePlans.length === 0) {
+      return finish();
+    }
+
+    // ── Write: ONE transaction, chunked so a 5,000-row file does not build a
+    // single enormous multi-megabyte INSERT statement.
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      for (let i = 0; i < planned.length; i += WBS_IMPORT_CHUNK) {
+        const chunk = planned.slice(i, i + WBS_IMPORT_CHUNK);
+        await queryRunner.manager.insert(
+          WbsBudgetEntity,
+          chunk.map(({ entity }) => ({
+            wbs_id: entity.wbs_id,
+            project_id: entity.project_id,
+            parent_wbs_id: entity.parent_wbs_id,
+            category_id: entity.category_id,
+            wbs_code: entity.wbs_code,
+            description: entity.description,
+            unit_cost_budgeted: entity.unit_cost_budgeted,
+            quantity_budgeted: entity.quantity_budgeted,
+            days_budgeted: entity.days_budgeted,
+            uom: entity.uom,
+            total_cost_budgeted: entity.total_cost_budgeted,
+            status: entity.status,
+            sort_order: entity.sort_order,
+            user: entity.user,
+            tenant_id: entity.tenant_id,
+            custom_metadata: entity.custom_metadata,
+          })),
+        );
+      }
+
+      for (const update of updatePlans) {
+        await queryRunner.manager.update(
+          WbsBudgetEntity,
+          { wbs_id: update.wbs_id, tenant_id },
+          update.patch,
+        );
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      planned.length = 0;
+      updatePlans.length = 0;
+      updated.length = 0;
+      // The old loop caught per-row failures and carried on, which left a
+      // project with half a WBS and a total nobody could explain. A budget that
+      // is partly wrong is more dangerous than one that is absent, so this rolls
+      // back in full and says so.
+      await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `[WBS] Spreadsheet import rolled back in full for project ${projectId}: ${(err as Error).message} ${this.tenancySnapshot(tenant_id)}`,
+      );
+      throw new InternalServerErrorException(
+        `The import was rolled back in full and nothing was saved: ${(err as Error).message}`,
+      );
+    } finally {
+      await queryRunner.release();
+    }
+
+    // Only now that the write has committed do the created rows become fact.
+    recordCreated();
+
+    // The budget has just become the control figure for this project, so the
+    // contract-value check runs once for the finished tree rather than once per
+    // row the way it did through createWbsBudgetDraft.
+    //
+    // This runs after the commit on purpose. The check alerts and logs; it never
+    // throws, so it cannot turn a committed import into a reported failure. Its
+    // finding is reported back to the operator rather than being logged where
+    // only a server operator would ever see it.
+    const contractCheck = await this.validateBudgetAgainstContractValue(
+      projectId,
+      tenant_id,
+      project,
+    );
+    if (contractCheck.overBudget) {
+      const overage =
+        contractCheck.totalBudgeted - contractCheck.contractValue;
+      warnings.push(
+        `The imported total of ${contractCheck.totalBudgeted.toFixed(2)} exceeds the project contract value of ${contractCheck.contractValue.toFixed(2)} by ${overage.toFixed(2)}. The budget was saved and a variance alert was raised.`,
+      );
+    }
+
+    await this.auditService.log(
+      userId,
+      "WBS_IMPORT",
+      tenant_id,
+      `Imported ${created.length} and updated ${updated.length} WBS line item(s) into project ${projectId} (mode: ${mode}, source: ${analysis.source}${analysis.sheetName ? `, sheet "${analysis.sheetName}"` : ""}, estimated total ${analysis.summary.estimatedTotal}).`,
+      {
+        targetType: "WbsBudget",
+        targetId: projectId,
+        mode,
+        source: analysis.source,
+        sheetName: analysis.sheetName,
+        headerRow: analysis.headerRow,
+        encoding: analysis.encoding,
+        delimiter: analysis.delimiter,
+        currencies: analysis.currencies,
+        created: created.length,
+        updated: updated.length,
+        skippedExisting: skippedExisting.length,
+        flagged: analysis.summary.flagged,
+        errors,
+      },
+    );
+
+    return finish();
+  }
+
+  /**
+   * Records where a line item came from, on the row itself. Without this, a
+   * reviewer asking "why is budget line 4.2 worth this?" has no way back to the
+   * spreadsheet cell that produced it.
+   */
+  private buildImportProvenance(
+    row: MappedRow,
+    analysis: WbsImportAnalysis,
+    projectId: string,
+  ): Record<string, unknown> {
+    return {
+      importedFrom: {
+        source: analysis.source,
+        sheetName: analysis.sheetName,
+        headerRow: analysis.headerRow,
+        sourceRow: row.sourceRow,
+        delimiter: analysis.delimiter,
+        encoding: analysis.encoding,
+        projectId,
+        at: new Date().toISOString(),
+      },
+    };
   }
 
   /**
@@ -2913,7 +3331,10 @@ export class WbsService {
     projectId: string,
     tenantId: string,
   ): Promise<Buffer> {
-    const project = await this.projectsService.findOne(projectId, tenantId);
+    const project = await this.projectsService.findOneBasic(
+      projectId,
+      tenantId,
+    );
     if (!project)
       throw new NotFoundException(`Project ${projectId} not found.`);
 
@@ -3011,7 +3432,10 @@ export class WbsService {
   }
 
   async getProjectForensics(projectId: string, tenantId: string) {
-    const project = await this.projectsService.findOne(projectId, tenantId);
+    const project = await this.projectsService.findOneBasic(
+      projectId,
+      tenantId,
+    );
     if (!project)
       throw new NotFoundException(`Project ${projectId} not found.`);
 
@@ -3054,7 +3478,10 @@ export class WbsService {
     projectId: string,
     tenantId: string,
   ): Promise<Buffer> {
-    const project = await this.projectsService.findOne(projectId, tenantId);
+    const project = await this.projectsService.findOneBasic(
+      projectId,
+      tenantId,
+    );
     const tenant = await this.tenantService.findOneTenant(tenantId);
     const forensics = await this.getProjectForensics(projectId, tenantId);
 
@@ -3135,7 +3562,10 @@ export class WbsService {
     tenantId: string,
   ): Promise<Buffer> {
 
-    const project = await this.projectsService.findOne(projectId, tenantId);
+    const project = await this.projectsService.findOneBasic(
+      projectId,
+      tenantId,
+    );
     const tenant = await this.tenantService.findOneTenant(tenantId);
 
     const expenses = await this.liveExpenseRepository.find({

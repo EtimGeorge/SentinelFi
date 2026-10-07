@@ -27,6 +27,13 @@ import {
 } from "@nestjs/common";
 
 import { FileInterceptor } from "@nestjs/platform-express";
+import type { NestInterceptor } from "@nestjs/common";
+import { MAX_IMPORT_BYTES } from "./utils/wbs-spreadsheet-import.util";
+import type { WbsImportMode } from "./utils/wbs-spreadsheet-import.util";
+import {
+  parseWbsImportMode,
+  WBS_IMPORT_MODES,
+} from "./utils/wbs-spreadsheet-import.util";
 import { Response } from "express";
 import { WbsService } from "../wbs/wbs.service";
 import { CacheTTL } from "@nestjs/cache-manager";
@@ -49,7 +56,33 @@ import { GetWbsBudgetsDto } from "./dto/get-wbs-budgets.dto";
 import { GetLiveExpensesDto } from "./dto/get-live-expenses.dto";
 import { WbsValidationResultDto } from "./dto/wbs-validation-result.dto";
 
+/** Extensions the spreadsheet engine can actually read. */
+const WBS_IMPORT_EXTENSIONS = /\.(csv|tsv|txt|xlsx|xlsm|xls)$/i;
 
+/**
+ * Upload guard shared by the import and preview endpoints.
+ *
+ * The byte limit is enforced HERE as well as in the service on purpose. Multer
+ * aborts the stream at the limit, so an oversized upload is rejected before the
+ * whole body is buffered in memory — checking afterwards would mean the memory
+ * was already spent. The extension filter is a cheap first line of defence; the
+ * real content check is `detectSpreadsheetKind` on the bytes, because a client
+ * can name a file anything it likes.
+ */
+const WBS_UPLOAD_INTERCEPTOR = FileInterceptor("file", {
+  limits: { fileSize: MAX_IMPORT_BYTES },
+  fileFilter: (_req, file, cb) => {
+    if (!WBS_IMPORT_EXTENSIONS.test(file.originalname ?? "")) {
+      return cb(
+        new BadRequestException(
+          `Unsupported file "${file.originalname}". Upload a .xlsx, .xls or .csv export of the budget.`,
+        ),
+        false,
+      );
+    }
+    cb(null, true);
+  },
+});
 
 @Controller("wbs") // Base path is /api/v1/wbs
 @UseGuards(RolesGuard)
@@ -999,6 +1032,7 @@ export class WbsController {
   async importCsv(
     @Param("projectId", new ParseUUIDPipe()) projectId: string,
     @Body("csvContent") csvContent: string,
+    @Query("mode") rawMode: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
@@ -1009,15 +1043,34 @@ export class WbsController {
       csvContent,
       req.user.id,
       req.user.tenant_id,
+      this.requireImportMode(rawMode),
     );
+  }
+
+  /**
+   * A `mode` the client invented, or a typo like "updte", is a hard 400.
+   *
+   * The alternative is worse than an error: an unrecognised value used to fall
+   * through to the update branch and overwrite live budget figures, because the
+   * service only ever tested for "create" and "skip".
+   */
+  private requireImportMode(raw: unknown): WbsImportMode {
+    const mode = parseWbsImportMode(raw);
+    if (mode === null) {
+      throw new BadRequestException(
+        `Unknown import mode. Use one of: ${WBS_IMPORT_MODES.join(", ")}.`,
+      );
+    }
+    return mode;
   }
 
   @Post("import-excel/:projectId")
   @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
-  @UseInterceptors(FileInterceptor("file"))
+  @UseInterceptors(WBS_UPLOAD_INTERCEPTOR)
   async importExcel(
     @Param("projectId", new ParseUUIDPipe()) projectId: string,
     @UploadedFile() file: any,
+    @Query("mode") rawMode: string | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
@@ -1031,7 +1084,41 @@ export class WbsController {
       file.buffer,
       req.user.id,
       req.user.tenant_id,
+      file.originalname,
+      this.requireImportMode(rawMode),
     );
+  }
+
+  /**
+   * Dry run of an import. Accepts the same two shapes as the import endpoints —
+   * an uploaded file (.xlsx / .xls / .csv) or `csvContent` text — and reports
+   * exactly what importing it would do: which worksheet and header row were
+   * read, how every column was mapped, how many rows would be created, which
+   * codes already exist in this project, and every row that would be rejected
+   * with the reason. Nothing is written.
+   */
+  @Post("import-preview/:projectId")
+  @Roles(Role.AdminDirector, Role.AdminManager, Role.CFO, Role.FinanceManager, Role.CEO)
+  @UseInterceptors(WBS_UPLOAD_INTERCEPTOR)
+  async previewImport(
+    @Param("projectId", new ParseUUIDPipe()) projectId: string,
+    @UploadedFile() file: any,
+    @Body() body: { csvContent?: string },
+    @Query("mode") rawMode: string | undefined,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    return this.wbsService.previewWbsImport({
+      projectId,
+      userId: req.user.id,
+      tenant_id: req.user.tenant_id,
+      csvContent: body?.csvContent,
+      fileBuffer: file?.buffer,
+      fileName: file?.originalname,
+      mode: this.requireImportMode(rawMode),
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
