@@ -10,7 +10,7 @@ import {
 import { SubscriptionEntity } from "./subscription.entity";
 import { InvoiceStatus } from "@shared/types";
 
-@Entity("billing_invoices")
+@Entity({ name: "billing_invoices", schema: "public" })
 export class BillingInvoiceEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

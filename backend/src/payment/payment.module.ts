@@ -4,11 +4,13 @@ import { ConfigModule } from "@nestjs/config";
 import { PaymentService } from "./payment.service";
 import { PaystackProvider } from "./providers/paystack.provider";
 import { PaypalProvider } from "./providers/paypal.provider";
-import { WebhookController } from "./webhook.controller";
+// SEC-2026-001 RESOLUTION: legacy unsigned webhook REMOVED from the module.
+// The hardened surface is billing/webhook.controller.ts + billing/webhook.service.ts.
+// This file intentionally left unreferenced; do NOT re-register it.
 
 @Module({
   imports: [ConfigModule, HttpModule],
-  controllers: [WebhookController],
+  controllers: [],
   providers: [PaymentService, PaystackProvider, PaypalProvider],
   exports: [PaymentService],
 })

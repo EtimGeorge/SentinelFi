@@ -1225,7 +1225,48 @@ export class BillingService {
         .sort((a, b) => b.mrrUsd - a.mrrUsd);
     })();
 
-    const invoices = await this.invoiceRepository.find();
+    // Resilient invoice load: a missing/empty billing_invoices table must degrade
+    // to a zero-collection overview, never 500 the SuperAdmin dashboard.
+    // Auto-promote stale pending invoices past due_date → overdue (audit-friendly).
+    let invoices: BillingInvoiceEntity[] = [];
+    try {
+      invoices = await this.invoiceRepository.find();
+    } catch (err) {
+      this.logger.warn(
+        `Billing overview: invoice load degraded (${err instanceof Error ? err.message : String(err)})`,
+      );
+      invoices = [];
+    }
+
+    const staleIds = invoices
+      .filter(
+        (i) =>
+          i.status === InvoiceStatus.Pending &&
+          i.due_date &&
+          new Date(i.due_date) < now,
+      )
+      .map((i) => i.id);
+    if (staleIds.length > 0) {
+      try {
+        await this.invoiceRepository
+          .createQueryBuilder()
+          .update(BillingInvoiceEntity)
+          .set({ status: InvoiceStatus.Overdue })
+          .whereInIds(staleIds)
+          .execute();
+        for (const inv of invoices) {
+          if (staleIds.includes(inv.id)) inv.status = InvoiceStatus.Overdue;
+        }
+        this.logger.log(
+          `Billing overview: auto-marked ${staleIds.length} invoice(s) overdue`,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Billing overview: overdue auto-mark skipped (${err instanceof Error ? err.message : String(err)})`,
+        );
+      }
+    }
+
     const pending = invoices.filter(
       (i) => i.status === InvoiceStatus.Pending,
     );
@@ -1278,11 +1319,19 @@ export class BillingService {
   }
 
   async getRecentInvoices(): Promise<InvoiceDto[]> {
-    const invoices = await this.invoiceRepository.find({
-      relations: ["subscription"],
-      order: { created_at: "DESC" },
-      take: 20,
-    });
+    let invoices: BillingInvoiceEntity[] = [];
+    try {
+      invoices = await this.invoiceRepository.find({
+        relations: ["subscription"],
+        order: { created_at: "DESC" },
+        take: 20,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Recent invoices degraded to empty list (${err instanceof Error ? err.message : String(err)})`,
+      );
+      return [];
+    }
 
     return invoices.map((i) => ({
       id: i.id,

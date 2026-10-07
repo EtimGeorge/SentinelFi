@@ -6,7 +6,7 @@ import {
   Index,
 } from "typeorm";
 
-@Entity("processed_webhooks")
+@Entity({ name: "processed_webhooks", schema: "public" })
 export class ProcessedWebhookEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
