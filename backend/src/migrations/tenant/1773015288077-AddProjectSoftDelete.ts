@@ -525,7 +525,7 @@ export class AddProjectSoftDelete1773015288077 implements MigrationInterface {
     await queryRunner.query(`
             DO $$ 
             BEGIN
-                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'operational_budget_period_allocation' AND column_name = 'period_type') THEN AND table_schema = current_schema()
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'operational_budget_period_allocation' AND column_name = 'period_type') THEN
                     ALTER TABLE "operational_budget_period_allocation" ALTER COLUMN "period_type" DROP DEFAULT;
                     ALTER TABLE "operational_budget_period_allocation" ALTER COLUMN "period_type" TYPE "operational_budget_period_allocation_period_type_enum" USING "period_type"::text::"operational_budget_period_allocation_period_type_enum";
                     ALTER TABLE "operational_budget_period_allocation" ALTER COLUMN "period_type" SET DEFAULT 'MONTHLY';

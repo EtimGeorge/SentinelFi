@@ -85,7 +85,7 @@ export class EnsureMessagingAndNotificationsParity1776000000002
     await queryRunner.query(`
       DO $$ 
       BEGIN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'message' AND column_name = 'receiver_id') THEN AND table_schema = current_schema()
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'message' AND column_name = 'receiver_id') THEN
               ALTER TABLE "message" DROP CONSTRAINT IF EXISTS "FK_f4da40532b0102d51beb220f16a";
               DROP INDEX IF EXISTS "IDX_f4da40532b0102d51beb220f16";
               ALTER TABLE "message" RENAME COLUMN "receiver_id" TO "conversation_id";
@@ -99,7 +99,7 @@ export class EnsureMessagingAndNotificationsParity1776000000002
     // Ensure NOT NULL on conversation_id where needed
     await queryRunner.query(`
       DO $$ BEGIN
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='message' AND column_name='conversation_id' AND is_nullable='YES') THEN AND table_schema = current_schema()
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'message' AND column_name = 'conversation_id' AND is_nullable = 'YES') THEN
           -- attempt to set not null; if existing nulls, they remain but constraint added won't fail due to IF NOT NULL handling via try
           BEGIN
             ALTER TABLE "message" ALTER COLUMN "conversation_id" SET NOT NULL;

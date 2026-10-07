@@ -1,5 +1,5 @@
 import type { QueryRunner } from "typeorm";
-import { TenantClientArchitecture1770291298000 } from "./1770291298000-TenantClientArchitecture";
+import { TenantClientArchitecture1770291298000 } from "../1770291298000-TenantClientArchitecture";
 
 describe("TenantClientArchitecture schema isolation", () => {
   let statements: string[];

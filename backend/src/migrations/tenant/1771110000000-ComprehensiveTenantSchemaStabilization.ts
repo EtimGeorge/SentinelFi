@@ -140,32 +140,32 @@ export class ComprehensiveTenantSchemaStabilization1771110000000 implements Migr
     await queryRunner.query(`
             DO $$ BEGIN
                 -- clients.deleted_at
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'clients' AND column_name = 'deleted_at') THEN AND table_schema = current_schema()
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'clients' AND column_name = 'deleted_at') THEN
                     ALTER TABLE "clients" ADD COLUMN "deleted_at" TIMESTAMP WITH TIME ZONE;
                 END IF;
                 
                 -- live_expense.vat_amount / wht_amount
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'live_expense' AND column_name = 'vat_amount') THEN AND table_schema = current_schema()
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'live_expense' AND column_name = 'vat_amount') THEN
                     ALTER TABLE "live_expense" ADD COLUMN "vat_amount" numeric(19,4) NOT NULL DEFAULT '0';
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'live_expense' AND column_name = 'wht_amount') THEN AND table_schema = current_schema()
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'live_expense' AND column_name = 'wht_amount') THEN
                     ALTER TABLE "live_expense" ADD COLUMN "wht_amount" numeric(19,4) NOT NULL DEFAULT '0';
                 END IF;
 
                 -- project financial columns (redundancy check for safety)
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'currency') THEN AND table_schema = current_schema()
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'project' AND column_name = 'currency') THEN
                     ALTER TABLE "project" ADD COLUMN "currency" character varying(10) NOT NULL DEFAULT 'NGN';
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'contract_value') THEN AND table_schema = current_schema()
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'project' AND column_name = 'contract_value') THEN
                     ALTER TABLE "project" ADD COLUMN "contract_value" numeric(19,4) NOT NULL DEFAULT '0';
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'contingency_percent') THEN AND table_schema = current_schema()
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'project' AND column_name = 'contingency_percent') THEN
                     ALTER TABLE "project" ADD COLUMN "contingency_percent" numeric(5,2) NOT NULL DEFAULT '0';
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'vat_rate') THEN AND table_schema = current_schema()
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'project' AND column_name = 'vat_rate') THEN
                     ALTER TABLE "project" ADD COLUMN "vat_rate" numeric(5,2) NOT NULL DEFAULT '7.5';
                 END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project' AND column_name = 'wht_rate') THEN AND table_schema = current_schema()
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'project' AND column_name = 'wht_rate') THEN
                     ALTER TABLE "project" ADD COLUMN "wht_rate" numeric(5,2) NOT NULL DEFAULT '5.0';
                 END IF;
             END $$;
