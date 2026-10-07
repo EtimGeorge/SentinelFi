@@ -147,9 +147,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   };
 
   return (
-    <div className={`fixed bottom-6 right-6 z-[9999] transition-all duration-500 ease-in-out ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-2'}`}>
+    <div className={`fixed bottom-6 left-6 z-[9999] transition-all duration-500 ease-in-out ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-2'}`}>
       {!isOpen ? (
-        <Tooltip content="Open Messages" position="left">
+        <Tooltip content="Open Messages" position="right">
           <button
             onClick={() => setIsOpen(true)}
             className="w-14 h-14 bg-brand-primary rounded-2xl flex items-center justify-center text-white elev-lg hover:bg-brand-primary/90 hover:scale-105 transition-all outline-none focus:ring-4 focus:ring-brand-primary/30 group"
@@ -159,7 +159,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           </button>
         </Tooltip>
       ) : (
-        <div className="flex flex-col w-[min(360px,calc(100vw-48px))] max-h-[calc(100vh-100px)] h-[min(580px,calc(100dvh-100px))] bg-white border border-slate-200 rounded-3xl elev-lg overflow-hidden transform origin-bottom-right transition-all">
+        <div className="flex flex-col w-[min(360px,calc(100vw-48px))] max-h-[calc(100vh-100px)] h-[min(580px,calc(100dvh-100px))] bg-white border border-slate-200 rounded-3xl elev-lg overflow-hidden transform origin-bottom-left transition-all">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white z-10">
             <div className="flex items-center gap-3">
@@ -249,7 +249,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
             {/* DIRECTORY / GROUP CREATION */}
             {viewMode === 'DIRECTORY' && (
-              <div className="flex-1 flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300 z-10">
+              <div className="flex-1 flex flex-col h-full animate-in fade-in slide-in-from-left-4 duration-300 z-10">
                 <div className="p-4 bg-white border-b border-slate-100 space-y-3">
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

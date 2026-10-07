@@ -96,6 +96,17 @@ export class MessagingGateway
     if (!userId || !tenantId) return; // Unauthenticated
 
     try {
+      if (!data.conversationId || !data.content) {
+        client.emit("message_error", {
+          error: "conversationId and content are required.",
+        });
+        return;
+      }
+      if (typeof data.content !== "string" || data.content.length > 8000) {
+        client.emit("message_error", { error: "Invalid message content." });
+        return;
+      }
+
       const message = await this.messagingService.saveMessage({
         senderId: userId,
         conversationId: data.conversationId,
@@ -130,10 +141,25 @@ export class MessagingGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
-    // Called when a user dynamically creates or is added to a new conversation
+    const userId = client.data?.userId;
+    if (!userId) return;
+
+    // IDOR guard: joining a room grants live access to every message in it, so
+    // membership is enforced server-side, not just in the UI.
+    const isMember = await this.messagingService.isConversationMember(
+      data.conversationId,
+      userId,
+    );
+    if (!isMember) {
+      client.emit("join_conversation_error", {
+        error: "You are not a member of this conversation.",
+      });
+      return;
+    }
+
     client.join(`conv_room_${data.conversationId}`);
     client
       .to(`conv_room_${data.conversationId}`)
-      .emit("presence", { userId: client.data.userId, status: "online" });
+      .emit("presence", { userId, status: "online" });
   }
 }

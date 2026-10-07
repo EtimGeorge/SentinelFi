@@ -13,6 +13,16 @@ export class RedisIoAdapter extends IoAdapter {
     super(app);
   }
 
+  private redactUrl(redisUrl: string): string {
+    try {
+      const u = new URL(redisUrl);
+      if (u.password) u.password = "***";
+      return u.toString();
+    } catch {
+      return redisUrl.replace(/:[^:@/]+@/, ":***@");
+    }
+  }
+
   async connectToRedis(redisUrl?: string): Promise<void> {
     if (!redisUrl) {
       this.logger.warn(
@@ -44,7 +54,7 @@ export class RedisIoAdapter extends IoAdapter {
 
       this.adapterConstructor = createAdapter(pubClient, subClient);
       this.logger.log(
-        `Connected to Redis for Socket.io horizontal scaling at ${redisUrl}`,
+        `Connected to Redis for Socket.io horizontal scaling at ${this.redactUrl(redisUrl)}`,
       );
     } catch (err) {
       // Degrade gracefully — ignored errors already swallowed above.

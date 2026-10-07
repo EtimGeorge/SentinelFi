@@ -48,12 +48,15 @@ export class MessagingService {
       );
     }
 
-    // 2. Create the conversation
+    // 2. Create the conversation. The SuperAdmin is a cross-tenant member by
+    //    design, so the same-tenant rule is relaxed for this single member
+    //    (role-verified above).
     const conversation = await this.createConversation(
       userId,
       [superAdmin.id],
       tenantId,
       `PRIORITY: ${subject}`,
+      { allowSuperAdminMembers: true },
     );
 
     // 3. Inject the initial context message
@@ -130,14 +133,39 @@ export class MessagingService {
 
   async getChatHistory(
     conversationId: string,
+    userId: string,
+    tenantId: string,
     limit: number = 50,
   ): Promise<MessageEntity[]> {
+    const isMember = await this.memberRepository.findOne({
+      where: { conversation_id: conversationId, user_id: userId },
+    });
+    if (!isMember) {
+      throw new ForbiddenException(
+        "You are not a member of this conversation.",
+      );
+    }
+
+    const safeLimit = Number.isFinite(limit)
+      ? Math.max(1, Math.min(Math.floor(limit), 200))
+      : 50;
+
     return await this.messageRepository.find({
-      where: { conversation_id: conversationId },
+      where: { conversation_id: conversationId, tenant_id: tenantId },
       order: { created_at: "ASC" },
-      take: limit,
+      take: safeLimit,
       relations: ["sender"],
     });
+  }
+
+  async isConversationMember(
+    conversationId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const member = await this.memberRepository.findOne({
+      where: { conversation_id: conversationId, user_id: userId },
+    });
+    return !!member;
   }
 
   private async resolveUserIdentifiers(
@@ -186,6 +214,7 @@ export class MessagingService {
     selectedUserIds: string[],
     tenantId: string,
     name?: string,
+    options?: { allowSuperAdminMembers?: boolean },
   ): Promise<ConversationEntity> {
     if (!tenantId) {
       throw new BadRequestException(
@@ -213,13 +242,24 @@ export class MessagingService {
     const users = await this.userRepository.find({
       where: { id: In(allMembers) },
       select: ["id", "tenant_id"] as any,
+      relations: ["roles"],
     });
     if (users.length !== allMembers.length) {
       const found = new Set(users.map((u) => u.id));
       const missing = allMembers.filter((id) => !found.has(id));
       throw new BadRequestException(`User(s) not found: ${missing.join(", ")}`);
     }
-    const crossTenant = users.find((u) => (u.tenant_id ?? null) !== tenantId);
+    const isSuperAdmin = (u: any): boolean =>
+      Array.isArray(u.roles) &&
+      u.roles.some((r: any) => r.name === Role.SuperAdmin);
+    const crossTenant = users.find((u) => {
+      if ((u.tenant_id ?? null) === tenantId) return false;
+      // SuperAdmins bridge tenant boundaries in support dispatches. This is
+      // intentionally restricted: the caller (createSupportConversation) only
+      // grants the flag after loading the SuperAdmin with its roles relation.
+      if (options?.allowSuperAdminMembers && isSuperAdmin(u)) return false;
+      return true;
+    });
     if (crossTenant) {
       throw new ForbiddenException(
         "All conversation members must belong to the same tenant.",

@@ -8,6 +8,7 @@ import {
   UseGuards,
   Req,
   Patch,
+  ParseUUIDPipe,
   BadRequestException,
   UsePipes,
   ValidationPipe,
@@ -90,11 +91,14 @@ export class MessagingController {
 
   @Get("conversations/:conversationId/history")
   async getHistory(
-    @Param("conversationId") conversationId: string,
+    @Req() req: any,
+    @Param("conversationId", ParseUUIDPipe) conversationId: string,
     @Query("limit") limit?: string,
   ): Promise<MessageEntity[]> {
     return await this.messagingService.getChatHistory(
       conversationId,
+      req.user.id,
+      req.user.tenant_id,
       limit ? parseInt(limit, 10) : 50,
     );
   }
@@ -102,7 +106,7 @@ export class MessagingController {
   @Patch("conversations/:conversationId/read")
   async markAsRead(
     @Req() req: any,
-    @Param("conversationId") conversationId: string,
+    @Param("conversationId", ParseUUIDPipe) conversationId: string,
   ): Promise<{ success: boolean }> {
     await this.messagingService.markConversationAsRead(
       conversationId,
