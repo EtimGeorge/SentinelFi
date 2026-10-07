@@ -52,8 +52,11 @@ ehthumbs.db
 
 # AI Agent specific
 ai-agent/venv/
-ai-agent/__pycache__/
 ai-agent/.ruff_cache/
+
+# Python bytecode (any directory)
+__pycache__/
+*.pyc
 
 # Temporary / Generated files (Root Level)
 *.log

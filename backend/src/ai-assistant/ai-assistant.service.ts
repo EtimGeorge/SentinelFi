@@ -501,6 +501,7 @@ export class AiAssistantService {
     file: Express.Multer.File,
     targetForm: string,
     projectName: string,
+    audit: { tenantId: string; userId?: string },
   ): Promise<any> {
     const formData = new (require("form-data"))();
     formData.append("file", file.buffer, { filename: file.originalname });
@@ -508,6 +509,7 @@ export class AiAssistantService {
     formData.append("project_name", projectName);
 
     try {
+      const startTime = Date.now();
       const response = await firstValueFrom(
         this.httpService
           .post(`${this.AI_AGENT_BASE_URL}/api/v1/ai/fill-form`, formData, {
@@ -515,9 +517,24 @@ export class AiAssistantService {
           })
           .pipe(timeout(this.REQUEST_TIMEOUT_MS)),
       );
+      this.logInteraction({
+        tenantId: audit.tenantId,
+        userId: audit.userId,
+        type: AiInteractionType.FORM_FILL,
+        message: `Form extraction: ${targetForm}`,
+        response: `Extraction completed for ${targetForm}.`,
+        latency: Date.now() - startTime,
+      });
       return response.data;
     } catch (error: any) {
       this.logger.error(`Form extraction failed: ${error.message}`);
+      this.logInteraction({
+        tenantId: audit.tenantId,
+        userId: audit.userId,
+        type: AiInteractionType.FORM_FILL,
+        message: `Form extraction: ${targetForm}`,
+        circuitTripped: true,
+      });
       throw new HttpException(
         "AI form extraction failed. Please try again.",
         HttpStatus.SERVICE_UNAVAILABLE,

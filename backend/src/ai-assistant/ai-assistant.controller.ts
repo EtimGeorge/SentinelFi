@@ -26,6 +26,7 @@ import {
   IsEnum,
   IsBoolean,
   IsEmail,
+  IsIn,
   MaxLength,
   MinLength,
   ArrayMaxSize,
@@ -139,6 +140,16 @@ class ForecastDto {
   @IsOptional()
   @IsString()
   projectId?: string;
+}
+
+class FillFormDto {
+  @IsIn(["wbs-budget", "requisition", "live-expense", "invoice", "purchase-order"])
+  targetForm!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  projectName?: string;
 }
 
 /**
@@ -276,7 +287,7 @@ export class AiAssistantController {
    */
   @Post("fill-form")
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor("file"))
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 10 * 1024 * 1024 } }))
   @Roles(
     Role.FinanceOfficer,
     Role.FinanceManager,
@@ -285,16 +296,16 @@ export class AiAssistantController {
   )
   async fillForm(
     @UploadedFile() file: Express.Multer.File,
-    @Body("targetForm") targetForm: string,
-    @Body("projectName") projectName: string,
+    @Body() dto: FillFormDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    this.requireUser(req);
+    const user = this.requireUser(req);
     if (!file) throw new BadRequestException("No file uploaded.");
-    if (!targetForm)
-      throw new BadRequestException("Target form type is required.");
 
-    return this.aiService.fillForm(file, targetForm, projectName);
+    return this.aiService.fillForm(file, dto.targetForm, dto.projectName ?? "", {
+      tenantId: user.tenant_id!,
+      userId: user.id,
+    });
   }
 
   /**

@@ -61,6 +61,11 @@ export class FinancialContextService {
     private readonly cls: ClsService,
   ) {}
 
+  private toFiniteNumber(value: unknown): number {
+    const parsed = Number.parseFloat(String(value ?? 0));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
   /**
    * Builds the full financial context snapshot for the current authenticated tenant.
    */
@@ -69,8 +74,19 @@ export class FinancialContextService {
     tenantName?: string;
     tenantId?: string;
   }): Promise<FinancialContextSnapshot> {
-    const tenantId =
-      options?.tenantId || (this.cls.get("tenant_id") as string);
+    const clsTenantId = this.cls.get("tenant_id") as string | undefined;
+    if (
+      clsTenantId &&
+      options?.tenantId &&
+      clsTenantId !== options.tenantId
+    ) {
+      this.logger.error("buildSnapshot received a tenantId that conflicts with CLS", {
+        clsTenantId,
+        requestedTenantId: options.tenantId,
+      });
+      throw new Error("Tenant context mismatch");
+    }
+    const tenantId = clsTenantId || options?.tenantId;
 
     if (!tenantId) {
       this.logger.error(
@@ -138,7 +154,6 @@ export class FinancialContextService {
         projectRepo
           .createQueryBuilder("project")
           .leftJoin("project.wbsBudgets", "wbs", "wbs.parent_wbs_id IS NULL")
-          .leftJoin("wbs.children", "expense_link")
           .select("project.project_name", "name")
           .addSelect(
             "COALESCE(SUM(wbs.total_cost_budgeted), 0)",
@@ -184,12 +199,12 @@ export class FinancialContextService {
       ]);
 
       // Safe field extraction with fallbacks
-      const totalBudgeted = parseFloat(
+      const totalBudgeted = this.toFiniteNumber(
         budgetSumResult.status === "fulfilled"
           ? ((budgetSumResult.value as any)?.total ?? "0")
           : "0",
       );
-      const totalActualPaid = parseFloat(
+      const totalActualPaid = this.toFiniteNumber(
         expenseSumResult.status === "fulfilled"
           ? ((expenseSumResult.value as any)?.total ?? "0")
           : "0",
@@ -207,7 +222,7 @@ export class FinancialContextService {
         burnHistoryRaw.status === "fulfilled"
           ? (burnHistoryRaw.value as any[]).map((r) => ({
               date: r.date,
-              amount: parseFloat(r.amount),
+              amount: this.toFiniteNumber(r.amount),
             }))
           : [];
 
@@ -235,11 +250,13 @@ export class FinancialContextService {
           : [];
       const topOverruns = rawOverruns
         .filter(
-          (r) => parseFloat(r.total_actual) > parseFloat(r.total_budgeted),
+          (r) =>
+            this.toFiniteNumber(r.total_actual) >
+            this.toFiniteNumber(r.total_budgeted),
         )
         .map((r) => {
-          const budgeted = parseFloat(r.total_budgeted);
-          const actual = parseFloat(r.total_actual);
+          const budgeted = this.toFiniteNumber(r.total_budgeted);
+          const actual = this.toFiniteNumber(r.total_actual);
           const variancePct =
             budgeted > 0
               ? (((actual - budgeted) / budgeted) * 100).toFixed(1)
@@ -260,8 +277,8 @@ export class FinancialContextService {
         currentProject = {
           id: options!.projectId!,
           name: p.name,
-          budgeted: parseFloat(p.total_budgeted),
-          actual: parseFloat(p.total_actual),
+          budgeted: this.toFiniteNumber(p.total_budgeted),
+          actual: this.toFiniteNumber(p.total_actual),
           currency: p.currency ?? "NGN",
         };
       }
