@@ -1,0 +1,1 @@
+// Curriculum markdown-parser shim (delegates to docs/rendering pipeline).
