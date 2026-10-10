@@ -1,53 +1,47 @@
 ﻿# Implementation progress (plain English)
 
-Date: October 8, 2026
+Date: October 10, 2026 — production + security hardening complete.
 
-## Done
+## Done this pass
 
-- Backend streaming that actually streams: the controller for
-  POST /api/v1/ai/chat/stream now sets SSE headers and pipes the
-  Python response to the browser. It handles blocked messages,
-  normal streams, and failures without hanging the client.
-- Service chatStream(): checks guardrails first, logs blocked attempts,
-  builds tenant-scoped financial context, forwards to the Python agent,
-  and falls back to a safe SSE message if Python is down.
-- Scheduler worker: AiReportSchedulerService runs every 5 minutes,
-  picks due ACTIVE schedules oldest-first (max 25 per tick), claims each
-  one upfront so crashes cannot double-run it, records run counts and
-  narrative previews, stores last_error on failure, and never lets one
-  bad schedule kill the batch. Overlap guard skips ticks while busy.
-- Single schedule table: backend/src/ai-assistant/report-schedule.entity.ts
-  is now the only real entity (table ai_report_schedule). It gained
-  name, filters, last_error, and indexes for fast scheduler queries.
-  The old common/entities/report-schedule.entity.ts is now only a
-  deprecated re-export so old imports do not break. reporting.module.ts
-  and database.config.ts now import the canonical entity. Removed the
-  unused import in app.module.ts.
-- Upload security: Python fill-form now enforces an extension allowlist
-  (pdf/png/jpg/jpeg/tiff/bmp), a MIME allowlist, a 200-char project_name
-  limit, rate limiting, and uses only the validated extension for temp
-  files. Backend fill-form adds a matching fileFilter, size checks,
-  and projectName length checks before forwarding.
-- Forecast honesty: risk is now UNKNOWN when days remaining cannot be
-  computed, with CRITICAL/HIGH/MEDIUM/LOW bands otherwise.
-- Tests: 3 new backend suites (service 4 tests, scheduler 4 tests,
-  controller 4 tests) plus 5 new Python tests (bad extension, bad MIME,
-  long project name, UNKNOWN forecast, SSE block). Python: 13 passed.
-  Backend scheduler/service/controller suites pass. Guardrails suite
-  passes. Backend and frontend TypeScript compile with no errors.
+- Rate limits on all 10 Python AI endpoints. Before, only chat,
+  fill-form and chat/stream were limited. Now analyze-dashboard,
+  forecast, explain-section, generate-report, schedule-report,
+  generate-report-narrative and explain-variance all have limits
+  (30/min, 10/min for schedule-report). Without this, anyone with a
+  token could burn unlimited LLM budget — now they cannot.
+- Scheduler email delivery is real. When deliver_by_email is set, the
+  worker validates addresses (regex, lowercase, max 20), sends via
+  EmailService with per-recipient isolation (one bad address never
+  blocks the rest), HTML-escapes the AI narrative (AI text raw in email
+  HTML would be an XSS hole), and logs sent counts. Works even when
+  EmailService is absent (logs + skips, never crashes). EmailModule
+  imported into AiAssistantModule — verified no circular dependency.
+- Audit trail closed: chatStream now logs success dispatches (metadata
+  only, not full content, to bound PII) in addition to the existing
+  block logging. Every stream is now traceable.
+- Tests: scheduler suite grew to 7 (email escape, 20-cap, unwired
+  mailer). All pass. Python 13/13 pass. Service 4/4, controller 4/4.
+- Lint: frontend next lint has zero errors (only pre-existing warnings,
+  including two in AI components untouched by this work).
+- Smoke test 7/7 passed live (health, all 10 routes present, chat
+  block, SSE block, forecast validation, .exe rejection, unknown form
+  rejection) — see .workspace-temp/smoke_ai.py. No LLM keys needed
+  because these paths short-circuit before any model call.
+- Backend + frontend TypeScript: no errors.
 
 ## Migration note (report schedules)
 
-- If a legacy `report_schedule` table exists, copy its rows into
-  `ai_report_schedule` mapping name->name, filters->filters,
-  is_active true->status ACTIVE else PAUSED, then drop the old table.
-- New columns on ai_report_schedule (name, filters, last_error) are
-  nullable so existing rows keep working.
+- Canonical table is ai_report_schedule with new nullable columns
+  (name, filters, last_error). If a legacy report_schedule table
+  exists, copy rows across (name->name, filters->filters,
+  is_active true->ACTIVE else PAUSED) then drop the old table.
 
-## What is left
+## Honestly left (needs real infra, not code)
 
-- End-to-end smoke test with real services running (Python agent +
-  backend + frontend) for chat streaming, scheduled runs, and uploads.
-- Optional: wire scheduler email handoff to the notification service
-  (currently logged + persisted for pickup).
-- Full lint pass (next lint) when time allows; tsc/jest/pytest are done.
+- Live LLM smoke (chat content, narrative quality) needs OPENROUTER or
+  GEMINI keys configured — the code paths are tested with fakes.
+- Real email send needs SMTP/Resend credentials — preview mode persists
+  to EmailLog without sending, which is the safe default.
+- Full production deploy check (migrations run, cron actually fires on
+  schedule in staging) — the worker logic itself is unit-verified.
