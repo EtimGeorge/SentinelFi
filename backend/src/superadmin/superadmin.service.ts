@@ -65,11 +65,9 @@ export class SuperAdminService {
   async createTenant(
     createTenantDto: CreateTenantDto,
     actor?: CurrentAdmin,
-    initialBudgetFile?: Express.Multer.File,
   ): Promise<TenantEntity> {
     const tenant = await this.tenantService.createTenant(
       createTenantDto,
-      initialBudgetFile,
       actor,
     );
     JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);

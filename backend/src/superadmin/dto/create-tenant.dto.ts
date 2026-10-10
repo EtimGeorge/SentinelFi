@@ -33,11 +33,6 @@ export class CreateTenantDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(255)
-  projectName?: string;
-
-  @IsOptional()
-  @IsString()
   admin_first_name?: string;
 
   @IsOptional()

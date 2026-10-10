@@ -3,7 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import PageContainer from '../../components/Layout/PageContainer';
 import {
-  Users, Plus, X, Edit3, Loader2, AlertTriangle, Trash2, Search, KeyRound, CreditCard, Activity, CloudUpload
+  Users, Plus, X, Edit3, Loader2, AlertTriangle, Trash2, Search, KeyRound, CreditCard, Activity
 } from 'lucide-react';
 import DataTable from "../../components/common/DataTable";
 import Card from '../../components/common/Card';
@@ -34,8 +34,6 @@ interface CreateTenantDto {
   name: string;
   schema_name: string;
   admin_email: string;
-  projectName?: string;
-  initialBudgetFile?: File | null;
 }
 
 interface UpdateTenantDto {
@@ -50,7 +48,7 @@ interface ModalProps {
 }
 
 interface CreateTenantModalProps extends ModalProps {
-  onCreate: (tenantData: FormData) => Promise<void>; // Use FormData for file upload
+  onCreate: (tenantData: CreateTenantDto) => Promise<void>;
   error: string | null;
 }
 
@@ -58,16 +56,12 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
   const [name, setName] = useState('');
   const [schemaName, setSchemaName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
-  const [projectName, setProjectName] = useState('');
-  const [initialBudgetFile, setInitialBudgetFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setName('');
       setSchemaName('');
       setAdminEmail('');
-      setProjectName('');
-      setInitialBudgetFile(null);
     }
   }, [isOpen]);
 
@@ -75,15 +69,7 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('schema_name', schemaName);
-    formData.append('admin_email', adminEmail);
-    formData.append('projectName', projectName);
-    if (initialBudgetFile) {
-      formData.append('initialBudgetFile', initialBudgetFile);
-    }
-    await onCreate(formData);
+    await onCreate({ name, schema_name: schemaName, admin_email: adminEmail });
   };
 
   return (
@@ -104,39 +90,8 @@ const CreateTenantModal: React.FC<CreateTenantModalProps> = ({ isOpen, onClose, 
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Display Project Name</label>
-            <Input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} required placeholder="e.g. Alpha Headquarters 2026" className="w-full" />
-          </div>
-
-          <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Tenant Administrator Email</label>
             <Input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required placeholder="admin@client.com" className="w-full" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Initial Budget Template (AI Processing)</label>
-            <div className="border-2 border-dashed border-gray-700 p-4 rounded-lg text-center cursor-pointer hover:border-brand-primary transition">
-               <input 
-                 type="file" 
-                 id="tenant-file-upload" 
-                 className="hidden" 
-                 onChange={(e) => setInitialBudgetFile(e.target.files?.[0] || null)}
-                 accept=".pdf,.docx,.xlsx"
-               />
-               <label htmlFor="tenant-file-upload" className="cursor-pointer">
-                 {initialBudgetFile ? (
-                   <div className="flex items-center justify-center text-brand-primary">
-                     <CloudUpload className="w-5 h-5 mr-2" />
-                     <span className="text-sm font-medium">{initialBudgetFile.name}</span>
-                   </div>
-                 ) : (
-                   <div className="text-gray-500">
-                     <CloudUpload className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                     <p className="text-xs">Drag & drop or click to upload PDF/Excel</p>
-                   </div>
-                 )}
-               </label>
-            </div>
           </div>
 
           <div className="flex justify-end space-x-4 pt-4 border-t border-gray-800">
@@ -461,13 +416,11 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
     return () => controller.abort();
   }, [user, fetchTenants]);
 
-  const handleCreateTenant = async (tenantData: FormData) => {
+  const handleCreateTenant = async (tenantData: CreateTenantDto) => {
     setFormLoading(true);
     setCreateError(null);
     try {
-      const newTenant = await api.post<Tenant>('/super/tenants', tenantData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const newTenant = await api.post<Tenant>('/super/tenants', tenantData);
       addToast(`Tenant ${newTenant.data.name} provisioned successfully! An invitation has been dispatched to ${newTenant.data.admin_email}.`, 'success', 8000);
       setShowCreateModal(false);
       fetchTenants();

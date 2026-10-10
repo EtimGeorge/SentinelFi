@@ -16,16 +16,11 @@ import {
   Req,
   Delete,
   Res,
-  UseInterceptors,
-  UploadedFile,
-  BadRequestException,
 } from "@nestjs/common";
-import { FileInterceptor } from "@nestjs/platform-express";
 import { Response } from "express";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
-import { Role } from "shared/types/role.enum";
 import { SuperAdminService } from "./superadmin.service";
 import {
   CreateTenantDto,
@@ -42,8 +37,6 @@ import { IMPERSONATION_COOKIE_MAX_AGE_MS } from "./constants";
 import { AuthService } from "../auth/auth.service";
 import { ConfirmMfaDto, DisableMfaDto } from "./dto/mfa.dto";
 
-const BUDGET_FILE_FILTER = /\.(csv|xlsx?|json)$/i;
-
 @Controller("super")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SuperAdminController {
@@ -55,33 +48,12 @@ export class SuperAdminController {
   @Post("tenants")
   @Roles("SuperAdmin")
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(
-    FileInterceptor("initialBudgetFile", {
-      limits: { fileSize: 10 * 1024 * 1024 },
-      fileFilter: (_req, file, cb) => {
-        if (!BUDGET_FILE_FILTER.test(file.originalname)) {
-          return cb(
-            new BadRequestException(
-              "Initial budget file must be CSV, XLSX, or JSON.",
-            ),
-            false,
-          );
-        }
-        cb(null, true);
-      },
-    }),
-  )
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createTenant(
     @Body() createTenantDto: CreateTenantDto,
-    @UploadedFile() initialBudgetFile?: Express.Multer.File,
     @CurrentAdmin() admin?: CurrentAdmin,
   ) {
-    return this.superAdminService.createTenant(
-      createTenantDto,
-      admin,
-      initialBudgetFile,
-    );
+    return this.superAdminService.createTenant(createTenantDto, admin);
   }
 
   @Get("tenants")

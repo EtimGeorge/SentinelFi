@@ -153,7 +153,6 @@ export class TenantProvisioningOrchestrator {
           plan: commercials.plan,
           default_currency_code: dto.defaultCurrencyCode,
         },
-        undefined,
         actor,
       );
       // createTenant returns a column-limited projection; re-read the full row

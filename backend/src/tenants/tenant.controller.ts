@@ -9,13 +9,10 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  UploadedFile,
-  UseInterceptors,
   UsePipes,
   ValidationPipe,
   Query,
 } from "@nestjs/common";
-import { FileInterceptor } from "@nestjs/platform-express";
 
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"; // Use new JwtAuthGuard
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -98,13 +95,11 @@ export class TenantController {
   @Post()
   @Roles(Role.SuperAdmin)
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor("initialBudgetFile"))
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async createTenant(
     @Body() createTenantDto: CreateTenantDto,
-    @UploadedFile() file?: Express.Multer.File,
   ): Promise<TenantEntity> {
-    return this.tenantService.createTenant(createTenantDto, file);
+    return this.tenantService.createTenant(createTenantDto);
   }
 
   /**

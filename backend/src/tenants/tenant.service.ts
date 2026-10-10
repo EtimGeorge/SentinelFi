@@ -4,8 +4,6 @@ import {
   NotFoundException,
   ConflictException,
   Logger,
-  Inject,
-  forwardRef,
 } from "@nestjs/common";
 import { DataSource, Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
@@ -15,7 +13,6 @@ import {
   UpdateTenantDto,
   UpdateTenantBrandingDto,
 } from "../superadmin/dto/create-tenant.dto";
-import { WbsService } from "../wbs/wbs.service"; // For seeding data
 import { AuditService } from "../audit/audit.service"; // NEW: Import AuditService
 import { TenantMigrationService } from "../database/tenant-migration.service"; // NEW: Import TenantMigrationService
 import { AuthService } from "../auth/auth.service"; // NEW: Import AuthService
@@ -39,15 +36,13 @@ export class TenantService {
     @InjectRepository(TenantEntity)
     private tenantRepository: Repository<TenantEntity>,
     private readonly dataSource: DataSource,
-    @Inject(forwardRef(() => WbsService))
-    private readonly wbsService: WbsService, // Inject WbsService (circular: TenantService <-> WbsService)
     private readonly auditService: AuditService, // NEW: Inject AuditService
     private readonly tenantMigrationService: TenantMigrationService, // NEW: Inject TenantMigrationService
     private readonly authService: AuthService, // NEW: Inject AuthService for user creation
     private readonly invitationService: InvitationService, // NEW: Inject InvitationService
   ) {}
 
-    /**
+  /**
    * Creates a new tenant using reservation-first provisioning:
    *  - PHASE 0: reserve a tenant row (provisioning_status=PENDING) under an
    *    atomic transaction; the unique(schema_name) constraint serializes
@@ -67,7 +62,6 @@ export class TenantService {
    */
   async createTenant(
     createTenantDto: CreateTenantDto,
-    initialBudgetFile?: Express.Multer.File,
     actor?: { id: string; email: string },
   ): Promise<TenantEntity & { admin_password?: string }> {
     // R1b: canonical, NAMEDATALEN-safe schema-name derivation (single source
@@ -238,10 +232,6 @@ export class TenantService {
 
     // PHASE 3: best-effort side effects. Tenant is ACTIVE; failures here do NOT
     // roll back provisioning — SuperAdmin can re-trigger the invitation.
-    if (initialBudgetFile) {
-      this.logger.warn(`File processing for '${initialBudgetFile.originalname}' is not yet implemented.`);
-    }
-
     try {
       await this.invitationService.createInvitation(
         createTenantDto.admin_email,

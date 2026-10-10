@@ -118,10 +118,17 @@ git log --all -p -S 'npg_' --oneline | Select-String npg_
    npm run typeorm:run
    npm run typeorm:public:run     # if you use the split public/tenant runners
    ```
-   > **Known gap:** migrations currently also run at boot, which races when you
-   > scale the API to >1 instance. Until boot-migrations are gated behind an env
-   > flag (tracked in §14), keep the API at 1 instance or run migrations as a
-   > Render **pre-deploy command** (`npm run typeorm:run`) with the direct URL.
+   > **Migrations do not run at boot by default.** The API starts against
+   > whatever schema exists; a deploy that skips this step can run against an
+   > un-migrated database. Run them as a one-off (above), or on a paid Render
+   > plan add a **pre-deploy command** (`npm run typeorm:run`) using the direct
+   > URL.
+   >
+   > If you cannot use a pre-deploy hook (e.g. Render free plan), you may set
+   > `RUN_MIGRATIONS_ON_BOOT=true` on `sentinelfi-api`. That runs pending public
+   > migrations exactly once even across scaled instances, because the run is
+   > serialized behind a Postgres advisory lock. It is off unless explicitly
+   > enabled.
 4. **Seeding.** One-off:
    ```bash
    npm run seed:superadmin -w backend   # creates the first SuperAdmin
@@ -358,17 +365,17 @@ LibreOffice/Tesseract image and moving off spin-down.
 
 These are known and intentionally documented rather than hidden:
 
-1. **Boot-migration race** — gate boot migrations behind an env flag; prefer
-   pre-deploy migration jobs.
+1. **Migrations are manual by default** — public migrations do not run at boot.
+   Prefer a one-off run or a paid-plan pre-deploy command. `RUN_MIGRATIONS_ON_BOOT=true`
+   (advisory-locked, safe when scaled) is available as a documented fallback for
+   platforms without pre-deploy hooks. See §3.
 2. **AI-agent image size** — LibreOffice/Tesseract may exceed the free disk; split
    the document-tooling deps into an on-demand worker or use a paid instance.
-3. **SSE chat stream** — `POST /api/v1/ai/chat/stream` currently returns a plain
-   object from the controller; it needs `@Res()`/`@Sse()` wiring to actually stream
-   and must set `X-Accel-Buffering: no` behind proxies.
-4. **Superadmin budget-import** — `initialBudgetFile` is accepted (now in memory)
-   and carried through to `tenantService.createTenant`, but its contents are not
-   yet parsed into the new tenant's budget.
-5. **Frontend build-time backend URL** — `BACKEND_INTERNAL_URL` is baked into the
+3. **Superadmin tenant creation is identity-only** — `POST /super/tenants` creates
+   the tenant + schema and dispatches the admin invitation; it does **not** create a
+   project or import a budget. Projects and budgets are created by the tenant itself
+   after onboarding (no initial-budget upload on this route).
+4. **Frontend build-time backend URL** — `BACKEND_INTERNAL_URL` is baked into the
    Next.js build via an ARG; confirm Render passes it as a build arg, otherwise set
    it explicitly in the service's build settings.
 
@@ -378,7 +385,7 @@ These are known and intentionally documented rather than hidden:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| API restarts in a loop | `/health/live` 500 | fix health check (§14.3) |
+| API restarts in a loop | `/health/live` 500 | verify `/health/live` returns 200 (§5) |
 | PDF endpoint 500 after idle | worker not set / cold start | set `PDF_WORKER_URL`, raise timeout |
 | PDF 500 immediately | token mismatch | same `PDF_WORKER_TOKEN` on both |
 | App loads, API 502 | proxy rewrite target wrong | set `BACKEND_INTERNAL_URL` at build |
