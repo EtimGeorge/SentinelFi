@@ -485,6 +485,18 @@ app.add_middleware(
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 SUPPORTED_FORM_TYPES = frozenset({"wbs-budget", "requisition", "live-expense", "invoice", "purchase-order"})
 
+# Production upload allowlist: partition() handles PDFs and raster images.
+# Anything else is rejected before touching disk (no .exe/.js/.php/etc).
+ALLOWED_UPLOAD_EXTENSIONS = frozenset({".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp"})
+ALLOWED_UPLOAD_MIME_TYPES = frozenset({
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/tiff",
+    "image/bmp",
+})
+MAX_PROJECT_NAME_CHARS = 200
+
 
 def _safe_context(context: Dict[str, Any]) -> Dict[str, Any]:
     """Remove secrets before serializing client-supplied financial context into a prompt."""
@@ -573,7 +585,8 @@ async def ai_chat(request: Request, req: ChatRequest):
         raise HTTPException(status_code=500, detail="AI processing failed.")
 
 @app.post("/api/v1/ai/analyze-dashboard", tags=["AI Intelligence"])
-async def analyze_dashboard(req: DashboardAnalysisRequest):
+@limiter.limit("30/minute")
+async def analyze_dashboard(request: Request, req: DashboardAnalysisRequest):
     llm = get_llm()
     ctx_str = build_financial_context_string(_safe_context(req.financial_context))
     prompt = f"Analyze this financial data ({req.scope} scope) and provide professional insights, anomalies, and recommendations:\n\n{ctx_str}"
@@ -585,14 +598,26 @@ async def analyze_dashboard(req: DashboardAnalysisRequest):
         raise HTTPException(status_code=500, detail="Analysis failed.")
 
 @app.post("/api/v1/ai/forecast", response_model=ForecastResponse, tags=["AI Intelligence"])
-async def forecast(req: ForecastRequest):
+@limiter.limit("30/minute")
+async def forecast(request: Request, req: ForecastRequest):
     burn_amounts = [float(d.get("amount", 0)) for d in req.burn_history_30_days if d.get("amount")]
     avg_burn = float(np.mean(burn_amounts)) if burn_amounts else 0.0
     remaining = max(0.0, float(req.total_budgeted) - float(req.total_actual))
     days_rem = int(remaining / avg_burn) if avg_burn > 0 else None
     
     exhaustion_date = (datetime.utcnow() + timedelta(days=days_rem)).strftime("%Y-%m-%d") if days_rem is not None else None
-    risk_level = "CRITICAL" if days_rem is not None and days_rem < 30 else "HIGH" if days_rem is not None and days_rem < 90 else "MEDIUM"
+    if days_rem is None:
+        risk_level = "UNKNOWN"
+    elif days_rem < 0:
+        risk_level = "CRITICAL"
+    elif days_rem < 30:
+        risk_level = "CRITICAL"
+    elif days_rem < 60:
+        risk_level = "HIGH"
+    elif days_rem < 90:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "LOW"
     
     llm = get_llm()
     # Explicit construction for islice
@@ -614,7 +639,8 @@ async def forecast(req: ForecastRequest):
     })
 
 @app.post("/api/v1/ai/explain-section", tags=["AI Intelligence"])
-async def explain_section(req: ExplainSectionRequest):
+@limiter.limit("30/minute")
+async def explain_section(request: Request, req: ExplainSectionRequest):
     is_safe, block_msg, _ = SecurityGuardrail.scan(
         f"{req.section_key} {req.additional_context or ''}"
     )
@@ -630,12 +656,30 @@ async def explain_section(req: ExplainSectionRequest):
         raise HTTPException(status_code=503, detail="Explanation service is temporarily unavailable.")
 
 @app.post("/api/v1/ai/fill-form", tags=["AI Documents"])
-async def fill_form(target_form: str = Form(...), project_name: str = Form(default=""), file: UploadFile = File(...)):
+@limiter.limit("20/minute")
+async def fill_form(request: Request, target_form: str = Form(...), project_name: str = Form(default=""), file: UploadFile = File(...)):
     if target_form not in SUPPORTED_FORM_TYPES:
         raise HTTPException(status_code=422, detail="Unsupported form type.")
+    if len(project_name or "") > MAX_PROJECT_NAME_CHARS:
+        raise HTTPException(status_code=422, detail="project_name is too long.")
 
-    filename = os.path.basename(file.filename or "upload")
-    suffix = os.path.splitext(filename)[1][:20]
+    raw_filename = (file.filename or "upload")[:255]
+    filename = os.path.basename(raw_filename)
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported file type '{ext or '(none)'}'. Allowed: pdf, png, jpg, jpeg, tiff, bmp.",
+        )
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type and content_type not in ALLOWED_UPLOAD_MIME_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported upload MIME type '{content_type}'.",
+        )
+    # Never trust the user-supplied suffix for the temp file — use the
+    # validated extension only, so weird suffixes can't influence handlers.
+    suffix = ext
     path: Optional[str] = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -693,7 +737,8 @@ async def fill_form(target_form: str = Form(...), project_name: str = Form(defau
             os.unlink(path)
 
 @app.post("/api/v1/ai/generate-report", tags=["AI Intelligence"])
-async def generate_report(req: ReportGenerationRequest):
+@limiter.limit("30/minute")
+async def generate_report(request: Request, req: ReportGenerationRequest):
     llm = get_llm()
     prompt = f"Generate a {req.tone} report titled '{req.report_title}' focusing on {req.focus_areas} using this data: {json.dumps(_safe_context(req.data_context))}"
     response = await llm.ainvoke([SystemMessage(content="You are a financial controller."), HumanMessage(content=prompt)])
