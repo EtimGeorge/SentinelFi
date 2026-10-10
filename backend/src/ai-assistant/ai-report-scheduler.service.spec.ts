@@ -116,4 +116,106 @@ describe("AiReportSchedulerService", () => {
     // second tick should have been skipped while first was running
     expect(scheduleRepo.find).toHaveBeenCalledTimes(1);
   });
+
+  it("emails the narrative to valid recipients with escaped HTML", async () => {
+    const schedule = {
+      id: "mail-1",
+      tenant_id: "t1",
+      report_type: "executive",
+      frequency: "WEEKLY",
+      status: ReportStatus.ACTIVE,
+      next_run_at: new Date(Date.now() - 1000),
+      run_count: 0,
+      recipients: ["CFO@Example.com ", "not-an-email"],
+      deliver_by_email: true,
+      filters: {},
+      project_id: null,
+    };
+    const scheduleRepo = {
+      find: jest.fn().mockResolvedValue([schedule]),
+      save: jest.fn().mockImplementation(async (s: any) => s),
+    } as any;
+    const aiService = {
+      generateReportNarrative: jest.fn().mockResolvedValue({
+        narrative: "<script>alert(1)</script> Profit up.",
+        generatedAt: new Date().toISOString(),
+      }),
+    } as any;
+    const sendEmail = jest.fn().mockResolvedValue(undefined);
+    const svc = new AiReportSchedulerService(scheduleRepo, aiService, { sendEmail } as any);
+
+    await svc.processDueSchedules();
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [to, subject, html] = sendEmail.mock.calls[0];
+    expect(to).toBe("cfo@example.com");
+    expect(subject).toContain("executive");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("caps recipients at 20 and continues when one send fails", async () => {
+    const recipients = Array.from({ length: 25 }, (_, i) => `user${i}@example.com`);
+    const schedule = {
+      id: "mail-2",
+      tenant_id: "t1",
+      report_type: "opex",
+      frequency: "DAILY",
+      status: ReportStatus.ACTIVE,
+      next_run_at: new Date(Date.now() - 1000),
+      run_count: 0,
+      recipients,
+      deliver_by_email: true,
+      filters: {},
+      project_id: null,
+    };
+    const scheduleRepo = {
+      find: jest.fn().mockResolvedValue([schedule]),
+      save: jest.fn().mockImplementation(async (s: any) => s),
+    } as any;
+    const aiService = {
+      generateReportNarrative: jest.fn().mockResolvedValue({
+        narrative: "ok",
+        generatedAt: new Date().toISOString(),
+      }),
+    } as any;
+    const sendEmail = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("smtp down"))
+      .mockResolvedValue(undefined);
+    const svc = new AiReportSchedulerService(scheduleRepo, aiService, { sendEmail } as any);
+
+    await svc.processDueSchedules();
+
+    expect(sendEmail).toHaveBeenCalledTimes(20);
+  });
+
+  it("skips email gracefully when EmailService is not wired", async () => {
+    const schedule = {
+      id: "mail-3",
+      tenant_id: "t1",
+      report_type: "variance",
+      frequency: "DAILY",
+      status: ReportStatus.ACTIVE,
+      next_run_at: new Date(Date.now() - 1000),
+      run_count: 0,
+      recipients: ["a@example.com"],
+      deliver_by_email: true,
+      filters: {},
+      project_id: null,
+    };
+    const scheduleRepo = {
+      find: jest.fn().mockResolvedValue([schedule]),
+      save: jest.fn().mockImplementation(async (s: any) => s),
+    } as any;
+    const aiService = {
+      generateReportNarrative: jest.fn().mockResolvedValue({
+        narrative: "ok",
+        generatedAt: new Date().toISOString(),
+      }),
+    } as any;
+    const svc = new AiReportSchedulerService(scheduleRepo, aiService);
+
+    await expect(svc.processDueSchedules()).resolves.not.toThrow();
+  });
 });
