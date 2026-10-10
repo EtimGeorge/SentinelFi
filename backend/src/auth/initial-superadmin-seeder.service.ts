@@ -40,13 +40,14 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
     );
 
     let superAdminEmail = this.configService.get<string>("SUPERADMIN_EMAIL");
-    let superAdminPassword = this.configService.get<string>(
+    const configuredPassword = this.configService.get<string>(
       "SUPERADMIN_PASSWORD",
     );
 
     const isProduction = nodeEnv === "production";
 
     // --- Determine SuperAdmin Credentials ---
+    let superAdminPassword = configuredPassword;
     if (!superAdminEmail || !superAdminPassword) {
       if (isProduction) {
         this.logger.error(
@@ -55,11 +56,18 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
         throw new InternalServerErrorException(
           "SuperAdmin credentials not configured for production.",
         );
-      } else {
-        superAdminEmail = superAdminEmail || "superadmin@sentinelfi.com";
-        superAdminPassword = superAdminPassword || "Ndiong1988";
+      }
+      superAdminEmail = superAdminEmail || "superadmin@sentinelfi.com";
+      if (!superAdminPassword) {
+        // Never ship a hardcoded credential. Generate a one-time bootstrap
+        // password and surface it in the logs for local development only.
+        superAdminPassword = randomBytes(18).toString("base64url");
         this.logger.warn(
-          `Using development default SuperAdmin credentials: ${superAdminEmail}`,
+          `SUPERADMIN_PASSWORD not set (non-production). Generated a one-time bootstrap password for ${superAdminEmail}: ${superAdminPassword}`,
+        );
+      } else {
+        this.logger.warn(
+          `Using development SuperAdmin credentials from environment: ${superAdminEmail}`,
         );
       }
     }
@@ -149,8 +157,11 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
           needsUpdate = true;
         }
 
-        // 3. Update password if provided
+        // 3. Update password only when an explicit password is configured.
+        // A generated one-time bootstrap password must NOT overwrite an
+        // existing account on every boot.
         if (
+          configuredPassword &&
           superAdminPassword &&
           user.password_hash &&
           !(await bcrypt.compare(superAdminPassword, user.password_hash))
@@ -158,15 +169,6 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
           user.password_hash = await bcrypt.hash(superAdminPassword, 10);
           needsUpdate = true;
           passwordChanged = true;
-        } else if (nodeEnv === "development" && !superAdminPassword) {
-          if (
-            user.password_hash &&
-            !(await bcrypt.compare("password", user.password_hash))
-          ) {
-            user.password_hash = await bcrypt.hash("password", 10);
-            needsUpdate = true;
-            passwordChanged = true;
-          }
         }
 
         if (needsUpdate) {
