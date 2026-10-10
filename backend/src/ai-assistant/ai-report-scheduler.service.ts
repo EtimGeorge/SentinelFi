@@ -1,4 +1,4 @@
-﻿import { Injectable, Logger } from "@nestjs/common";
+﻿import { Injectable, Logger, Optional } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
 import { LessThanOrEqual, Repository } from "typeorm";
@@ -7,7 +7,20 @@ import {
   ReportStatus,
 } from "./report-schedule.entity";
 import { AiAssistantService } from "./ai-assistant.service";
+import { EmailService } from "../email/email.service";
 import { TENANT_DATA_SOURCE } from "../database/constants";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_EMAIL_RECIPIENTS = 20;
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 /**
  * Background worker that makes "Scheduled Report Automation" actually run.
@@ -31,6 +44,7 @@ export class AiReportSchedulerService {
     @InjectRepository(ReportScheduleEntity, TENANT_DATA_SOURCE)
     private readonly scheduleRepo: Repository<ReportScheduleEntity>,
     private readonly aiService: AiAssistantService,
+    @Optional() private readonly emailService?: EmailService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
@@ -114,13 +128,13 @@ export class AiReportSchedulerService {
         `Scheduler: report ${schedule.id} (${schedule.report_type}) executed run_count=${schedule.run_count}`,
       );
 
-      // Email delivery hook: actual mailer wiring lives outside AI module.
-      // We persist the preview + counts so the notification layer can pick
-      // it up; we log explicitly when delivery was requested.
+      // Email delivery: send the narrative to validated recipients.
+      // Each recipient is attempted independently so one bad address
+      // never blocks the rest; outcomes are logged for the audit trail.
+      // The AI narrative is HTML-escaped — AI text must never be injected
+      // raw into email HTML (XSS in mail clients is a real attack vector).
       if (schedule.deliver_by_email) {
-        this.logger.log(
-          `Scheduler: schedule ${schedule.id} requested email delivery to ${(schedule.recipients ?? []).length} recipient(s) — hand off to notification service`,
-        );
+        await this.deliverByEmail(schedule, narrative?.narrative ?? "");
       }
     } catch (e: any) {
       const msg =
@@ -136,6 +150,60 @@ export class AiReportSchedulerService {
         e as any,
       );
     }
+  }
+
+  private async deliverByEmail(
+    schedule: ReportScheduleEntity,
+    narrative: string,
+  ): Promise<void> {
+    const raw = Array.isArray(schedule.recipients) ? schedule.recipients : [];
+    const valid = raw
+      .map((r) => String(r).trim().toLowerCase())
+      .filter((r) => EMAIL_RE.test(r));
+    const invalid = raw.length - valid.length;
+    if (invalid > 0) {
+      this.logger.warn(
+        `Scheduler: schedule ${schedule.id} skipped ${invalid} invalid email address(es)`,
+      );
+    }
+    const capped = valid.slice(0, MAX_EMAIL_RECIPIENTS);
+    if (valid.length > MAX_EMAIL_RECIPIENTS) {
+      this.logger.warn(
+        `Scheduler: schedule ${schedule.id} capped recipients from ${valid.length} to ${MAX_EMAIL_RECIPIENTS}`,
+      );
+    }
+    if (capped.length === 0) {
+      this.logger.warn(
+        `Scheduler: schedule ${schedule.id} requested email delivery but has no valid recipients`,
+      );
+      return;
+    }
+    if (!this.emailService) {
+      this.logger.warn(
+        `Scheduler: schedule ${schedule.id} email delivery skipped (EmailService not wired)`,
+      );
+      return;
+    }
+    const subject = `SentinelFi ${schedule.report_type} report — ${schedule.name ?? schedule.id}`;
+    const safeNarrative = escapeHtml(narrative).replace(/\n/g, "<br>");
+    const html = `<p>Scheduled ${escapeHtml(schedule.report_type)} report for ${new Date().toISOString().slice(0, 10)}.</p><div>${safeNarrative}</div>`;
+    let sent = 0;
+    for (const to of capped) {
+      try {
+        await this.emailService.sendEmail(to, subject, html, {
+          template: "ai-scheduled-report",
+          tenantId: schedule.tenant_id,
+        });
+        sent++;
+      } catch (e: any) {
+        this.logger.error(
+          `Scheduler: email to ${to} failed for schedule ${schedule.id}: ${e?.message ?? e}`,
+        );
+      }
+    }
+    this.logger.log(
+      `Scheduler: schedule ${schedule.id} email delivery ${sent}/${capped.length} sent`,
+    );
   }
 
   private calculateNextRun(frequency: any): Date {

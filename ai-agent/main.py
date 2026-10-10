@@ -745,11 +745,13 @@ async def generate_report(request: Request, req: ReportGenerationRequest):
     return {"title": req.report_title, "content": response.content}
 
 @app.post("/api/v1/ai/schedule-report", tags=["AI Intelligence"])
-async def schedule_report(req: ScheduleReportRequest):
+@limiter.limit("10/minute")
+async def schedule_report(request: Request, req: ScheduleReportRequest):
     return {"status": "scheduled", "message": "Report schedule registered for background processing."}
 
 @app.post("/api/v1/ai/generate-report-narrative", tags=["AI Reporting"])
-async def generate_narrative(req: ReportNarrativeRequest):
+@limiter.limit("30/minute")
+async def generate_narrative(request: Request, req: ReportNarrativeRequest):
     llm = get_llm()
     prompt = f"Write a professional narrative for a {req.report_type} report for {req.tenant_name} ({req.period_label}). Data: {json.dumps(_safe_context(req.financial_data))}"
     response = await llm.ainvoke([SystemMessage(content=SENTINEL_FI_SYSTEM_PROMPT), HumanMessage(content=prompt)])
@@ -796,7 +798,8 @@ async def ai_chat_stream(request: Request, req: ChatRequest):
 
     return StreamingResponse(_stream(), media_type="text/event-stream")
 @app.post("/api/v1/ai/explain-variance", tags=["AI Intelligence"])
-async def explain_variance(req: ExplainVarianceRequest):
+@limiter.limit("30/minute")
+async def explain_variance(request: Request, req: ExplainVarianceRequest):
     safe_context = _safe_context(req.data_context)
     llm = get_llm()
     prompt = (

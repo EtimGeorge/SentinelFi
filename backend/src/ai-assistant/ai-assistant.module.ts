@@ -13,6 +13,7 @@ import { ReportScheduleEntity } from './report-schedule.entity';
 import { AiReportSchedulerService } from './ai-report-scheduler.service';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TENANT_DATA_SOURCE } from '../database/constants';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TENANT_DATA_SOURCE } from '../database/constants';
     ScheduleModule.forRoot(),
     TypeOrmModule.forFeature([AiAuditLogEntity]),
     TypeOrmModule.forFeature([ReportScheduleEntity], TENANT_DATA_SOURCE),
+    EmailModule,
     CacheModule.register(),
     HttpModule.register({
       timeout: 35000,
