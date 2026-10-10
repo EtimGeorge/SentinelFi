@@ -13,6 +13,7 @@ import {
   UploadedFile,
   UsePipes,
   ValidationPipe,
+  BadRequestException,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { ProvisionOfflineTenantDto } from "./dto/provision-tenant.dto";
@@ -24,6 +25,10 @@ import { BillingCycle } from "./entities/subscription.entity";
 import { BillingOverviewDto } from "./dto/billing-overview.dto";
 import { InvoiceDto } from "./dto/invoice.dto";
 import { Response } from "express";
+
+/** Only PDFs and raster images are accepted as payment receipts.
+ * Rejects HTML/SVG/executable payloads that could be served back inline. */
+const RECEIPT_FILE_FILTER = /\.(pdf|png|jpe?g|webp)$/i;
 
 /**
  * SuperAdmin-only billing management routes.
@@ -63,7 +68,20 @@ export class BillingController {
   @Post("provision-tenant")
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FileInterceptor("receipt_file", { dest: "./uploads/billing-receipts" }),
+    FileInterceptor("receipt_file", {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!RECEIPT_FILE_FILTER.test(file.originalname)) {
+          return cb(
+            new BadRequestException(
+              "Receipt file must be a PDF, PNG, JPG, or WebP image.",
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
   )
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async provisionTenant(
@@ -96,7 +114,13 @@ export class BillingController {
 
   @Get("subscriptions/:id/proof")
   async downloadPaymentProof(@Param("id") id: string, @Res() res: Response) {
-    const filePath = await this.billingService.getPaymentProofPath(id);
-    res.sendFile(filePath);
+    const { buffer, filename, contentType } =
+      await this.billingService.getPaymentProof(id);
+    res.set({
+      "Content-Type": contentType,
+      "Content-Length": buffer.length,
+      "Content-Disposition": `inline; filename="${filename}"`,
+    });
+    res.end(buffer);
   }
 }

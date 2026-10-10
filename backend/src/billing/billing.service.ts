@@ -38,6 +38,7 @@ import * as path from "path";
 import { isCorporateEmail } from "@shared/utils/validation";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { deriveSchemaName } from "../common/utils/schema-name.util";
+import { ObjectStorageService } from "../common/storage/object-storage.service";
 
 // ─── Pricing Constants ───────────────────────────────────────────────────────
 // Business model:
@@ -123,6 +124,7 @@ export class BillingService {
     private readonly webhookService: WebhookService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
+    private readonly objectStorage: ObjectStorageService,
   ) {}
 
   // ─── TRIAL FLOW ─────────────────────────────────────────────────────────────
@@ -788,6 +790,7 @@ export class BillingService {
       }
 
       const isFreeProvision = data.plan === "free";
+      const receiptKey = file ? await this.persistReceipt(file) : null;
       const subscription = this.subscriptionRepository.create({
         tenant_id: tenant.tenant_id,
         plan: data.plan,
@@ -801,9 +804,7 @@ export class BillingService {
         current_period_end: isFreeProvision ? null : periodEnd,
         payment_proof_text: data.paymentProofText || null,
         offline_bank_reference: data.offlineBankReference || null,
-        payment_proof_url: file
-          ? `/uploads/billing-receipts/${file.filename}`
-          : null,
+        payment_proof_url: receiptKey,
         max_tasks_per_day: isFreeProvision ? FREE_PLAN_TASK_CAP : null,
         has_ads: isFreeProvision,
         ad_unlock_credits: 0,
@@ -1589,7 +1590,24 @@ export class BillingService {
 
   // ─── OFFLINE AUDIT PROOFS ────────────────────────────────────────────────────
 
-  async getPaymentProofPath(subscriptionId: string): Promise<string> {
+  /**
+   * Persist an uploaded proof/receipt to object storage (R2, or local disk as
+   * a dev fallback) and return the reference stored on the subscription.
+   */
+  private async persistReceipt(file: Express.Multer.File): Promise<string> {
+    const ext =
+      path.extname(file.originalname) || path.extname(file.filename || "") ||
+      ".pdf";
+    const key = `billing-receipts/${crypto.randomUUID()}${ext}`;
+    const stored = await this.objectStorage.put(key, file.buffer, file.mimetype);
+    return stored.url;
+  }
+
+  async getPaymentProof(subscriptionId: string): Promise<{
+    buffer: Buffer;
+    filename: string;
+    contentType: string;
+  }> {
     const sub = await this.subscriptionRepository.findOne({
       where: { id: subscriptionId },
     });
@@ -1602,9 +1620,19 @@ export class BillingService {
       );
     }
 
-    // Convert relative URL stored in DB to an absolute file system path
-    const absolutePath = path.join(process.cwd(), sub.payment_proof_url);
-    return absolutePath;
+    const buffer = await this.objectStorage.get(sub.payment_proof_url);
+    const filename =
+      path.basename(sub.payment_proof_url).replace(/^.*\//, "") || "receipt.pdf";
+    const contentType = filename.toLowerCase().endsWith(".pdf")
+      ? "application/pdf"
+      : filename.toLowerCase().endsWith(".png")
+        ? "image/png"
+        : filename.toLowerCase().endsWith(".jpg") ||
+            filename.toLowerCase().endsWith(".jpeg")
+          ? "image/jpeg"
+          : "application/octet-stream";
+
+    return { buffer, filename, contentType };
   }
 
   // ─── TEAM INVITATION ─────────────────────────────────────────────────────────
