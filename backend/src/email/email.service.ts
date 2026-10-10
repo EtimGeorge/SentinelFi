@@ -128,11 +128,32 @@ export interface SubscriptionReactivatedContext {
 export class EmailService implements OnModuleInit {
   private readonly logger = new Logger(EmailService.name);
   private provider!: EmailProvider;
-  private readonly templatesDir = path.join(
-    process.cwd(),
-    "src/email/templates",
-  );
+  private resolvedTemplatesDir?: string;
   private layoutTemplate!: Handlebars.TemplateDelegate;
+
+  /**
+   * Email templates are plain `.hbs` files that `tsc` does not emit and that are
+   * NOT part of the compiled asset set (see `nest-cli.json`). Their absolute
+   * location therefore differs between ts-node dev (cwd = `backend/`) and the
+   * compiled production image (cwd = `/app`, templates copied in by the
+   * Dockerfile). Probe the known locations and use the first that actually
+   * contains `layout.hbs` so sends never silently fail on a path mismatch.
+   */
+  private get templatesDir(): string {
+    if (!this.resolvedTemplatesDir) {
+      const candidates = [
+        path.join(__dirname, "templates"),
+        path.join(process.cwd(), "backend/src/email/templates"),
+        path.join(process.cwd(), "src/email/templates"),
+        path.join(process.cwd(), "dist/backend/src/email/templates"),
+        path.join(process.cwd(), "dist/email/templates"),
+      ];
+      this.resolvedTemplatesDir =
+        candidates.find((dir) => fs.existsSync(path.join(dir, "layout.hbs"))) ??
+        candidates[0];
+    }
+    return this.resolvedTemplatesDir;
+  }
 
   constructor(
     private readonly configService: ConfigService,
@@ -153,6 +174,24 @@ export class EmailService implements OnModuleInit {
       providerType === "smtp"
         ? new SmtpProvider(this.configService)
         : new ResendProvider(this.configService);
+
+    // Fail loud (but not fatal) on missing provider credentials — otherwise a
+    // misconfigured mailer only surfaces when a real user never gets invited.
+    const missing: string[] = [];
+    if (providerType === "smtp") {
+      if (!this.configService.get<string>("SMTP_HOST")) missing.push("SMTP_HOST");
+    } else if (!this.configService.get<string>("RESEND_API_KEY")) {
+      missing.push("RESEND_API_KEY");
+    }
+    if (!this.configService.get<string>("EMAIL_FROM")) missing.push("EMAIL_FROM");
+
+    if (missing.length > 0 && !this.isPreviewOnly()) {
+      this.logger.error(
+        `Email provider [${this.provider.getName()}] is missing required config: ` +
+          `${missing.join(", ")}. Outbound email will fail until these are set.`,
+      );
+    }
+
     this.logger.log(
       `Email Service initialized with [${this.provider.getName()}] provider.`,
     );

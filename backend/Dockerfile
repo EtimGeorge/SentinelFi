@@ -45,6 +45,12 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/backend/node_module[s] ./backend/node_modules
 COPY --from=builder /app/backend/package*.json ./backend/
 
+# Email Handlebars templates are read from disk at runtime and are NOT emitted
+# by `tsc` (nor bundled as nest assets), so copy them explicitly to the path
+# EmailService probes (process.cwd()/backend/src/email/templates). Without this,
+# every templated email (invitation, welcome, receipts) throws in production.
+COPY --from=builder /app/backend/src/email/templates ./backend/src/email/templates
+
 
 ENV NODE_ENV=production
 

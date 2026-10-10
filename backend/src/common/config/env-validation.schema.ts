@@ -31,6 +31,11 @@ export const envValidationSchema = Joi.object({
   // OpenAPI/Swagger — defaults to enabled outside production; force with SWAGGER_ENABLED
   SWAGGER_ENABLED: Joi.string().valid("true", "false").optional(),
 
+  // Optional: run pending PUBLIC migrations once at boot (advisory-locked, so a
+  // scale-out deploy applies them exactly once). Defaults off; prefer a
+  // pre-deploy migration job. See docs/DEPLOYMENT.md §3.
+  RUN_MIGRATIONS_ON_BOOT: Joi.string().valid("true", "false").optional().default("false"),
+
   // AI Agent (Resilience)
   AI_AGENT_URL: Joi.string().uri().default("http://localhost:8000"),
 
@@ -41,6 +46,19 @@ export const envValidationSchema = Joi.object({
   PDF_WORKER_TOKEN: Joi.string().optional(),
   PDF_WORKER_TIMEOUT_MS: Joi.number().optional(),
   PDF_NAV_TIMEOUT_MS: Joi.number().optional(),
+
+  // Email delivery. Resend is the default provider; SMTP is the fallback.
+  // EMAIL_FROM must be a sender verified with the chosen provider or the
+  // provider will reject every send. EMAIL_PREVIEW_ONLY defaults to on outside
+  // production (see EmailService.isPreviewOnly) so dev never sends real mail.
+  EMAIL_PROVIDER: Joi.string().valid("resend", "smtp").optional().default("resend"),
+  EMAIL_FROM: Joi.string().optional(),
+  EMAIL_PREVIEW_ONLY: Joi.string().valid("true", "false").optional(),
+  SMTP_HOST: Joi.string().optional(),
+  SMTP_PORT: Joi.number().optional(),
+  SMTP_SECURE: Joi.string().valid("true", "false").optional(),
+  SMTP_USER: Joi.string().optional(),
+  SMTP_PASS: Joi.string().optional(),
 
   // Third Party APIs
   PAYSTACK_SECRET_KEY: Joi.string().optional(),
