@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # Build Stage
 # IMPORTANT: This Dockerfile must be built from the MONOREPO ROOT.
 FROM node:20-alpine AS builder

@@ -716,6 +716,17 @@ export class AiAssistantService {
           responseType: "stream",
         }),
       );
+      // Audit the dispatch (content streams to the client; we log metadata,
+      // not the full response, to bound PII in the audit trail).
+      void this.logInteraction({
+        tenantId: options.tenantId,
+        userId: options.userId,
+        type: AiInteractionType.CHAT,
+        message: options.message,
+        response: "stream dispatched",
+        blocked: false,
+        latency: Date.now() - startTime,
+      }).catch(() => undefined);
       return {
         headers: response.headers,
         status: response.status,
