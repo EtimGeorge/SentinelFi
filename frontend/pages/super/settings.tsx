@@ -67,7 +67,21 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
     setIsSaving(true);
     try {
       const dto: UpdateSettingsDto = {
-        maintenanceMode: localSettings.maintenanceMode, allowNewRegistrations: localSettings.allowNewRegistrations, defaultUserQuota: localSettings.defaultUserQuota, defaultStorageQuotaGB: localSettings.defaultStorageQuotaGB, smtpServer: localSettings.smtpServer, smtpPort: localSettings.smtpPort, smtpUser: localSettings.smtpUser, smtpPass: localSettings.smtpPass, supportEmail: localSettings.supportEmail, auditRetentionDays: localSettings.auditRetentionDays, sessionTimeoutMinutes: localSettings.sessionTimeoutMinutes, enableGlobalMfa: localSettings.enableGlobalMfa, gracePeriodDays: localSettings.gracePeriodDays, archiveRetentionDays: localSettings.archiveRetentionDays,
+        maintenanceMode: localSettings.maintenanceMode,
+        allowNewRegistrations: localSettings.allowNewRegistrations,
+        defaultUserQuota: localSettings.defaultUserQuota,
+        defaultStorageQuotaGB: localSettings.defaultStorageQuotaGB,
+        smtpServer: localSettings.smtpServer,
+        smtpPort: localSettings.smtpPort,
+        smtpUser: localSettings.smtpUser,
+        smtpPass: localSettings.smtpPass,
+        supportEmail: localSettings.supportEmail,
+        auditRetentionDays: localSettings.auditRetentionDays,
+        sessionTimeoutMinutes: localSettings.sessionTimeoutMinutes,
+        enableGlobalMfa: localSettings.enableGlobalMfa,
+        gracePeriodDays: localSettings.gracePeriodDays,
+        archiveRetentionDays: localSettings.archiveRetentionDays,
+
         // Phase 6 Integrations
         sendgridApiKey: localSettings.sendgridApiKey, erpProvider: localSettings.erpProvider, erpApiKey: localSettings.erpApiKey, erpBaseUrl: localSettings.erpBaseUrl,
       };
@@ -256,6 +270,12 @@ const SuperAdminSettingsPage: NextPageWithLayout = () => {
                   </Card>
                 </div>
                 <div className="flex justify-end">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Archive Retention (Days)</label>
+              <Input type="number" min={1} max={365} value={localSettings.archiveRetentionDays} onChange={(e) => setLocalSettings({ ...localSettings, archiveRetentionDays: Number(e.target.value) })} />
+              <p className="text-xs text-gray-500 mt-1">Archived tenants are permanently deleted after this many days.</p>
+            </div>
+
                   <Button onClick={handleSaveSettings} disabled={isSaving} className="px-8"><Save className="w-4 h-4 mr-2" /> Sync General Config</Button>
                 </div>
               </div>

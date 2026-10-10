@@ -153,6 +153,9 @@ export const superAdminNavigationMap: NavItem[] = [
     name: 'Tenant Management', icon: Building2, path: '/super/tenants', roles: [Role.SuperAdmin],
   },
   {
+    name: 'Archive', icon: Archive, path: '/super/archive', roles: [Role.SuperAdmin], exactMatch: true,
+  },
+  {
     name: 'Global Analytics', icon: BarChart3, path: '/super/analytics', roles: [Role.SuperAdmin],
   },
   {

@@ -112,6 +112,7 @@ function NotificationWatcher() {
     if (!isAuthenticated || !user) return;
 
     const isForbidden = (e: any) => e?.response?.status === 403 || e?._isForbidden;
+
     const isServerError = (e: any) => e?.response?.status >= 500;
     const fetchCounts = async () => {
       try {
@@ -132,6 +133,12 @@ function NotificationWatcher() {
           setUnreadCount(0);
           return;
         }
+
+
+
+
+
+
 
         const wbsCount = (wbs as any)?.total || (Array.isArray(wbs) ? (wbs as any).length : 0) || 0;
 

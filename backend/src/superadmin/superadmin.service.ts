@@ -14,6 +14,7 @@ import {
   Between,
   MoreThan,
   IsNull,
+  Not,
 } from "typeorm";
 import { TenantService } from "../tenants/tenant.service";
 import {
@@ -37,6 +38,8 @@ import { AuditService } from "../audit/audit.service";
 import { AuthService } from "../auth/auth.service";
 import { BillingService } from "../billing/billing.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import { SettingsEntity } from "../settings/settings.entity";
 import { CurrentAdmin } from "../common/decorators/current-admin.decorator";
 import { IMPERSONATION_TOKEN_TTL_SECONDS } from "./constants";
 import * as os from "os";
@@ -677,6 +680,193 @@ export class SuperAdminService {
         actor?.email ?? "SYSTEM",
       )
       .catch(() => {});
+  }
+
+  // --- TENANT ARCHIVE (soft-delete retention before permanent purge) ---
+
+  /**
+   * Retention window for archived tenants, read from the settings singleton
+   * (`settings.archiveRetentionDays`, default 30). Falls back to 30 when the
+   * row is missing or the read fails — the archive must never lose its clock.
+   */
+  private async getArchiveRetentionDays(): Promise<number> {
+    const DEFAULT_RETENTION_DAYS = 30;
+    try {
+      const settings = await this.dataSource
+        .getRepository(SettingsEntity)
+        .findOne({ where: { id: 1 } });
+      if (
+        settings &&
+        typeof settings.archiveRetentionDays === "number" &&
+        settings.archiveRetentionDays >= 0
+      ) {
+        return settings.archiveRetentionDays;
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Could not read archiveRetentionDays, using ${DEFAULT_RETENTION_DAYS}: ${
+          (err as Error).message
+        }`,
+      );
+    }
+    return DEFAULT_RETENTION_DAYS;
+  }
+
+  /**
+   * Soft-deleted tenants (the Archive tab), newest first. Each row carries the
+   * countdown to the daily purge sweep so the UI can render days-left states.
+   */
+  async findArchivedTenants(): Promise<{
+    data: Array<
+      TenantEntity & {
+        days_until_purge: number;
+        scheduled_purge_at: Date;
+        expired: boolean;
+      }
+    >;
+    retention_days: number;
+  }> {
+    const retentionDays = await this.getArchiveRetentionDays();
+    const now = Date.now();
+    const rows = await this.tenantRepository.find({
+      where: { deleted_at: Not(IsNull()) },
+      withDeleted: true,
+      order: { deleted_at: "DESC" },
+    });
+
+    const data = rows.map((tenant) => {
+      const purgeAt =
+        new Date(tenant.deleted_at as Date).getTime() +
+        retentionDays * 24 * 60 * 60 * 1000;
+      const daysUntilPurge = Math.ceil((purgeAt - now) / (24 * 60 * 60 * 1000));
+      return {
+        ...tenant,
+        days_until_purge: daysUntilPurge,
+        scheduled_purge_at: new Date(purgeAt),
+        expired: daysUntilPurge <= 0,
+      };
+    });
+
+    return { data, retention_days: retentionDays };
+  }
+
+  /**
+   * Un-archive: clears `deleted_at` and re-enables the tenant. Sessions were
+   * revoked at archive time and stay revoked — users simply log in again.
+   * `provisioning_status` is untouched, so a tenant that archived as FAILED
+   * stays fail-closed until its provisioning is repaired.
+   */
+  async restoreTenant(
+    tenantId: string,
+    actor?: CurrentAdmin,
+  ): Promise<TenantEntity> {
+    const tenant = await this.tenantRepository.findOne({
+      where: { tenant_id: tenantId },
+      withDeleted: true,
+    });
+    if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found.`);
+    if (!tenant.deleted_at) {
+      throw new ConflictException(
+        `Tenant ${tenant.name} is not archived — nothing to restore.`,
+      );
+    }
+
+    tenant.deleted_at = null;
+    tenant.is_active = true;
+    const saved = await this.tenantRepository.save(tenant);
+
+    JwtAuthGuard.invalidateTenantStatus(tenantId);
+
+    this.logger.log(
+      `Tenant ${tenant.name} (${tenantId}) restored by ${actor?.email ?? "SYSTEM"}.`,
+    );
+    await this.auditService
+      .log(
+        actor?.id ?? "SYSTEM",
+        "TENANT_RESTORED",
+        tenantId,
+        `Tenant ${tenant.name} was restored from the archive by ${actor?.email ?? "SYSTEM"}.`,
+        { tenant_name: tenant.name },
+        actor?.email ?? "SYSTEM",
+      )
+      .catch(() => {});
+    return saved;
+  }
+
+  /**
+   * Permanent deletion of an archived tenant: quarantine → schema drop →
+   * hard delete, via TenantService.deleteTenant (which also writes the
+   * TENANT_DELETED audit). This is the operation the daily sweep performs
+   * once retention lapses; exposed for manual purge of expired rows.
+   */
+  async purgeArchivedTenant(
+    tenantId: string,
+    actor?: CurrentAdmin,
+  ): Promise<void> {
+    const tenant = await this.tenantRepository.findOne({
+      where: { tenant_id: tenantId },
+      withDeleted: true,
+    });
+    if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found.`);
+    if (!tenant.deleted_at) {
+      throw new ConflictException(
+        `Tenant ${tenant.name} is not archived; archive it first instead of purging.`,
+      );
+    }
+
+    await this.tenantService.deleteTenant(tenantId);
+
+    this.logger.log(
+      `Archived tenant ${tenant.name} (${tenantId}) purged by ${actor?.email ?? "SYSTEM"}.`,
+    );
+    await this.auditService
+      .log(
+        actor?.id ?? "SYSTEM",
+        "TENANT_PURGED",
+        tenantId,
+        `Archived tenant ${tenant.name} was permanently deleted by ${actor?.email ?? "SYSTEM"}.`,
+        { tenant_name: tenant.name, schema_name: tenant.schema_name },
+        actor?.email ?? "SYSTEM",
+      )
+      .catch(() => {});
+  }
+
+  /**
+   * Daily sweep: permanently delete archived tenants past the retention
+   * window (settings.archiveRetentionDays, default 30). Runs at 03:00 via
+   * ScheduleModule.forRoot(); a failure on one tenant never blocks the rest.
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async purgeExpiredArchivedTenants(): Promise<void> {
+    try {
+      const retentionDays = await this.getArchiveRetentionDays();
+      const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+      const archived = await this.tenantRepository.find({
+        where: { deleted_at: Not(IsNull()) },
+        withDeleted: true,
+      });
+      const expired = archived.filter(
+        (t) => new Date(t.deleted_at as Date).getTime() <= cutoff,
+      );
+      if (expired.length === 0) return;
+
+      this.logger.log(
+        `Archive purge sweep: ${expired.length} tenant(s) past ${retentionDays}-day retention.`,
+      );
+      for (const t of expired) {
+        try {
+          await this.tenantService.deleteTenant(t.tenant_id);
+        } catch (err) {
+          this.logger.error(
+            `Archive purge failed for ${t.name} (${t.tenant_id}): ${(err as Error).message}`,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.error(
+        `Archive purge sweep failed: ${(err as Error).message}`,
+      );
+    }
   }
 
   async resetTenantAdminPassword(

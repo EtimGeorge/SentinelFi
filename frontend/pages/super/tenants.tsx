@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import PageContainer from '../../components/Layout/PageContainer';
 import {
   Users, Plus, X, Edit3, Loader2, AlertTriangle, Trash2, Search, KeyRound, CreditCard, Activity, CloudUpload
@@ -399,7 +400,10 @@ import { NextPageWithLayout } from '../_app'; // Import NextPageWithLayout
 const SuperAdminTenantsPage: NextPageWithLayout = () => {
   const { user } = useAuth(); // isInitialLoad removed as it's handled by _app.tsx
   const api = useSecuredApi();
+  const router = useRouter();
   const addToast = useToast(state => state.addToast);
+  const addUndoToast = useToast(state => state.addUndoToast);
+
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -548,7 +552,14 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
     setFormLoading(true);
     try {
       await api.delete(`/super/tenants/${selectedTenantForArchive.id}`);
-      addToast(`Tenant ${selectedTenantForArchive.name} archived. Access suspended.`, 'success');
+      // Actionable toast: the archived row vanishes from this list, so give
+      // the admin a one-click path to where it went.
+      addUndoToast(
+        `Tenant ${selectedTenantForArchive.name} archived. Access suspended — restore it from the Archive within 30 days.`,
+        () => router.push('/super/archive'),
+        8000,
+        'View Archive',
+      );
       setShowArchiveConfirm(false);
       fetchTenants();
     } catch (e: any) {
@@ -752,7 +763,7 @@ const SuperAdminTenantsPage: NextPageWithLayout = () => {
             <ul className="text-xs text-gray-500 list-disc ml-5 space-y-1">
               <li>All user access will be immediately revoked.</li>
               <li>Database schema will be disconnected but preserved.</li>
-              <li>You can restore this tenant from the Archive tab (Phase 10).</li>
+              <li>You can restore it from the Archive (SuperAdmin → Archive) for 30 days before it is permanently deleted.</li>
             </ul>
           </div>
         }

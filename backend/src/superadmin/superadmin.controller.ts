@@ -21,11 +21,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
 import { Response } from "express";
-import * as fs from "fs";
-import * as path from "path";
-import * as crypto from "crypto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -46,18 +42,6 @@ import { IMPERSONATION_COOKIE_MAX_AGE_MS } from "./constants";
 import { AuthService } from "../auth/auth.service";
 import { ConfirmMfaDto, DisableMfaDto } from "./dto/mfa.dto";
 
-const TENANT_BUDGET_UPLOAD_DIR = path.join(
-  process.cwd(),
-  "uploads",
-  "tenant-budgets",
-);
-
-function ensureUploadDir(dir: string): void {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
 const BUDGET_FILE_FILTER = /\.(csv|xlsx?|json)$/i;
 
 @Controller("super")
@@ -73,17 +57,6 @@ export class SuperAdminController {
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FileInterceptor("initialBudgetFile", {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          ensureUploadDir(TENANT_BUDGET_UPLOAD_DIR);
-          cb(null, TENANT_BUDGET_UPLOAD_DIR);
-        },
-        filename: (_req, file, cb) => {
-          const ext = path.extname(file.originalname) || ".csv";
-          const safeName = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}${ext}`;
-          cb(null, safeName);
-        },
-      }),
       limits: { fileSize: 10 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
         if (!BUDGET_FILE_FILTER.test(file.originalname)) {
@@ -276,6 +249,18 @@ export class SuperAdminController {
     return { access_token: impersonationToken };
   }
 
+  // --- TENANT ARCHIVE (30-day retention before permanent purge) ---
+  // NOTE: `tenants/archived` MUST stay above `tenants/:id*` routes —
+  // Express matches in registration order, so a param route declared first
+  // would swallow "archived" as an :id and ParseUUIDPipe would 400.
+
+  @Get("tenants/archived")
+  @Roles("SuperAdmin")
+  @HttpCode(HttpStatus.OK)
+  async findArchivedTenants() {
+    return this.superAdminService.findArchivedTenants();
+  }
+
   // --- NEW TENANT MANAGEMENT ENDPOINTS ---
 
   @Delete("tenants/:id")
@@ -286,6 +271,26 @@ export class SuperAdminController {
     @CurrentAdmin() admin?: CurrentAdmin,
   ) {
     return this.superAdminService.softDeleteTenant(id, admin);
+  }
+
+  @Post("tenants/:id/restore")
+  @Roles("SuperAdmin")
+  @HttpCode(HttpStatus.OK)
+  async restoreArchivedTenant(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin?: CurrentAdmin,
+  ) {
+    return this.superAdminService.restoreTenant(id, admin);
+  }
+
+  @Delete("tenants/:id/purge")
+  @Roles("SuperAdmin")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async purgeArchivedTenant(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin?: CurrentAdmin,
+  ) {
+    return this.superAdminService.purgeArchivedTenant(id, admin);
   }
 
   @Patch("tenants/:id/reset-password")

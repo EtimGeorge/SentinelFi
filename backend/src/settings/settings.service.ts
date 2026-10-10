@@ -3,6 +3,7 @@ import {
   Logger,
   InternalServerErrorException,
   ForbiddenException,
+  BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -56,6 +57,17 @@ export class SettingsService {
       if (!actor || !actor.mfa_enabled) {
         throw new ForbiddenException(
           "Enabling global two-factor authentication requires the acting administrator to have MFA enabled on their own account first.",
+        );
+      }
+    }
+
+    // Archive retention bounds the tenant purge sweep: 0 would purge on the
+    // next tick, so reject non-positive or absurd values outright.
+    if (updateSettingsDto.archiveRetentionDays !== undefined) {
+      const days = updateSettingsDto.archiveRetentionDays;
+      if (!Number.isFinite(days) || days < 1 || days > 365) {
+        throw new BadRequestException(
+          "archiveRetentionDays must be between 1 and 365.",
         );
       }
     }

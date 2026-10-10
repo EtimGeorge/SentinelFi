@@ -448,8 +448,11 @@ export class TenantService {
    * `relation "..." does not exist` from the fall-through to `public`.
    */
   async deleteTenant(id: string): Promise<void> {
+    // withDeleted: the archive purge path calls this for a SOFT-deleted tenant,
+    // and TypeORM's DeleteDateColumn filter would otherwise hide the row (404).
     const tenant = await this.tenantRepository.findOne({
       where: { tenant_id: id },
+      withDeleted: true,
     });
 
     if (!tenant) {

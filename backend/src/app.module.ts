@@ -61,34 +61,69 @@ import { FinanceCoreModule } from "./finance-core/finance-core.module";
 import { ReportingModule } from "./reporting/reporting.module";
 import { MessagingModule } from "./messaging/messaging.module";
 import { AiAssistantModule } from "./ai-assistant/ai-assistant.module";
-import { ReportScheduleEntity } from "./ai-assistant/report-schedule.entity";
 import { MarketingModule } from "./marketing/marketing.module";
 import { CacheModule } from "@nestjs/cache-manager";
 import { redisStore } from "cache-manager-redis-yet";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { RedisThrottlerStorage } from "./common/throttler/redis-throttler.storage";
 import { LogSanitizationInterceptor } from "./common/interceptors/log-sanitization.interceptor";
 import { HealthModule } from "./health/health.module";
 import { AdsModule } from "./ads/ads.module";
 import { envValidationSchema } from "./common/config/env-validation.schema";
+import { ScheduleModule } from "@nestjs/schedule";
+import * as path from "path";
+import * as fs from "fs";
+
+/**
+ * Monorepo-aware, cwd-independent env file resolution.
+ *
+ * The backend may be launched from the repo root (`npm run start:dev` uses
+ * `--entryFile backend/src/main`) OR from inside `backend/`. Resolving relative
+ * to `process.cwd()` with ambiguous names such as ".env.local" means a future
+ * root-level `.env.local` could silently shadow the backend's own values.
+ * Instead we anchor on the *backend* package dir and return absolute paths, so
+ * precedence is fixed: backend/.env.local over backend/.env, regardless of cwd.
+ */
+function backendEnvFilePaths(): string[] {
+  const cwd = process.cwd();
+  const backendDir = fs.existsSync(path.join(cwd, "backend", "package.json"))
+    ? path.join(cwd, "backend")
+    : cwd;
+  return [
+    path.join(backendDir, ".env.local"),
+    path.join(backendDir, ".env"),
+  ];
+}
 
 @Module({
   imports: [
     CommonModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [".env.local", ".env", "backend/.env.local", "backend/.env"],
+      envFilePath: backendEnvFilePaths(),
       validationSchema: envValidationSchema,
       validationOptions: {
         allowUnknown: true,
         abortEarly: true,
       },
     }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60000,
-        limit: 10,
-      },
-    ]),
+    // Distributed rate limiting: counters live in Redis so the limit is shared
+    // across every API instance. Degrades to in-process limiting if Redis is
+    // down. (See RedisThrottlerStorage.)
+    ThrottlerModule.forRootAsync({
+      inject: [RedisThrottlerStorage],
+      useFactory: (storage: RedisThrottlerStorage) => ({
+        throttlers: [
+          {
+            ttl: 60000,
+            limit: 10,
+          },
+        ],
+        storage,
+      }),
+    }),
+    // Enables @Cron decorators (e.g. the daily tenant-archive purge sweep).
+    ScheduleModule.forRoot(),
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],
