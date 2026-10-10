@@ -7,6 +7,7 @@ import {
   Param,
   Query,
   Req,
+  Res,
   HttpCode,
   HttpStatus,
   UseGuards,
@@ -18,6 +19,7 @@ import {
   UseInterceptors,
   UploadedFile,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
   IsString,
@@ -287,7 +289,40 @@ export class AiAssistantController {
    */
   @Post("fill-form")
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+      fileFilter: (_req, file, cb) => {
+        const allowedMime = new Set([
+          "application/pdf",
+          "image/png",
+          "image/jpeg",
+          "image/tiff",
+          "image/bmp",
+        ]);
+        const allowedExt = new Set([
+          ".pdf",
+          ".png",
+          ".jpg",
+          ".jpeg",
+          ".tiff",
+          ".tif",
+          ".bmp",
+        ]);
+        const name = (file.originalname || "").toLowerCase();
+        const ext = name.slice(name.lastIndexOf("."));
+        if (!allowedMime.has(file.mimetype) || !allowedExt.has(ext)) {
+          return cb(
+            new BadRequestException(
+              "Unsupported file type. Allowed: pdf, png, jpg, jpeg, tiff, bmp.",
+            ) as any,
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
   @Roles(
     Role.FinanceOfficer,
     Role.FinanceManager,
@@ -301,6 +336,11 @@ export class AiAssistantController {
   ) {
     const user = this.requireUser(req);
     if (!file) throw new BadRequestException("No file uploaded.");
+    if (file.size <= 0) throw new BadRequestException("Uploaded file is empty.");
+    if (file.size > 10 * 1024 * 1024)
+      throw new BadRequestException("Uploaded file exceeds the 10 MB limit.");
+    if ((dto.projectName ?? "").length > 200)
+      throw new BadRequestException("projectName is too long.");
 
     return this.aiService.fillForm(file, dto.targetForm, dto.projectName ?? "", {
       tenantId: user.tenant_id!,
@@ -410,7 +450,93 @@ export class AiAssistantController {
     return this.aiService.getReportSchedules(user.tenant_id!);
   }
 
-  @Delete("schedules/:id")
+    /**
+   * POST /api/v1/ai/chat/stream
+   * Streams AI chat responses as Server-Sent Events (SSE).
+   */
+  @Post("chat/stream")
+  @HttpCode(HttpStatus.OK)
+  @Roles(
+    Role.CEO,
+    Role.CFO,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.FinanceManager,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.AssignedProjectUser,
+    Role.FinanceOfficer,
+    Role.SuperAdmin,
+  )
+  async chatStream(
+    @Body() dto: ChatRequestDto,
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    const user = this.requireUser(req);
+    const tenantName = await this.getTenantName(user.tenant_id!);
+    const result = await this.aiService.chatStream({
+      message: dto.message,
+      sessionId: dto.sessionId,
+      history: dto.history ?? [],
+      projectId: dto.projectId,
+      currentPage: dto.currentPage,
+      userRole: this.getRoleName(user),
+      userId: user.id!,
+      tenantName,
+      tenantId: user.tenant_id!,
+    });
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const stream = (result as any)?.stream;
+    try {
+      // Case 1: async generator (guardrail block / fallback path)
+      if (stream && typeof stream[Symbol.asyncIterator] === "function") {
+        for await (const chunk of stream) {
+          if (!res.write(chunk)) {
+            await new Promise((resolve) => res.once("drain", resolve));
+          }
+        }
+        res.end();
+        return;
+      }
+      // Case 2: Node readable (axios stream from Python agent)
+      if (stream && typeof stream.pipe === "function") {
+        stream.on("error", () => {
+          try {
+            res.write(`data: ${JSON.stringify({ content: "Stream interrupted. Please try again." })}\n\n`);
+          } catch {
+            // response already closed
+          }
+          try {
+            res.end();
+          } catch {
+            // noop
+          }
+        });
+        stream.pipe(res);
+        return;
+      }
+      // Case 3: unexpected shape — fail safe, don't hang the client
+      res.write(
+        `data: ${JSON.stringify({ content: "I am having difficulty connecting to my AI service right now." })}\n\n`,
+      );
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch {
+      try {
+        res.end();
+      } catch {
+        // noop
+      }
+    }
+  }
+
+@Delete("schedules/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(
     Role.CEO,

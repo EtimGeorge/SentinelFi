@@ -3,6 +3,7 @@ import {
   Logger,
   InternalServerErrorException,
   Inject,
+  OnModuleDestroy,
 } from "@nestjs/common";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
@@ -14,10 +15,41 @@ import * as path from "path";
 import * as hbs from "handlebars";
 
 @Injectable()
-export class PdfGenerationService {
+export class PdfGenerationService implements OnModuleDestroy {
   private readonly logger = new Logger(PdfGenerationService.name);
 
   constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
+
+  /**
+   * When set, all rendering is delegated to the standalone Chromium worker
+   * (`backend/src/worker.ts`). The API process then never hosts a browser,
+   * which is what keeps it runnable on a small/free instance.
+   */
+  private readonly workerUrl = (process.env.PDF_WORKER_URL || "")
+    .trim()
+    .replace(/\/+$/, "");
+  private readonly workerToken = (process.env.PDF_WORKER_TOKEN || "").trim();
+  private readonly workerTimeoutMs = Math.max(
+    10_000,
+    Number(process.env.PDF_WORKER_TIMEOUT_MS || 120_000),
+  );
+  private readonly navTimeoutMs = Math.max(
+    5_000,
+    Number(process.env.PDF_NAV_TIMEOUT_MS || 60_000),
+  );
+
+  /**
+   * Locally-launched browser, reused across renders. Launching per request was
+   * the root cause of the first-request "Navigation timeout of 30000 ms" —
+   * the launch itself ate the navigation budget. One warm browser fixes it.
+   */
+  private browserPromise: Promise<puppeteer.Browser> | null = null;
+
+  private readonly defaultOptions: puppeteer.PDFOptions = {
+    format: "A4",
+    printBackground: true,
+    margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+  };
 
   /**
    * Higher-level helper to generate PDF from a Handlebars template file.
@@ -54,19 +86,14 @@ export class PdfGenerationService {
   }
 
   /**
-   * Generates a PDF buffer from a raw HTML string using Puppeteer.
+   * Generates a PDF buffer from a raw HTML string.
    *
-   * @param html The fully compiled HTML string (e.g., from Handlebars).
-   * @param options Puppeteer PDFOptions (like format: 'A4', margin, landscape, etc).
-   * @returns A Buffer containing the PDF data.
+   * Delegates to the remote Chromium worker when `PDF_WORKER_URL` is configured,
+   * otherwise renders in-process (development / single-box deployments).
    */
   async generatePdfFromHtml(
     html: string,
-    options: puppeteer.PDFOptions = {
-      format: "A4",
-      printBackground: true,
-      margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
-    },
+    options: puppeteer.PDFOptions = this.defaultOptions,
   ): Promise<Buffer> {
     // 1. Check Cache First (Content-Addressed Hashing)
     const hash = crypto.createHash("md5").update(html).digest("hex");
@@ -78,30 +105,11 @@ export class PdfGenerationService {
       return Buffer.from(cachedBuffer);
     }
 
-    this.logger.log("Starting Puppeteer to generate PDF from HTML...");
-
-    let browser: puppeteer.Browser | null = null;
     try {
-      // Launch Puppeteer. In a Docker environment, these args are crucial.
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-gpu",
-        ],
-      });
-
-      const page = await browser.newPage();
-
-      // Wait until there are no more than 0 network connections for at least 500 ms.
-      // Useful if HTML contains external images or fonts (like the Base64 Brand logo).
-      await page.setContent(html, { waitUntil: "networkidle0" });
-
-      // Generate PDF
-      const pdfBuffer = await page.pdf(options);
-      const outputBuffer = Buffer.from(pdfBuffer);
+      const merged = { ...this.defaultOptions, ...options };
+      const outputBuffer = this.workerUrl
+        ? await this.renderViaWorker(html, merged)
+        : await this.renderLocally(html, merged);
 
       // 3. Store in Cache (TTL: 1 hour)
       await this.cacheManager.set(cacheKey, outputBuffer, 3600);
@@ -114,10 +122,92 @@ export class PdfGenerationService {
         error instanceof Error ? error.stack : undefined,
       );
       throw new InternalServerErrorException("Error generating PDF document.");
-    } finally {
-      if (browser) {
-        await browser.close();
+    }
+  }
+
+  private async renderViaWorker(
+    html: string,
+    options: puppeteer.PDFOptions,
+  ): Promise<Buffer> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.workerTimeoutMs);
+    try {
+      const response = await fetch(`${this.workerUrl}/render`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-worker-token": this.workerToken,
+        },
+        body: JSON.stringify({ html, options }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(
+          `PDF worker responded ${response.status}: ${detail.slice(0, 200)}`,
+        );
       }
+
+      return Buffer.from(await response.arrayBuffer());
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async getBrowser(): Promise<puppeteer.Browser> {
+    if (!this.browserPromise) {
+      this.browserPromise = puppeteer
+        .launch({
+          headless: true,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+          ],
+        })
+        .catch((err) => {
+          this.browserPromise = null;
+          throw err;
+        });
+    }
+    const browser = await this.browserPromise;
+    if (!browser.connected) {
+      this.browserPromise = null;
+      return this.getBrowser();
+    }
+    return browser;
+  }
+
+  private async renderLocally(
+    html: string,
+    options: puppeteer.PDFOptions,
+  ): Promise<Buffer> {
+    const browser = await this.getBrowser();
+    let page: puppeteer.Page | null = null;
+    try {
+      page = await browser.newPage();
+      page.setDefaultNavigationTimeout(this.navTimeoutMs);
+      page.setDefaultTimeout(this.navTimeoutMs);
+      await page.setContent(html, {
+        waitUntil: "networkidle0",
+        timeout: this.navTimeoutMs,
+      });
+      const pdf = await page.pdf(options);
+      return Buffer.from(pdf);
+    } finally {
+      if (page) await page.close().catch(() => undefined);
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    const pending = this.browserPromise;
+    this.browserPromise = null;
+    if (pending) {
+      await pending
+        .then((browser) => browser.close())
+        .catch(() => undefined);
     }
   }
 }

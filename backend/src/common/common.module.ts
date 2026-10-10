@@ -9,6 +9,8 @@ import { CurrencyModule } from "../currency/currency.module";
 import { TENANT_DATA_SOURCE } from "../database/constants";
 
 import { FinancialForensicsService } from "./services/financial-forensics.service";
+import { RedisThrottlerStorage } from "./throttler/redis-throttler.storage";
+import { ObjectStorageService } from "./storage/object-storage.service";
 
 @Global()
 @Module({
@@ -22,12 +24,16 @@ import { FinancialForensicsService } from "./services/financial-forensics.servic
     DOAService,
     PdfGenerationService,
     FinancialForensicsService,
+    RedisThrottlerStorage,
+    ObjectStorageService,
   ],
   exports: [
     BudgetControlService,
     DOAService,
     PdfGenerationService,
     FinancialForensicsService,
+    RedisThrottlerStorage,
+    ObjectStorageService,
     TypeOrmModule,
   ],
 })

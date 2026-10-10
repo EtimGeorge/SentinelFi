@@ -1,55 +1,21 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  Index,
-  UpdateDateColumn,
-} from "typeorm";
-import { ReportType } from "./document-control.entity";
+/**
+ * DEPRECATED — single authoritative entity lives at
+ * `src/ai-assistant/report-schedule.entity.ts` (table `ai_report_schedule`).
+ *
+ * This file is kept only so old imports don't break. It re-exports the
+ * canonical entity and its enums. Do NOT define a second @Entity here —
+ * duplicate class names with different tables cause TypeORM confusion.
+ *
+ * Migration note: if a `report_schedule` table exists from the old model,
+ * migrate its rows into `ai_report_schedule` (mapping: name -> name,
+ * filters -> filters, is_active true -> status ACTIVE else PAUSED) then drop
+ * the old table. See docs/ai-implementation-progress.md.
+ */
+export {
+  ReportScheduleEntity,
+  ReportFrequency,
+  ReportStatus,
+} from "../../ai-assistant/report-schedule.entity";
 
-export enum ScheduleFrequency {
-  DAILY = "DAILY",
-  WEEKLY = "WEEKLY",
-  MONTHLY = "MONTHLY",
-}
-
-@Entity("report_schedule")
-export class ReportScheduleEntity {
-  @PrimaryGeneratedColumn("uuid")
-  id!: string;
-
-  @Index()
-  @Column({ type: "uuid" })
-  tenant_id!: string;
-
-  @Column({ type: "varchar", length: 255 })
-  name!: string;
-
-  @Column({ type: "enum", enum: ReportType })
-  report_type!: ReportType;
-
-  @Column({ type: "enum", enum: ScheduleFrequency })
-  frequency!: ScheduleFrequency;
-
-  @Column({ type: "text", array: true })
-  recipients!: string[];
-
-  @Column({ type: "jsonb", nullable: true })
-  filters?: any;
-
-  @Column({ type: "boolean", default: true })
-  is_active!: boolean;
-
-  @Column({ type: "timestamptz", nullable: true })
-  last_run_at?: Date;
-
-  @Column({ type: "timestamptz", nullable: true })
-  next_run_at?: Date;
-
-  @CreateDateColumn({ type: "timestamptz" })
-  created_at!: Date;
-
-  @UpdateDateColumn({ type: "timestamptz" })
-  updated_at!: Date;
-}
+/** @deprecated Use ReportFrequency from ai-assistant/report-schedule.entity */
+export { ReportFrequency as ScheduleFrequency } from "../../ai-assistant/report-schedule.entity";

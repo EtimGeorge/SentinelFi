@@ -93,7 +93,7 @@ export class AiAssistantService {
     blockReason?: string;
     sessionId: string;
   }> {
-    // Layer 1: NestJS guardrail scan (redundant with Python — defense in depth)
+    // Layer 1: NestJS guardrail scan (redundant with Python â€” defense in depth)
     const scanResult = this.guardrailsService.scan(options.message, {
       sessionId: options.sessionId,
       userId: options.userId,
@@ -644,6 +644,96 @@ export class AiAssistantService {
         return next;
       default:
         return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    }
+  }
+
+  async chatStream(options: AiChatOptions): Promise<any> {
+    const startTime = Date.now();
+
+    // Layer 2: Build financial context snapshot (tenant-scoped)
+    let financialContext: FinancialContextSnapshot;
+    try {
+      financialContext = await this.financialContextService.buildSnapshot({
+        projectId: options.projectId,
+        tenantName: options.tenantName,
+        tenantId: options.tenantId,
+      });
+    } catch (e) {
+      this.logger.error(
+        "Failed to build financial context for stream, proceeding without it",
+      );
+      financialContext = null!;
+    }
+
+    // Layer 3: Sanitize context before sending to Python
+    const safeContext = financialContext
+      ? this.guardrailsService.sanitizeContext(financialContext as any)
+      : null;
+
+    // Layer 1: Guardrail scan (defense in depth)
+    const scanResult = this.guardrailsService.scan(options.message, {
+      sessionId: options.sessionId,
+      userId: options.userId,
+    });
+    if (!scanResult.safe) {
+      this.logInteraction({
+        tenantId: options.tenantId,
+        userId: options.userId,
+        type: AiInteractionType.CHAT,
+        message: options.message,
+        response: scanResult.reason ?? undefined,
+        blocked: true,
+        blockReason: scanResult.type,
+        latency: Date.now() - startTime,
+      });
+      return {
+        headers: { "Content-Type": "text/event-stream" },
+        status: 200,
+        responseType: "stream" as const,
+        stream: (async function* () {
+          const chunk = JSON.stringify({ content: scanResult.reason ?? "Request blocked by security guardrails.", blocked: true });
+          yield `data: ${chunk}\n\n`;
+          yield "data: [DONE]\n\n";
+        })(),
+      };
+    }
+
+    const body = {
+      message: options.message,
+      session_id: options.sessionId,
+      history: options.history?.slice(-20) ?? [],
+      user_role: options.userRole || "User",
+      tenant_name: options.tenantName || "Organization",
+      financial_context: safeContext,
+      current_page_context: options.currentPage,
+    };
+
+    const url = `${this.AI_AGENT_BASE_URL}/api/v1/ai/chat/stream`;
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(url, body, {
+          headers: { "Content-Type": "application/json" },
+          responseType: "stream",
+        }),
+      );
+      return {
+        headers: response.headers,
+        status: response.status,
+        responseType: "stream" as const,
+        stream: response.data,
+      };
+    } catch (error) {
+      this.logger.error("chatStream_failed", error as any);
+      return {
+        headers: { "Content-Type": "text/event-stream" },
+        status: 200,
+        responseType: "stream" as const,
+        stream: (async function* () {
+          const chunk = JSON.stringify({ content: "I am having difficulty connecting to my AI service right now. Please try again in a moment." });
+          yield `data: ${chunk}\n\n`;
+          yield "data: [DONE]\n\n";
+        })(),
+      };
     }
   }
 

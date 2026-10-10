@@ -4,7 +4,7 @@ import { ReportingService } from "./reporting.service";
 import { DcsClientService } from "./dcs-client.service";
 import { ReportingController } from "./reporting.controller";
 import { DocumentControlEntity } from "../common/entities/document-control.entity";
-import { ReportScheduleEntity } from "../common/entities/report-schedule.entity";
+import { ReportScheduleEntity } from "../ai-assistant/report-schedule.entity";
 import { WbsModule } from "../wbs/wbs.module";
 import { OperationalBudgetsModule } from "../operational-budgets/operational-budgets.module";
 import { ProjectsModule } from "../projects/projects.module";

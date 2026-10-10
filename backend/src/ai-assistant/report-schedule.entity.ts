@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from "typeorm";
 import { UserEntity } from "../auth/user.entity";
 
@@ -22,11 +23,14 @@ export enum ReportStatus {
 }
 
 @Entity({ name: "ai_report_schedule" })
+@Index("IDX_ai_sched_tenant_status_next", ["tenant_id", "status", "next_run_at"])
+@Index("IDX_ai_sched_next_run", ["next_run_at"])
 export class ReportScheduleEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
   @Column({ type: "uuid" })
+  @Index("IDX_ai_sched_tenant")
   tenant_id!: string;
 
   @Column({ type: "uuid" })
@@ -35,6 +39,9 @@ export class ReportScheduleEntity {
   @ManyToOne(() => UserEntity)
   @JoinColumn({ name: "created_by_id", referencedColumnName: "id" })
   createdBy!: UserEntity;
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  name!: string | null;
 
   @Column({ type: "varchar", length: 50 })
   report_type!: string; // variance | capex | opex | executive
@@ -66,6 +73,12 @@ export class ReportScheduleEntity {
 
   @Column({ type: "timestamptz", nullable: true })
   last_run_at!: Date | null;
+
+  @Column({ type: "jsonb", nullable: true })
+  filters!: Record<string, any> | null;
+
+  @Column({ type: "text", nullable: true })
+  last_error!: string | null;
 
   @Column({ type: "int", default: 0 })
   run_count!: number;
