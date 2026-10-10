@@ -34,9 +34,27 @@ export const envValidationSchema = Joi.object({
   // AI Agent (Resilience)
   AI_AGENT_URL: Joi.string().uri().default("http://localhost:8000"),
 
+  // PDF render worker (optional). When PDF_WORKER_URL is set, PDFs are rendered
+  // by the standalone Chromium worker (`backend/src/worker.ts`) instead of
+  // in-process, keeping the API free of a browser.
+  PDF_WORKER_URL: Joi.string().uri().optional(),
+  PDF_WORKER_TOKEN: Joi.string().optional(),
+  PDF_WORKER_TIMEOUT_MS: Joi.number().optional(),
+  PDF_NAV_TIMEOUT_MS: Joi.number().optional(),
+
   // Third Party APIs
   PAYSTACK_SECRET_KEY: Joi.string().optional(),
   RESEND_API_KEY: Joi.string().optional(),
+
+  // Cloudflare R2 object storage (optional — local-disk fallback without it).
+  // Required for uploads to survive deploys in production.
+  R2_ACCOUNT_ID: Joi.string().allow("").optional(),
+  R2_ACCESS_KEY_ID: Joi.string().allow("").optional(),
+  R2_SECRET_ACCESS_KEY: Joi.string().allow("").optional(),
+  R2_BUCKET: Joi.string().allow("").optional(),
+  R2_ENDPOINT: Joi.string().uri().allow("").optional(),
+  R2_REGION: Joi.string().optional().default("auto"),
+  R2_PUBLIC_BASE_URL: Joi.string().uri().allow("").optional(),
 
   // Ads (monetization — all optional; 'test' provider when unset)
   ADS_PROVIDER: Joi.string().valid("test", "adsense", "admanager").optional().default("test"),

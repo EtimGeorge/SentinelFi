@@ -4,6 +4,7 @@
 *.tmp
 *.bak
 *.tsbuildinfo
+.workspace-temp
 typecheck.log
 diag_output.txt
 

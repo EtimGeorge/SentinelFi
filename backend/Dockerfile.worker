@@ -1,0 +1,82 @@
+# =============================================================================
+# SentinelFi PDF render worker
+# -----------------------------------------------------------------------------
+# Runs backend/src/worker.ts (compiled by the normal backend build) on a Debian
+# base WITH a real Chromium.
+#
+# WHY NOT ALPINE:
+#   node:20-alpine is musl-based and CANNOT execute Puppeteer's bundled Chrome
+#   (glibc). The API's own Dockerfile stays alpine because it never renders.
+#
+# WHY A SEPARATE IMAGE:
+#   Chromium needs ~300-500MB RSS. Hosting it inside the 512MB API instance
+#   starves the API and OOMs mid-render, so the API delegates here over HTTP.
+#
+# Build from the MONOREPO ROOT:
+#   docker build -f backend/Dockerfile.worker -t sentinelfi-pdf-worker .
+# =============================================================================
+
+# ------------------------------- build stage ---------------------------------
+# Build-only stage: no Chromium needed here, so we can stay slim.
+FROM node:20-slim AS builder
+
+# Do not download Chrome during install; the runtime stage uses the distro
+# chromium instead (saves ~300MB from the build context).
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+WORKDIR /app
+
+COPY package*.json ./
+COPY backend/package*.json ./backend/
+COPY shared/package*.json ./shared/
+
+RUN npm install --legacy-peer-deps
+
+COPY shared ./shared
+COPY backend ./backend
+
+RUN npm run build:shared && npm run build:backend
+
+# ----------------------------- runtime stage ---------------------------------
+FROM node:20-slim AS runtime
+
+ENV NODE_ENV=production \
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Distro Chromium plus the fonts it needs for PDF output. dumb-init makes sure
+# SIGTERM reaches node (the worker drains in-flight renders on shutdown).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      chromium \
+      ca-certificates \
+      fonts-liberation \
+      fonts-noto-color-emoji \
+      dumb-init \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/shared ./shared
+COPY --from=builder /app/node_modules ./node_modules
+# Backend workspace modules that npm does not hoist to the root.
+# [s] glob lets this COPY succeed even when the folder was not created.
+COPY --from=builder /app/backend/node_module[s] ./backend/node_modules
+COPY --from=builder /app/backend/package*.json ./backend/
+
+# Non-root runtime user. worker.ts launches Chromium with --no-sandbox (required
+# in containers); that is safe here because the worker only ever renders HTML
+# handed to it over the authenticated /render endpoint.
+RUN useradd --system --uid 1001 --create-home --home-dir /home/app \
+      --shell /usr/sbin/nologin app
+ENV HOME=/home/app
+USER app
+
+EXPOSE 3002
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||process.env.WORKER_PORT||3002)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "backend/dist/backend/src/worker.js"]

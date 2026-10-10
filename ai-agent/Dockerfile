@@ -31,7 +31,8 @@ COPY . .
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
-# Hugging Face Spaces requires port 7860
+# Default port. Platforms that inject PORT (Render, Railway, Fly) override this;
+# Hugging Face Spaces expects 7860, so keep it as the fallback.
 ENV PORT=7860
 
 # HF Spaces runs as UID 1000 (non-root) — required
@@ -40,4 +41,5 @@ USER user
 
 EXPOSE 7860
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Bind to $PORT when the platform provides one (Render/Railway/Fly), else 7860.
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"]

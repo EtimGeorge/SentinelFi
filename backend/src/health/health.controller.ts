@@ -78,12 +78,19 @@ export class HealthController {
 
   @Public()
   @Get('live')
-  @HealthCheck()
   live() {
-    return this.health.check([
-      () => this.memory.checkHeap("memory_heap", this.heapThreshold),
-      () => this.memory.checkRSS("memory_rss", this.rssThreshold),
-    ]);
+    // Liveness answers exactly one question: "is the process up and is the event
+    // loop flowing?" It deliberately performs NO dependency or memory checks — a
+    // transient memory spike must never make the platform kill a healthy
+    // instance, and a failing downstream must not roll a live pod. Memory
+    // pressure is surfaced via /metrics and alerted on there; dependency health
+    // belongs in /ready. This also keeps the Render/Docker liveness probe fast
+    // and incapable of 5xx-ing under load.
+    return {
+      status: "ok",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    };
   }
 
   @Public()

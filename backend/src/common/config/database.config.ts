@@ -54,7 +54,7 @@ import { P2PReceiptEntity } from "../../finance-core/entities/p2p-receipt.entity
 import { PayrollRunEntity } from "../../finance-core/entities/payroll-run.entity";
 import { PayrollLineItemEntity } from "../../finance-core/entities/payroll-line-item.entity";
 import { DocumentControlEntity } from "../entities/document-control.entity";
-import { ReportScheduleEntity } from "../entities/report-schedule.entity";
+import { ReportScheduleEntity } from "../../ai-assistant/report-schedule.entity";
 import { MessageEntity } from "../../messaging/entities/message.entity";
 import { ConversationEntity } from "../../messaging/entities/conversation.entity";
 import { ConversationMemberEntity } from "../../messaging/entities/conversation-member.entity";

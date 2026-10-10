@@ -35,8 +35,9 @@ export class LogSanitizationInterceptor implements NestInterceptor {
 
     // Log the incoming request (sanitized)
     const sanitizedBody = this.sanitize(body);
+    const sanitizedUrl = this.sanitizeUrl(url);
     this.logger.debug(
-      `[REQUEST] ${method} ${url} - Body: ${JSON.stringify(sanitizedBody)}`,
+      `[REQUEST] ${method} ${sanitizedUrl} - Body: ${JSON.stringify(sanitizedBody)}`,
     );
 
     return next.handle().pipe(
@@ -44,7 +45,7 @@ export class LogSanitizationInterceptor implements NestInterceptor {
         // Log the outgoing response (sanitized)
         const sanitizedData = this.sanitize(data);
         this.logger.debug(
-          `[RESPONSE] ${method} ${url} - Data: ${JSON.stringify(sanitizedData)}`,
+          `[RESPONSE] ${method} ${sanitizedUrl} - Data: ${JSON.stringify(sanitizedData)}`,
         );
         return data; // Return original data to client, only log the sanitized version
       }),
@@ -69,5 +70,18 @@ export class LogSanitizationInterceptor implements NestInterceptor {
       }
     }
     return sanitized;
+  }
+
+  /**
+   * Masks credential-like query parameters (tokens, codes, signatures) in URLs
+   * before they reach the logs — magic-link / reset / invite flows often carry
+   * a JWT or one-time code in the query string.
+   */
+  private sanitizeUrl(url: string): string {
+    if (!url || !url.includes("?")) return url;
+    return url.replace(
+      /([?&])(token|code|otp|signature|key|secret|hash)=([^&\s]*)/gi,
+      "$1$2=[MASKED]",
+    );
   }
 }

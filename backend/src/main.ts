@@ -61,10 +61,27 @@ async function bootstrap() {
           connectSrc: ["'self'", frontendUrl],
           imgSrc: ["'self'", "data:", "https:"],
           styleSrc: ["'self'", "'unsafe-inline'"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          frameAncestors: ["'none'"],
         },
       } : false,
       crossOriginEmbedderPolicy: false,
+      referrerPolicy: { policy: "no-referrer" },
+      strictTransportSecurity: isProd
+        ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+        : undefined,
     }));
+    // helmet v8 does not set Permissions-Policy; emit it explicitly (off for a
+    // data/ERP surface — no camera/mic/geo/payment, fullscreen only self).
+    app.use((_req: Request, res: Response, next: NextFunction) => {
+      res.setHeader(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), fullscreen=(self)",
+      );
+      next();
+    });
     app.use(hpp());
     // Trust proxy for correct IP behind Next.js proxy / load balancer
     const httpAdapter = app.getHttpAdapter();

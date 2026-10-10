@@ -1,0 +1,156 @@
+# =============================================================================
+# render.yaml — Render Blueprint for SentinelFi
+# -----------------------------------------------------------------------------
+# Stack: Neon (Postgres) + Resend (email) + Render Key Value (Redis) +
+#        Cloudflare R2 (object storage) + this Blueprint (compute + worker).
+#
+# HOW TO DEPLOY
+#   1. Push this repo to GitHub.
+#   2. Render Dashboard → New + → Blueprint → pick this repo.
+#   3. Render prompts for every value marked `sync: false`. Fill them in.
+#   4. Click Apply. Render builds all services in parallel.
+#
+# NOTES
+#   * Every service lives in the SAME region so private hostnames resolve.
+#   * `sync: false` values are secrets/vars that must NOT be committed; Render
+#     asks for them in the dashboard and stores them encrypted.
+#   * Free instances spin down after ~15 min idle. The first request after a
+#     spin-down pays a cold start (~50s). See docs/DEPLOYMENT.md → "Cold starts".
+#   * If your account rejects `type: keyvalue`, use `type: redis` (legacy alias).
+# =============================================================================
+
+envVarGroups:
+  # Shared across the API and the PDF worker so their tokens match exactly.
+  - name: sentinelfi-pdf-shared
+    envVars:
+      - key: PDF_WORKER_TOKEN
+        generateValue: true
+
+services:
+  # ---------------------------------------------------------------------------
+  # Redis / Key Value — cache + distributed throttling + Socket.IO adapter
+  # ---------------------------------------------------------------------------
+  - type: keyvalue
+    name: sentinelfi-redis
+    plan: free
+    region: oregon
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+  # ---------------------------------------------------------------------------
+  # API — NestJS (images are built by backend/Dockerfile from the repo root)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: sentinelfi-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /api/v1/health/live
+    autoDeploy: true
+    envVars:
+      - fromGroup: sentinelfi-pdf-shared
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: DATABASE_URL
+        sync: false # Neon POOLED connection string, e.g. postgresql://...?sslmode=require
+      - key: JWT_SECRET
+        generateValue: true # Render generates a strong secret
+      - key: FRONTEND_URL
+        sync: false # https://sentinelfi-web.onrender.com (or your domain)
+      - key: FRONTEND_ALLOWED_ORIGINS
+        sync: false # comma-separated extra origins (or same as FRONTEND_URL)
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sentinelfi-redis
+          property: connectionString
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false # e.g. SentinelFi <notifications@yourdomain.com>
+      - key: AI_AGENT_URL
+        sync: false # public URL of sentinelfi-ai-agent
+      - key: PDF_WORKER_URL
+        sync: false # public URL of sentinelfi-pdf-worker
+      - key: PDF_WORKER_TIMEOUT_MS
+        value: "120000"
+      - key: PDF_NAV_TIMEOUT_MS
+        value: "60000"
+      - key: SWAGGER_ENABLED
+        value: "false"
+
+  # ---------------------------------------------------------------------------
+  # Web — Next.js (images built by frontend/Dockerfile from the repo root)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: sentinelfi-web
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: ./frontend/Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: FRONTEND_URL
+        sync: false # same origin as the API's FRONTEND_URL
+      - key: BACKEND_INTERNAL_URL
+        value: http://sentinelfi-api:3001 # Render private network hostname
+      - key: NEXT_PUBLIC_WS_URL
+        sync: false # wss://sentinelfi-api.onrender.com (WebSocket origin)
+
+  # ---------------------------------------------------------------------------
+  # PDF worker — standalone Chromium (Debian). Token-protected, public URL so it
+  # can run on the free tier (Render has no free private/background workers).
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: sentinelfi-pdf-worker
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: ./backend/Dockerfile.worker
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - fromGroup: sentinelfi-pdf-shared
+      - key: NODE_ENV
+        value: production
+      - key: PDF_WORKER_CONCURRENCY
+        value: "1"
+      - key: PDF_NAV_TIMEOUT_MS
+        value: "60000"
+      - key: PDF_RENDER_TIMEOUT_MS
+        value: "120000"
+
+  # ---------------------------------------------------------------------------
+  # AI agent — FastAPI + document tooling. HEAVY image (LibreOffice/Tesseract);
+  # the 512MB free instance is NOT sufficient — use a paid plan (see docs).
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: sentinelfi-ai-agent
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: ./ai-agent
+    dockerfilePath: ./ai-agent/Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: google/gemini-2.0-flash-exp:free
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AI_AGENT_ALLOWED_ORIGINS
+        sync: false # must include FRONTEND_URL

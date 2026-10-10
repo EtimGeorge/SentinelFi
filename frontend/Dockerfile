@@ -1,15 +1,22 @@
+# syntax=docker/dockerfile:1
 # Build Stage
+# IMPORTANT: This Dockerfile must be built from the MONOREPO ROOT.
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy root package.json and workspace configs
-COPY package*.json ./
-COPY frontend/package*.json ./frontend/
-COPY shared/package*.json ./shared/
+# Copy ALL workspace manifests + the lockfile FIRST so the deps layer only
+# replays when a manifest changes. (npm's `workspaces` list includes every
+# workspace — all manifests must exist or `npm ci` fails.)
+COPY package.json package-lock.json ./
+COPY frontend/package.json ./frontend/
+COPY backend/package.json ./backend/
+COPY shared/package.json ./shared/
+COPY packages ./packages
 
-# Install dependencies for the whole monorepo
-RUN npm install
+# Deterministic install of the whole monorepo. The BuildKit cache mount reuses
+# the npm download cache across rebuilds AND across the backend image.
+RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
 # Copy source code
 COPY shared ./shared
@@ -40,6 +47,12 @@ COPY --from=builder /app/package-lock.json ./
 COPY --from=builder /app/frontend/package.json ./frontend/
 ENV NODE_ENV=production
 ENV PORT=3000
+# HOME must be writable by the non-root user (npm writes ~/.npm here).
+ENV HOME=/tmp
+
+# Non-root runtime (least privilege). .next and next start may write cache/temp.
+RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
+USER app
 
 EXPOSE 3000
 
