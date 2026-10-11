@@ -59,7 +59,7 @@ const PayrollDeskPage: React.FC = () => {
     if (res) {
       setShowNewRunModal(false);
       loadData();
-      router.push(`/financials/operations/payroll/${res.data.id}`);
+      router.push(`/financials/operations/payroll/${res.id}`);
     }
   };
 

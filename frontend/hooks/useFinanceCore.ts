@@ -186,7 +186,7 @@ export const useFinanceCore = () => {
         setLoading(true);
         try {
             const res = await apiClient.get('/finance/payroll/kpis');
-            return res.data;
+            return res;
         } catch (error) {
             // Not toasting error here as it might be common on empty states
             return null;
@@ -496,7 +496,7 @@ export const useFinanceCore = () => {
         setLoading(true);
         try {
             const res = await apiClient.get(`/wbs/budget/rollup?projectId=${projectId}`);
-            return res.data || [];
+            return res || [];
         } catch (error) {
             toast.error('Error fetching WBS for expense');
             return [];
@@ -569,7 +569,7 @@ export const useFinanceCore = () => {
             const res = await apiClient.get(
                 `/operational-budgets/${budgetId}/forecast-bridge`,
             );
-            return Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+            return Array.isArray(res) ? res : (res?.data ?? []);
         } catch (error) {
             toast.error('Error fetching forecast bridge');
             return [];
