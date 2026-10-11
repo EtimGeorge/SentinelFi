@@ -81,8 +81,8 @@ test_key.py
 /tmp/
 /backups/
 
-# Agent scratch space
-/.workspace-temp/
+# Agent scratch space (any package — root, backend, frontend, …)
+.workspace-temp/
 
 # Local agent tooling state (anima workspace cache)
 /.anima/
