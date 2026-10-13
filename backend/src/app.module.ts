@@ -1,62 +1,35 @@
-import {
-  Module,
-  NestModule,
-  MiddlewareConsumer,
-  RequestMethod,
-  Logger,
-} from "@nestjs/common";
+import { Module, Logger } from "@nestjs/common";
 import { TenancyGuard } from "./common/guards/tenancy.guard";
 import { MaintenanceGuard } from "./common/guards/maintenance.guard";
 import { TenantAccessGuard } from "./common/guards/tenant-access.guard"; // Import TenantAccessGuard
 import { ClsModule, ClsService } from "nestjs-cls";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { DataSource, DataSourceOptions } from "typeorm";
+import { DataSourceOptions } from "typeorm";
 import { TenancyAwareDataSource } from "./database/tenancy-aware-data-source";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { CorrelationInterceptor } from "./common/interceptors/correlation.interceptor";
-import { WbsBudgetEntity } from "./wbs/wbs-budget.entity";
-import { LiveExpenseEntity } from "./wbs/live-expense.entity";
 import { WbsModule } from "./wbs/wbs.module";
 import { AuthModule } from "./auth/auth.module";
-import { UserEntity } from "./auth/user.entity";
-import { RoleEntity } from "./auth/role.entity"; // Import RoleEntity
-import { PermissionEntity } from "./auth/permission.entity"; // Import PermissionEntity
-import { WbsCategoryEntity } from "./wbs/wbs-category.entity";
 import { TenantModule } from "./tenants/tenant.module";
-import { TenantEntity } from "./tenants/tenant.entity";
 import { SearchModule } from "./search/search.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
 import { AuditModule } from "./audit/audit.module";
-import { AuditLogEntity } from "./audit/audit.entity";
-import { ProjectEntity } from "./projects/project.entity";
-import { LpoEntity } from "./projects/lpo.entity";
-import { ProjectInflowEntity } from "./projects/project-inflow.entity";
-import { ProjectAuditEntity } from "./projects/project-audit.entity";
 import { ProjectsModule } from "./projects/projects.module";
-import { OperationalBudgetEntity } from "./operational-budgets/operational-budget.entity";
 import { OperationalBudgetsModule } from "./operational-budgets/operational-budgets.module";
-import { OperationalBudgetCategoryEntity } from "./operational-budgets/operational-budget-category.entity";
-import { OperationalExpenseEntity } from "./operational-budgets/operational-expense.entity";
 import { SuperAdminModule } from "./superadmin/superadmin.module";
 import { BillingModule } from "./billing/billing.module";
 import { SettingsModule } from "./settings/settings.module";
-import { SettingsEntity } from "./settings/settings.entity";
 import { EmailModule } from "./email/email.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { TenantDatabaseModule } from "./database/tenant-database.module";
 import { TenantMigrationModule } from "./database/tenant-migration.module";
 import { CommonModule } from "./common/common.module";
 import { DatabaseConfig } from "./common/config/database.config";
-import { PayrollEntryEntity } from "./operational-budgets/payroll-entry.entity";
 import { TenantRepositoriesModule } from "./tenant-repositories.module"; // Import TenantRepositoriesModule
-import { BudgetCategoryEntity } from "./operational-budgets/budget-category.entity";
-import { OperationalBudgetPeriodAllocationEntity } from "./operational-budgets/operational-budget-period-allocation.entity";
 import { CurrencyModule } from "./currency/currency.module";
-import { CurrencyExchangeRateEntity } from "./currency/currency.entity";
 import { ClientModule } from "./clients/client.module";
-import { ClientEntity } from "./clients/client.entity";
 import { FinanceCoreModule } from "./finance-core/finance-core.module";
 import { ReportingModule } from "./reporting/reporting.module";
 import { MessagingModule } from "./messaging/messaging.module";
@@ -75,24 +48,61 @@ import * as path from "path";
 import * as fs from "fs";
 
 /**
+ * Locate the backend package directory that holds the env files.
+ *
+ * Nest can be launched from the repo root (`npm run start:dev` uses
+ * `--entryFile backend/src/main`), from inside `backend/`, or from an
+ * IDE/debugger whose working directory is a nested folder (e.g. `backend/src`).
+ * Resolving env files relative to `process.cwd()` therefore breaks whenever the
+ * cwd is not exactly the repo root or `backend/`, surfacing to the user as
+ * `Config validation error: "DATABASE_URL" is required`.
+ *
+ * Instead, walk up from this file's own location (`__dirname`) to find the
+ * directory that contains both a `package.json` and an `.env`/`.env.local`.
+ * That is the backend package dir, independent of cwd. The cwd-based locations
+ * are only used as a fallback (e.g. a fresh clone before any env file exists).
+ */
+function findBackendEnvDir(): string | undefined {
+  const seeds = [__dirname, process.cwd(), path.join(process.cwd(), "backend")];
+  const visited = new Set<string>();
+
+  for (const seed of seeds) {
+    let dir = seed;
+    for (let depth = 0; depth < 8; depth++) {
+      if (visited.has(dir)) break;
+      visited.add(dir);
+
+      const hasPackageJson = fs.existsSync(path.join(dir, "package.json"));
+      const hasEnv =
+        fs.existsSync(path.join(dir, ".env")) ||
+        fs.existsSync(path.join(dir, ".env.local"));
+      if (hasPackageJson && hasEnv) {
+        return dir;
+      }
+
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Monorepo-aware, cwd-independent env file resolution.
  *
- * The backend may be launched from the repo root (`npm run start:dev` uses
- * `--entryFile backend/src/main`) OR from inside `backend/`. Resolving relative
- * to `process.cwd()` with ambiguous names such as ".env.local" means a future
- * root-level `.env.local` could silently shadow the backend's own values.
- * Instead we anchor on the *backend* package dir and return absolute paths, so
- * precedence is fixed: backend/.env.local over backend/.env, regardless of cwd.
+ * Precedence is fixed regardless of cwd: `backend/.env.local` over
+ * `backend/.env`, so a stray root-level `.env.local` can never shadow the
+ * backend's own values.
  */
 function backendEnvFilePaths(): string[] {
   const cwd = process.cwd();
-  const backendDir = fs.existsSync(path.join(cwd, "backend", "package.json"))
-    ? path.join(cwd, "backend")
-    : cwd;
-  return [
-    path.join(backendDir, ".env.local"),
-    path.join(backendDir, ".env"),
-  ];
+  const backendDir =
+    findBackendEnvDir() ??
+    (fs.existsSync(path.join(cwd, "backend", "package.json"))
+      ? path.join(cwd, "backend")
+      : cwd);
+  return [path.join(backendDir, ".env.local"), path.join(backendDir, ".env")];
 }
 
 @Module({
@@ -101,10 +111,24 @@ function backendEnvFilePaths(): string[] {
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: backendEnvFilePaths(),
-      validationSchema: envValidationSchema,
-      validationOptions: {
-        allowUnknown: true,
-        abortEarly: true,
+      // We validate via `validate` (not `validationSchema`) so we can first drop
+      // empty-string env vars. Blank optional entries (e.g. `SMTP_HOST=`,
+      // `JWT_SECRET_KEY=`, `FRONTEND_ALLOWED_ORIGINS=`) are common in .env files;
+      // Joi treats "" as present and rejects it on string/number/enum fields,
+      // which otherwise fails boot one variable at a time. Removing them here
+      // makes them behave as "unset" so defaults apply — a clean, single fix.
+      validate: (config: Record<string, unknown>) => {
+        for (const key of Object.keys(config)) {
+          if (config[key] === "") delete config[key];
+        }
+        const { error, value } = envValidationSchema.validate(config, {
+          allowUnknown: true,
+          abortEarly: true,
+        });
+        if (error) {
+          throw new Error(`Config validation error: ${error.message}`);
+        }
+        return value;
       },
     }),
     // Distributed rate limiting: counters live in Redis so the limit is shared
@@ -134,7 +158,25 @@ function backendEnvFilePaths(): string[] {
           configService.get("REDIS_URL") ||
           `redis://${configService.get("REDIS_HOST") || "localhost"}:${configService.get("REDIS_PORT") || 6379}`;
         try {
-          const store = await redisStore({ url: redisUrl, ttl });
+          const store = await redisStore({
+            url: redisUrl,
+            ttl,
+            // Self-heal a dropped socket instead of failing on first hiccup.
+            socket: {
+              reconnectStrategy: (retries: number) =>
+                Math.min(retries * 200, 3000),
+            },
+          });
+          // node-redis is an EventEmitter: an 'error' event with no listener is
+          // re-thrown, which crashed the whole process on a transient
+          // `SocketClosedUnexpectedlyError` from the managed Redis instance.
+          // A listener degrades that to a log line and cache misses.
+          store.client.on("error", (err: Error) => {
+            Logger.warn(
+              `Redis cache client error: ${err.message}`,
+              "CacheModule",
+            );
+          });
           return { store, ttl };
         } catch (error) {
           // Graceful fallback: do not fail closed when Redis is unreachable (SEC-P1-01).

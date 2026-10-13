@@ -20,8 +20,10 @@ export const envValidationSchema = Joi.object({
   JWT_SECRET: Joi.string().min(16).required().messages({
     'string.min': 'JWT_SECRET must be at least 16 chars (64+ in production)',
   }),
-  // Back-compat alias: accept JWT_SECRET_KEY but prefer JWT_SECRET
-  JWT_SECRET_KEY: Joi.string().optional(),
+  // Back-compat alias: accept JWT_SECRET_KEY but prefer JWT_SECRET.
+  // allow("") so a leftover empty `JWT_SECRET_KEY=` line in an .env file does
+  // not fail boot — Joi treats "" as present and rejects it by default.
+  JWT_SECRET_KEY: Joi.string().allow("").optional(),
   FRONTEND_URL: Joi.string().uri().required(),
 
   // Optional comma-separated allowlist of additional origins allowed on the
