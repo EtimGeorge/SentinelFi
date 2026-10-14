@@ -28,6 +28,20 @@ export class AddAiReportScheduleConsolidationColumns1777000000002
       await queryRunner.query(`SET search_path TO "${schema}", public`);
     }
 
+    // Tenant schemas predate this migration to varying degrees: some were
+    // provisioned before `ai_report_schedule` existed at all. `ALTER TABLE` on a
+    // missing table aborts the whole transaction, which would strand every
+    // LATER migration in this tenant (they are applied in one ordered run) —
+    // including the vendor/P2P ones. Skip cleanly when the table is absent; the
+    // table is created by the canonical AI-assistant migration for that tenant.
+    const tableRows: Array<{ present: number }> = await queryRunner.query(
+      `SELECT 1 AS present FROM information_schema.tables
+       WHERE table_schema = current_schema() AND table_name = 'ai_report_schedule'`,
+    );
+    if (tableRows.length === 0) {
+      return;
+    }
+
     await queryRunner.query(
       `ALTER TABLE "ai_report_schedule" ADD COLUMN IF NOT EXISTS "name" character varying(255)`,
     );

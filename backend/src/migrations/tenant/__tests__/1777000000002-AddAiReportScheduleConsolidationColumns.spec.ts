@@ -1,12 +1,20 @@
 import type { QueryRunner } from "typeorm";
 import { AddAiReportScheduleConsolidationColumns1777000000002 } from "../1777000000002-AddAiReportScheduleConsolidationColumns";
 
-function recordingRunner(schema = "tenant_alpha") {
+/**
+ * `present` controls whether the information_schema existence probe at the top of
+ * `up()` resolves to a row (table exists) or to nothing (table absent).
+ */
+function recordingRunner(schema = "tenant_alpha", present = true) {
   const recorded: string[] = [];
   const runner = {
     connection: { options: { type: "postgres", schema } },
     query: jest.fn(async (sql: string) => {
       recorded.push(sql);
+      // Only the existence probe is a SELECT; everything else returns no rows.
+      if (sql.includes("information_schema.tables")) {
+        return present ? [{ present: 1 }] : [];
+      }
       return [];
     }),
   } as unknown as QueryRunner;
@@ -57,6 +65,23 @@ describe("AddAiReportScheduleConsolidationColumns1777000000002", () => {
     // ai_report_schedule only — legacy rows stay untouched for manual review
     // because they lack created_by_id (NOT NULL here).
     expect(sql).not.toMatch(/"report_schedule"/);
+  });
+
+  // Regression: some tenant schemas were provisioned before `ai_report_schedule`
+  // existed. `ALTER TABLE` on a missing table aborts the whole ordered migration
+  // run, stranding the LATER vendor/P2P migrations that this one precedes — which
+  // is exactly how a tenant ends up with `vendor_id` missing from its entities.
+  it("skips cleanly when the tenant has no ai_report_schedule table", async () => {
+    const { runner, recorded } = recordingRunner("tenant_legacy", false);
+    await new AddAiReportScheduleConsolidationColumns1777000000002().up(runner);
+
+    // The probe must be scoped to the tenant schema, not the whole database.
+    expect(recorded[1]).toContain("information_schema.tables");
+    expect(recorded[1]).toContain("current_schema()");
+
+    const sql = recorded.join("\n");
+    expect(sql).not.toContain('ALTER TABLE "ai_report_schedule"');
+    expect(sql).not.toContain("CREATE INDEX");
   });
 
   it("down reverses indexes then columns", async () => {

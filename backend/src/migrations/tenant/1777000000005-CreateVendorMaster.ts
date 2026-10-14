@@ -18,10 +18,22 @@ export class CreateVendorMaster1777000000005 implements MigrationInterface {
 
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
 
+    // `pg_type` is a GLOBAL catalog: a bare `typname` probe matches the enum row
+    // in EVERY schema, not just this tenant's, and ignores the search_path set
+    // above. Scoping by namespace is what makes this guard per-tenant. Without
+    // it the first tenant to run this migration convinces every later tenant
+    // that the enum already exists, so they skip `CREATE TYPE` and then fail on
+    // the missing type when creating the `vendor` table.
     await queryRunner.query(`
       DO $$
       BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vendor_status_enum') THEN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_type t
+          JOIN pg_namespace n ON n.oid = t.typnamespace
+          WHERE t.typname = 'vendor_status_enum'
+            AND n.nspname = current_schema()
+        ) THEN
           CREATE TYPE "vendor_status_enum" AS ENUM ('ACTIVE', 'INACTIVE');
         END IF;
       END
@@ -67,11 +79,21 @@ export class CreateVendorMaster1777000000005 implements MigrationInterface {
       await queryRunner.query(
         `CREATE INDEX IF NOT EXISTS "IDX_${table}_vendor_id" ON "${table}" ("vendor_id")`,
       );
+      // Same cross-schema trap as the enum guard above: `pg_constraint` is also a
+      // global catalog, so an unscoped `conname` probe sees the FK in every other
+      // tenant schema and reports "already exists". Scoping by namespace AND by
+      // the constrained table keeps the check local to (this schema, this table).
       await queryRunner.query(`
         DO $$
         BEGIN
           IF NOT EXISTS (
-            SELECT 1 FROM pg_constraint WHERE conname = 'FK_${table}_vendor'
+            SELECT 1
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            WHERE c.conname = 'FK_${table}_vendor'
+              AND n.nspname = current_schema()
+              AND t.relname = '${table}'
           ) THEN
             ALTER TABLE "${table}"
               ADD CONSTRAINT "FK_${table}_vendor"

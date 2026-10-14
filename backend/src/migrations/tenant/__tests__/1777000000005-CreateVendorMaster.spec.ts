@@ -47,6 +47,50 @@ describe("CreateVendorMaster1777000000005", () => {
     }
   });
 
+  // Regression: pg_type / pg_constraint are GLOBAL catalogs. An unscoped
+  // `typname` / `conname` probe matches the row in every OTHER tenant schema and
+  // ignores the search_path set at the top of `up()`, so the second tenant to
+  // run this migration would skip the CREATE and then fail on the missing type.
+  // Both guards must therefore be namespaced to the current schema.
+  describe("catalog guards are scoped to the tenant schema", () => {
+    it("scopes the enum existence check to the current namespace", async () => {
+      const { runner, recorded } = recordingRunner("tenant_beta");
+      await new CreateVendorMaster1777000000005().up(runner);
+
+      const enumGuard = recorded.find((sql) => sql.includes("vendor_status_enum"));
+      expect(enumGuard).toBeDefined();
+
+      // Must join pg_type to pg_namespace and filter on it.
+      expect(enumGuard).toContain("FROM pg_type");
+      expect(enumGuard).toContain("JOIN pg_namespace");
+      expect(enumGuard).toContain("n.nspname = current_schema()");
+      // The buggy form matched every schema's enum — must not survive.
+      expect(enumGuard).not.toContain("FROM pg_type WHERE typname");
+    });
+
+    it("scopes each FK existence check to schema + table", async () => {
+      const { runner, recorded } = recordingRunner("tenant_beta");
+      await new CreateVendorMaster1777000000005().up(runner);
+
+      const fkGuards = recorded.filter((sql) => sql.includes("pg_constraint"));
+      expect(fkGuards).toHaveLength(3);
+
+      for (const table of [
+        "p2p_requisition",
+        "p2p_purchase_order",
+        "p2p_invoice",
+      ]) {
+        const guard = fkGuards.find((sql) => sql.includes(`FK_${table}_vendor`));
+        expect(guard).toBeDefined();
+        expect(guard).toContain("JOIN pg_namespace");
+        expect(guard).toContain("n.nspname = current_schema()");
+        expect(guard).toContain(`t.relname = '${table}'`);
+        // The buggy form saw every other tenant's FK.
+        expect(guard).not.toContain("FROM pg_constraint WHERE conname");
+      }
+    });
+  });
+
   it("drops columns, links, table and enum on rollback", async () => {
     const { runner, recorded } = recordingRunner();
     await new CreateVendorMaster1777000000005().down(runner);
