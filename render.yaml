@@ -206,6 +206,11 @@ services:
       - fromGroup: sentinelfi-pdf-shared
       - key: NODE_ENV
         value: production
+      # Render scans for a listener on $PORT (default 10000). worker.ts binds
+      # WORKER_PORT||PORT, so PORT must equal WORKER_PORT or Render reports
+      # "no open ports detected" and the deploy fails.
+      - key: PORT
+        value: "3002"
       - key: WORKER_PORT
         value: "3002"
       - key: PUPPETEER_EXECUTABLE_PATH
