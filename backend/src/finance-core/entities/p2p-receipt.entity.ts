@@ -7,8 +7,10 @@ import {
   Index,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from "typeorm";
 import { P2PPurchaseOrderEntity } from "./p2p-purchase-order.entity";
+import { P2PReceiptLineEntity } from "./p2p-receipt-line.entity";
 
 /**
  * Phase 4 — 3-Way Match (4.8): PO + Receipt + Invoice.
@@ -50,8 +52,21 @@ export class P2PReceiptEntity {
   @Column({ type: "decimal", precision: 19, scale: 4 })
   amount!: number;
 
+  @Column({ type: "varchar", length: 3, default: "USD" })
+  currency!: string;
+
+  @Column({ type: "decimal", precision: 19, scale: 6, default: 1.0 })
+  exchange_rate!: number;
+
+  // Base-currency (USD) normalised amount: amount * exchange_rate.
+  @Column({ type: "decimal", precision: 19, scale: 4, default: 0 })
+  base_amount!: number;
+
   @Column({ type: "text", nullable: true })
   notes!: string | null;
+
+  @OneToMany(() => P2PReceiptLineEntity, (line) => line.receipt)
+  lines!: P2PReceiptLineEntity[];
 
   @CreateDateColumn({ type: "timestamptz" })
   created_at!: Date;

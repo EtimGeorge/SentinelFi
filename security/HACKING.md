@@ -6,13 +6,12 @@ PowerShell first** (the repo's primary dev OS), with `bash` equivalents.
 
 ## 1. Boot a scanable stack
 
-The compose stack maps frontend to `http://localhost:3001` and the backend
-internally to `http://backend:3001` (internally), exposing it also at
-`http://localhost:3001/api`.
+The compose stack maps the frontend to `http://localhost:3000` and the backend
+to `http://localhost:3001` (API at `http://localhost:3001/api`).
 
 ```powershell
 # Docker daemon must be running (Docker Desktop).
-Copy-Item .env.example .env.prod   # or a real staging .env.prod
+# Create a local .env.prod (gitignored) with the values below (or restore a staging one).
 docker compose up -d --build       # db, redis, backend, frontend, ai-agent
 ```
 
@@ -20,18 +19,19 @@ Requires a `.env.prod` (gitignored) with at least:
 
 ```dotenv
 NODE_ENV=development
-PORT=3001
-FRONTEND_URL=http://localhost:3001
-DATABASE_URL=postgresql://postgres:root@localhost:5432/sentinelfi
-REDIS_URL=redis://localhost:6379
+FRONTEND_URL=http://localhost:3000
+DATABASE_URL=postgresql://postgres:root@db:5432/sentinelfi
+REDIS_URL=redis://redis:6379
 JWT_SECRET=<random>
+# PORT is set per-service by docker-compose.yml (backend=3001, frontend=3000,
+# ai-agent=8000); do not set a single shared PORT here.
 ```
 
 Landing pages:
 
 | Service | URL |
 | --- | --- |
-| Frontend (SPA) | `http://localhost:3001` |
+| Frontend (SPA) | `http://localhost:3000` |
 | Backend health | `http://localhost:3001/api/v1/health` |
 | Swagger (dev) | `http://localhost:3001/api/v1/docs` |
 | AI agent | `http://localhost:8000/docs` |

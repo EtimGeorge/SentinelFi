@@ -66,6 +66,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const messageIdCounter = useRef(0);
+  const sessionIdRef = useRef<string>("");
 
   // Persist messages to localStorage
   useEffect(() => {
@@ -104,6 +105,30 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     setScopeState((prev) => ({ ...prev, page: currentPage }));
   }, [currentPage]);
 
+  // Stable chat session id, persisted per tenant/user so guardrails and
+  // server-side context stay consistent across page reloads.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = `${storageKey}:sessionId`;
+    let sid = "";
+    try {
+      sid = localStorage.getItem(key) || "";
+    } catch {
+      sid = "";
+    }
+    if (!sid) {
+      sid = `sess_${tenantId}_${userId}_${Date.now()}_${Math.random()
+        .toString(36)
+        .slice(2, 10)}`;
+      try {
+        localStorage.setItem(key, sid);
+      } catch {
+        // storage unavailable — keep an in-memory session id only
+      }
+    }
+    sessionIdRef.current = sid;
+  }, [storageKey, tenantId, userId]);
+
   // Auto-scroll handling would be in the component
 
   const generateId = useCallback(
@@ -134,17 +159,28 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       try {
         abortControllerRef.current = new AbortController();
 
+        const history = messages.slice(-10).map((m) => ({
+          role: (m.role === "assistant" ? "assistant" : "user") as
+            | "user"
+            | "assistant",
+          content:
+            typeof m.content === "string"
+              ? m.content
+              : JSON.stringify(m.content),
+        }));
+
         const response = await fetch("/api/v1/ai/chat/stream", {
-          method: "POST", credentials: "include", headers: {
-            "Content-Type": "application/json",
-          }, body: JSON.stringify({
-            message: content, scope: { ...scope, page: currentPage }, conversation_history: messages.slice(-10).map((m) => ({
-              role: m.role === "assistant" ? "assistant" : "user", content:
-                typeof m.content === "string"
-                  ? m.content
-                  : JSON.stringify(m.content),
-            })), project_id: projectId,
-          }), signal: abortControllerRef.current.signal,
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: content,
+            sessionId: sessionIdRef.current,
+            history,
+            projectId,
+            currentPage,
+          }),
+          signal: abortControllerRef.current.signal,
         });
 
         if (!response.ok) {
@@ -155,6 +191,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         const decoder = new TextDecoder();
         let accumulatedContent = "";
         let richContentBuffer: RichContent | null = null;
+        let sseBuffer = "";
 
         if (!reader) throw new Error("No response body");
 
@@ -162,27 +199,31 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          accumulatedContent += chunk;
+          // Buffer raw bytes so SSE events split across reads are reassembled.
+          sseBuffer += decoder.decode(value, { stream: true });
 
-          // Try to parse as SSE or JSON chunks
-          const lines = chunk.split("\n");
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                if (data.content) {
-                  accumulatedContent = data.content;
-                }
-                if (data.rich_content) {
-                  richContentBuffer = data.rich_content;
-                }
-                if (data.suggestions) {
-                  // Handle suggestions
-                }
-              } catch (e) {
-                // Ignore parse errors for partial chunks
+          let newlineIndex: number;
+          while ((newlineIndex = sseBuffer.indexOf("\n")) !== -1) {
+            const rawLine = sseBuffer.slice(0, newlineIndex);
+            sseBuffer = sseBuffer.slice(newlineIndex + 1);
+
+            const line = rawLine.trim();
+            if (!line.startsWith("data:")) continue;
+
+            const payload = line.slice(5).trim();
+            if (payload === "[DONE]") continue;
+
+            try {
+              const data = JSON.parse(payload);
+              // Agent streams incremental deltas — append, never replace.
+              if (typeof data.content === "string") {
+                accumulatedContent += data.content;
               }
+              if (data.rich_content) {
+                richContentBuffer = data.rich_content;
+              }
+            } catch (e) {
+              // Ignore parse errors for partial/non-JSON lines
             }
           }
 
@@ -190,9 +231,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantMessageId
-                ? {
-                    ...m, content: accumulatedContent || chunk, streaming: true,
-                  }
+                ? { ...m, content: accumulatedContent, streaming: true }
                 : m,
             ),
           );

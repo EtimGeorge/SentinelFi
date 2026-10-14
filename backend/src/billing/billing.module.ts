@@ -1,6 +1,5 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { ScheduleModule } from "@nestjs/schedule";
 import { BillingController } from "./billing.controller";
 import { BillingService } from "./billing.service";
 import { RenewalReminderService } from "./renewal-reminder.service";
@@ -24,7 +23,6 @@ import { ProcessedWebhookEntity } from "./entities/processed-webhook.entity";
       BillingInvoiceEntity,
       ProcessedWebhookEntity,
     ]),
-    ScheduleModule.forRoot(),
     PaymentModule,
     AuthModule,
     TenantModule,

@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   Logger,
   NotFoundException,
+  ForbiddenException,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
@@ -23,6 +24,8 @@ interface ResolvedTenantContext {
   schema_name: string;
   provisioning_status: string | null;
   schema_exists: boolean;
+  is_active: boolean;
+  deleted_at: Date | string | null;
 }
 
 /**
@@ -93,6 +96,23 @@ export class TenancyGuard implements CanActivate {
 
       if (!resolved) {
         throw new NotFoundException(`Tenant with ID ${tenantId} not found.`);
+      }
+
+      // (0) Deactivated / soft-deleted workspaces are closed for business.
+      //     is_active=false or deleted_at set means the workspace was shut
+      //     down: every request fails here with a clear 403 instead of
+      //     sailing through to an empty (or stale) schema and surfacing as
+      //     confusing empty screens ("No active projects found") downstream.
+      //     Checked FIRST so a dead workspace never leaks any other state.
+      if (resolved.is_active === false || resolved.deleted_at !== null) {
+        this.logger.warn(
+          `[TenancyGuard] Blocked request for deactivated tenant ${tenantId}.`,
+        );
+        throw new ForbiddenException({
+          code: "TENANT_DEACTIVATED",
+          message:
+            "This workspace has been deactivated. Please contact your administrator or switch to an active workspace.",
+        });
       }
 
       // (a) Physical schema must exist. Fail closed, record the corruption on
@@ -179,11 +199,13 @@ export class TenancyGuard implements CanActivate {
 
     const rows = (await runInMasterSchema(this.cls, () =>
       this.dataSource.query(
-        `SELECT t.tenant_id::text     AS tenant_id,
-                t.schema_name         AS schema_name,
-                t.provisioning_status AS provisioning_status,
-                (n.oid IS NOT NULL)   AS schema_exists
-           FROM public.tenants t
+         `SELECT t.tenant_id::text     AS tenant_id,
+                  t.schema_name         AS schema_name,
+                  t.provisioning_status AS provisioning_status,
+                  t.is_active           AS is_active,
+                  t.deleted_at          AS deleted_at,
+                  (n.oid IS NOT NULL)   AS schema_exists
+            FROM public.tenants t
            LEFT JOIN pg_catalog.pg_namespace n
                   ON n.nspname = t.schema_name
           WHERE t.tenant_id = $1::uuid
@@ -195,6 +217,8 @@ export class TenancyGuard implements CanActivate {
       schema_name: string;
       provisioning_status: string | null;
       schema_exists: boolean;
+      is_active: boolean;
+      deleted_at: Date | string | null;
     }>;
 
     if (!Array.isArray(rows) || rows.length === 0) {
@@ -208,6 +232,8 @@ export class TenancyGuard implements CanActivate {
       schema_name: row.schema_name,
       provisioning_status: row.provisioning_status,
       schema_exists: row.schema_exists === true,
+      is_active: row.is_active !== false,
+      deleted_at: row.deleted_at ?? null,
     };
   }
 

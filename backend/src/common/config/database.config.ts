@@ -51,8 +51,11 @@ import { P2PRequisitionEntity } from "../../finance-core/entities/p2p-requisitio
 import { P2PPurchaseOrderEntity } from "../../finance-core/entities/p2p-purchase-order.entity";
 import { P2PInvoiceEntity } from "../../finance-core/entities/p2p-invoice.entity";
 import { P2PReceiptEntity } from "../../finance-core/entities/p2p-receipt.entity";
+import { P2PPurchaseOrderLineEntity } from "../../finance-core/entities/p2p-purchase-order-line.entity";
+import { P2PReceiptLineEntity } from "../../finance-core/entities/p2p-receipt-line.entity";
 import { PayrollRunEntity } from "../../finance-core/entities/payroll-run.entity";
 import { PayrollLineItemEntity } from "../../finance-core/entities/payroll-line-item.entity";
+import { VendorEntity } from "../../finance-core/entities/vendor.entity";
 import { DocumentControlEntity } from "../entities/document-control.entity";
 import { ReportScheduleEntity } from "../../ai-assistant/report-schedule.entity";
 import { MessageEntity } from "../../messaging/entities/message.entity";
@@ -192,9 +195,12 @@ export class DatabaseConfig {
       P2PPurchaseOrderEntity,
       P2PInvoiceEntity,
       P2PReceiptEntity,
+      P2PPurchaseOrderLineEntity,
+      P2PReceiptLineEntity,
       OpexEncumbranceEntity,
       PayrollRunEntity,
       PayrollLineItemEntity,
+      VendorEntity,
       ApprovalLogEntity,
       CEOAnnotationEntity,
       DocumentControlEntity,

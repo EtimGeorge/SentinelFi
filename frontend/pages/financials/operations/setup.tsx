@@ -41,7 +41,6 @@ const FiscalYearSetupPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       await createFiscalYear({ label, startDate, endDate });
-      toast.success(`Success: Fiscal Cycle ${label} is now active.`);
       const updated = await fetchFiscalYears();
       setFiscalYears(updated);
 

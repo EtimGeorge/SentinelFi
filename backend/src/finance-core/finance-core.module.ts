@@ -21,8 +21,11 @@ import { P2PRequisitionEntity } from "./entities/p2p-requisition.entity";
 import { P2PPurchaseOrderEntity } from "./entities/p2p-purchase-order.entity";
 import { P2PInvoiceEntity } from "./entities/p2p-invoice.entity";
 import { P2PReceiptEntity } from "./entities/p2p-receipt.entity";
+import { P2PPurchaseOrderLineEntity } from "./entities/p2p-purchase-order-line.entity";
+import { P2PReceiptLineEntity } from "./entities/p2p-receipt-line.entity";
 import { PayrollRunEntity } from "./entities/payroll-run.entity";
 import { PayrollLineItemEntity } from "./entities/payroll-line-item.entity";
+import { VendorEntity } from "./entities/vendor.entity";
 
 // Governance
 import { ApprovalLogEntity } from "../common/entities/approval-log.entity";
@@ -52,9 +55,12 @@ import { OperationalBudgetsModule } from "../operational-budgets/operational-bud
         P2PPurchaseOrderEntity,
         P2PInvoiceEntity,
         P2PReceiptEntity,
+        P2PPurchaseOrderLineEntity,
+        P2PReceiptLineEntity,
         PayrollRunEntity,
         PayrollLineItemEntity,
         ApprovalLogEntity,
+        VendorEntity,
       ],
       TENANT_DATA_SOURCE,
     ),

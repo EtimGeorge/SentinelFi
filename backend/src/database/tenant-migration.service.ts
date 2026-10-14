@@ -48,8 +48,11 @@ import { P2PRequisitionEntity } from "../finance-core/entities/p2p-requisition.e
 import { P2PPurchaseOrderEntity } from "../finance-core/entities/p2p-purchase-order.entity";
 import { P2PInvoiceEntity } from "../finance-core/entities/p2p-invoice.entity";
 import { P2PReceiptEntity } from "../finance-core/entities/p2p-receipt.entity";
+import { P2PPurchaseOrderLineEntity } from "../finance-core/entities/p2p-purchase-order-line.entity";
+import { P2PReceiptLineEntity } from "../finance-core/entities/p2p-receipt-line.entity";
 import { PayrollRunEntity } from "../finance-core/entities/payroll-run.entity";
 import { PayrollLineItemEntity } from "../finance-core/entities/payroll-line-item.entity";
+import { VendorEntity } from "../finance-core/entities/vendor.entity";
 
 @Injectable()
 export class TenantMigrationService {
@@ -153,8 +156,11 @@ export class TenantMigrationService {
         P2PPurchaseOrderEntity,
         P2PInvoiceEntity,
         P2PReceiptEntity,
+        P2PPurchaseOrderLineEntity,
+        P2PReceiptLineEntity,
         PayrollRunEntity,
         PayrollLineItemEntity,
+        VendorEntity,
       ],
       migrations: getTenantMigrationsPath(),
       migrationsTableName: "tenant_migrations", // Dedicated migrations table for tenant schemas

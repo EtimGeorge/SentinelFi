@@ -11,6 +11,7 @@ import {
 import { P2PPurchaseOrderEntity } from "@src/finance-core/entities/p2p-purchase-order.entity";
 import { CostCenterEntity } from "@src/finance-core/entities/cost-center.entity";
 import { GLAccountEntity } from "@src/finance-core/entities/gl-account.entity";
+import { VendorEntity } from "@src/finance-core/entities/vendor.entity";
 
 export enum InvoiceStatus {
   RECEIVED = "RECEIVED",
@@ -58,6 +59,13 @@ export class P2PInvoiceEntity {
   @Column({ type: "varchar", length: 255 })
   vendor_name!: string;
 
+  @Column({ type: "uuid", nullable: true })
+  vendor_id!: string | null;
+
+  @ManyToOne(() => VendorEntity, { nullable: true })
+  @JoinColumn({ name: "vendor_id" })
+  vendor?: VendorEntity;
+
   // Represents ACTUAL SPEND
   @Column({ type: "decimal", precision: 19, scale: 4 })
   amount!: number;
@@ -86,6 +94,27 @@ export class P2PInvoiceEntity {
 
   @Column({ type: "varchar", length: 2048, nullable: true })
   receipt_url!: string | null;
+
+  // ─── Retention & Withholding (contractor payables) ─────────────────────
+  // Retention (retainage) withheld from a contractor invoice until final
+  // acceptance, and withholding tax remitted to the authority on the vendor's
+  // behalf. Both are percentages of `amount`.
+  @Column({ type: "decimal", precision: 5, scale: 2, default: 0 })
+  retention_pct!: number;
+
+  @Column({ type: "decimal", precision: 19, scale: 4, default: 0 })
+  retention_amount!: number;
+
+  @Column({ type: "decimal", precision: 5, scale: 2, default: 0 })
+  wht_pct!: number;
+
+  @Column({ type: "decimal", precision: 19, scale: 4, default: 0 })
+  wht_amount!: number;
+
+  // `amount` - `retention_amount` - `wht_amount`: the cash actually payable
+  // to the vendor now (retention released later via a separate claim).
+  @Column({ type: "decimal", precision: 19, scale: 4, default: 0 })
+  net_payable!: number;
 
   @CreateDateColumn({ type: "timestamptz" })
   created_at!: Date;

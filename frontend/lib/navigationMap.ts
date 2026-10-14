@@ -79,6 +79,9 @@ export const navigationMap: NavItem[] = [
             name: 'P2P Procurement', icon: ShoppingCart, path: '/financials/operations/procurement', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager],
         },
         {
+            name: 'Vendor Master', icon: Building2, path: '/financials/operations/vendors', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager],
+        },
+        {
             name: 'Payroll Desk', icon: CreditCard, path: '/financials/operations/payroll', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.FinanceManager],
         },
         {

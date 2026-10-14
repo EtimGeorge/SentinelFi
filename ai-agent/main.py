@@ -299,33 +299,82 @@ class AIProviderManager:
         self._initialize_providers()
 
     def _initialize_providers(self):
+        # NOTE: clients are built LAZILY via factories (see _client_for).
+        # google-genai binds an async client to the running event loop at
+        # construction time, so building it at import (no loop) breaks every
+        # later ainvoke with "Initialize ... with a running event loop".
+        # Registration here only records intent (used by / health).
         or_api_key = os.getenv("OPENROUTER_API_KEY")
         if or_api_key:
-            self.providers.append({
-                "name": "OpenRouter",
-                "client": ChatOpenAI(
-                    model=os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"),
+            # OPENROUTER_MODELS (comma-separated) wins; OPENROUTER_MODEL kept
+            # as a single-model override; otherwise a verified-live default.
+            # Free-model IDs churn monthly — never hardcode just one.
+            raw = os.getenv("OPENROUTER_MODELS") or os.getenv(
+                "OPENROUTER_MODEL",
+                "nvidia/nemotron-3-super-120b-a12b:free",
+            )
+            models = [m.strip() for m in raw.split(",") if m.strip()]
+            for model in models:
+                self.providers.append({
+                    "name": f"OpenRouter:{model}",
+                "factory": (lambda m=model: ChatOpenAI(
+                    model=m,
                     openai_api_key=or_api_key,
                     openai_api_base="https://openrouter.ai/api/v1",
                     temperature=0.3,
+                    max_retries=0,  # no per-provider backoff: chain failover governs
                     default_headers={
                         "HTTP-Referer": "https://sentinelfi.com",
                         "X-OpenRouter-Title": "SentinelFi AI Agent"
                     }
-                )
-            })
-        
+                )),
+                })
+
         google_api_key = os.getenv("GEMINI_API_KEY")
         if google_api_key:
+            gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
             self.providers.append({
                 "name": "Google",
-                "client": ChatGoogleGenerativeAI(
-                    model="gemini-1.5-flash",
+                "factory": (lambda: ChatGoogleGenerativeAI(
+                    model=gemini_model,
                     google_api_key=google_api_key,
                     temperature=0.3,
+                    max_retries=0,  # fail fast: chain failover governs, not backoff
                     convert_system_message_to_human=True
-                )
+                )),
             })
+
+        # Local Ollama — LAST resort by design: weakest models, but free,
+        # private (data never leaves the box), and independent of every
+        # cloud vendor above. Registered last so it is only reached when
+        # all cloud legs fail. A refused localhost connection fails in ~ms,
+        # so an absent Ollama costs nothing when primaries are healthy.
+        # Disable with OLLAMA_ENABLED=false.
+        if os.getenv("OLLAMA_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off"):
+            ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+            ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1")
+            self.providers.append({
+                "name": f"Ollama:{ollama_model}",
+                "base_url": f"{ollama_base}/v1",
+                "factory": (lambda: ChatOpenAI(
+                    model=ollama_model,
+                    openai_api_key="ollama",  # Ollama ignores the key; client requires one
+                    openai_api_base=f"{ollama_base}/v1",
+                    temperature=0.3,
+                    max_retries=0,  # local refused-connection fails in ms; no backoff
+                )),
+            })
+
+    def _client_for(self, provider: Dict[str, Any]) -> Any:
+        client = provider.get("client")
+        if client is not None:
+            return client
+        factory = provider.get("factory")
+        if factory is None:  # backward compat with pre-lazy entries
+            return None
+        client = factory()
+        provider["client"] = client
+        return client
 
     async def ainvoke(self, messages: List[Any], **kwargs) -> Any:
         if not self.providers:
@@ -335,13 +384,43 @@ class AIProviderManager:
         for provider_data in self.providers:
             provider: Dict[str, Any] = cast(Dict[str, Any], provider_data)
             try:
-                client: Any = provider.get("client")
+                client: Any = self._client_for(provider)
                 if client and hasattr(client, "ainvoke"):
                     return await client.ainvoke(messages, **kwargs)
                 elif client and hasattr(client, "invoke"):
                     return client.invoke(messages, **kwargs)
             except Exception as e:
+                # Drop the broken client so the next call rebuilds it
+                # fresh in whatever loop is running then.
+                provider.pop("client", None)
                 logger.warning("llm_failover", provider=str(provider.get("name")), error=str(e))
+                last_error = e
+        raise RuntimeError(f"All LLM providers failed. Last error: {str(last_error)}")
+
+    async def astream(self, messages: List[Any], **kwargs) -> Any:
+        """Yield token chunks from the first provider that supports streaming."""
+        if not self.providers:
+            raise RuntimeError("No LLM providers available.")
+        last_error: Optional[Exception] = None
+        for provider_data in self.providers:
+            provider: Dict[str, Any] = cast(Dict[str, Any], provider_data)
+            try:
+                client: Any = self._client_for(provider)
+                if client is None:
+                    continue
+                if hasattr(client, "astream"):
+                    async for chunk in client.astream(messages, **kwargs):
+                        yield chunk
+                    return
+                elif hasattr(client, "ainvoke"):
+                    yield await client.ainvoke(messages, **kwargs)
+                    return
+                elif hasattr(client, "invoke"):
+                    yield client.invoke(messages, **kwargs)
+                    return
+            except Exception as e:
+                provider.pop("client", None)
+                logger.warning("llm_stream_failover", provider=str(provider.get("name")), error=str(e))
                 last_error = e
         raise RuntimeError(f"All LLM providers failed. Last error: {str(last_error)}")
 

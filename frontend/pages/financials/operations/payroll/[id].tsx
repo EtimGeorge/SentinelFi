@@ -48,13 +48,13 @@ const PayrollRunDetailsPage: React.FC = () => {
 
   const loadData = async () => {
     const data = await fetchPayrollRunDetails(id as string);
-    if (data) setRun(data.data);
+    if (data) setRun(data);
 
     const [depts, accounts, emps] = await Promise.all([
       fetchDepartments(), fetchChartOfAccounts(), fetchEmployees()
     ]);
-    setDepartments(depts.data || []);
-    setCoa(accounts.data || []);
+    setDepartments(depts || []);
+    setCoa(accounts || []);
     setEmployees(emps || []);
   };
 

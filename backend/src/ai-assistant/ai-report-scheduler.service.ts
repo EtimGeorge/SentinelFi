@@ -1,14 +1,14 @@
 ﻿import { Injectable, Logger, Optional } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { InjectRepository } from "@nestjs/typeorm";
-import { LessThanOrEqual, Repository } from "typeorm";
-import {
-  ReportScheduleEntity,
-  ReportStatus,
-} from "./report-schedule.entity";
+import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
+import { DataSource, LessThanOrEqual, Repository } from "typeorm";
+import { ClsService } from "nestjs-cls";
+import { ReportScheduleEntity, ReportStatus } from "./report-schedule.entity";
 import { AiAssistantService } from "./ai-assistant.service";
 import { EmailService } from "../email/email.service";
 import { TENANT_DATA_SOURCE } from "../database/constants";
+import { TenantEntity } from "../tenants/tenant.entity";
+import { TenantProvisioningStatus } from "@shared/types/tenant-provisioning-status.enum";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_EMAIL_RECIPIENTS = 20;
@@ -25,6 +25,12 @@ function escapeHtml(s: string): string {
 /**
  * Background worker that makes "Scheduled Report Automation" actually run.
  *
+ * Schedules live inside each tenant's schema (see REPORT_SCHEDULE tenancy), so a
+ * single global tick cannot query one table: it enumerates active tenants from
+ * `public.tenants`, then processes each tenant's due schedules with SCHEMA_NAME
+ * pinned to that tenant via CLS. A tenant whose schema has no
+ * `ai_report_schedule` table yet (migration pending) is skipped, not retried.
+ *
  * Runs every 5 minutes, picks due ACTIVE schedules (next_run_at <= now),
  * generates the AI narrative, and advances bookkeeping fields.
  *
@@ -32,8 +38,9 @@ function escapeHtml(s: string): string {
  * - Overlap guard (`running` flag) so a slow tick can't double-execute.
  * - Claim-first: next_run_at is bumped BEFORE the LLM call so a crash /
  *   retry doesn't duplicate work; failures are recorded in last_error.
- * - Bounded batch (take 25, ordered oldest-first) for backpressure.
- * - Per-schedule try/catch so one bad schedule never kills the whole batch.
+ * - Bounded batch per tenant (take 25, ordered oldest-first) for backpressure.
+ * - Per-schedule and per-tenant try/catch so one bad schedule or schema never
+ *   kills the whole sweep.
  */
 @Injectable()
 export class AiReportSchedulerService {
@@ -44,38 +51,91 @@ export class AiReportSchedulerService {
     @InjectRepository(ReportScheduleEntity, TENANT_DATA_SOURCE)
     private readonly scheduleRepo: Repository<ReportScheduleEntity>,
     private readonly aiService: AiAssistantService,
+    @InjectDataSource()
+    private readonly rootDataSource: DataSource,
+    private readonly cls: ClsService,
     @Optional() private readonly emailService?: EmailService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async processDueSchedules(): Promise<void> {
     if (this.running) {
-      this.logger.warn("Scheduler tick skipped: previous run still in progress");
+      this.logger.warn(
+        "Scheduler tick skipped: previous run still in progress",
+      );
       return;
     }
     this.running = true;
     try {
-      const now = new Date();
-      const due = await this.scheduleRepo.find({
-        where: {
-          status: ReportStatus.ACTIVE,
-          next_run_at: LessThanOrEqual(now),
-        },
-        order: { next_run_at: "ASC" },
-        take: 25,
-      });
+      // Schedules live in each tenant's schema, so a global tick must fan out
+      // across tenants. Enumerate the master tenant list from `public.tenants`
+      // OUTSIDE any tenant context (so it resolves to the public schema), then
+      // process each tenant inside its own CLS context below.
+      const tenants = await this.rootDataSource
+        .getRepository(TenantEntity)
+        .find({
+          where: {
+            is_active: true,
+            provisioning_status: TenantProvisioningStatus.ACTIVE,
+          },
+          select: ["tenant_id", "schema_name"],
+        });
 
-      if (due.length === 0) return;
+      if (tenants.length === 0) return;
 
-      this.logger.log(`Scheduler tick: ${due.length} due schedule(s)`);
-
-      for (const schedule of due) {
-        await this.executeOne(schedule, now);
+      for (const tenant of tenants) {
+        await this.processTenant(tenant.schema_name, tenant.tenant_id);
       }
     } catch (e) {
       this.logger.error("Scheduler tick failed", e as any);
     } finally {
       this.running = false;
+    }
+  }
+
+  /**
+   * Process a single tenant's due schedules with the tenant schema pinned in
+   * CLS so the tenancy-aware DataSource routes queries there — never `public`.
+   */
+  private async processTenant(
+    schemaName: string,
+    tenantId: string,
+  ): Promise<void> {
+    try {
+      await this.cls.run(async () => {
+        this.cls.set("SCHEMA_NAME", schemaName);
+        this.cls.set("tenant_id", tenantId);
+
+        const now = new Date();
+        const due = await this.scheduleRepo.find({
+          where: {
+            status: ReportStatus.ACTIVE,
+            next_run_at: LessThanOrEqual(now),
+          },
+          order: { next_run_at: "ASC" },
+          take: 25,
+        });
+
+        if (due.length === 0) return;
+
+        this.logger.log(
+          `Scheduler tick: ${due.length} due schedule(s) for "${schemaName}"`,
+        );
+
+        for (const schedule of due) {
+          await this.executeOne(schedule, now);
+        }
+      });
+    } catch (e: any) {
+      // 42P01 = undefined_table. A tenant whose schema predates the
+      // ai_report_schedule migration must not spam an error every 5 minutes.
+      if (e?.code === "42P01") {
+        this.logger.warn(
+          `Scheduler: tenant "${schemaName}" has no ai_report_schedule table (migration pending?) — skipped.`,
+        );
+        return;
+      }
+      this.logger.error(`Scheduler: tenant "${schemaName}" tick failed`, e);
     }
   }
 
@@ -108,9 +168,7 @@ export class AiReportSchedulerService {
         currency: "NGN",
         financialData: {
           ...(schedule.filters ?? {}),
-          ...(schedule.project_id
-            ? { projectId: schedule.project_id }
-            : {}),
+          ...(schedule.project_id ? { projectId: schedule.project_id } : {}),
         },
       });
 

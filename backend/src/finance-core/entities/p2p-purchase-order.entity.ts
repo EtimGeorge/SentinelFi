@@ -12,6 +12,8 @@ import {
 import { P2PRequisitionEntity } from "@src/finance-core/entities/p2p-requisition.entity";
 import { P2PInvoiceEntity } from "@src/finance-core/entities/p2p-invoice.entity";
 import { P2PReceiptEntity } from "@src/finance-core/entities/p2p-receipt.entity";
+import { P2PPurchaseOrderLineEntity } from "@src/finance-core/entities/p2p-purchase-order-line.entity";
+import { VendorEntity } from "@src/finance-core/entities/vendor.entity";
 
 export enum POStatus {
   ISSUED = "ISSUED",
@@ -42,6 +44,13 @@ export class P2PPurchaseOrderEntity {
   @Column({ type: "varchar", length: 255 })
   vendor_name!: string;
 
+  @Column({ type: "uuid", nullable: true })
+  vendor_id!: string | null;
+
+  @ManyToOne(() => VendorEntity, { nullable: true })
+  @JoinColumn({ name: "vendor_id" })
+  vendor?: VendorEntity;
+
   // Represents COMMITTED SPEND
   @Column({ type: "decimal", precision: 19, scale: 4 })
   committed_amount!: number;
@@ -60,6 +69,9 @@ export class P2PPurchaseOrderEntity {
 
   @OneToMany(() => P2PInvoiceEntity, (inv) => inv.purchaseOrder)
   invoices!: P2PInvoiceEntity[];
+
+  @OneToMany(() => P2PPurchaseOrderLineEntity, (line) => line.purchaseOrder)
+  lines!: P2PPurchaseOrderLineEntity[];
 
   @OneToMany(() => P2PReceiptEntity, (receipt) => receipt.purchaseOrder)
   receipts!: P2PReceiptEntity[];

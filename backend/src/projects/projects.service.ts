@@ -31,10 +31,7 @@ import { ExcelUtility } from "../common/excel.utility";
 import { WordUtility } from "../common/word.utility";
 import { Buffer } from "buffer";
 import { TENANT_DATA_SOURCE } from "../database/constants";
-import {
-  SafeTransaction,
-  RetryableQuery,
-} from "../common/config/database.config";
+import { SafeTransaction } from "../common/config/database.config";
 import { ProjectStatus } from "./enums/project.enum";
 
 @Injectable()
@@ -208,7 +205,10 @@ export class ProjectsService {
     }
 
     // --- 3. Tiered variance check against outstanding commitment ---
-    const outstanding = await this.computeOutstandingCommitment(wbs_id, tenantId);
+    const outstanding = await this.computeOutstandingCommitment(
+      wbs_id,
+      tenantId,
+    );
     const varianceResult = await this.budgetControlService.validateWbsExpense(
       wbsItem,
       amount_committed,
@@ -234,11 +234,7 @@ export class ProjectsService {
         );
         approvalStatus = ApprovalStatus.APPROVED;
         finalFlag = VarianceFlag.OVERRIDE_APPLIED;
-      } else if (
-        createLpoDto.override_reason &&
-        !isAuthorized &&
-        actorRole
-      ) {
+      } else if (createLpoDto.override_reason && !isAuthorized && actorRole) {
         // Authorizer supplied a reason but lacks the role -> never trust it inline
         approvalStatus = ApprovalStatus.PENDING_APPROVAL;
       } else {
@@ -255,8 +251,7 @@ export class ProjectsService {
       const lpo = queryRunner.manager.create(LpoEntity, {
         ...createLpoDto,
         lpo_number:
-          createLpoDto.lpo_number ||
-          (await this.generateLpoNumber(project)),
+          createLpoDto.lpo_number || (await this.generateLpoNumber(project)),
         tenant_id: tenantId,
         created_by_user_id: userId,
         status: LpoStatus.OPEN,
@@ -285,9 +280,10 @@ export class ProjectsService {
         project_id: createLpoDto.project_id,
         tenant_id: tenantId,
         performed_by_user_id: userId,
-        change_type: approvalStatus === ApprovalStatus.APPROVED
-          ? "LPO_CREATED"
-          : "LPO_PENDING_APPROVAL",
+        change_type:
+          approvalStatus === ApprovalStatus.APPROVED
+            ? "LPO_CREATED"
+            : "LPO_PENDING_APPROVAL",
         old_value: null,
         new_value: amount_committed,
         description: `LPO ${savedLpo.lpo_number} committed to ${
@@ -412,9 +408,7 @@ export class ProjectsService {
       `LPO ${lpo.lpo_number} (${lpo.vendor_name}) rejected by ${authorizerRole}. No commitment was booked.`,
     );
 
-    this.logger.warn(
-      `[LPO] ${lpo.lpo_number} rejected by ${authorizerRole}`,
-    );
+    this.logger.warn(`[LPO] ${lpo.lpo_number} rejected by ${authorizerRole}`);
     return saved;
   }
 
@@ -456,9 +450,7 @@ export class ProjectsService {
 
     lpo.amount_paid = newPaid;
     lpo.status =
-      newPaid >= Number(lpo.amount_committed)
-        ? LpoStatus.CLOSED
-        : lpo.status; // partial payments keep OPEN; UI derives PARTIALLY PAID from amount_paid
+      newPaid >= Number(lpo.amount_committed) ? LpoStatus.CLOSED : lpo.status; // partial payments keep OPEN; UI derives PARTIALLY PAID from amount_paid
     const saved = await this.lpoRepository.save(lpo);
 
     await this.logAudit(
@@ -543,9 +535,7 @@ export class ProjectsService {
       `LPO ${lpo.lpo_number} (${lpo.vendor_name}) cancelled by ${actorRole}. Committed value released.`,
     );
 
-    this.logger.warn(
-      `[LPO] ${lpo.lpo_number} cancelled by ${actorRole}`,
-    );
+    this.logger.warn(`[LPO] ${lpo.lpo_number} cancelled by ${actorRole}`);
     return saved;
   }
 
@@ -568,8 +558,13 @@ export class ProjectsService {
     const saved = await this.lpoRepository.save(lpo);
 
     const details: string[] = [];
-    if (updateLpoDto.vendor_name !== undefined && updateLpoDto.vendor_name !== previous.vendor_name) {
-      details.push(`vendor ${previous.vendor_name} -> ${updateLpoDto.vendor_name}`);
+    if (
+      updateLpoDto.vendor_name !== undefined &&
+      updateLpoDto.vendor_name !== previous.vendor_name
+    ) {
+      details.push(
+        `vendor ${previous.vendor_name} -> ${updateLpoDto.vendor_name}`,
+      );
     }
     if (updateLpoDto.expected_delivery_date !== undefined) {
       details.push("expected delivery date updated");
@@ -645,7 +640,8 @@ export class ProjectsService {
 
     const amountDelta =
       updateInflowDto.amount_received !== undefined
-        ? Number(updateInflowDto.amount_received) - Number(inflow.amount_received)
+        ? Number(updateInflowDto.amount_received) -
+          Number(inflow.amount_received)
         : 0;
 
     Object.assign(inflow, updateInflowDto);
@@ -693,7 +689,11 @@ export class ProjectsService {
       `Inflow of ${inflow.amount_received} for milestone "${inflow.milestone_name}" removed by ${userId}.`,
     );
 
-    await this.inflowRepository.delete({ id: inflow_id, project_id, tenant_id: tenantId });
+    await this.inflowRepository.delete({
+      id: inflow_id,
+      project_id,
+      tenant_id: tenantId,
+    });
   }
 
   private _addRollupSubqueries(
@@ -860,36 +860,72 @@ export class ProjectsService {
     } = options;
     const skip = (page - 1) * limit;
 
-    let queryBuilder = this.projectRepository
-      .createQueryBuilder("project")
-      .leftJoinAndSelect("project.createdBy", "user")
-      .leftJoinAndSelect("project.client", "client")
-      .where("project.tenant_id = :tenantId", { tenantId });
+    const buildQuery = (withRollups: boolean) => {
+      let queryBuilder = this.projectRepository
+        .createQueryBuilder("project")
+        .leftJoinAndSelect("project.createdBy", "user")
+        .leftJoinAndSelect("project.client", "client")
+        .where("project.tenant_id = :tenantId", { tenantId });
 
-    queryBuilder = this._addRollupSubqueries(queryBuilder);
+      if (withRollups) {
+        queryBuilder = this._addRollupSubqueries(queryBuilder);
+      }
 
-    if (project_name) {
-      queryBuilder.andWhere("project.project_name ILIKE :project_name", {
-        project_name: `%${project_name}%`,
-      });
+      if (project_name) {
+        queryBuilder.andWhere("project.project_name ILIKE :project_name", {
+          project_name: `%${project_name}%`,
+        });
+      }
+      if (status) {
+        queryBuilder.andWhere("project.status = :status", { status });
+      }
+      if (client_id) {
+        queryBuilder.andWhere("project.client_id = :client_id", { client_id });
+      }
+
+      // Support sorting by aggregate fields or direct fields. An aggregate sort
+      // has no column to order by once the rollups are dropped, so fall back to
+      // project_name in that case.
+      const sortField = sortBy.includes("_rollup")
+        ? withRollups
+          ? sortBy
+          : "project.project_name"
+        : `project.${sortBy}`;
+      queryBuilder.orderBy(sortField, sortOrder);
+
+      return queryBuilder;
+    };
+
+    let queryBuilder = buildQuery(true);
+    let entities: ProjectEntity[];
+    let raw: any[] = [];
+    try {
+      const result = await queryBuilder
+        .skip(skip)
+        .take(limit)
+        .getRawAndEntities();
+      entities = result.entities;
+      raw = result.raw;
+    } catch (error) {
+      // The budget/inflow rollups are a display enhancement, not the purpose of
+      // this endpoint. If they fail (e.g. a tenant whose WBS tables are
+      // unavailable), returning no projects would blank the CAPEX project
+      // picker. Fall back to the plain list with zeroed rollups instead.
+      this.logger.warn(
+        `[findAll] Rollup query failed (${
+          error instanceof Error ? error.message : String(error)
+        }); returning projects without rollups.`,
+      );
+      queryBuilder = buildQuery(false);
+      const result = await queryBuilder
+        .skip(skip)
+        .take(limit)
+        .getRawAndEntities();
+      entities = result.entities;
+      raw = result.raw;
     }
-    if (status) {
-      queryBuilder.andWhere("project.status = :status", { status });
-    }
-    if (client_id) {
-      queryBuilder.andWhere("project.client_id = :client_id", { client_id });
-    }
 
-    // Support sorting by aggregate fields or direct fields
-    const sortField = sortBy.includes("_rollup") ? sortBy : `project.${sortBy}`;
-    queryBuilder.orderBy(sortField, sortOrder);
-
-    const { entities, raw } = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getRawAndEntities();
-
-    const mappedProjects = entities.map((project, index) => {
+    const mappedProjects = entities.map((project) => {
       // Find the corresponding raw result by project_id
       const rawData = raw.find(
         (r) => r.project_project_id === project.project_id,
@@ -1131,7 +1167,7 @@ export class ProjectsService {
     tenantId: string,
     userId?: string,
   ): Promise<void> {
-    const project = await this.findOne(project_id, tenantId);
+    await this.findOne(project_id, tenantId);
 
     // FINANCIAL INTEGRITY GATE: Block hard-deletion if project has budgets or expenses
     const budgetCount = await this.wbsBudgetRepository.count({

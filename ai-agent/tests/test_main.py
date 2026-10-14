@@ -1,3 +1,4 @@
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -160,6 +161,168 @@ class AiAgentApiTests(unittest.TestCase):
         self.assertIn("text/event-stream", response.headers["content-type"])
         self.assertIn("blocked", response.text)
         self.assertIn("[DONE]", response.text)
+
+
+class ProviderManagerTests(unittest.TestCase):
+    def test_providers_register_lazily_without_building_clients(self):
+        with patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "k", "GEMINI_API_KEY": "g"},
+            clear=False,
+        ):
+            mgr = main.AIProviderManager()
+        # registered (health check sees them) but nothing constructed yet —
+        # construction inside a running loop is what the event-loop fix needs
+        self.assertTrue(len(mgr.providers) >= 2)
+        for p in mgr.providers:
+            self.assertNotIn("client", p)
+            self.assertIn("factory", p)
+
+    def test_openrouter_models_env_expands_to_ordered_fallback_chain(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENROUTER_API_KEY": "k",
+                "OPENROUTER_MODELS": "aaa:free, bbb:free",
+            },
+            clear=False,
+        ):
+            # hide the Google key so only OpenRouter (+ default Ollama) register
+            with patch.dict("os.environ", {}, clear=False):
+                os.environ.pop("GEMINI_API_KEY", None)
+                mgr = main.AIProviderManager()
+        names = [p["name"] for p in mgr.providers]
+        self.assertEqual(
+            names,
+            ["OpenRouter:aaa:free", "OpenRouter:bbb:free", "Ollama:llama3.1"],
+        )
+
+    def test_broken_client_is_dropped_so_next_call_rebuilds(self):
+        import asyncio
+
+        class Exploding:
+            async def ainvoke(self, messages):
+                raise RuntimeError("boom")
+
+        good = FakeLlm("recovered")
+        mgr = main.AIProviderManager()
+        mgr.providers = [
+            {"name": "bad", "client": Exploding()},
+            {"name": "good", "client": good},
+        ]
+        result = asyncio.run(mgr.ainvoke([]))
+        self.assertEqual(result.content, "recovered")
+        self.assertNotIn("client", mgr.providers[0])
+
+    def test_astream_delegates_to_first_streaming_provider(self):
+        import asyncio
+
+        class Streamer:
+            async def astream(self, messages):
+                yield SimpleNamespace(content="tok1")
+                yield SimpleNamespace(content="tok2")
+
+        async def collect():
+            mgr = main.AIProviderManager()
+            mgr.providers = [{"name": "s", "client": Streamer()}]
+            return [c.content async for c in mgr.astream([])]
+
+        self.assertEqual(asyncio.run(collect()), ["tok1", "tok2"])
+
+    def test_ollama_registers_last_with_lazy_factory(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENROUTER_API_KEY": "k",
+                "OPENROUTER_MODELS": "aaa:free",
+                "GEMINI_API_KEY": "g",
+            },
+            clear=False,
+        ):
+            mgr = main.AIProviderManager()
+        names = [p["name"] for p in mgr.providers]
+        self.assertEqual(names[-1], "Ollama:llama3.1")
+        ollama = mgr.providers[-1]
+        self.assertNotIn("client", ollama)
+        self.assertIn("factory", ollama)
+        self.assertEqual(ollama["base_url"], "http://localhost:11434/v1")
+
+    def test_ollama_disabled_via_env(self):
+        with patch.dict(
+            "os.environ",
+            {"OPENROUTER_API_KEY": "k", "OLLAMA_ENABLED": "false"},
+            clear=False,
+        ):
+            with patch.dict("os.environ", {}, clear=False):
+                os.environ.pop("GEMINI_API_KEY", None)
+                mgr = main.AIProviderManager()
+        names = [p["name"] for p in mgr.providers]
+        self.assertTrue(all(not n.startswith("Ollama") for n in names))
+
+    def test_ollama_custom_base_url_and_model(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "OLLAMA_BASE_URL": "http://gpu-box:11434/",
+                "OLLAMA_MODEL": "qwen3:8b",
+            },
+            clear=False,
+        ):
+            with patch.dict("os.environ", {}, clear=False):
+                os.environ.pop("OPENROUTER_API_KEY", None)
+                os.environ.pop("GEMINI_API_KEY", None)
+                mgr = main.AIProviderManager()
+        self.assertEqual(len(mgr.providers), 1)
+        self.assertEqual(mgr.providers[0]["name"], "Ollama:qwen3:8b")
+        self.assertEqual(mgr.providers[0]["base_url"], "http://gpu-box:11434/v1")
+
+    def test_failover_reaches_ollama_after_cloud_legs_fail(self):
+        import asyncio
+
+        class Exploding:
+            async def ainvoke(self, messages):
+                raise RuntimeError("cloud down")
+
+        good = FakeLlm("from-local-ollama")
+        mgr = main.AIProviderManager()
+        mgr.providers = [
+            {"name": "OpenRouter:x:free", "client": Exploding()},
+            {"name": "Google", "client": Exploding()},
+            {"name": "Ollama:llama3.1", "client": good},
+        ]
+        result = asyncio.run(mgr.ainvoke([]))
+        self.assertEqual(result.content, "from-local-ollama")
+
+    def test_factories_disable_per_provider_backoff(self):
+        # Chain-level failover must govern latency, not langchain's
+        # exponential backoff (2s,4s,8s,...) inside a single provider.
+        captured = {}
+
+        class FakeChat:
+            def __init__(self, **kwargs):
+                captured[kwargs.get("model")] = kwargs
+
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENROUTER_API_KEY": "k",
+                "OPENROUTER_MODELS": "aaa:free",
+                "GEMINI_API_KEY": "g",
+                "OLLAMA_BASE_URL": "http://gpu-box:11434",
+                "OLLAMA_MODEL": "qwen3:8b",
+            },
+            clear=False,
+        ):
+            mgr = main.AIProviderManager()
+        with patch.object(main, "ChatOpenAI", FakeChat):
+            with patch.object(main, "ChatGoogleGenerativeAI", FakeChat):
+                for p in mgr.providers:
+                    mgr._client_for(p)
+        for model, kwargs in captured.items():
+            self.assertEqual(
+                kwargs.get("max_retries"), 0, "provider %s must fail fast" % model
+            )
+        self.assertTrue(len(captured) >= 3)
 
 
 class StructuredExtractionTests(unittest.TestCase):

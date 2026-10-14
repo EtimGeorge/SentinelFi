@@ -4,9 +4,10 @@ import {
   ConflictException,
   NotFoundException,
   InternalServerErrorException,
+  BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, DataSource } from "typeorm";
+import { Repository, DataSource, EntityManager } from "typeorm";
 import { FiscalYearEntity } from "./entities/fiscal-year.entity";
 import {
   FiscalPeriodEntity,
@@ -27,6 +28,8 @@ import {
 } from "./entities/p2p-purchase-order.entity";
 import { P2PInvoiceEntity, InvoiceStatus } from "./entities/p2p-invoice.entity";
 import { P2PReceiptEntity } from "./entities/p2p-receipt.entity";
+import { P2PPurchaseOrderLineEntity } from "./entities/p2p-purchase-order-line.entity";
+import { P2PReceiptLineEntity } from "./entities/p2p-receipt-line.entity";
 import { BudgetLedgerEntity } from "./entities/budget-ledger.entity";
 import { PayrollLineItemEntity } from "./entities/payroll-line-item.entity";
 import { PayrollRunStatus } from "./entities/payroll-run.entity";
@@ -50,11 +53,14 @@ import { format } from "date-fns";
 import { PdfGenerationService } from "../common/pdf-generation.service";
 import { TenantService } from "../tenants/tenant.service";
 import { EncumbranceStatus, EncumbranceSourceType } from "@shared/types";
-import { ThreeWayMatchResult } from "@shared/types";
+import { ThreeWayMatchResult, ThreeWayMatchLine } from "@shared/types";
 import { OperationalBudgetsService } from "../operational-budgets/operational-budgets.service";
 import { BudgetControlService } from "../common/budget-control.service";
 import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
 import { OperationalBudgetStatus } from "@shared/types";
+import { VendorEntity, VendorStatus } from "./entities/vendor.entity";
+import { CreateVendorDto, UpdateVendorDto } from "./dto/vendor.dto";
+import { QueryVendorsDto } from "./dto/query-vendors.dto";
 
 @Injectable()
 export class FinanceCoreService {
@@ -85,12 +91,18 @@ export class FinanceCoreService {
     private invoiceRepo: Repository<P2PInvoiceEntity>,
     @InjectRepository(P2PReceiptEntity, TENANT_DATA_SOURCE)
     private receiptRepo: Repository<P2PReceiptEntity>,
+    @InjectRepository(P2PPurchaseOrderLineEntity, TENANT_DATA_SOURCE)
+    private poLineRepo: Repository<P2PPurchaseOrderLineEntity>,
+    @InjectRepository(P2PReceiptLineEntity, TENANT_DATA_SOURCE)
+    private receiptLineRepo: Repository<P2PReceiptLineEntity>,
     @InjectRepository(BudgetLedgerEntity, TENANT_DATA_SOURCE)
     private budgetLedgerRepo: Repository<BudgetLedgerEntity>,
     @InjectRepository(PayrollLineItemEntity, TENANT_DATA_SOURCE)
     private payrollLineItemRepo: Repository<PayrollLineItemEntity>,
     @InjectRepository(ApprovalLogEntity, TENANT_DATA_SOURCE)
     private approvalLogRepo: Repository<ApprovalLogEntity>,
+    @InjectRepository(VendorEntity, TENANT_DATA_SOURCE)
+    private vendorRepo: Repository<VendorEntity>,
     private readonly doaService: DOAService,
     private readonly notificationsService: NotificationsService,
     private readonly pdfService: PdfGenerationService,
@@ -107,6 +119,34 @@ export class FinanceCoreService {
       throw new InternalServerErrorException("Tenant context missing. Request must include a valid tenant.");
     }
     return tenantId;
+  }
+
+  /**
+   * Atomically allocate the next document number for (tenant, type, year).
+   * Backed by the tenant `document_sequence` table (migration
+   * 1777000000003). The INSERT ... ON CONFLICT DO UPDATE ... RETURNING is a
+   * single atomic statement, so concurrent allocations serialise on the
+   * composite-PK row lock and never collide (unlike the old count()+1, which
+   * also rewound on deletion).
+   */
+  private async nextDocumentNumber(
+    manager: EntityManager,
+    tenantId: string,
+    docType: string,
+    prefix: string,
+  ): Promise<string> {
+    const year = new Date().getFullYear();
+    const rows: Array<{ last_value: number | string }> = await manager.query(
+      `INSERT INTO "document_sequence" ("tenant_id", "doc_type", "period_year", "last_value")
+       VALUES ($1, $2, $3, 1)
+       ON CONFLICT ("tenant_id", "doc_type", "period_year")
+       DO UPDATE SET "last_value" = "document_sequence"."last_value" + 1,
+                     "updated_at" = now()
+       RETURNING "last_value"`,
+      [tenantId, docType, year],
+    );
+    const seq = Number(rows?.[0]?.last_value ?? 0);
+    return `${prefix}-${year}-${seq.toString().padStart(4, "0")}`;
   }
 
   // --- Fiscal Calendar Management ---
@@ -250,11 +290,140 @@ export class FinanceCoreService {
 
   // --- Procure-to-Pay (P2P) Spending Pipeline ---
 
+  // --- Vendor Master ---
+
+  private async resolveVendor(
+    tenantId: string,
+    vendorId: string,
+  ): Promise<VendorEntity> {
+    const vendor = await this.vendorRepo.findOne({
+      where: { id: vendorId, tenant_id: tenantId },
+    });
+    if (!vendor) {
+      throw new NotFoundException(
+        `Vendor ${vendorId} not found for this tenant.`,
+      );
+    }
+    return vendor;
+  }
+
+  async createVendor(data: CreateVendorDto): Promise<VendorEntity> {
+    const tenantId = this.getTenantId();
+    const existing = await this.vendorRepo.findOne({
+      where: { tenant_id: tenantId, code: data.code },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `Vendor code "${data.code}" already exists for this tenant.`,
+      );
+    }
+
+    const vendor = this.vendorRepo.create({
+      tenant_id: tenantId,
+      code: data.code,
+      name: data.name,
+      tax_id: data.taxId ?? null,
+      contact_name: data.contactName ?? null,
+      email: data.email ?? null,
+      phone: data.phone ?? null,
+      address: data.address ?? null,
+      payment_terms_days: data.paymentTermsDays ?? 30,
+      currency: data.currency ?? "USD",
+      status: data.status ?? VendorStatus.ACTIVE,
+      notes: data.notes ?? null,
+    });
+
+    return this.vendorRepo.save(vendor);
+  }
+
+  async getVendors(dto: QueryVendorsDto) {
+    const tenantId = this.getTenantId();
+    const page = dto.page ?? 1;
+    const limit = dto.limit ?? 10;
+
+    const qb = this.vendorRepo
+      .createQueryBuilder("vendor")
+      .where("vendor.tenant_id = :tenantId", { tenantId });
+
+    if (dto.status) {
+      qb.andWhere("vendor.status = :status", { status: dto.status });
+    }
+    if (dto.search) {
+      qb.andWhere(
+        "(vendor.name ILIKE :search OR vendor.code ILIKE :search OR vendor.email ILIKE :search)",
+        { search: `%${dto.search}%` },
+      );
+    }
+
+    qb.orderBy("vendor.name", dto.sortOrder ?? "ASC")
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total, page, limit };
+  }
+
+  async getVendor(id: string): Promise<VendorEntity> {
+    return this.resolveVendor(this.getTenantId(), id);
+  }
+
+  async updateVendor(id: string, data: UpdateVendorDto): Promise<VendorEntity> {
+    const vendor = await this.resolveVendor(this.getTenantId(), id);
+
+    if (data.name !== undefined) vendor.name = data.name;
+    if (data.taxId !== undefined) vendor.tax_id = data.taxId;
+    if (data.contactName !== undefined) vendor.contact_name = data.contactName;
+    if (data.email !== undefined) vendor.email = data.email;
+    if (data.phone !== undefined) vendor.phone = data.phone;
+    if (data.address !== undefined) vendor.address = data.address;
+    if (data.paymentTermsDays !== undefined) {
+      vendor.payment_terms_days = data.paymentTermsDays;
+    }
+    if (data.currency !== undefined) vendor.currency = data.currency;
+    if (data.status !== undefined) vendor.status = data.status;
+    if (data.notes !== undefined) vendor.notes = data.notes;
+
+    return this.vendorRepo.save(vendor);
+  }
+
+  async setVendorStatus(
+    id: string,
+    status: VendorStatus,
+  ): Promise<VendorEntity> {
+    const vendor = await this.resolveVendor(this.getTenantId(), id);
+    vendor.status = status;
+    return this.vendorRepo.save(vendor);
+  }
+
+  /**
+   * Resolve an optional vendor reference for a document: when a vendorId is
+   * supplied it must exist, belong to the tenant and be ACTIVE; returns the
+   * canonical name snapshot and id. When absent, the caller's free-text name
+   * (if any) is used with a null id.
+   */
+  private async resolveVendorRef(
+    tenantId: string,
+    vendorId: string | undefined,
+    fallbackName: string | null | undefined,
+  ): Promise<{ vendor_id: string | null; vendor_name: string | null }> {
+    if (!vendorId) {
+      return { vendor_id: null, vendor_name: fallbackName ?? null };
+    }
+    const vendor = await this.resolveVendor(tenantId, vendorId);
+    if (vendor.status !== VendorStatus.ACTIVE) {
+      throw new BadRequestException(
+        `Vendor ${vendor.name} is ${vendor.status} and cannot be used on new documents.`,
+      );
+    }
+    return { vendor_id: vendor.id, vendor_name: vendor.name };
+  }
+
   async createRequisition(data: {
     description: string;
     estimatedAmount: number;
     costCenterId: string;
     glAccountId: string;
+    vendorId?: string;
     vendorName?: string;
     requiredByDate?: string;
     currency?: string;
@@ -263,15 +432,23 @@ export class FinanceCoreService {
     const tenantId = this.getTenantId();
     const userId = this.cls.get("userId");
 
-    // Generate a unique requisition number (e.g., REQ-2026-XXXX)
-    const count = await this.requisitionRepo.count({
-      where: { tenant_id: tenantId },
-    });
-    const reqNumber = `REQ-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, "0")}`;
+    // Generate a unique, atomic, gap-free requisition number (e.g., REQ-2026-0001)
+    const reqNumber = await this.nextDocumentNumber(
+      this.dataSource.manager,
+      tenantId,
+      "REQUISITION",
+      "REQ",
+    );
 
     const currency = data.currency || "USD";
     const exchangeRate = data.exchangeRate || 1.0;
     const baseAmount = data.estimatedAmount * exchangeRate;
+
+    const vendorRef = await this.resolveVendorRef(
+      tenantId,
+      data.vendorId,
+      data.vendorName,
+    );
 
     const req = this.requisitionRepo.create({
       tenant_id: tenantId,
@@ -281,7 +458,8 @@ export class FinanceCoreService {
       estimated_amount: data.estimatedAmount,
       cost_center_id: data.costCenterId,
       gl_account_id: data.glAccountId,
-      vendor_name: data.vendorName,
+      vendor_id: vendorRef.vendor_id,
+      vendor_name: vendorRef.vendor_name,
       required_by_date: data.requiredByDate
         ? new Date(data.requiredByDate)
         : null,
@@ -404,6 +582,13 @@ export class FinanceCoreService {
   async createPurchaseOrder(
     requisitionId: string,
     actor: UserPayload | UserEntity,
+    lines?: Array<{
+      description: string;
+      quantity: number;
+      unitAmount: number;
+      glAccountId?: string | null;
+      costCenterId?: string | null;
+    }>,
   ) {
     const tenantId = this.getTenantId();
     return await this.dataSource.transaction(async (manager) => {
@@ -504,24 +689,105 @@ export class FinanceCoreService {
       await manager.save(requisition);
 
       // 2. Create Purchase Order
-      const poCount = await manager.count(P2PPurchaseOrderEntity, {
-        where: { tenant_id: tenantId },
-      });
-      const poNumber = `PO-${new Date().getFullYear()}-${(poCount + 1).toString().padStart(4, "0")}`;
+      const poNumber = await this.nextDocumentNumber(
+        manager,
+        tenantId,
+        "PURCHASE_ORDER",
+        "PO",
+      );
+
+      // Normalise the ordered lines. Explicit lines win; otherwise synthesize a
+      // single line from the requisition so every PO is line-trackable.
+      const orderedLines =
+        lines && lines.length > 0
+          ? lines.map((line) => {
+              const quantity = Number(line.quantity);
+              const unitAmount = Number(line.unitAmount);
+              if (!line.description || !line.description.trim()) {
+                throw new BadRequestException(
+                  "Each purchase order line requires a description.",
+                );
+              }
+              if (!(quantity > 0) || !(unitAmount >= 0)) {
+                throw new BadRequestException(
+                  "Each purchase order line requires a positive quantity and a non-negative unit amount.",
+                );
+              }
+              return {
+                description: line.description.trim(),
+                quantity,
+                unitAmount,
+                lineAmount: quantity * unitAmount,
+                glAccountId: line.glAccountId ?? requisition.gl_account_id,
+                costCenterId: line.costCenterId ?? requisition.cost_center_id,
+              };
+            })
+          : [
+              {
+                description:
+                  (requisition.description || "").trim() || "Ordered item",
+                quantity: 1,
+                unitAmount: Number(requisition.estimated_amount),
+                lineAmount: Number(requisition.estimated_amount),
+                glAccountId: requisition.gl_account_id,
+                costCenterId: requisition.cost_center_id,
+              },
+            ];
+
+      const committedAmount = orderedLines.reduce(
+        (sum, line) => sum + line.lineAmount,
+        0,
+      );
+      const exchangeRate = Number(requisition.exchange_rate) || 1;
+      const requisitionBaseAmount =
+        requisition.base_amount == null ? null : Number(requisition.base_amount);
+
+      // Explicit lines must not exceed the approved requisition ceiling; the
+      // DOA authority check above only cleared the requisition's own amount.
+      if (lines && lines.length > 0) {
+        const estimated = Number(requisition.estimated_amount) || 0;
+        const ceilingTolerance = Math.max(estimated * 0.0001, 0.01);
+        if (committedAmount > estimated + ceilingTolerance) {
+          throw new ConflictException(
+            `Purchase order lines total ${committedAmount} exceeds the approved requisition amount ${estimated}. Raise a new requisition for the difference.`,
+          );
+        }
+      }
 
       const po = manager.create(P2PPurchaseOrderEntity, {
         tenant_id: tenantId,
         po_number: poNumber,
         requisition_id: requisitionId,
+        vendor_id: requisition.vendor_id,
         vendor_name: requisition.vendor_name || "Generic Vendor",
-        committed_amount: requisition.estimated_amount,
+        committed_amount: committedAmount,
         currency: requisition.currency,
         exchange_rate: requisition.exchange_rate,
-        committed_base_amount: requisition.base_amount,
+        committed_base_amount:
+          requisitionBaseAmount != null
+            ? requisitionBaseAmount
+            : committedAmount * exchangeRate,
         status: POStatus.ISSUED,
       });
 
       const savedPo = await manager.save(po);
+
+      await manager.save(
+        orderedLines.map((line, index) =>
+          manager.create(P2PPurchaseOrderLineEntity, {
+            tenant_id: tenantId,
+            purchase_order_id: savedPo.id,
+            line_number: index + 1,
+            description: line.description,
+            quantity: line.quantity,
+            unit_amount: line.unitAmount,
+            line_amount: line.lineAmount,
+            received_quantity: 0,
+            gl_account_id: line.glAccountId ?? null,
+            cost_center_id: line.costCenterId ?? null,
+          }),
+        ),
+      );
 
       // Phase 4 (4.1): the requisition's soft-hold is released now that the
       // commitment is firmed — the PO carries the FIRM hold going forward.
@@ -610,6 +876,7 @@ export class FinanceCoreService {
       .leftJoinAndSelect("po.requisition", "requisition")
       .leftJoinAndSelect("requisition.costCenter", "costCenter")
       .leftJoinAndSelect("requisition.glAccount", "glAccount")
+      .leftJoinAndSelect("po.lines", "lines")
       .where("po.tenant_id = :tenantId", { tenantId: this.getTenantId() });
 
     this._applyFinancialFilters(queryBuilder, dto, "po", "committed_amount");
@@ -631,6 +898,9 @@ export class FinanceCoreService {
     glAccountId: string;
     currency?: string;
     exchangeRate?: number;
+    vendorId?: string;
+    retentionPct?: number;
+    whtPct?: number;
   }) {
     const tenantId = this.getTenantId();
 
@@ -638,11 +908,38 @@ export class FinanceCoreService {
     const exchangeRate = data.exchangeRate || 1.0;
     const baseAmount = data.amount * exchangeRate;
 
+    const vendorRef = await this.resolveVendorRef(
+      tenantId,
+      data.vendorId,
+      data.vendorName,
+    );
+
+    // Contractor payables controls: retention (retainage) and withholding tax.
+    const retentionPct = Number(data.retentionPct ?? 0);
+    const whtPct = Number(data.whtPct ?? 0);
+    if (!Number.isFinite(retentionPct) || retentionPct < 0 || retentionPct > 100) {
+      throw new BadRequestException(
+        "retentionPct must be a number between 0 and 100.",
+      );
+    }
+    if (!Number.isFinite(whtPct) || whtPct < 0 || whtPct > 100) {
+      throw new BadRequestException(
+        "whtPct must be a number between 0 and 100.",
+      );
+    }
+    const round4 = (n: number): number => Math.round(n * 10000) / 10000;
+    const retentionAmount = round4((data.amount * retentionPct) / 100);
+    const whtAmount = round4((data.amount * whtPct) / 100);
+    const netPayable = round4(
+      data.amount - retentionAmount - whtAmount,
+    );
+
     const invoice = this.invoiceRepo.create({
       tenant_id: tenantId,
       invoice_number: data.invoiceNumber,
       amount: data.amount,
-      vendor_name: data.vendorName,
+      vendor_id: vendorRef.vendor_id,
+      vendor_name: vendorRef.vendor_name ?? data.vendorName,
       invoice_date: new Date(data.invoiceDate),
       purchase_order_id: data.poId,
       cost_center_id: data.costCenterId,
@@ -651,6 +948,11 @@ export class FinanceCoreService {
       currency,
       exchange_rate: exchangeRate,
       base_amount: baseAmount,
+      retention_pct: retentionPct,
+      retention_amount: retentionAmount,
+      wht_pct: whtPct,
+      wht_amount: whtAmount,
+      net_payable: netPayable,
     });
 
     const saved = await this.invoiceRepo.save(invoice);
@@ -745,16 +1047,33 @@ export class FinanceCoreService {
 
   // ─── Phase 4 (4.8) — Receipts & 3-Way Match ─────────────────────────────
 
-  /** Record goods/services received against a purchase order. */
+  /**
+   * Record goods/services received against a purchase order.
+   *
+   * Two modes:
+   *  - Line-level: pass `lines[]` keyed by `purchaseOrderLineId`. Over-receipt
+   *    against the ordered line quantity is rejected, and each PO line's running
+   *    `received_quantity` is incremented for line-level 3-way matching.
+   *  - Legacy amount-level: pass `quantity`/`unitAmount`; a single receipt line
+   *    is auto-linked to the PO's first line (when the PO has lines).
+   */
   async recordReceipt(input: {
     purchaseOrderId: string;
     receivedByUserId: string;
     receivedDate: string;
-    quantity: number;
-    unitAmount: number;
+    quantity?: number;
+    unitAmount?: number;
     notes?: string;
+    currency?: string;
+    exchangeRate?: number;
+    lines?: Array<{
+      purchaseOrderLineId: string;
+      quantity: number;
+      unitAmount?: number;
+    }>;
   }) {
     const tenantId = this.getTenantId();
+    const overReceiptTolerance = 1e-6;
 
     const po = await this.poRepo.findOne({
       where: { id: input.purchaseOrderId, tenant_id: tenantId },
@@ -770,48 +1089,164 @@ export class FinanceCoreService {
       );
     }
 
-    const amount = Number(input.quantity) * Number(input.unitAmount);
-
-    const receipt = this.receiptRepo.create({
-      tenant_id: tenantId,
-      purchase_order_id: input.purchaseOrderId,
-      received_by_user_id: input.receivedByUserId,
-      received_date: new Date(input.receivedDate),
-      quantity: input.quantity,
-      unit_amount: input.unitAmount,
-      amount,
-      notes: input.notes ?? null,
+    const poLines = await this.poLineRepo.find({
+      where: { tenant_id: tenantId, purchase_order_id: po.id },
     });
 
-    const saved = await this.receiptRepo.save(receipt);
+    const resolvedLines: Array<{
+      purchaseOrderLineId: string | null;
+      quantity: number;
+      unitAmount: number;
+    }> = [];
 
-    const receivedTotal = await this.receiptTotalForPo(tenantId, po.id);
-    if (receivedTotal >= Number(po.committed_amount || 0)) {
-      po.status = POStatus.FULFILLED;
-      po.updated_at = new Date();
-      await this.poRepo.save(po);
-    } else if (po.status === POStatus.ISSUED) {
-      po.status = POStatus.PARTIALLY_FULFILLED;
-      po.updated_at = new Date();
-      await this.poRepo.save(po);
+    if (input.lines && input.lines.length > 0) {
+      const byId = new Map(poLines.map((l) => [l.id, l]));
+      const seen = new Set<string>();
+      for (const line of input.lines) {
+        const poLine = byId.get(line.purchaseOrderLineId);
+        if (!poLine) {
+          throw new BadRequestException(
+            `Purchase order line ${line.purchaseOrderLineId} does not belong to PO ${po.po_number}.`,
+          );
+        }
+        if (seen.has(line.purchaseOrderLineId)) {
+          throw new BadRequestException(
+            `Purchase order line ${line.purchaseOrderLineId} appears more than once in the receipt.`,
+          );
+        }
+        seen.add(line.purchaseOrderLineId);
+
+        const quantity = Number(line.quantity);
+        if (!(quantity > 0)) {
+          throw new BadRequestException(
+            "Each receipt line requires a positive quantity.",
+          );
+        }
+        const alreadyReceived = Number(poLine.received_quantity || 0);
+        const ordered = Number(poLine.quantity || 0);
+        if (alreadyReceived + quantity > ordered + overReceiptTolerance) {
+          throw new ConflictException(
+            `Over-receipt on line ${poLine.line_number}: ordered ${ordered}, already received ${alreadyReceived}, attempted ${quantity}.`,
+          );
+        }
+        resolvedLines.push({
+          purchaseOrderLineId: poLine.id,
+          quantity,
+          unitAmount:
+            line.unitAmount !== undefined && line.unitAmount !== null
+              ? Number(line.unitAmount)
+              : Number(poLine.unit_amount),
+        });
+      }
+    } else {
+      const quantity = Number(input.quantity);
+      const unitAmount = Number(input.unitAmount);
+      if (!(quantity > 0) || !Number.isFinite(unitAmount)) {
+        throw new BadRequestException(
+          "A receipt requires a positive quantity and a unit amount.",
+        );
+      }
+      const firstLine = poLines.length
+        ? poLines.reduce((a, b) => (a.line_number <= b.line_number ? a : b))
+        : null;
+      if (firstLine) {
+        const alreadyReceived = Number(firstLine.received_quantity || 0);
+        const ordered = Number(firstLine.quantity || 0);
+        if (alreadyReceived + quantity > ordered + overReceiptTolerance) {
+          throw new ConflictException(
+            `Over-receipt on line ${firstLine.line_number}: ordered ${ordered}, already received ${alreadyReceived}, attempted ${quantity}.`,
+          );
+        }
+      }
+      resolvedLines.push({
+        purchaseOrderLineId: firstLine ? firstLine.id : null,
+        quantity,
+        unitAmount,
+      });
     }
 
-    return saved;
-  }
+    const totalQty = resolvedLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalAmount = resolvedLines.reduce(
+      (sum, line) => sum + line.quantity * line.unitAmount,
+      0,
+    );
 
-  private async receiptTotalForPo(
-    tenantId: string,
-    purchaseOrderId: string,
-  ): Promise<number> {
-    const { total } = await this.receiptRepo
-      .createQueryBuilder("r")
-      .select("COALESCE(SUM(r.amount), 0)", "total")
-      .where("r.tenant_id = :tenantId", { tenantId })
-      .andWhere("r.purchase_order_id = :purchaseOrderId", {
-        purchaseOrderId,
-      })
-      .getRawOne();
-    return Number(total) || 0;
+    // Receipts inherit the PO's currency/rate unless explicitly overridden, so
+    // received amounts normalise to base currency for the three-way match.
+    const receiptCurrency = (input.currency || po.currency || "USD")
+      .toString()
+      .toUpperCase();
+    const receiptExchangeRate =
+      input.exchangeRate !== undefined && input.exchangeRate !== null
+        ? Number(input.exchangeRate)
+        : Number(po.exchange_rate) || 1;
+    if (!(receiptExchangeRate > 0)) {
+      throw new BadRequestException("exchangeRate must be greater than zero.");
+    }
+    const totalBaseAmount =
+      Math.round(totalAmount * receiptExchangeRate * 10000) / 10000;
+
+    return await this.dataSource.transaction(async (manager) => {
+      const saved = await manager.save(
+        manager.create(P2PReceiptEntity, {
+          tenant_id: tenantId,
+          purchase_order_id: input.purchaseOrderId,
+          received_by_user_id: input.receivedByUserId,
+          received_date: new Date(input.receivedDate),
+          quantity: totalQty,
+          unit_amount: totalQty > 0 ? totalAmount / totalQty : 0,
+          amount: totalAmount,
+          currency: receiptCurrency,
+          exchange_rate: receiptExchangeRate,
+          base_amount: totalBaseAmount,
+          notes: input.notes ?? null,
+        }),
+      );
+
+      await manager.save(
+        resolvedLines.map((line) =>
+          manager.create(P2PReceiptLineEntity, {
+            tenant_id: tenantId,
+            receipt_id: saved.id,
+            purchase_order_line_id: line.purchaseOrderLineId,
+            quantity: line.quantity,
+            unit_amount: line.unitAmount,
+            line_amount: line.quantity * line.unitAmount,
+          }),
+        ),
+      );
+
+      // Roll received quantities onto the PO lines for line-level matching.
+      const poLineById = new Map(poLines.map((l) => [l.id, l]));
+      for (const line of resolvedLines) {
+        if (!line.purchaseOrderLineId) continue;
+        const poLine = poLineById.get(line.purchaseOrderLineId);
+        if (!poLine) continue;
+        poLine.received_quantity =
+          Number(poLine.received_quantity || 0) + line.quantity;
+        await manager.save(poLine);
+      }
+
+      const receivedRow = await manager
+        .createQueryBuilder(P2PReceiptEntity, "r")
+        .select("COALESCE(SUM(r.amount), 0)", "total")
+        .where("r.tenant_id = :tenantId", { tenantId })
+        .andWhere("r.purchase_order_id = :purchaseOrderId", {
+          purchaseOrderId: po.id,
+        })
+        .getRawOne();
+      const receivedTotal = Number(receivedRow?.total) || 0;
+
+      if (receivedTotal >= Number(po.committed_amount || 0)) {
+        po.status = POStatus.FULFILLED;
+      } else if (po.status === POStatus.ISSUED) {
+        po.status = POStatus.PARTIALLY_FULFILLED;
+      }
+      po.updated_at = new Date();
+      await manager.save(po);
+
+      return saved;
+    });
   }
 
   async getPurchaseOrderReceipts(purchaseOrderId: string, tenantId: string) {
@@ -820,6 +1255,7 @@ export class FinanceCoreService {
     });
     return this.receiptRepo.find({
       where: { tenant_id: tenantId, purchase_order_id: purchaseOrderId },
+      relations: ["lines"],
       order: { received_date: "DESC" },
     });
   }
@@ -833,7 +1269,13 @@ export class FinanceCoreService {
   async getThreeWayMatch(purchaseOrderId: string, tenantId: string) {
     const po = await this.poRepo.findOne({
       where: { id: purchaseOrderId, tenant_id: tenantId },
-      relations: ["requisition", "invoices", "receipts"],
+      relations: [
+        "requisition",
+        "invoices",
+        "receipts",
+        "receipts.lines",
+        "lines",
+      ],
     });
     if (!po) {
       throw new NotFoundException(
@@ -841,28 +1283,43 @@ export class FinanceCoreService {
       );
     }
 
-    const poAmount = Number(po.committed_amount || 0);
+    // Reconcile everything in base currency (USD) so mixed-currency POs,
+    // receipts and invoices are compared on a like-for-like basis.
+    const poBaseAmount =
+      po.committed_base_amount != null && Number(po.committed_base_amount) !== 0
+        ? Number(po.committed_base_amount)
+        : Number(po.committed_amount) * (Number(po.exchange_rate) || 1);
 
     const receivedTotal = (po.receipts || []).reduce(
-      (sum, r) => sum + Number(r.amount || 0),
+      (sum, r) =>
+        sum +
+        Number(
+          r.base_amount != null && Number(r.base_amount) !== 0
+            ? r.base_amount
+            : Number(r.amount) * (Number(r.exchange_rate) || 1),
+        ),
       0,
     );
     const invoicedTotal = (po.invoices || [])
       .filter((inv) => inv.status !== InvoiceStatus.REJECTED)
       .reduce(
         (sum, inv) =>
-          sum + Number(Number(inv.base_amount) || Number(inv.amount) || 0),
+          sum +
+          Number(
+            inv.base_amount != null && Number(inv.base_amount) !== 0
+              ? inv.base_amount
+              : Number(inv.amount) * (Number(inv.exchange_rate) || 1),
+          ),
         0,
       );
 
+    const poAmount = poBaseAmount;
     const variance = invoicedTotal - poAmount;
 
     let status: "MATCHED" | "PARTIAL_MATCH" | "MISMATCH";
     if (invoicedTotal === 0) {
       status = "PARTIAL_MATCH"; // PO issued, nothing billed yet
-    } else if (
-      Math.abs(variance) <= Number(po.committed_amount || 0) * 0.01
-    ) {
+    } else if (Math.abs(variance) <= poBaseAmount * 0.01) {
       status = "MATCHED";
     } else if (invoicedTotal < poAmount) {
       status = "PARTIAL_MATCH";
@@ -914,14 +1371,60 @@ export class FinanceCoreService {
       }
     }
 
+    const matchLines: ThreeWayMatchLine[] = (po.lines || [])
+      .slice()
+      .sort((a, b) => a.line_number - b.line_number)
+      .map((line) => {
+        const orderedQty = Number(line.quantity || 0);
+        const unitAmount = Number(line.unit_amount || 0);
+        const lineAmount = Number(line.line_amount || 0);
+
+        let receivedQty = 0;
+        for (const receipt of po.receipts || []) {
+          for (const receiptLine of receipt.lines || []) {
+            if (receiptLine.purchase_order_line_id === line.id) {
+              receivedQty += Number(receiptLine.quantity || 0);
+            }
+          }
+        }
+        if (receivedQty === 0) {
+          receivedQty = Number(line.received_quantity || 0);
+        }
+
+        let lineStatus: ThreeWayMatchLine["status"];
+        if (receivedQty <= 0) {
+          lineStatus = "NOT_RECEIVED";
+        } else if (receivedQty > orderedQty + 1e-6) {
+          lineStatus = "OVER_RECEIVED";
+        } else if (receivedQty < orderedQty - 1e-6) {
+          lineStatus = "PARTIAL";
+        } else {
+          lineStatus = "MATCHED";
+        }
+
+        return {
+          lineId: line.id,
+          lineNumber: line.line_number,
+          description: line.description,
+          orderedQty,
+          receivedQty,
+          unitAmount,
+          lineAmount,
+          receivedAmount: receivedQty * unitAmount,
+          status: lineStatus,
+        };
+      });
+
     const result: ThreeWayMatchResult = {
       poId: po.id,
       poNumber: po.po_number,
+      currency: po.currency || "USD",
       poAmount,
       receivedAmount: receivedTotal,
       invoicedAmount: invoicedTotal,
       variance,
       status,
+      ...(matchLines.length > 0 ? { lines: matchLines } : {}),
       overCommitment: overCommitment ?? null,
     };
     return result;

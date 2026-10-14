@@ -29,7 +29,9 @@ function assertMigrationsResolve(
   dir: string,
   extension: string,
   logger: Logger,
+  label = "Tenant",
 ): void {
+  const lower = label.toLowerCase();
   let files: string[];
   try {
     files = fs
@@ -37,21 +39,21 @@ function assertMigrationsResolve(
       .filter((f) => isTenantMigrationFile(f) && f.endsWith(extension));
   } catch (err) {
     throw new InternalServerErrorException(
-      `Tenant migrations directory could not be read: "${dir}" (${
+      `${label} migrations directory could not be read: "${dir}" (${
         err instanceof Error ? err.message : String(err)
-      }). Tenant provisioning cannot proceed — refusing to run with zero migrations.`,
+      }). Refusing to run with zero migrations.`,
     );
   }
 
   if (files.length === 0) {
     throw new InternalServerErrorException(
-      `No tenant migration files (*${extension}) found in "${dir}". Refusing to provision: ` +
-        `running migrations would silently apply nothing and create a non-functional tenant schema.`,
+      `No ${lower} migration files (*${extension}) found in "${dir}". ` +
+        `Refusing to continue: running migrations would silently apply nothing.`,
     );
   }
 
   logger.log(
-    `Tenant migrations resolved: ${files.length} file(s) in "${dir}" (pattern ${glob}).`,
+    `${label} migrations resolved: ${files.length} file(s) in "${dir}" (pattern ${glob}).`,
   );
 }
 
@@ -91,6 +93,40 @@ export function getTenantMigrationsPath(): string[] {
   ];
 
   assertMigrationsResolve(globs[0], migrationsDir, extension, logger);
+
+  return globs;
+}
+
+/**
+ * Robustly resolves the path to PUBLIC (`public` schema) migrations.
+ *
+ * Mirrors {@link getTenantMigrationsPath} so the optional boot migrator can
+ * build a dedicated DataSource without relying on the CLI's `ormconfig`. Same
+ * fail-loud guarantee: an empty glob would make `runMigrations()` a silent
+ * no-op, so a missing directory/file set is a hard error.
+ */
+export function getPublicMigrationsPath(): string[] {
+  const logger = new Logger("PathUtils");
+
+  // Dev:  backend/src/common/utils
+  // Prod: backend/dist/backend/src/common/utils
+  const baseDir = __dirname;
+  const isProduction = baseDir.includes(path.sep + "dist" + path.sep);
+
+  const migrationsDir = path.join(
+    path.resolve(__dirname, "..", ".."), // backend/src (or its dist equivalent)
+    "migrations",
+    "public",
+  );
+
+  const extension = isProduction ? ".js" : ".ts";
+  const globs = [
+    path.join(migrationsDir, `*${extension}`),
+    `!${path.join(migrationsDir, `*.spec${extension}`)}`,
+    `!${path.join(migrationsDir, `*.test${extension}`)}`,
+  ];
+
+  assertMigrationsResolve(globs[0], migrationsDir, extension, logger, "Public");
 
   return globs;
 }

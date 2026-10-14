@@ -417,7 +417,7 @@ export class OperationalBudgetsService {
     tenantId: string,
     actorRole?: string,
   ): Promise<OperationalExpenseEntity> {
-    let finalStatus = expenseData.status || OperationalExpenseStatus.PENDING; // Could be explicitly set
+    let finalStatus = OperationalExpenseStatus.PENDING; // Derived below; never client-settable
     let finalFlag = VarianceFlag.NO_VARIANCE;
     let finalClassification: VarianceClassification | null = null;
     // Encumbrance target resolved when the expense is tied to a budget category.
@@ -457,7 +457,7 @@ export class OperationalBudgetsService {
 
         // Calculate Pending Opex Expenses
         const pendingResults = await this.dataSource.query(
-          `SELECT COALESCE(SUM(amount), 0) as total FROM operational_expense WHERE category_operational_budget_category_id = $1 AND tenant_id = $2 AND status = 'PENDING'`,
+          `SELECT COALESCE(SUM(amount), 0) as total FROM operational_expense WHERE operational_budget_category_id = $1 AND tenant_id = $2 AND status = 'PENDING'`,
           [category.operational_budget_category_id, tenantId],
         );
         const committedTotal = parseFloat(pendingResults[0]?.total || 0);
@@ -602,13 +602,7 @@ export class OperationalBudgetsService {
     tenantId: string,
     actorRole?: string,
   ): Promise<PayrollEntryEntity> {
-    const entryStatus = payrollData.status ?? PayrollEntryStatus.PAID;
-    if (entryStatus === ("APPROVED" as PayrollEntryStatus)) {
-      // SoD: a submitter cannot self-approve their own payroll entry at log time.
-      throw new ForbiddenException(
-        "[OPEX] SoD BLOCKED: approver cannot approve own submission",
-      );
-    }
+    const entryStatus = PayrollEntryStatus.PAID; // Posting default; never client-settable
 
     const entry = this.payrollEntryRepository.create({
       ...payrollData,
@@ -697,39 +691,16 @@ export class OperationalBudgetsService {
     await queryRunner.startTransaction();
 
     try {
-      if (expense.operational_budget_category_id) {
-        const category = await queryRunner.manager.findOne(
-          OperationalBudgetCategoryEntity,
-          {
-            where: {
-              operational_budget_category_id:
-                expense.operational_budget_category_id,
-              tenant_id: tenantId,
-            },
-            relations: ["operationalBudget"],
-          },
-        );
-
-        if (category) {
-          // Revert category spend
-          category.actual_spent =
-            Number(category.actual_spent) - Number(expense.amount);
-          await queryRunner.manager.save(
-            OperationalBudgetCategoryEntity,
-            category,
-          );
-
-          // Revert budget spend
-          if (category.operationalBudget) {
-            const budget = category.operationalBudget;
-            budget.actual_spent =
-              Number(budget.actual_spent) - Number(expense.amount);
-            await queryRunner.manager.save(OperationalBudgetEntity, budget);
-          }
-        }
-      }
-
-      await queryRunner.manager.delete(OperationalExpenseEntity, expenseId);
+      // Non-approved expenses never contributed to category/budget
+      // actual_spent (logExpense only increments it once APPROVED), and
+      // APPROVED expenses are blocked from deletion above — so there is no
+      // spend to revert here. Only the reserved encumbrance hold is released
+      // below. Deleting previously decremented actual_spent unconditionally,
+      // driving budget spend negative.
+      //
+      // Soft-delete (deleted_at) preserves the audit trail; the entity declares
+      // @DeleteDateColumn and findAllExpenses excludes soft-deleted rows.
+      await queryRunner.manager.softDelete(OperationalExpenseEntity, expenseId);
 
       // Phase 4 (4.1): release any reserved hold on the deleted expense.
       await queryRunner.manager
@@ -906,6 +877,8 @@ export class OperationalBudgetsService {
 
     // Mass-assignment guard: only a whitelisted subset of columns is ever
     // copied onto the entity (defense in depth beyond the DTO whitelist).
+    // `variance_flag` is intentionally excluded — it is derived from budget
+    // thresholds and must never be overwritten by a client PATCH.
     const safeData: Pick<
       Partial<OperationalExpenseEntity>,
       | "operational_budget_category_id"
@@ -915,7 +888,6 @@ export class OperationalBudgetsService {
       | "vendor"
       | "receipt_url"
       | "status"
-      | "variance_flag"
       | "override_reason"
     > = updateData;
 

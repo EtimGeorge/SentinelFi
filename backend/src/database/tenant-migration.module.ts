@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { TenantMigrationService } from "./tenant-migration.service";
+import { PublicMigrationsBootstrapService } from "./public-migrations-bootstrap.service";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import * as path from "path";
 
@@ -19,7 +20,7 @@ import { OperationalExpenseEntity } from "../operational-budgets/operational-exp
   imports: [
     ConfigModule, // Needed to inject ConfigService into TenantMigrationService
   ],
-  providers: [TenantMigrationService],
+  providers: [TenantMigrationService, PublicMigrationsBootstrapService],
   exports: [TenantMigrationService],
 })
 export class TenantMigrationModule {}

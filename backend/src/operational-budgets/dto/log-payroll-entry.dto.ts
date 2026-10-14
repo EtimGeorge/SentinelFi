@@ -7,10 +7,8 @@ import {
   Min,
   IsOptional,
   IsDate,
-  IsEnum,
 } from "class-validator";
 import { Type } from "class-transformer";
-import { PayrollEntryStatus } from "../payroll-entry.entity";
 
 export class LogPayrollEntryDto {
   @IsUUID()
@@ -72,8 +70,4 @@ export class LogPayrollEntryDto {
   @IsDate()
   @Type(() => Date)
   payment_date!: Date;
-
-  @IsOptional()
-  @IsEnum(PayrollEntryStatus)
-  status?: PayrollEntryStatus;
 }

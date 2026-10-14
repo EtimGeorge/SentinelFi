@@ -143,14 +143,44 @@ export interface OpexNeedsAttentionResult {
 
 // ─── Phase 4 — 3-Way Match (PO + Receipt + Invoice) ────────────────────────
 
+export type ThreeWayMatchLineStatus =
+  | "MATCHED"
+  | "PARTIAL"
+  | "OVER_RECEIVED"
+  | "NOT_RECEIVED";
+
+export interface ThreeWayMatchLine {
+  lineId: string;
+  lineNumber: number;
+  description: string;
+  orderedQty: number;
+  receivedQty: number;
+  unitAmount: number;
+  lineAmount: number;
+  receivedAmount: number;
+  status: ThreeWayMatchLineStatus;
+}
+
 export interface ThreeWayMatchResult {
   poId: string;
   poNumber: string;
+  /** PO document currency (for displaying per-line amounts). */
+  currency: string;
+  /**
+   * Base-currency (USD-normalised) reconciliation totals. All three are in the
+   * same base currency so the verdict is meaningful across mixed-currency
+   * documents.
+   */
   poAmount: number;
   receivedAmount: number;
   invoicedAmount: number;
   variance: number;
   status: "MATCHED" | "PARTIAL_MATCH" | "MISMATCH";
+  /**
+   * Per-line receipt breakdown when the PO carries line items. Optional so
+   * legacy amount-only consumers keep working.
+   */
+  lines?: ThreeWayMatchLine[];
   overCommitment?: {
     budgeted: number;
     actual: number;

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -13,6 +14,9 @@ import {
 import { Response } from "express";
 import { FinanceCoreService } from "./finance-core.service";
 import { GetFinancialDocumentsDto } from "./dto/get-financial-documents.dto";
+import { CreateVendorDto, UpdateVendorDto } from "./dto/vendor.dto";
+import { QueryVendorsDto } from "./dto/query-vendors.dto";
+import { VendorStatus } from "./entities/vendor.entity";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { Role } from "../../../shared/types/role.enum";
@@ -124,6 +128,94 @@ export class FinanceCoreController {
     return this.financeService.getChartOfAccounts();
   }
 
+  // --- Vendor Master ---
+
+  @Get("vendors")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.FinanceOfficer,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.SuperAdmin,
+  )
+  async getVendors(@Query() query: QueryVendorsDto) {
+    return this.financeService.getVendors(query);
+  }
+
+  @Get("vendors/:id")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.FinanceOfficer,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.OperationalDirector,
+    Role.TechnicalDirector,
+    Role.SuperAdmin,
+  )
+  async getVendor(@Param("id") id: string) {
+    return this.financeService.getVendor(id);
+  }
+
+  @Post("vendors")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.FinanceOfficer,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
+  async createVendor(@Body() body: CreateVendorDto) {
+    return this.financeService.createVendor(body);
+  }
+
+  @Patch("vendors/:id")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.FinanceOfficer,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
+  async updateVendor(@Param("id") id: string, @Body() body: UpdateVendorDto) {
+    return this.financeService.updateVendor(id, body);
+  }
+
+  @Post("vendors/:id/deactivate")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
+  async deactivateVendor(@Param("id") id: string) {
+    return this.financeService.setVendorStatus(id, VendorStatus.INACTIVE);
+  }
+
+  @Post("vendors/:id/activate")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.CEO,
+    Role.SuperAdmin,
+  )
+  async activateVendor(@Param("id") id: string) {
+    return this.financeService.setVendorStatus(id, VendorStatus.ACTIVE);
+  }
+
   // --- P2P Requisitions ---
 
   @Get("requisitions")
@@ -161,6 +253,7 @@ export class FinanceCoreController {
       estimatedAmount: number;
       costCenterId: string;
       glAccountId: string;
+      vendorId?: string;
       vendorName?: string;
       requiredByDate?: string;
       currency?: string;
@@ -198,13 +291,24 @@ export class FinanceCoreController {
     Role.SuperAdmin,
   )
   async createPurchaseOrder(
-    @Body() body: { requisitionId: string },
+    @Body()
+    body: {
+      requisitionId: string;
+      lines?: Array<{
+        description: string;
+        quantity: number;
+        unitAmount: number;
+        glAccountId?: string | null;
+        costCenterId?: string | null;
+      }>;
+    },
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user) throw new UnauthorizedException("User not authenticated.");
     return this.financeService.createPurchaseOrder(
       body.requisitionId,
       req.user,
+      body.lines,
     );
   }
 
@@ -296,6 +400,9 @@ export class FinanceCoreController {
       glAccountId: string;
       currency?: string;
       exchangeRate?: number;
+      vendorId?: string;
+      retentionPct?: number;
+      whtPct?: number;
     },
   ) {
     return this.financeService.createInvoice(body);
@@ -342,10 +449,7 @@ export class FinanceCoreController {
     Role.SuperAdmin,
     Role.CEO,
   )
-  async payInvoice(
-    @Param("id") id: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async payInvoice(@Param("id") id: string, @Req() req: AuthenticatedRequest) {
     if (!req.user || !req.user.tenant_id)
       throw new UnauthorizedException("Tenant context missing.");
     return this.financeService.payInvoice(
@@ -375,9 +479,16 @@ export class FinanceCoreController {
     body: {
       purchaseOrderId: string;
       receivedDate: string;
-      quantity: number;
-      unitAmount: number;
+      quantity?: number;
+      unitAmount?: number;
       notes?: string;
+      currency?: string;
+      exchangeRate?: number;
+      lines?: Array<{
+        purchaseOrderLineId: string;
+        quantity: number;
+        unitAmount?: number;
+      }>;
     },
     @Req() req: AuthenticatedRequest,
   ) {
@@ -389,6 +500,9 @@ export class FinanceCoreController {
       quantity: body.quantity,
       unitAmount: body.unitAmount,
       notes: body.notes,
+      currency: body.currency,
+      exchangeRate: body.exchangeRate,
+      lines: body.lines,
     });
   }
 
@@ -449,9 +563,7 @@ export class FinanceCoreController {
   async getProcurementNeedsAttention(@Req() req: AuthenticatedRequest) {
     if (!req.user.tenant_id)
       throw new UnauthorizedException("Tenant context missing.");
-    return this.financeService.getProcurementNeedsAttention(
-      req.user.tenant_id,
-    );
+    return this.financeService.getProcurementNeedsAttention(req.user.tenant_id);
   }
 
   // --- Budget Consumption Analytics ---

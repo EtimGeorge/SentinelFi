@@ -42,6 +42,40 @@ export class HealthController {
     return mb * 1024 * 1024;
   }
 
+  /**
+   * Build transport options for the Redis health probe.
+   *
+   * `Transport.REDIS` is served by `ClientRedis`, which constructs an
+   * **ioredis** client (`new ioredis({ host, port, ...options })`). ioredis has
+   * no `url` option, so passing `{ url: REDIS_URL }` was silently ignored and
+   * the probe errored with `ECONNREFUSED 127.0.0.1:6379` against a healthy
+   * remote instance — reporting `redis: down` forever. Parse `REDIS_URL` into
+   * the host/port/username/password/tls shape ioredis actually reads, and only
+   * fall back to REDIS_HOST/REDIS_PORT when no URL is configured.
+   */
+  private redisConnectionOptions(): Record<string, unknown> {
+    const url = this.configService.get<string>("REDIS_URL");
+    if (url) {
+      const parsed = new URL(url);
+      const isTls = parsed.protocol === "rediss:";
+      return {
+        host: parsed.hostname,
+        port: parsed.port ? Number(parsed.port) : isTls ? 6380 : 6379,
+        ...(parsed.username
+          ? { username: decodeURIComponent(parsed.username) }
+          : {}),
+        ...(parsed.password
+          ? { password: decodeURIComponent(parsed.password) }
+          : {}),
+        ...(isTls ? { tls: {} } : {}),
+      };
+    }
+    return {
+      host: this.configService.get<string>("REDIS_HOST") || "localhost",
+      port: Number(this.configService.get<string>("REDIS_PORT") || 6379),
+    };
+  }
+
   @Public()
   @Get()
   @HealthCheck()
@@ -59,12 +93,7 @@ export class HealthController {
       () =>
         this.microservice.pingCheck("redis", {
           transport: Transport.REDIS,
-          options: this.configService.get("REDIS_URL")
-            ? { url: this.configService.get("REDIS_URL") }
-            : {
-                host: this.configService.get("REDIS_HOST") || "localhost",
-                port: this.configService.get("REDIS_PORT") || 6379,
-              },
+          options: this.redisConnectionOptions(),
         }),
       () =>
         Promise.resolve({
@@ -77,7 +106,7 @@ export class HealthController {
   }
 
   @Public()
-  @Get('live')
+  @Get("live")
   live() {
     // Liveness answers exactly one question: "is the process up and is the event
     // loop flowing?" It deliberately performs NO dependency or memory checks — a
@@ -94,7 +123,7 @@ export class HealthController {
   }
 
   @Public()
-  @Get('ready')
+  @Get("ready")
   @HealthCheck()
   ready() {
     return this.health.check([
@@ -102,12 +131,7 @@ export class HealthController {
       () =>
         this.microservice.pingCheck("redis", {
           transport: Transport.REDIS,
-          options: this.configService.get("REDIS_URL")
-            ? { url: this.configService.get("REDIS_URL") }
-            : {
-                host: this.configService.get("REDIS_HOST") || "localhost",
-                port: this.configService.get("REDIS_PORT") || 6379,
-              },
+          options: this.redisConnectionOptions(),
         }),
       () =>
         Promise.resolve({
@@ -122,7 +146,7 @@ export class HealthController {
   // Authenticated deep probe — verifies tenant-scoped DB and pool health.
   // Use for on-call diagnostics, not for K8s probes (they use /live and /ready).
   @Public()
-  @Get('deep')
+  @Get("deep")
   @HealthCheck()
   deep() {
     return this.health.check([
@@ -147,9 +171,10 @@ export class HealthController {
 
   // Prometheus-style metrics for pool and circuit breaker — no PII.
   @Public()
-  @Get('metrics')
+  @Get("metrics")
   async metrics() {
-    const circuitState = (DatabaseConfig as any).circuitBreaker?.getState?.() ?? "UNKNOWN";
+    const circuitState =
+      (DatabaseConfig as any).circuitBreaker?.getState?.() ?? "UNKNOWN";
     return {
       status: "ok",
       timestamp: new Date().toISOString(),

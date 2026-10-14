@@ -1,9 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import {
-  ThrottlerStorage,
-  ThrottlerStorageService,
-} from "@nestjs/throttler";
+import { ThrottlerStorage, ThrottlerStorageService } from "@nestjs/throttler";
 import Redis from "ioredis";
 
 type ThrottlerStorageRecord = Awaited<
@@ -37,10 +34,18 @@ return { hits, redis.call('PTTL', KEYS[1]) }
  * the cache module, SEC-P1-01). The degradation is logged once per call site.
  */
 @Injectable()
-export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy {
+export class RedisThrottlerStorage
+  implements ThrottlerStorage, OnModuleDestroy
+{
   private readonly logger = new Logger(RedisThrottlerStorage.name);
   private readonly fallback = new ThrottlerStorageService();
-  private readonly redis: Redis | null;
+  private redis: Redis | null;
+  /**
+   * Set once the Redis client is permanently switched off (unresolvable host or
+   * explicit teardown). Prevents reconnect loops and per-request log spam when
+   * REDIS_URL points at a dead database.
+   */
+  private disabled = false;
 
   constructor(private readonly configService: ConfigService) {
     const redisUrl =
@@ -61,6 +66,16 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy 
         retryStrategy: (times) => Math.min(times * 200, 5000),
       });
       this.redis.on("error", (err) => {
+        const code = (err as NodeJS.ErrnoException)?.code;
+        // A hostname that cannot be resolved (deleted/renamed Redis, stale
+        // REDIS_URL) will never recover — stop retrying instead of logging a
+        // connection error every few seconds forever.
+        if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+          this.disable(
+            `Throttler Redis host is unresolvable (${code}); disabling Redis and using in-memory fallback.`,
+          );
+          return;
+        }
         this.logger.warn(
           `Throttler Redis connection error, using in-memory fallback: ${err.message}`,
         );
@@ -73,6 +88,21 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy 
     }
   }
 
+  /** Permanently drop the Redis client; all further calls use the fallback. */
+  private disable(message: string): void {
+    if (this.disabled) return;
+    this.disabled = true;
+    this.logger.warn(message);
+    if (this.redis) {
+      try {
+        this.redis.disconnect();
+      } catch {
+        // already torn down
+      }
+      this.redis = null;
+    }
+  }
+
   async increment(
     key: string,
     ttl: number,
@@ -81,7 +111,13 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy 
     throttlerName: string,
   ): Promise<ThrottlerStorageRecord> {
     if (!this.redis) {
-      return this.fallback.increment(key, ttl, limit, blockDuration, throttlerName);
+      return this.fallback.increment(
+        key,
+        ttl,
+        limit,
+        blockDuration,
+        throttlerName,
+      );
     }
 
     const storageKey = `throttler:${throttlerName}:${key}`;
@@ -128,10 +164,23 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy 
         timeToBlockExpire,
       };
     } catch (error) {
-      this.logger.warn(
-        `Throttler Redis command failed, using in-memory fallback: ${error instanceof Error ? error.message : String(error)}`,
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+        this.disable(
+          `Throttler Redis host is unresolvable (${code}); disabling Redis and using in-memory fallback.`,
+        );
+      } else {
+        this.logger.warn(
+          `Throttler Redis command failed, using in-memory fallback: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      return this.fallback.increment(
+        key,
+        ttl,
+        limit,
+        blockDuration,
+        throttlerName,
       );
-      return this.fallback.increment(key, ttl, limit, blockDuration, throttlerName);
     }
   }
 

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'react-hot-toast';
+import { parseApiError, isWorkspaceDeactivated, ParsedApiError } from '../../../lib/apiError';
 import { useAuth } from '../../../components/context/AuthContext';
 import { useCurrency } from '../../../components/context/CurrencyContext';
 import { Spinner } from '../../../components/common/Spinner';
@@ -103,6 +104,34 @@ const newLine = (): ExpenseLine => ({
   id: `line-${Date.now()}-${Math.random().toString(36).slice(2)}`, description: '', unit_cost: 0, quantity: 1, days: 0, amount: 0, expense_date: new Date().toISOString().split('T')[0], document_reference: '', notes_justification: '', override_reason: '', budget_remaining: 0, variance_level: 'NONE',
 });
 
+// Persistent server-error panel: renders the SERVER's message verbatim
+// (e.g. workspace deactivated) with a retry action, instead of a
+// transient generic toast that hides the real cause.
+const LoadErrorPanel = ({ error, onRetry }: { error: ParsedApiError; onRetry: () => void }) => {
+  const deactivated = isWorkspaceDeactivated(error);
+  return (
+    <div className={`text-left p-5 rounded-2xl border ${deactivated ? 'bg-amber-500/5 border-amber-500/30' : 'bg-red-500/5 border-red-500/30'}`}>
+      <div className="flex items-start gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${deactivated ? 'bg-amber-500/15' : 'bg-red-500/15'}`}>
+          <AlertTriangle className={`w-4 h-4 ${deactivated ? 'text-amber-400' : 'text-red-400'}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white leading-snug">{error.message}</p>
+          {deactivated && (
+            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+              This workspace is closed. Switch to an active workspace or ask your administrator to reactivate it, then try again.
+            </p>
+          )}
+          <button onClick={onRetry}
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-brand-primary hover:text-white transition">
+            <RefreshCw className="w-3.5 h-3.5" /> Try again
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ========================  WBS TREE PICKER WIDGET  ========================
 
 const WbsNodeRow = ({ node, onSelect, selectedId, depth = 0 }: {
@@ -192,6 +221,10 @@ export default function ProjectExpenseLogger() {
   const [selectedOpexBudget, setSelectedOpexBudget] = useState<OperationalBudget | null>(null);
   const [searchQ, setSearchQ] = useState('');
   const [loadingOptions, setLoadingOptions] = useState(false);
+  // Server-reported load failures (rendered verbatim so workspace-level
+  // problems like TENANT_DEACTIVATED read clearly instead of a generic toast).
+  const [projectLoadError, setProjectLoadError] = useState<ParsedApiError | null>(null);
+  const [opexLoadError, setOpexLoadError] = useState<ParsedApiError | null>(null);
 
   // WBS data
   const [wbsNodes, setWbsNodes] = useState<WbsNode[]>([]);
@@ -207,6 +240,7 @@ export default function ProjectExpenseLogger() {
 
   const loadProjects = useCallback(async () => {
     setLoadingOptions(true);
+    setProjectLoadError(null);
     try {
       const res: any = await apiClient.get('/projects?status=active&limit=200');
       const unwrapped = res?.data?.data || res?.data || res;
@@ -214,13 +248,14 @@ export default function ProjectExpenseLogger() {
       setProjects(list.filter(p => p.status === 'active' || p.status === 'ACTIVE'));
     } catch (e: any) {
       console.error('Failed to load active projects:', e);
-      toast.error('Failed to load active projects.');
+      setProjectLoadError(parseApiError(e, 'Failed to load active projects.'));
     }
     finally { setLoadingOptions(false); }
   }, []);
 
   const loadOpexBudgets = useCallback(async () => {
     setLoadingOptions(true);
+    setOpexLoadError(null);
     try {
       const res: any = await apiClient.get('/operational-budgets?limit=200');
       const unwrapped = res?.data?.data || res?.data || res;
@@ -228,7 +263,7 @@ export default function ProjectExpenseLogger() {
       setOpexBudgets(list);
     } catch (e: any) {
       console.error('Failed to load operational budgets:', e);
-      toast.error('Failed to load operational budgets.');
+      setOpexLoadError(parseApiError(e, 'Failed to load operational budgets.'));
     }
     finally { setLoadingOptions(false); }
   }, []);
@@ -480,6 +515,8 @@ export default function ProjectExpenseLogger() {
             </div>
             {loadingOptions ? (
               <div className="flex justify-center py-20"><Spinner className="w-8 h-8 text-brand-primary" /></div>
+            ) : projectLoadError ? (
+              <LoadErrorPanel error={projectLoadError} onRetry={loadProjects} />
             ) : filteredProjects.length === 0 ? (
               <div className="text-center py-20 text-slate-600">
                 <Briefcase className="w-14 h-14 mx-auto mb-4 opacity-30" />
@@ -519,6 +556,8 @@ export default function ProjectExpenseLogger() {
             </div>
             {loadingOptions ? (
               <div className="flex justify-center py-20"><Spinner className="w-8 h-8 text-blue-400" /></div>
+            ) : opexLoadError ? (
+              <LoadErrorPanel error={opexLoadError} onRetry={loadOpexBudgets} />
             ) : filteredOpex.length === 0 ? (
               <div className="text-center py-20 text-slate-600">
                 <Building2 className="w-14 h-14 mx-auto mb-4 opacity-30" />

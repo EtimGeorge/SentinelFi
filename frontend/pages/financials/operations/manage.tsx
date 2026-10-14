@@ -80,7 +80,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
     setLoadingExpenses(true);
     try {
       const res: any = await fetchOperationalExpenses(selectedBudgetId, 'PENDING');
-      setExpenses(res || []);
+      setExpenses(res?.data || []);
     } catch (error) {
       toast.error('Failed to load expenses');
     } finally {

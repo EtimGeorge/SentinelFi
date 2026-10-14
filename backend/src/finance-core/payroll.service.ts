@@ -6,7 +6,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, DataSource, In } from "typeorm";
+import { Repository, DataSource } from "typeorm";
 import {
   PayrollRunEntity,
   PayrollRunStatus,
@@ -15,6 +15,7 @@ import {
   PayrollLineItemEntity,
   PayrollLineItemType,
 } from "./entities/payroll-line-item.entity";
+import { FiscalPeriodEntity } from "./entities/fiscal-period.entity";
 import { ClsService } from "nestjs-cls";
 
 import { TENANT_DATA_SOURCE } from "../database/constants";
@@ -30,6 +31,8 @@ export class PayrollService {
     private payrollRunRepo: Repository<PayrollRunEntity>,
     @InjectRepository(PayrollLineItemEntity, TENANT_DATA_SOURCE)
     private payrollLineItemRepo: Repository<PayrollLineItemEntity>,
+    @InjectRepository(FiscalPeriodEntity, TENANT_DATA_SOURCE)
+    private fiscalPeriodRepo: Repository<FiscalPeriodEntity>,
   ) {}
 
   private getTenantId(): string {
@@ -45,6 +48,21 @@ export class PayrollService {
     createdByUserId?: string,
   ) {
     const tenantId = this.getTenantId();
+
+    // Period-close safeguard: no new payroll activity may be booked into a
+    // fiscal period that has been closed for reporting.
+    const period = await this.fiscalPeriodRepo.findOne({
+      where: { id: data.fiscalPeriodId, tenant_id: tenantId },
+    });
+    if (!period) {
+      throw new NotFoundException("Fiscal period not found");
+    }
+    if (period.is_closed) {
+      throw new ConflictException(
+        "Cannot create a payroll run in a closed fiscal period.",
+      );
+    }
+
     const run = this.payrollRunRepo.create({
       tenant_id: tenantId,
       run_identifier: data.runIdentifier,
@@ -202,6 +220,17 @@ export class PayrollService {
       if (!run) throw new NotFoundException("Payroll run not found");
       if (run.status !== PayrollRunStatus.APPROVED)
         throw new ConflictException("Only APPROVED runs can be posted");
+
+      // Period-close safeguard: posting books to the GL, so refuse if the
+      // run's fiscal period was closed after the run was created.
+      const period = await manager.findOne(FiscalPeriodEntity, {
+        where: { id: run.fiscal_period_id, tenant_id: tenantId },
+      });
+      if (period?.is_closed) {
+        throw new ConflictException(
+          "Cannot post a payroll run to a closed fiscal period.",
+        );
+      }
 
       run.status = PayrollRunStatus.POSTED;
 

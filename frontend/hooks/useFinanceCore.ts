@@ -88,6 +88,7 @@ export const useFinanceCore = () => {
         estimatedAmount: number; 
         costCenterId: string; 
         glAccountId: string;
+        vendorId?: string;
         vendorName?: string;
         requiredByDate?: string;
         currency?: string;
@@ -117,10 +118,13 @@ export const useFinanceCore = () => {
         }
     }, []);
 
-    const createPurchaseOrder = useCallback(async (requisitionId: string) => {
+    const createPurchaseOrder = useCallback(async (
+        requisitionId: string,
+        lines?: Array<{ description: string; quantity: number; unitAmount: number; glAccountId?: string | null; costCenterId?: string | null }>,
+    ) => {
         setLoading(true);
         try {
-            const res = await apiClient.post('/finance-core/purchase-orders', { requisitionId });
+            const res = await apiClient.post('/finance-core/purchase-orders', { requisitionId, lines });
             toast.success('Purchase Order issued');
             return res;
         } catch (error) {
@@ -150,6 +154,84 @@ export const useFinanceCore = () => {
             return res;
         } catch (error) {
             toast.error('Failed to record invoice');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    // --- Vendor Master ---
+
+    const fetchVendors = useCallback(async (params?: { search?: string; status?: string; page?: number; limit?: number }) => {
+        setLoading(true);
+        try {
+            return await apiClient.get('/finance-core/vendors', { params });
+        } catch (error) {
+            toast.error('Error fetching vendors');
+            return { data: [], total: 0, page: 1, limit: 10 };
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const createVendor = useCallback(async (data: {
+        code: string;
+        name: string;
+        taxId?: string;
+        contactName?: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+        paymentTermsDays?: number;
+        currency?: string;
+        notes?: string;
+    }) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.post('/finance-core/vendors', data);
+            toast.success('Vendor created');
+            return res;
+        } catch (error) {
+            toast.error('Failed to create vendor');
+            throw error;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const updateVendor = useCallback(async (id: string, data: Partial<{
+        name: string;
+        taxId: string;
+        contactName: string;
+        email: string;
+        phone: string;
+        address: string;
+        paymentTermsDays: number;
+        currency: string;
+        notes: string;
+    }>) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.patch(`/finance-core/vendors/${id}`, data);
+            toast.success('Vendor updated');
+            return res;
+        } catch (error) {
+            toast.error('Failed to update vendor');
+            throw error;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const setVendorStatus = useCallback(async (id: string, status: 'ACTIVE' | 'INACTIVE') => {
+        setLoading(true);
+        try {
+            const action = status === 'ACTIVE' ? 'activate' : 'deactivate';
+            const res = await apiClient.post(`/finance-core/vendors/${id}/${action}`);
+            toast.success(status === 'ACTIVE' ? 'Vendor activated' : 'Vendor deactivated');
+            return res;
+        } catch (error) {
+            toast.error('Failed to update vendor status');
+            throw error;
         } finally {
             setLoading(false);
         }
@@ -581,9 +663,12 @@ export const useFinanceCore = () => {
     const recordReceipt = useCallback(async (data: {
         purchaseOrderId: string;
         receivedDate: string;
-        quantity: number;
-        unitAmount: number;
+        quantity?: number;
+        unitAmount?: number;
         notes?: string;
+        currency?: string;
+        exchangeRate?: number;
+        lines?: Array<{ purchaseOrderLineId: string; quantity: number; unitAmount?: number }>;
     }) => {
         setLoading(true);
         try {
@@ -626,7 +711,7 @@ export const useFinanceCore = () => {
     }, []);
 
     return {
-        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter, reverseOperationalExpense, getOpexNeedsAttention, getProcurementNeedsAttention, getBudgetForecastBridge, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch,
+        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchVendors, createVendor, updateVendor, setVendorStatus, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter, reverseOperationalExpense, getOpexNeedsAttention, getProcurementNeedsAttention, getBudgetForecastBridge, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch,
     };
 };
 

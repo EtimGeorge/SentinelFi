@@ -28,6 +28,22 @@ RUN npm run build -w shared
 # This must be an ARG (not ENV) for build-time config evaluation in next.config.js
 ARG BACKEND_INTERNAL_URL=http://backend:3001
 ENV BACKEND_INTERNAL_URL=$BACKEND_INTERNAL_URL
+
+# Public build-time config for Next.js. NEXT_PUBLIC_* are inlined into the
+# CLIENT bundle, so they MUST be present at build time — setting them only at
+# runtime has no effect. Render injects a service's environment variables as
+# build args automatically; docker-compose passes them under `build.args`.
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_WS_URL
+ARG NEXT_PUBLIC_ADSENSE_CLIENT_ID
+ARG NEXT_PUBLIC_ADSENSE_BANNER_SLOT
+ARG FRONTEND_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
+ENV NEXT_PUBLIC_ADSENSE_CLIENT_ID=$NEXT_PUBLIC_ADSENSE_CLIENT_ID
+ENV NEXT_PUBLIC_ADSENSE_BANNER_SLOT=$NEXT_PUBLIC_ADSENSE_BANNER_SLOT
+ENV FRONTEND_URL=$FRONTEND_URL
+
 RUN npm run build -w frontend
 
 

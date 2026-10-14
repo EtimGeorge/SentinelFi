@@ -9,11 +9,8 @@ import {
   Max,
   IsDate,
   IsOptional,
-  IsEnum,
 } from "class-validator";
 import { Type } from "class-transformer";
-import { VarianceFlag } from "@shared/types";
-import { OperationalExpenseStatus } from "../operational-expense.entity";
 
 export class CreateOperationalExpenseDto {
   @IsUUID()
@@ -43,14 +40,6 @@ export class CreateOperationalExpenseDto {
   @IsString()
   @MaxLength(255)
   receipt_url?: string;
-
-  @IsOptional()
-  @IsEnum(VarianceFlag)
-  variance_flag?: VarianceFlag;
-
-  @IsOptional()
-  @IsEnum(OperationalExpenseStatus)
-  status?: OperationalExpenseStatus;
 
   @IsOptional()
   @IsString()

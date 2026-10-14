@@ -25,7 +25,7 @@ import Select from '../../../components/common/Select';
 const P2PDeskPage: React.FC = () => {
   const { user } = useAuth();
   const {
-    fetchRequisitions, fetchPurchaseOrders, fetchInvoices, createPurchaseOrder, fetchDepartments, fetchChartOfAccounts, createRequisition, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, payInvoice, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch
+    fetchRequisitions, fetchPurchaseOrders, fetchInvoices, createPurchaseOrder, fetchDepartments, fetchChartOfAccounts, createRequisition, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, payInvoice, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch, fetchVendors
   } = useFinanceCore();
   const { convertToDisplay, convertAmount, availableCurrencies } = useCurrency();
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -38,12 +38,14 @@ const P2PDeskPage: React.FC = () => {
   const [tabLoading, setTabLoading] = useState(false);
   const [costCenters, setCostCenters] = useState<any[]>([]);
   const [glAccounts, setGlAccounts] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
   const [formData, setFormData] = useState({
-    description: '', estimatedAmount: 0, costCenterId: '', glAccountId: '', vendorName: '', currency: 'USD', exchangeRate: 1.0, requiredByDate: ''
+    description: '', estimatedAmount: 0, costCenterId: '', glAccountId: '', vendorId: '', vendorName: '', currency: 'USD', exchangeRate: 1.0, requiredByDate: ''
   });
   const [poWarning, setPoWarning] = useState<any>(null);
   const [receiptTarget, setReceiptTarget] = useState<any>(null);
   const [receiptForm, setReceiptForm] = useState({ receivedDate: new Date().toISOString().slice(0, 10), quantity: 1, unitAmount: 0, notes: '' });
+  const [receiptLines, setReceiptLines] = useState<Array<{ purchaseOrderLineId: string; description: string; orderedQty: number; alreadyReceived: number; unitAmount: number; quantity: number }>>([]);
   const [matchTarget, setMatchTarget] = useState<any>(null);
   const [matchResult, setMatchResult] = useState<any>(null);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -109,6 +111,9 @@ const P2PDeskPage: React.FC = () => {
       const coa = await fetchChartOfAccounts();
       const allGLs = coa.flatMap((c: any) => c.accountGroups.flatMap((g: any) => g.glAccounts || []));
       setGlAccounts(allGLs);
+
+      const vendorRes = await fetchVendors({ status: 'ACTIVE', limit: 500 });
+      setVendors(vendorRes?.data || []);
     };
     loadLookups();
   }, []);
@@ -120,15 +125,15 @@ const P2PDeskPage: React.FC = () => {
     const res = await fetchRequisitions();
     setRequisitions(res.data || []);
     setFormData({
-      description: '', estimatedAmount: 0, costCenterId: '', glAccountId: '', vendorName: '', currency: 'USD', exchangeRate: 1.0, requiredByDate: ''
+      description: '', estimatedAmount: 0, costCenterId: '', glAccountId: '', vendorId: '', vendorName: '', currency: 'USD', exchangeRate: 1.0, requiredByDate: ''
     });
   };
 
   const handleIssuePO = async (reqId: string) => {
     const res = await createPurchaseOrder(reqId);
-    setPoWarning(res?.data?.varianceWarning || null);
-    if (res?.data?.varianceWarning) {
-      toast(`Purchase Order issued with budget override — residual risk ${(res.data.varianceWarning.variancePct ?? 0).toFixed(1)}% variance.`, { icon: '⚠️' });
+    setPoWarning(res?.varianceWarning || null);
+    if (res?.varianceWarning) {
+      toast(`Purchase Order issued with budget override — residual risk ${(res.varianceWarning.variancePct ?? 0).toFixed(1)}% variance.`, { icon: '⚠️' });
     }
     const res2 = await fetchRequisitions();
     setRequisitions(res2.data || []);
@@ -136,9 +141,64 @@ const P2PDeskPage: React.FC = () => {
     setPurchaseOrders(pos.data || []);
   };
 
+  const openReceipt = (po: any) => {
+    setReceiptTarget(po);
+    setReceiptForm({ receivedDate: new Date().toISOString().slice(0, 10), quantity: 1, unitAmount: Number(po?.committed_amount) || 0, notes: '' });
+    const lines = Array.isArray(po?.lines) ? [...po.lines].sort((a: any, b: any) => a.line_number - b.line_number) : [];
+    setReceiptLines(
+      lines.map((line: any) => {
+        const orderedQty = Number(line.quantity) || 0;
+        const alreadyReceived = Number(line.received_quantity) || 0;
+        return {
+          purchaseOrderLineId: line.id,
+          description: line.description,
+          orderedQty,
+          alreadyReceived,
+          unitAmount: Number(line.unit_amount) || 0,
+          quantity: Math.max(0, orderedQty - alreadyReceived),
+        };
+      }),
+    );
+  };
+
   const handleRecordReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!receiptTarget) return;
+
+    if (receiptLines.length > 0) {
+      const lines = receiptLines
+        .filter((line) => Number(line.quantity) > 0)
+        .map((line) => ({
+          purchaseOrderLineId: line.purchaseOrderLineId,
+          quantity: Number(line.quantity),
+          unitAmount: Number(line.unitAmount),
+        }));
+      if (lines.length === 0) {
+        toast.error('Enter a received quantity for at least one line.');
+        return;
+      }
+      const over = receiptLines.find(
+        (line) => Number(line.quantity) > line.orderedQty - line.alreadyReceived + 1e-6,
+      );
+      if (over) {
+        toast.error(`Receipt exceeds the outstanding quantity on line "${over.description}".`);
+        return;
+      }
+      const res = await recordReceipt({
+        purchaseOrderId: receiptTarget.id,
+        receivedDate: receiptForm.receivedDate,
+        notes: receiptForm.notes || undefined,
+        lines,
+      });
+      if (res) {
+        setReceiptTarget(null);
+        setReceiptLines([]);
+        const pos = await fetchPurchaseOrders();
+        setPurchaseOrders(pos.data || []);
+      }
+      return;
+    }
+
     const res = await recordReceipt({
       purchaseOrderId: receiptTarget.id,
       receivedDate: receiptForm.receivedDate,
@@ -152,6 +212,12 @@ const P2PDeskPage: React.FC = () => {
       const pos = await fetchPurchaseOrders();
       setPurchaseOrders(pos.data || []);
     }
+  };
+
+  const updateReceiptLine = (index: number, quantity: number) => {
+    setReceiptLines((prev) =>
+      prev.map((line, i) => (i === index ? { ...line, quantity } : line)),
+    );
   };
 
   const handleOpenMatch = async (po: any) => {
@@ -387,11 +453,22 @@ const P2PDeskPage: React.FC = () => {
                 />
               </div>
               
+              <Select
+                label="Vendor (from register)"
+                options={[
+                  { value: '', label: '— Not linked / enter manually —' },
+                  ...vendors.map((v: any) => ({ value: v.id, label: `${v.name} (${v.code})` })),
+                ]}
+                value={formData.vendorId}
+                onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
+              />
+
               <Input
-                label="Vendor Name (Optional)"
+                label="Vendor Name (free text)"
                 placeholder="Amazon, local supplier..."
                 value={formData.vendorName}
                 onChange={(e) => setFormData({ ...formData, vendorName: e.target.value })}
+                disabled={!!formData.vendorId}
               />
               
               <Input
@@ -558,7 +635,7 @@ const P2PDeskPage: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setReceiptTarget(po)}
+                        onClick={() => openReceipt(po)}
                         className="opacity-0 group-hover:opacity-100 transition border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white"
                       >
                         <Receipt className="w-3.5 h-3.5" />
@@ -656,7 +733,79 @@ const P2PDeskPage: React.FC = () => {
             <p className="text-sm font-bold text-white font-mono">{convertToDisplay(receiptTarget?.committed_amount || 0, receiptTarget?.currency || 'NGN')}</p>
             <p className="text-xs text-gray-500 mt-1">Recording a receipt advances the encumbrance (FIRM) toward settlement and feeds the three-way match.</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {receiptLines.length > 0 ? (
+            <div className="space-y-3">
+              <div className="overflow-x-auto rounded-xl border border-gray-800">
+                <table className="w-full text-sm">
+                  <thead className="bg-black/30 text-[11px] uppercase text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-black">Line</th>
+                      <th className="px-3 py-2 text-right font-black">Ordered</th>
+                      <th className="px-3 py-2 text-right font-black">Received</th>
+                      <th className="px-3 py-2 text-right font-black">Outstanding</th>
+                      <th className="px-3 py-2 text-right font-black">Receive Now</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {receiptLines.map((line, index) => {
+                      const outstanding = Math.max(0, line.orderedQty - line.alreadyReceived);
+                      return (
+                        <tr key={line.purchaseOrderLineId}>
+                          <td className="px-3 py-2">
+                            <p className="text-white font-medium truncate max-w-[16rem]">{line.description}</p>
+                            <p className="text-xs text-gray-500 font-mono">Line {index + 1} · {convertToDisplay(line.unitAmount, receiptTarget?.currency || 'NGN')}/unit</p>
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-gray-300">{line.orderedQty}</td>
+                          <td className="px-3 py-2 text-right font-mono text-gray-300">{line.alreadyReceived}</td>
+                          <td className="px-3 py-2 text-right font-mono text-brand-primary">{outstanding}</td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={outstanding}
+                              step="1"
+                              value={line.quantity}
+                              onChange={(e) => updateReceiptLine(index, Number(e.target.value))}
+                              className="w-24 bg-black/40 border border-gray-700 rounded-lg px-2 py-1 text-right text-white font-mono focus:border-brand-primary outline-none"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-500">Over-receipt against the outstanding quantity is rejected. Leave a line at 0 to skip it.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input
+                label="Received Date"
+                type="date"
+                value={receiptForm.receivedDate}
+                onChange={(e) => setReceiptForm({ ...receiptForm, receivedDate: e.target.value })}
+                required
+              />
+              <Input
+                label="Quantity"
+                type="number"
+                min={1}
+                value={receiptForm.quantity}
+                onChange={(e) => setReceiptForm({ ...receiptForm, quantity: e.target.value as any })}
+                required
+              />
+              <Input
+                label="Unit Amount"
+                type="number"
+                min={0}
+                step="0.01"
+                value={receiptForm.unitAmount}
+                onChange={(e) => setReceiptForm({ ...receiptForm, unitAmount: e.target.value as any })}
+                required
+              />
+            </div>
+          )}
+          {receiptLines.length > 0 && (
             <Input
               label="Received Date"
               type="date"
@@ -664,24 +813,7 @@ const P2PDeskPage: React.FC = () => {
               onChange={(e) => setReceiptForm({ ...receiptForm, receivedDate: e.target.value })}
               required
             />
-            <Input
-              label="Quantity"
-              type="number"
-              min={1}
-              value={receiptForm.quantity}
-              onChange={(e) => setReceiptForm({ ...receiptForm, quantity: e.target.value as any })}
-              required
-            />
-            <Input
-              label="Unit Amount"
-              type="number"
-              min={0}
-              step="0.01"
-              value={receiptForm.unitAmount}
-              onChange={(e) => setReceiptForm({ ...receiptForm, unitAmount: e.target.value as any })}
-              required
-            />
-          </div>
+          )}
           <Input
             label="Notes (Optional)"
             placeholder="Delivery note, batch reference..."
@@ -720,35 +852,78 @@ const P2PDeskPage: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 bg-black/30 rounded-xl border border-gray-800">
-                <p className="text-xs font-black text-gray-500 mb-1.5">PO Committed</p>
-                <p className="text-sm font-black text-brand-primary font-mono">{convertToDisplay(matchResult.poAmount, 'NGN')}</p>
+                <p className="text-xs font-black text-gray-500 mb-1.5">PO Committed (USD)</p>
+                <p className="text-sm font-black text-brand-primary font-mono">{convertToDisplay(matchResult.poAmount, 'USD')}</p>
               </div>
               <div className="p-4 bg-black/30 rounded-xl border border-gray-800">
-                <p className="text-xs font-black text-gray-500 mb-1.5">Receipted</p>
-                <p className="text-sm font-black text-yellow-400 font-mono">{convertToDisplay(matchResult.receiptTotal, 'NGN')}</p>
+                <p className="text-xs font-black text-gray-500 mb-1.5">Receipted (USD)</p>
+                <p className="text-sm font-black text-yellow-400 font-mono">{convertToDisplay(matchResult.receivedAmount, 'USD')}</p>
               </div>
               <div className="p-4 bg-black/30 rounded-xl border border-gray-800">
-                <p className="text-xs font-black text-gray-500 mb-1.5">Invoiced</p>
-                <p className="text-sm font-black text-alert-warning font-mono">{convertToDisplay(matchResult.invoiceTotal, 'NGN')}</p>
+                <p className="text-xs font-black text-gray-500 mb-1.5">Invoiced (USD)</p>
+                <p className="text-sm font-black text-alert-warning font-mono">{convertToDisplay(matchResult.invoicedAmount, 'USD')}</p>
               </div>
             </div>
 
-            {matchResult.discrepancyMessage && (
-              <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
-                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                <p className="text-xs text-red-300 font-medium">{matchResult.discrepancyMessage}</p>
+            {matchResult.lines && matchResult.lines.length > 0 && (
+              <div className="overflow-x-auto rounded-xl border border-gray-800">
+                <table className="w-full text-sm">
+                  <thead className="bg-black/30 text-[11px] uppercase text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-black">Line</th>
+                      <th className="px-3 py-2 text-right font-black">Ordered</th>
+                      <th className="px-3 py-2 text-right font-black">Received</th>
+                      <th className="px-3 py-2 text-right font-black">Line Amount</th>
+                      <th className="px-3 py-2 text-right font-black">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {matchResult.lines.map((line: any) => {
+                      const tone =
+                        line.status === 'MATCHED'
+                          ? 'text-emerald-400'
+                          : line.status === 'OVER_RECEIVED'
+                          ? 'text-red-400'
+                          : line.status === 'PARTIAL'
+                          ? 'text-yellow-400'
+                          : 'text-gray-500';
+                      return (
+                        <tr key={line.lineId}>
+                          <td className="px-3 py-2">
+                            <p className="text-white font-medium truncate max-w-[16rem]">{line.description}</p>
+                            <p className="text-xs text-gray-500 font-mono">Line {line.lineNumber}</p>
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-gray-300">{line.orderedQty}</td>
+                          <td className="px-3 py-2 text-right font-mono text-gray-300">{line.receivedQty}</td>
+                          <td className="px-3 py-2 text-right font-mono text-gray-300">{convertToDisplay(line.lineAmount, matchResult.currency || 'USD')}</td>
+                          <td className={`px-3 py-2 text-right font-mono font-black ${tone}`}>{line.status?.replace(/_/g, ' ')}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
 
-            {matchResult.overCommitment?.committedPipeline != null && (
+            {matchResult.status === 'MISMATCH' && (
+              <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-red-300 font-medium">
+                  Invoiced amount exceeds the PO commitment by
+                  <span className="font-mono font-black ml-1">{convertToDisplay(Math.abs(matchResult.variance || 0), 'USD')}</span>.
+                </p>
+              </div>
+            )}
+
+            {matchResult.overCommitment && (
               <div className="flex items-start gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3">
                 <Info className="w-4 h-4 text-yellow-400 mt-0.5 shrink-0" />
                 <p className="text-xs text-yellow-300 font-medium">
                   Pipeline snapshot — committed pipeline:
-                  <span className="font-mono font-black ml-1">{convertToDisplay(matchResult.overCommitment.committedPipeline, 'NGN')}</span>
+                  <span className="font-mono font-black ml-1">{convertToDisplay(matchResult.overCommitment.committed, 'NGN')}</span>
                   against budget:
-                  <span className="font-mono font-black ml-1">{convertToDisplay(matchResult.overCommitment.budgetLimit, 'NGN')}</span>
-                  — category headroom is <span className={`font-black ${matchResult.overCommitment.remaining >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{convertToDisplay(matchResult.overCommitment.remaining, 'NGN')}</span>.
+                  <span className="font-mono font-black ml-1">{convertToDisplay(matchResult.overCommitment.budgeted, 'NGN')}</span>
+                  — headroom is <span className={`font-black ${matchResult.overCommitment.budgeted - matchResult.overCommitment.actual - matchResult.overCommitment.committed >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{convertToDisplay(matchResult.overCommitment.budgeted - matchResult.overCommitment.actual - matchResult.overCommitment.committed, 'NGN')}</span>.
                 </p>
               </div>
             )}

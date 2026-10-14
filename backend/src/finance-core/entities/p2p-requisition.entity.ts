@@ -13,6 +13,7 @@ import { CostCenterEntity } from "@src/finance-core/entities/cost-center.entity"
 import { GLAccountEntity } from "@src/finance-core/entities/gl-account.entity";
 import { UserEntity } from "@src/auth/user.entity";
 import { P2PPurchaseOrderEntity } from "@src/finance-core/entities/p2p-purchase-order.entity";
+import { VendorEntity } from "@src/finance-core/entities/vendor.entity";
 
 export enum DocumentStatus {
   DRAFT = "DRAFT",
@@ -60,6 +61,13 @@ export class P2PRequisitionEntity {
 
   @Column({ type: "varchar", length: 255, nullable: true })
   vendor_name!: string | null;
+
+  @Column({ type: "uuid", nullable: true })
+  vendor_id!: string | null;
+
+  @ManyToOne(() => VendorEntity, { nullable: true })
+  @JoinColumn({ name: "vendor_id" })
+  vendor?: VendorEntity;
 
   @Column({ type: "decimal", precision: 19, scale: 4 })
   estimated_amount!: number;

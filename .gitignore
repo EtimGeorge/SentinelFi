@@ -96,3 +96,8 @@ test_key.py
 
 # Security tooling — keep scripts tracked, never commit report artifacts
 /security/zap/reports/
+
+# Local object-storage fallback — written at runtime by ObjectStorageService
+# (uploads/<key>) and ReportingService (uploads/reports/<tenantId>/…).
+# Production keeps these in Cloudflare R2 instead; never commit user files.
+/backend/uploads/

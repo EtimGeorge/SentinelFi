@@ -11,7 +11,6 @@ import {
   IsEnum,
 } from "class-validator";
 import { Type } from "class-transformer";
-import { VarianceFlag } from "@shared/types";
 import { OperationalExpenseStatus } from "../operational-expense.entity";
 
 export class UpdateOperationalExpenseDto {
@@ -46,10 +45,10 @@ export class UpdateOperationalExpenseDto {
   @MaxLength(255)
   receipt_url?: string;
 
-  @IsOptional()
-  @IsEnum(VarianceFlag)
-  variance_flag?: VarianceFlag;
-
+  // `status` is retained for the guarded correction workflow
+  // (enforceExpenseStatusTransition enforces SoD + override roles).
+  // `variance_flag` is deliberately NOT client-settable — it is derived by
+  // the service from budget thresholds and must never be overwritten via PATCH.
   @IsOptional()
   @IsEnum(OperationalExpenseStatus)
   status?: OperationalExpenseStatus;

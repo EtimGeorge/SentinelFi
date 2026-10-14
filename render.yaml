@@ -7,13 +7,19 @@
 # HOW TO DEPLOY
 #   1. Push this repo to GitHub.
 #   2. Render Dashboard → New + → Blueprint → pick this repo.
-#   3. Render prompts for every value marked `sync: false`. Fill them in.
+#   3. Render prompts for EVERY value marked `sync: false`. Fill them in.
 #   4. Click Apply. Render builds all services in parallel.
 #
 # NOTES
 #   * Every service lives in the SAME region so private hostnames resolve.
 #   * `sync: false` values are secrets/vars that must NOT be committed; Render
 #     asks for them in the dashboard and stores them encrypted.
+#   * DATABASE_URL MUST be the Neon DIRECT (unpooled) hostname — the "-pooler"
+#     hostname runs PgBouncer in transaction mode, which discards session
+#     settings (SET search_path) and breaks per-tenant schema routing.
+#   * NEXT_PUBLIC_* on the web service are BUILD-time values. Render only passes
+#     service env vars to Docker builds you declare here; if a build-time value
+#     is missing, add it as a Docker build arg (see frontend/Dockerfile).
 #   * Free instances spin down after ~15 min idle. The first request after a
 #     spin-down pays a cold start (~50s). See docs/DEPLOYMENT.md → "Cold starts".
 #   * If your account rejects `type: keyvalue`, use `type: redis` (legacy alias).
@@ -38,7 +44,7 @@ services:
     ipAllowList: []
 
   # ---------------------------------------------------------------------------
-  # API — NestJS (images are built by backend/Dockerfile from the repo root)
+  # API — NestJS (image built by backend/Dockerfile from the repo root)
   # ---------------------------------------------------------------------------
   - type: web
     name: sentinelfi-api
@@ -51,42 +57,109 @@ services:
     autoDeploy: true
     envVars:
       - fromGroup: sentinelfi-pdf-shared
+      # --- Core ---------------------------------------------------------------
       - key: NODE_ENV
         value: production
       - key: PORT
         value: "3001"
       - key: DATABASE_URL
-        sync: false # Neon POOLED connection string, e.g. postgresql://...?sslmode=require
+        sync: false # (R) Neon DIRECT (unpooled) string: postgresql://...?sslmode=require
       - key: JWT_SECRET
-        generateValue: true # Render generates a strong secret
+        generateValue: true # (R) Render generates a strong secret
+      - key: JWT_EXPIRATION_TIME
+        value: 3600s
       - key: FRONTEND_URL
-        sync: false # https://sentinelfi-web.onrender.com (or your domain)
+        sync: false # (R) https://sentinelfi-web.onrender.com (or your domain)
       - key: FRONTEND_ALLOWED_ORIGINS
-        sync: false # comma-separated extra origins (or same as FRONTEND_URL)
+        sync: false # (O) comma-separated extra origins
+      - key: SWAGGER_ENABLED
+        value: "false"
+      - key: RUN_MIGRATIONS_ON_BOOT
+        value: "false"
+      # --- Redis --------------------------------------------------------------
       - key: REDIS_URL
         fromService:
           type: keyvalue
           name: sentinelfi-redis
           property: connectionString
-      - key: EMAIL_PROVIDER
-        value: resend
-      - key: RESEND_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        sync: false # e.g. SentinelFi <notifications@yourdomain.com>
+      # --- AI agent / workers -------------------------------------------------
       - key: AI_AGENT_URL
-        sync: false # public URL of sentinelfi-ai-agent
+        sync: false # (R in practice) public URL of sentinelfi-ai-agent
       - key: PDF_WORKER_URL
-        sync: false # public URL of sentinelfi-pdf-worker
+        sync: false # (O) public URL of sentinelfi-pdf-worker
       - key: PDF_WORKER_TIMEOUT_MS
         value: "120000"
       - key: PDF_NAV_TIMEOUT_MS
         value: "60000"
-      - key: SWAGGER_ENABLED
+      # --- Email --------------------------------------------------------------
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: EMAIL_FROM
+        sync: false # (R when sending) verified sender, e.g. SentinelFi <notifications@yourdomain.com>
+      - key: EMAIL_PREVIEW_ONLY
         value: "false"
+      - key: RESEND_API_KEY
+        sync: false # (R when EMAIL_PROVIDER=resend)
+      - key: SMTP_HOST
+        sync: false # (O) only when EMAIL_PROVIDER=smtp
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      # --- Payments -----------------------------------------------------------
+      - key: PAYSTACK_SECRET_KEY
+        sync: false # (O) billing provider
+      - key: PAYPAL_CLIENT_ID
+        sync: false # (O) billing provider
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: PAYPAL_SANDBOX
+        value: "false"
+      - key: PAYPAL_ENV
+        value: live
+      # --- Currency -----------------------------------------------------------
+      - key: EXCHANGE_RATE_API_KEY
+        sync: false # (O) exchangerate-api.com key
+      # --- Object storage (uploads) ------------------------------------------
+      - key: R2_ACCOUNT_ID
+        sync: false # (R in prod so uploads survive deploys)
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_REGION
+        value: auto
+      - key: R2_PUBLIC_BASE_URL
+        sync: false # (O) public URL prefix for stored uploads
+      # --- Ads ----------------------------------------------------------------
+      - key: ADS_PROVIDER
+        value: test
+      - key: ADS_ENABLED
+        value: "true"
+      - key: ADSENSE_CLIENT_ID
+        sync: false # (O)
+      - key: ADSENSE_BANNER_SLOT
+        sync: false # (O)
+      - key: ADS_SSV_SECRET
+        sync: false # (O) rewarded-network SSV secret
+      # --- Initial superadmin seed -------------------------------------------
+      - key: SUPERADMIN_EMAIL
+        sync: false # (R if seeding in production)
+      - key: SUPERADMIN_PASSWORD
+        sync: false # (R if seeding in production)
 
   # ---------------------------------------------------------------------------
-  # Web — Next.js (images built by frontend/Dockerfile from the repo root)
+  # Web — Next.js (image built by frontend/Dockerfile from the repo root)
   # ---------------------------------------------------------------------------
   - type: web
     name: sentinelfi-web
@@ -102,16 +175,23 @@ services:
         value: production
       - key: PORT
         value: "3000"
+      - key: NEXT_PUBLIC_API_URL
+        sync: false # (R) public API base, e.g. https://sentinelfi-api.onrender.com/api/v1
+      - key: NEXT_PUBLIC_WS_URL
+        sync: false # (O) wss://sentinelfi-api.onrender.com
       - key: FRONTEND_URL
         sync: false # same origin as the API's FRONTEND_URL
       - key: BACKEND_INTERNAL_URL
         value: http://sentinelfi-api:3001 # Render private network hostname
-      - key: NEXT_PUBLIC_WS_URL
-        sync: false # wss://sentinelfi-api.onrender.com (WebSocket origin)
+      - key: NEXT_PUBLIC_ADSENSE_CLIENT_ID
+        sync: false # (O) AdSense publisher id
+      - key: NEXT_PUBLIC_ADSENSE_BANNER_SLOT
+        sync: false # (O) AdSense slot id
 
   # ---------------------------------------------------------------------------
   # PDF worker — standalone Chromium (Debian). Token-protected, public URL so it
   # can run on the free tier (Render has no free private/background workers).
+  # Reads backend/src/worker.ts env vars ONLY (not the API vars).
   # ---------------------------------------------------------------------------
   - type: web
     name: sentinelfi-pdf-worker
@@ -126,12 +206,18 @@ services:
       - fromGroup: sentinelfi-pdf-shared
       - key: NODE_ENV
         value: production
+      - key: WORKER_PORT
+        value: "3002"
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
       - key: PDF_WORKER_CONCURRENCY
         value: "1"
       - key: PDF_NAV_TIMEOUT_MS
         value: "60000"
       - key: PDF_RENDER_TIMEOUT_MS
         value: "120000"
+      - key: PDF_MAX_HTML_BYTES
+        value: "5242880"
 
   # ---------------------------------------------------------------------------
   # AI agent — FastAPI + document tooling. HEAVY image (LibreOffice/Tesseract);
@@ -146,11 +232,25 @@ services:
     dockerfilePath: ./ai-agent/Dockerfile
     autoDeploy: true
     envVars:
-      - key: OPENROUTER_API_KEY
-        sync: false
-      - key: OPENROUTER_MODEL
-        value: google/gemini-2.0-flash-exp:free
       - key: GEMINI_API_KEY
-        sync: false
+        sync: false # (R unless OPENROUTER_API_KEY is set)
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: OPENROUTER_API_KEY
+        sync: false # (O, recommended)
+      - key: OPENROUTER_MODELS
+        sync: false # (O) comma-separated fallback chain
+      - key: OLLAMA_ENABLED
+        value: "false"
+      - key: OLLAMA_BASE_URL
+        value: http://localhost:11434
+      - key: OLLAMA_MODEL
+        value: llama3.1
       - key: AI_AGENT_ALLOWED_ORIGINS
-        sync: false # must include FRONTEND_URL
+        sync: false # (R) must be the NestJS backend URL ONLY
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "8000"
+      - key: LOG_LEVEL
+        value: INFO
