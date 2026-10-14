@@ -11,7 +11,7 @@ pandas==2.2.2
 python-multipart==0.0.9
 python-dotenv==1.0.1
 slowapi==0.1.9
-structlog==24.1.0
+structlog==26.1.0
 # OCR / Document Intelligence
 pypdf==4.2.0
 python-docx==1.1.2
