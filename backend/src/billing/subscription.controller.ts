@@ -113,6 +113,21 @@ export class SubscriptionController {
   }
 
   /**
+   * SUPERADMIN: paid → provisioned exceptions.
+   *  - failed_webhooks: gateway events whose fulfillment failed (the
+   *    reconciliation cron auto-replays the retryable ones; exhausted or
+   *    terminal rows need human action)
+   *  - unprovisioned_paid: subscriptions that went to checkout >1h ago and
+   *    are still PENDING (webhook may never have arrived)
+   */
+  @Get("provisioning-exceptions")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SuperAdmin)
+  async getProvisioningExceptions() {
+    return this.billingService.getProvisioningExceptions();
+  }
+
+  /**
    * Invite a team member to the authenticated user's tenant.
    */
   @Post("invite")

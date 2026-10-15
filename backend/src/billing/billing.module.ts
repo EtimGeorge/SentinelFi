@@ -15,6 +15,7 @@ import { CurrencyModule } from "../currency/currency.module";
 
 import { WebhookService } from "./webhook.service";
 import { ProcessedWebhookEntity } from "./entities/processed-webhook.entity";
+import { ProvisioningReconciliationService } from "./provisioning-reconciliation.service";
 
 @Module({
   imports: [
@@ -30,7 +31,12 @@ import { ProcessedWebhookEntity } from "./entities/processed-webhook.entity";
     CurrencyModule,
   ],
   controllers: [BillingController, SubscriptionController, WebhookController],
-  providers: [BillingService, WebhookService, RenewalReminderService],
+  providers: [
+    BillingService,
+    WebhookService,
+    RenewalReminderService,
+    ProvisioningReconciliationService,
+  ],
   exports: [BillingService, WebhookService],
 })
 export class BillingModule {}

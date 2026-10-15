@@ -140,4 +140,17 @@ export class SubscriptionEntity {
 
   @UpdateDateColumn()
   updated_at!: Date;
+
+  // --- At-least-once fulfillment bookkeeping (AddWebhookFulfillmentState20261014000000) ---
+  /** Last fulfillment/provisioning failure for this subscription (admin visibility). */
+  @Column({ type: "text", nullable: true })
+  provisioning_error!: string | null;
+
+  /** Number of fulfillment attempts that reached the subscription (incremented per attempt). */
+  @Column({ type: "integer", default: 0 })
+  provisioning_attempts!: number;
+
+  /** When provisioning completed (subscription flipped ACTIVE with a tenant). */
+  @Column({ type: "timestamptz", nullable: true })
+  provisioned_at!: Date | null;
 }

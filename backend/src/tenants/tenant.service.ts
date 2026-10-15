@@ -396,6 +396,90 @@ export class TenantService {
   }
 
   /**
+   * Shared provisioning entry point for BOTH fulfillment paths — the
+   * provisioning orchestrator and the paid-webhook activation/replay path.
+   * Kills the drift where each path re-implemented resume semantics (the
+   * webhook path had NONE: any existing tenant row threw ConflictException,
+   * stranding the captured payment).
+   *
+   * Identity resolution (schema_name + name must BOTH match to be "ours"):
+   *  - ACTIVE  → reuse (replay-safe; caller decides whether commercials exist)
+   *  - FAILED  → purge row + orphan schema (never ACTIVE → never served
+   *              traffic), then fresh createTenant. Releases the reservation
+   *              that previously blocked retries forever with a 409.
+   *  - PENDING → createTenant's own reservation logic resumes stale attempts
+   *              (PROVISIONING_STALE_MS) and rejects fresh ones (a sibling
+   *              worker is mid-flight; webhook retry / cron picks it up later)
+   *  - schema or name claimed by a DIFFERENT tenant → createTenant's unique
+   *    constraints surface the conflict (same as before).
+   */
+  async ensureTenantProvisioned(
+    createTenantDto: CreateTenantDto,
+    actor?: { id: string; email: string },
+  ): Promise<{ tenant: TenantEntity; created: boolean }> {
+    const schemaName = deriveSchemaName(
+      createTenantDto.schema_name ?? createTenantDto.name,
+    );
+
+    const existing = await this.tenantRepository.findOne({
+      where: { schema_name: schemaName, name: createTenantDto.name },
+    });
+
+    if (
+      existing &&
+      existing.provisioning_status === TenantProvisioningStatus.ACTIVE
+    ) {
+      this.logger.log(
+        `ensureTenantProvisioned: reusing ACTIVE tenant ${existing.tenant_id} ("${existing.name}")`,
+      );
+      return { tenant: existing, created: false };
+    }
+
+    if (
+      existing &&
+      existing.provisioning_status === TenantProvisioningStatus.FAILED
+    ) {
+      await this.purgeFailedTenant(existing);
+    }
+    // No existing row, or PENDING: createTenant's reservation logic handles
+    // fresh creation, stale-PENDING resume, and fresh-PENDING rejection.
+
+    const created = await this.createTenant(
+      { ...createTenantDto, schema_name: schemaName },
+      actor,
+    );
+    // createTenant returns a column-limited projection; re-read the full row
+    // (provisioning_status / expires_at feed orchestration decisions).
+    const tenant = await this.tenantRepository.findOneOrFail({
+      where: { tenant_id: created.tenant_id },
+    });
+    return { tenant, created: true };
+  }
+
+  /**
+   * Releases a FAILED tenant's schema_name reservation so a paid retry (webhook
+   * replay or cron) can provision fresh. Safe: FAILED means the row never
+   * reached ACTIVE, so its schema never served traffic; createTenant's phase-2
+   * failure path already drops the orphan schema, and DROP SCHEMA IF EXISTS
+   * makes the drop here a no-op on the second call.
+   */
+  private async purgeFailedTenant(existing: TenantEntity): Promise<void> {
+    this.logger.warn(
+      `Purging FAILED tenant reservation ${existing.tenant_id} ("${existing.name}", schema "${existing.schema_name}") for re-provisioning`,
+    );
+    try {
+      await this.dropTenantSchema(existing.schema_name);
+    } catch (err) {
+      // Best-effort: the row deletion below is what unblocks the retry.
+      this.logger.error(
+        `purgeFailedTenant: schema drop failed for "${existing.schema_name}": ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    await this.tenantRepository.delete({ tenant_id: existing.tenant_id });
+    JwtAuthGuard.invalidateTenantStatus(existing.tenant_id);
+  }
+
+  /**
    * Drops a tenant schema.
    * @param schema_name The name of the schema to drop.
    */

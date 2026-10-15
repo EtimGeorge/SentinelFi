@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  ConflictException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { DataSource, Repository } from "typeorm";
@@ -13,7 +14,6 @@ import { InvitationEntity } from "../auth/entities/invitation.entity";
 import { AuditService } from "../audit/audit.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { Role } from "@shared/types/role.enum";
-import { TenantProvisioningStatus } from "@shared/types/tenant-provisioning-status.enum";
 import { deriveSchemaName } from "../common/utils/schema-name.util";
 import {
   SubscriptionEntity,
@@ -102,48 +102,13 @@ export class TenantProvisioningOrchestrator {
     const schemaName = deriveSchemaName(dto.schemaName ?? dto.companyName);
     const commercials = this.normalizeCommercials(dto.commercials);
 
-    // ── Identity half (or replay/resume of an already-committed identity) ────
-    let tenant: TenantEntity | null = null;
-
-    if (dto.idempotencyKey) {
-      // name + schema must BOTH match: a schema-name collision on a different
-      // company must fall through to createTenant and surface its Conflict.
-      const existing = await this.tenantRepository.findOne({
-        where: { schema_name: schemaName, name: dto.companyName },
-      });
-      if (
-        existing &&
-        existing.provisioning_status === TenantProvisioningStatus.ACTIVE
-      ) {
-        const existingSubscription = await this.subscriptionRepository.findOne({
-          where: { tenant_id: existing.tenant_id },
-          order: { created_at: "DESC" },
-        });
-        if (existingSubscription) {
-          // Both halves committed on an earlier attempt → safe replay.
-          const invoice = await this.invoiceRepository.findOne({
-            where: { subscription_id: existingSubscription.id },
-            order: { created_at: "DESC" },
-          });
-          const invitation = await this.ensureInvitation(existing, dto);
-          const result = this.buildResult({
-            tenant: existing,
-            subscription: existingSubscription,
-            invoice,
-            invitation,
-            dto,
-            resumed: true,
-          });
-          this.remember(dto.idempotencyKey, result);
-          return result;
-        }
-        // Identity committed, commercials did not → finish them below.
-        tenant = existing;
-      }
-    }
-
-    if (tenant === null) {
-      const created = await this.tenantService.createTenant(
+    // ── Identity half via the SHARED resume-aware helper ─────────────────────
+    // ensureTenantProvisioned consolidates what this orchestrator and the
+    // paid-webhook path used to re-implement separately: reuse ACTIVE, purge
+    // + recreate FAILED (previously a permanent 409 leak), resume stale
+    // PENDING, reject fresh PENDING. created=false → identity already existed.
+    const { tenant: ensured, created } =
+      await this.tenantService.ensureTenantProvisioned(
         {
           name: dto.companyName,
           schema_name: schemaName,
@@ -155,11 +120,40 @@ export class TenantProvisioningOrchestrator {
         },
         actor,
       );
-      // createTenant returns a column-limited projection; re-read the full row
-      // (provisioning_status / expires_at feed the result).
-      tenant = await this.tenantRepository.findOneOrFail({
-        where: { tenant_id: created.tenant_id },
+    let tenant: TenantEntity = ensured;
+
+    if (!created) {
+      if (!dto.idempotencyKey) {
+        // Pre-existing tenant without a replay key: surface the conflict
+        // (previously createTenant's own 409). Never silently write a second
+        // commercials half onto an existing tenant.
+        throw new ConflictException(
+          `Tenant "${dto.companyName}" (${tenant.tenant_id}) already exists — provide an idempotencyKey to replay or resume.`,
+        );
+      }
+      const existingSubscription = await this.subscriptionRepository.findOne({
+        where: { tenant_id: tenant.tenant_id },
+        order: { created_at: "DESC" },
       });
+      if (existingSubscription) {
+        // Both halves committed on an earlier attempt → safe replay.
+        const invoice = await this.invoiceRepository.findOne({
+          where: { subscription_id: existingSubscription.id },
+          order: { created_at: "DESC" },
+        });
+        const invitation = await this.ensureInvitation(tenant, dto);
+        const result = this.buildResult({
+          tenant,
+          subscription: existingSubscription,
+          invoice,
+          invitation,
+          dto,
+          resumed: true,
+        });
+        this.remember(dto.idempotencyKey, result);
+        return result;
+      }
+      // Identity committed, commercials did not → finish them below.
     }
 
     // ── Commercials half: one atomic write ───────────────────────────────────

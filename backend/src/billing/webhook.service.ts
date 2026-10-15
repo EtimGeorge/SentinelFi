@@ -6,9 +6,23 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { LessThan, Repository } from "typeorm";
 import * as crypto from "crypto";
-import { ProcessedWebhookEntity } from "./entities/processed-webhook.entity";
+import {
+  ProcessedWebhookEntity,
+  WebhookFulfillmentStatus,
+} from "./entities/processed-webhook.entity";
+
+/**
+ * A PROCESSING claim older than this is presumed dead (worker killed mid-run)
+ * and may be taken over by a retry or the reconciliation cron. Must exceed
+ * worst-case fulfillment (~3-min tenant migration set + headroom) so a live
+ * worker is never raced.
+ */
+export const WEBHOOK_CLAIM_STALE_MS = 10 * 60 * 1000;
+
+/** Hard cap on fulfillment attempts per event (gateway retries + cron share it). */
+export const MAX_FULFILLMENT_ATTEMPTS = 10;
 
 @Injectable()
 export class WebhookService {
@@ -21,14 +35,18 @@ export class WebhookService {
   ) {}
 
   /**
-   * Verifies Paystack signature and checks for idempotency.
+   * Verifies the Paystack signature and returns the PARSED event.
+   * Verification only — no ledger write here: idempotency and fulfillment
+   * bookkeeping happen in claimEvent() AFTER this succeeds. (Writing the
+   * ledger before fulfillment was the at-most-once defect: a fulfillment
+   * failure was deduped away on every gateway retry.)
    *
    * SEC-2026-002: was `hash !== signature` (early-exit string compare leaks
    * the HMAC byte-by-byte to a timing oracle). Now timingSafeEqual over
    * fixed-length hex buffers; fail-closed on missing/empty signature and on
    * malformed JSON (a 500 here would turn forgeries into retryable errors).
    */
-  async verifyPaystack(rawBody: string, signature: string): Promise<boolean> {
+  async verifyPaystack(rawBody: string, signature: string): Promise<any> {
     const secret = this.configService.get<string>("PAYSTACK_SECRET_KEY");
     if (!secret) {
       this.logger.error("PAYSTACK_SECRET_KEY not configured.");
@@ -67,7 +85,8 @@ export class WebhookService {
       throw new ForbiddenException("Invalid webhook payload");
     }
 
-    return this.isNewEvent(eventId, "paystack", event);
+    // Verification ONLY — the caller claims the event via claimEvent().
+    return event;
   }
 
   /**
@@ -103,7 +122,7 @@ export class WebhookService {
       transmissionSig?: string;
       rawBody?: string;
     },
-  ): Promise<boolean> {
+  ): Promise<void> {
     const eventId = body.id; // PayPal unique event ID
     if (!eventId) {
       this.logger.warn("PayPal webhook missing event id — rejecting.");
@@ -147,7 +166,8 @@ export class WebhookService {
       );
     }
 
-    return this.isNewEvent(eventId, "paypal", body);
+    // Verification ONLY — fulfillment idempotency is claimEvent()'s job now
+    // (the ledger write used to live here, before fulfillment — the defect).
   }
 
   private async verifyPaypalSignatureViaApi(
@@ -272,51 +292,233 @@ export class WebhookService {
     }
   }
 
-  private async isNewEvent(
+  // ─── CLAIM STATE MACHINE (at-least-once fulfillment) ─────────────────────────
+
+  /**
+   * Claims an event for fulfillment. Called AFTER signature verification.
+   *
+   * Replaces the old find-then-insert dedupe, which wrote the ledger BEFORE
+   * fulfillment: if fulfillment then threw, the row still existed and every
+   * gateway retry was dropped as a "duplicate" — a paid tenant whose
+   * provisioning failed was permanently lost (at-most-once, invisible).
+   *
+   * claimEvent() inserts PROCESSING and:
+   *   - drops true duplicates (FULFILLED) and in-flight work (fresh PROCESSING)
+   *   - RE-CLAIMS FAILED rows and stale PROCESSING claims (dead worker) until
+   *     MAX_FULFILLMENT_ATTEMPTS is reached
+   * so gateway retries and the reconciliation cron replay real failures —
+   * at-least-once, with a hard attempt cap and full visibility (last_error).
+   */
+  async claimEvent(
     eventId: string,
     provider: string,
     payload: any,
-  ): Promise<boolean> {
-    const existing = await this.processedWebhookRepository.findOne({
+  ): Promise<ClaimOutcome> {
+    if (!eventId) {
+      throw new Error("claimEvent requires a gateway_event_id");
+    }
+    const now = new Date();
+    try {
+      const inserted = await this.processedWebhookRepository.insert({
+        gateway_event_id: eventId,
+        provider,
+        payload,
+        status: WebhookFulfillmentStatus.PROCESSING,
+        attempts: 1,
+        claimed_at: now,
+      });
+      return { claimed: true, recordId: inserted.identifiers[0].id as string };
+    } catch (err: any) {
+      if (!this.isUniqueViolation(err)) throw err;
+      // TOCTOU: concurrent delivery of the same event — the UNIQUE index made
+      // exactly one winner. The loser inspects the winner's row below.
+    }
+
+    const row = await this.processedWebhookRepository.findOne({
       where: { gateway_event_id: eventId },
     });
+    if (!row) {
+      // Row vanished between our failed insert and this read (rare purge
+      // race). Treat as in-flight; redelivery will claim cleanly.
+      return { claimed: false, reason: "in_flight" };
+    }
 
-    if (existing) {
+    if (row.status === WebhookFulfillmentStatus.FULFILLED) {
       this.logger.warn(
-        `Duplicate webhook received from ${provider}: ${eventId}. Skipping.`,
+        `Duplicate webhook from ${provider}: ${eventId} already fulfilled. Dropping.`,
       );
-      return false;
+      return { claimed: false, reason: "duplicate" };
     }
 
-    const processed = this.processedWebhookRepository.create({
-      gateway_event_id: eventId,
-      provider,
-      payload,
+    const claimAgeMs = row.claimed_at
+      ? Date.now() - new Date(row.claimed_at).getTime()
+      : Number.POSITIVE_INFINITY;
+    if (
+      row.status === WebhookFulfillmentStatus.PROCESSING &&
+      claimAgeMs < WEBHOOK_CLAIM_STALE_MS
+    ) {
+      this.logger.warn(
+        `Webhook ${eventId} in flight (claimed ${Math.round(claimAgeMs / 1000)}s ago). Dropping duplicate delivery.`,
+      );
+      return { claimed: false, reason: "in_flight" };
+    }
+
+    if (row.attempts >= MAX_FULFILLMENT_ATTEMPTS) {
+      this.logger.error(
+        `Webhook ${eventId} exhausted ${row.attempts} fulfillment attempts — not re-claiming. last_error: ${row.last_error ?? "n/a"}`,
+      );
+      return { claimed: false, reason: "exhausted" };
+    }
+
+    // CAS re-claim of FAILED or stale PROCESSING: optimistic lock on the
+    // observed (status, attempts) so exactly one concurrent worker wins.
+    const takeover = await this.processedWebhookRepository.update(
+      { id: row.id, status: row.status, attempts: row.attempts },
+      {
+        status: WebhookFulfillmentStatus.PROCESSING,
+        attempts: row.attempts + 1,
+        claimed_at: now,
+        last_error: null,
+      },
+    );
+    if (takeover.affected === 1) {
+      this.logger.warn(
+        `Re-claimed webhook ${eventId} (${row.status}, attempt ${row.attempts + 1}/${MAX_FULFILLMENT_ATTEMPTS}).`,
+      );
+      return { claimed: true, recordId: row.id };
+    }
+    return { claimed: false, reason: "in_flight" };
+  }
+
+  /** Settles a claim as FULFILLED. Only the live PROCESSING claim may settle. */
+  async markFulfilled(
+    recordId: string,
+    refs: { subscriptionId?: string; tenantId?: string } = {},
+  ): Promise<void> {
+    const res = await this.processedWebhookRepository.update(
+      { id: recordId, status: WebhookFulfillmentStatus.PROCESSING },
+      {
+        status: WebhookFulfillmentStatus.FULFILLED,
+        fulfilled_at: new Date(),
+        last_error: null,
+        ...(refs.subscriptionId
+          ? { subscription_id: refs.subscriptionId }
+          : {}),
+        ...(refs.tenantId ? { tenant_id: refs.tenantId } : {}),
+      },
+    );
+    if (res.affected !== 1) {
+      this.logger.warn(
+        `markFulfilled: claim ${recordId} no longer PROCESSING (taken over?) — skip.`,
+      );
+    }
+  }
+
+  /**
+   * Settles a claim as FAILED with the error recorded. Retryable failures stay
+   * re-claimable (attempts < cap) for gateway retries + the cron. Terminal
+   * failures (`terminal: true` — replaying the identical payload can never
+   * succeed, e.g. missing subscription reference) burn the attempt cap
+   * immediately so retries stop, while the row stays visible in the superadmin
+   * provisioning-exceptions view.
+   */
+  async markFailed(
+    recordId: string,
+    error: string,
+    opts: { terminal?: boolean } = {},
+  ): Promise<void> {
+    const message = (error || "unknown error").slice(0, 2000);
+    const res = await this.processedWebhookRepository.update(
+      { id: recordId, status: WebhookFulfillmentStatus.PROCESSING },
+      {
+        status: WebhookFulfillmentStatus.FAILED,
+        last_error: message,
+        ...(opts.terminal ? { attempts: MAX_FULFILLMENT_ATTEMPTS } : {}),
+      },
+    );
+    if (res.affected !== 1) {
+      this.logger.warn(
+        `markFailed: claim ${recordId} no longer PROCESSING (taken over?) — skip.`,
+      );
+    }
+  }
+
+  /**
+   * FAILED rows under the attempt cap, plus PROCESSING claims whose worker
+   * died (claimed_at older than WEBHOOK_CLAIM_STALE_MS). Both are safe to
+   * replay: reclaim is a CAS, so a live concurrent worker still wins.
+   */
+  async findReplayable(take = 25): Promise<ProcessedWebhookEntity[]> {
+    const staleBefore = new Date(Date.now() - WEBHOOK_CLAIM_STALE_MS);
+    return this.processedWebhookRepository.find({
+      where: [
+        {
+          status: WebhookFulfillmentStatus.FAILED,
+          attempts: LessThan(MAX_FULFILLMENT_ATTEMPTS),
+        },
+        {
+          status: WebhookFulfillmentStatus.PROCESSING,
+          attempts: LessThan(MAX_FULFILLMENT_ATTEMPTS),
+          claimed_at: LessThan(staleBefore),
+        },
+      ],
+      order: { processed_at: "ASC" },
+      take,
     });
-    try {
-      await this.processedWebhookRepository.save(processed);
-    } catch (err: any) {
-      // TOCTOU race: two concurrent deliveries of the same event can both
-      // pass the findOne above; the UNIQUE index on gateway_event_id makes
-      // exactly one winner. Treat the loser's constraint violation as a
-      // duplicate (return false → no fulfillment), NOT a 500 — a 500 would
-      // tell the gateway to retry and amplify the storm.
-      const code = err?.code ?? err?.errno ?? "";
-      const msg = String(err?.message ?? "");
-      const isUniqueViolation =
-        code === "23505" || // Postgres unique_violation
-        code === "ER_DUP_ENTRY" ||
-        code === 1062 || // MySQL duplicate entry
-        /unique|duplicate/i.test(msg);
-      if (isUniqueViolation) {
-        this.logger.warn(
-          `Concurrent duplicate webhook from ${provider}: ${eventId} lost the insert race. Skipping.`,
-        );
-        return false;
-      }
-      throw err;
-    }
+  }
 
-    return true;
+  /**
+   * Every broken row for the superadmin provisioning-exceptions view —
+   * includes exhausted FAILED rows and dead PROCESSING claims (no attempt
+   * filter: the admin needs to see the stuck ones the cron stopped retrying).
+   */
+  async findFulfillmentExceptions(take = 50): Promise<ProcessedWebhookEntity[]> {
+    const staleBefore = new Date(Date.now() - WEBHOOK_CLAIM_STALE_MS);
+    return this.processedWebhookRepository.find({
+      where: [
+        { status: WebhookFulfillmentStatus.FAILED },
+        {
+          status: WebhookFulfillmentStatus.PROCESSING,
+          claimed_at: LessThan(staleBefore),
+        },
+      ],
+      order: { processed_at: "DESC" },
+      take,
+    });
+  }
+
+  /**
+   * CAS re-claim used by the reconciliation cron on a row it already filtered
+   * as replayable. Optimistic lock on the (status, attempts) the cron read, so
+   * a concurrent gateway retry that already took the row makes this a no-op.
+   */
+  async reclaimForReplay(row: ProcessedWebhookEntity): Promise<boolean> {
+    const res = await this.processedWebhookRepository.update(
+      { id: row.id, status: row.status, attempts: row.attempts },
+      {
+        status: WebhookFulfillmentStatus.PROCESSING,
+        attempts: row.attempts + 1,
+        claimed_at: new Date(),
+        last_error: null,
+      },
+    );
+    return res.affected === 1;
+  }
+
+  /** Shared unique-violation check (TOCTOU races on the ledger insert). */
+  private isUniqueViolation(err: any): boolean {
+    const code = err?.code ?? err?.errno ?? err?.driverError?.code ?? "";
+    const msg = String(err?.message ?? "");
+    return (
+      code === "23505" || // Postgres unique_violation
+      code === "ER_DUP_ENTRY" ||
+      code === 1062 || // MySQL duplicate entry
+      /unique|duplicate/i.test(msg)
+    );
   }
 }
+
+/** Result of claimEvent — `claimed: false` means drop the delivery (200 to gateway). */
+export type ClaimOutcome =
+  | { claimed: true; recordId: string }
+  | { claimed: false; reason: "duplicate" | "in_flight" | "exhausted" };

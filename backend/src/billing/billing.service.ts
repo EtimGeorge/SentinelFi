@@ -7,7 +7,7 @@ import {
   InternalServerErrorException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, DataSource } from "typeorm";
+import { Repository, DataSource, LessThan, Not, IsNull } from "typeorm";
 import {
   SubscriptionEntity,
   SubscriptionStatus,
@@ -32,6 +32,7 @@ import { PaymentProvider } from "../payment/interfaces/payment-strategy.interfac
 import { Role } from "@shared/types/role.enum";
 import { EmailService } from "../email/email.service";
 import { WebhookService } from "./webhook.service";
+import { ProcessedWebhookEntity } from "./entities/processed-webhook.entity";
 import { ConfigService } from "@nestjs/config";
 import * as crypto from "crypto";
 import * as path from "path";
@@ -104,6 +105,20 @@ export const FREE_PLAN_TASK_CAP = 1;
 
 /** Max rewarded (+1 task) unlocks per tenant per day — fraud control. */
 export const MAX_AD_UNLOCKS_PER_DAY = 5;
+
+/**
+ * Fulfillment failure that can NEVER succeed by replaying the same payload
+ * (missing subscription reference, unknown subscription id, unusable company
+ * name). The webhook layer burns the attempt cap for these — retries stop —
+ * and the superadmin provisioning-exceptions view escalates them. Everything
+ * else is retryable by design (gateway retry + reconciliation cron).
+ */
+export class TerminalFulfillmentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TerminalFulfillmentError";
+  }
+}
 
 @Injectable()
 export class BillingService {
@@ -437,35 +452,25 @@ export class BillingService {
   // ─── WEBHOOK HANDLERS ────────────────────────────────────────────────────────
 
   /**
-   * Handles verified Paystack charge.success webhook.
-   * Leverages WebhookService for signature verification and idempotency.
+   * Handles the Paystack webhook: verify signature → claim → fulfill → settle.
+   * The claim state machine (WebhookService.claimEvent) makes fulfillment
+   * at-least-once: failures re-throw so the gateway retry re-CLAIMS the
+   * FAILED ledger row instead of being dropped as a "duplicate" — the old
+   * contract wrote the ledger before fulfillment and silently lost every
+   * paid tenant whose provisioning failed.
    */
   async handlePaystackWebhook(
     rawBody: string,
     signature: string,
   ): Promise<void> {
-    const isNew = await this.webhookService.verifyPaystack(rawBody, signature);
-    if (!isNew) return; // Already processed
-
-    const event = JSON.parse(rawBody);
-    if (event.event !== "charge.success") return;
-
-    const metadata = event.data?.metadata || {};
-    const subscriptionId = metadata.subscription_id;
-
-    if (!subscriptionId) {
-      this.logger.warn(
-        "[BILLING] Paystack webhook: no subscription_id in metadata",
-      );
-      return;
-    }
-
-    await this.activateSubscription(subscriptionId, event.data.reference);
+    const event = await this.webhookService.verifyPaystack(rawBody, signature);
+    const eventId = String(event.data?.id || event.id);
+    await this.processGatewayEvent("paystack", event, eventId);
   }
 
   /**
-   * Handles verified PayPal PAYMENT.CAPTURE.COMPLETED webhook.
-   * When PayPal credentials are configured, fully verifies via PayPal API; otherwise requires transmission headers.
+   * Handles the PayPal webhook: verify (API or header set) → claim → fulfill.
+   * Same at-least-once claim flow as Paystack.
    */
   async handlePaypalWebhook(
     body: any,
@@ -478,27 +483,139 @@ export class BillingService {
       rawBody?: string;
     },
   ): Promise<void> {
-    const isNew = await this.webhookService.verifyPaypal(body, headers);
-    if (!isNew) return;
+    await this.webhookService.verifyPaypal(body, headers);
+    if (!body?.id) {
+      // verifyPaypal already rejects id-less payloads; belt-and-braces so a
+      // malformed body can never create a bogus ledger key.
+      this.logger.error(
+        "[BILLING] PayPal webhook missing body.id after verification — dropping.",
+      );
+      return;
+    }
+    await this.processGatewayEvent("paypal", body, String(body.id));
+  }
 
-    if (body.event_type !== "PAYMENT.CAPTURE.COMPLETED") return;
-
-    const subscriptionId =
-      body.resource?.custom_id || body.resource?.purchase_units?.[0]?.custom_id;
-
-    if (!subscriptionId) {
-      this.logger.warn(
-        "[BILLING] PayPal webhook: no subscription_id in payload",
+  /**
+   * Claim → fulfill → settle for one verified gateway event. Shared by the
+   * live webhook path and the reconciliation cron's replay path.
+   *
+   * Failure semantics (the heart of at-least-once):
+   *  - retryable errors → markFailed (attempts under cap) + rethrow, so the
+   *    gateway retry (and the cron) re-claim and try again
+   *  - terminal errors → markFailed with the cap burned: retries stop, the
+   *    row remains as a visible record, the superadmin view escalates it
+   *  - non-actionable events settle as FULFILLED no-ops so redeliveries
+   *    dedupe cleanly
+   */
+  private async processGatewayEvent(
+    provider: "paystack" | "paypal",
+    payload: any,
+    eventId: string,
+  ): Promise<void> {
+    const claim = await this.webhookService.claimEvent(
+      eventId,
+      provider,
+      payload,
+    );
+    if (!claim.claimed) {
+      this.logger.log(
+        `[BILLING] dropping ${provider} event ${eventId}: ${claim.reason}`,
       );
       return;
     }
 
-    await this.activateSubscription(subscriptionId, body.resource?.id);
+    try {
+      const fulfilledSubId = await this.replayFulfillment({
+        provider,
+        payload,
+      });
+      await this.webhookService.markFulfilled(
+        claim.recordId,
+        fulfilledSubId ? { subscriptionId: fulfilledSubId } : {},
+      );
+    } catch (err) {
+      const terminal = err instanceof TerminalFulfillmentError;
+      const message = err instanceof Error ? err.message : String(err);
+      await this.webhookService.markFailed(claim.recordId, message, {
+        terminal,
+      });
+      if (terminal) {
+        this.logger.error(
+          `[BILLING] TERMINAL fulfillment failure for ${provider} event ${eventId}: ${message} — retries halted; visible in superadmin provisioning exceptions.`,
+        );
+        return; // 200 to gateway: replaying the identical payload cannot succeed
+      }
+      this.logger.error(
+        `[BILLING] fulfillment failed for ${provider} event ${eventId} (retryable): ${message}`,
+      );
+      throw err; // 500 → gateway retry → claimEvent re-claims the FAILED row
+    }
   }
 
   /**
-   * Core activation logic — called by both webhook handlers.
-   * Activates subscription, creates tenant, dispatches magic-link.
+   * Runs fulfillment from an arbitrary payload copy (live event or the stored
+   * ledger payload of a replay). Returns the subscription id activated, or
+   * null when the event is not actionable for provisioning.
+   */
+  async replayFulfillment(
+    record: Pick<ProcessedWebhookEntity, "provider" | "payload">,
+  ): Promise<string | null> {
+    const target = this.extractFulfillmentTarget(
+      record.provider,
+      record.payload,
+    );
+    if (!target.actionable) return null;
+    if (!target.subscriptionId) {
+      throw new TerminalFulfillmentError(
+        `${record.provider} event is actionable but carries no subscription reference — payment cannot be attributed (event: ${record.payload?.id ?? "unknown"})`,
+      );
+    }
+    await this.activateSubscription(
+      target.subscriptionId,
+      target.gatewayRef ?? undefined,
+    );
+    return target.subscriptionId;
+  }
+
+  /** Extracts fulfillment intent from a verified gateway payload. */
+  private extractFulfillmentTarget(
+    provider: string,
+    payload: any,
+  ): {
+    actionable: boolean;
+    subscriptionId: string | null;
+    gatewayRef: string | null;
+  } {
+    if (provider === "paystack") {
+      return {
+        actionable: payload?.event === "charge.success",
+        subscriptionId: payload?.data?.metadata?.subscription_id ?? null,
+        gatewayRef: payload?.data?.reference ?? null,
+      };
+    }
+    return {
+      actionable: payload?.event_type === "PAYMENT.CAPTURE.COMPLETED",
+      subscriptionId:
+        payload?.resource?.custom_id ??
+        payload?.resource?.purchase_units?.[0]?.custom_id ??
+        null,
+      gatewayRef: payload?.resource?.id ?? null,
+    };
+  }
+
+  /**
+   * Core PAID fulfillment — runs inside the claim window:
+   *   1. load + validate the subscription (terminal errors can never succeed
+   *      on replay: unknown id, missing company/admin fields, bad name)
+   *   2. provision the tenant via the SHARED resume-aware helper
+   *      (TenantService.ensureTenantProvisioned — same path as the
+   *      provisioning orchestrator)
+   *   3. flip tenant + subscription ACTIVE in a SHORT transaction — the ~3-min
+   *      migration set runs OUTSIDE any open transaction now
+   *
+   * Idempotent: already-ACTIVE + tenant returns at once, so gateway retries
+   * and cron replays are safe anywhere in the chain. Failures are recorded on
+   * the subscription row (provisioning_error) for the admin view.
    */
   private async activateSubscription(
     subscriptionId: string,
@@ -509,15 +626,57 @@ export class BillingService {
     });
 
     if (!sub) {
-      this.logger.error(`Webhook: subscription ${subscriptionId} not found`);
+      // Subscriptions are created at checkout, BEFORE the gateway charges;
+      // a webhook for an unknown id can never become valid on replay.
+      throw new TerminalFulfillmentError(
+        `subscription ${subscriptionId} not found — payment cannot be attributed`,
+      );
+    }
+
+    if (sub.status === SubscriptionStatus.ACTIVE && sub.tenant_id) {
+      this.logger.log(
+        `Subscription ${subscriptionId} already active — idempotent replay.`,
+      );
       return;
     }
 
-    if (sub.status === SubscriptionStatus.ACTIVE) {
-      this.logger.warn(
-        `Webhook: subscription ${subscriptionId} already active — ignoring duplicate`,
+    const missing: string[] = [];
+    if (!sub.company_name) missing.push("company_name");
+    if (!sub.admin_email) missing.push("admin_email");
+    if (missing.length > 0) {
+      const message = `subscription ${sub.id} missing required provisioning fields: ${missing.join(", ")} — fix the row, then replay`;
+      await this.recordProvisioningError(sub.id, message);
+      throw new TerminalFulfillmentError(message);
+    }
+
+    let schemaName: string;
+    try {
+      schemaName = deriveSchemaName(sub.company_name);
+    } catch (err) {
+      const message = `deriveSchemaName failed for company "${sub.company_name}": ${err instanceof Error ? err.message : String(err)}`;
+      await this.recordProvisioningError(sub.id, message);
+      throw new TerminalFulfillmentError(message);
+    }
+
+    // Identity half — shared with the orchestrator (resume-aware).
+    let tenant: TenantEntity;
+    try {
+      ({ tenant } = await this.tenantService.ensureTenantProvisioned({
+        name: sub.company_name,
+        schema_name: schemaName,
+        admin_email: sub.admin_email,
+        admin_first_name: sub.admin_first_name,
+        admin_last_name: sub.admin_last_name,
+        plan: sub.plan,
+        default_currency_code: sub.base_currency,
+      }));
+    } catch (err) {
+      // Retryable (fresh-PENDING conflict, migration failure).
+      await this.recordProvisioningError(
+        sub.id,
+        err instanceof Error ? err.message : String(err),
       );
-      return; // Idempotent
+      throw err;
     }
 
     const now = new Date();
@@ -528,40 +687,16 @@ export class BillingService {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
     }
 
-    const schemaName = sub
-      .company_name!.toLowerCase()
-      .replace(/[^a-z0-9_]/gi, "_")
-      .slice(0, 63);
-
+    // Commercials half — SHORT transaction only (migrations already done).
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
-
     try {
-      // 1. Create Tenant now that payment is confirmed
-      const tenant = await this.tenantService.createTenant({
-        name: sub.company_name!,
-        schema_name: schemaName,
-        admin_email: sub.admin_email!,
-        plan: sub.plan,
-        admin_first_name: sub.admin_first_name,
-        admin_last_name: sub.admin_last_name,
-        default_currency_code: sub.base_currency,
-      });
-
-      // 2. Set tenant expiry from subscription period end
       await queryRunner.manager.update(
         "tenants",
         { tenant_id: tenant.tenant_id },
-        {
-          expires_at: periodEnd,
-          is_active: true,
-          plan: sub.plan,
-        },
+        { expires_at: periodEnd, is_active: true, plan: sub.plan },
       );
-      JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
-
-      // 3. Activate subscription — paid tiers are ad-free with unlimited tasks
       await queryRunner.manager.update(
         SubscriptionEntity,
         { id: sub.id },
@@ -575,32 +710,59 @@ export class BillingService {
           has_ads: false,
           ad_unlock_credits: 0,
           ad_unlock_date: null,
+          provisioning_error: null,
+          provisioning_attempts: () => '"provisioning_attempts" + 1',
+          provisioned_at: now,
         },
       );
-
       await queryRunner.commitTransaction();
-
-      // 4. Dispatch magic-link happens automatically inside TenantService
-      // 5. Send subscription success + receipt email with PDF invoice
-      this.dispatchActivationEmails(sub, now, periodEnd, gatewayRef).catch(
-        (err: Error) =>
-          this.logger.error(
-            `[BILLING] Post-activation emails failed for ${sub.admin_email}: ${err.message}`,
-          ),
-      );
-
-      this.logger.log(
-        `Subscription ${subscriptionId} activated for ${sub.admin_email}. Emails dispatching.`,
-      );
     } catch (err) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(
-        `Failed to activate subscription ${subscriptionId}`,
-        err,
+      await this.recordProvisioningError(
+        sub.id,
+        err instanceof Error ? err.message : String(err),
       );
       throw err;
     } finally {
       await queryRunner.release();
+    }
+
+    JwtAuthGuard.invalidateTenantStatus(tenant.tenant_id);
+
+    // Send subscription success + receipt email (async, decoupled)
+    this.dispatchActivationEmails(sub, now, periodEnd, gatewayRef).catch(
+      (err: Error) =>
+        this.logger.error(
+          `[BILLING] Post-activation emails failed for ${sub.admin_email}: ${err.message}`,
+        ),
+    );
+
+    this.logger.log(
+      `Subscription ${subscriptionId} activated for ${sub.admin_email} (tenant ${tenant.tenant_id}).`,
+    );
+  }
+
+  /**
+   * Records a fulfillment failure on the subscription row so "paid but
+   * unprovisioned" is diagnosable without log archaeology. Best-effort: a
+   * failure to record must not mask the original error.
+   */
+  private async recordProvisioningError(
+    subscriptionId: string,
+    message: string,
+  ): Promise<void> {
+    try {
+      await this.subscriptionRepository.update(
+        { id: subscriptionId },
+        {
+          provisioning_error: message.slice(0, 2000),
+          provisioning_attempts: () => '"provisioning_attempts" + 1',
+        },
+      );
+    } catch (err) {
+      this.logger.error(
+        `[BILLING] Could not record provisioning_error for ${subscriptionId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -903,7 +1065,69 @@ export class BillingService {
       where: { id: subscriptionId },
     });
     if (!sub) throw new NotFoundException("Subscription not found.");
-    return { status: sub.status, tenant_id: sub.tenant_id };
+    return {
+      status: sub.status,
+      tenant_id: sub.tenant_id,
+      // At-least-once fulfillment visibility for the /billing/success poller:
+      // lets the frontend distinguish "still provisioning" from "failed — the
+      // platform retries automatically" instead of an opaque pending.
+      provisioning_attempts: sub.provisioning_attempts ?? 0,
+      provisioning_error: sub.provisioning_error,
+      provisioned_at: sub.provisioned_at,
+    };
+  }
+
+  /**
+   * SUPERADMIN: everything stuck in the paid → provisioned chain.
+   *  - failed_webhooks: ledger rows FAILED (incl. exhausted) or with dead
+   *    PROCESSING claims; the reconciliation cron replays the retryable ones
+   *  - unprovisioned_paid: PENDING subscriptions that went through a gateway
+   *    checkout long ago and never activated (webhook may never have arrived;
+   *    verify against the gateway dashboard, then replay manually)
+   */
+  async getProvisioningExceptions() {
+    const failedWebhooks =
+      await this.webhookService.findFulfillmentExceptions(50);
+    const paidButStuckCutoff = new Date(Date.now() - 60 * 60 * 1000);
+    const unprovisionedPaid = await this.subscriptionRepository.find({
+      where: {
+        status: SubscriptionStatus.PENDING,
+        gateway_reference: Not(IsNull()),
+        created_at: LessThan(paidButStuckCutoff),
+      },
+      order: { created_at: "DESC" },
+      take: 50,
+    });
+    return {
+      generated_at: new Date().toISOString(),
+      counts: {
+        failed_webhooks: failedWebhooks.length,
+        unprovisioned_paid: unprovisionedPaid.length,
+      },
+      failed_webhooks: failedWebhooks.map((w) => ({
+        id: w.id,
+        provider: w.provider,
+        gateway_event_id: w.gateway_event_id,
+        status: w.status,
+        attempts: w.attempts,
+        subscription_id: w.subscription_id,
+        last_error: w.last_error,
+        claimed_at: w.claimed_at,
+        processed_at: w.processed_at,
+        fulfilled_at: w.fulfilled_at,
+      })),
+      unprovisioned_paid: unprovisionedPaid.map((s) => ({
+        id: s.id,
+        company_name: s.company_name,
+        admin_email: s.admin_email,
+        plan: s.plan,
+        gateway: s.gateway,
+        gateway_reference: s.gateway_reference,
+        created_at: s.created_at,
+        provisioning_attempts: s.provisioning_attempts ?? 0,
+        provisioning_error: s.provisioning_error,
+      })),
+    };
   }
 
   // ─── REACTIVATION (EXPIRED / CANCELLED / PAUSED → ACTIVE) ───────────────────
