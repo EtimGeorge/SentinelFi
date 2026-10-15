@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   InternalServerErrorException,
 } from "@nestjs/common";
@@ -31,8 +32,11 @@ import { CurrencyService } from "../currency/currency.service";
 import { PaymentProvider } from "../payment/interfaces/payment-strategy.interface";
 import { Role } from "@shared/types/role.enum";
 import { EmailService } from "../email/email.service";
-import { WebhookService } from "./webhook.service";
-import { ProcessedWebhookEntity } from "./entities/processed-webhook.entity";
+import { WebhookService, MAX_FULFILLMENT_ATTEMPTS } from "./webhook.service";
+import {
+  ProcessedWebhookEntity,
+  WebhookFulfillmentStatus,
+} from "./entities/processed-webhook.entity";
 import { ConfigService } from "@nestjs/config";
 import * as crypto from "crypto";
 import * as path from "path";
@@ -1126,8 +1130,158 @@ export class BillingService {
         created_at: s.created_at,
         provisioning_attempts: s.provisioning_attempts ?? 0,
         provisioning_error: s.provisioning_error,
+        // Naming-structure visibility: what schema THIS row will claim when
+        // provisioning is retried (null = deriveSchemaName would reject the
+        // company name — a terminal gap the admin must fix first).
+        schema_name_preview: this.previewSchemaName(s.company_name),
       })),
     };
+  }
+
+  /**
+   * SUPERADMIN action: replay one webhook ledger row NOW instead of waiting
+   * for the reconciliation cron. Same claim → fulfill → settle semantics as
+   * gateway retries and the cron — the CAS reclaim keeps concurrent workers
+   * safe. `force` resets the attempt budget first so EXHAUSTED rows can be
+   * revived after the admin investigated the failure.
+   */
+  async adminReplayWebhook(
+    recordId: string,
+    opts: { force?: boolean } = {},
+  ): Promise<{
+    replayed: boolean;
+    status: WebhookFulfillmentStatus;
+    subscription_id: string | null;
+    error?: string;
+    terminal?: boolean;
+  }> {
+    const row = await this.webhookService.findOneById(recordId);
+    if (!row) throw new NotFoundException("Webhook event not found.");
+    if (row.status === WebhookFulfillmentStatus.FULFILLED) {
+      throw new ConflictException(
+        "Webhook event is already fulfilled — nothing to replay.",
+      );
+    }
+    if (
+      row.status === WebhookFulfillmentStatus.FAILED &&
+      row.attempts >= MAX_FULFILLMENT_ATTEMPTS &&
+      !opts.force
+    ) {
+      throw new ConflictException(
+        `Attempt budget exhausted (${row.attempts}/${MAX_FULFILLMENT_ATTEMPTS}) — use force replay to reset it.`,
+      );
+    }
+
+    const claimed = await this.webhookService.adminReclaimForReplay(row, {
+      resetAttempts: opts.force,
+    });
+    if (!claimed) {
+      throw new ConflictException(
+        "Webhook event was just claimed by another worker — refresh and retry.",
+      );
+    }
+
+    try {
+      // The claim only mutates status/attempts/claimed_at — the payload we
+      // already read is what fulfillment replays.
+      const subscriptionId = await this.replayFulfillment(row);
+      await this.webhookService.markFulfilled(
+        recordId,
+        subscriptionId ? { subscriptionId } : {},
+      );
+      this.logger.log(
+        `Admin replay of ${row.provider} event ${row.gateway_event_id} fulfilled (subscription ${subscriptionId ?? "n/a"}).`,
+      );
+      return {
+        replayed: true,
+        status: WebhookFulfillmentStatus.FULFILLED,
+        subscription_id: subscriptionId,
+      };
+    } catch (err) {
+      const terminal = err instanceof TerminalFulfillmentError;
+      const message = err instanceof Error ? err.message : String(err);
+      await this.webhookService.markFailed(recordId, message, { terminal });
+      this.logger.error(
+        `Admin replay of ${row.provider} event ${row.gateway_event_id} failed (${terminal ? "terminal" : "retryable"}): ${message}`,
+      );
+      return {
+        replayed: false,
+        status: WebhookFulfillmentStatus.FAILED,
+        subscription_id: null,
+        error: message,
+        terminal,
+      };
+    }
+  }
+
+  /**
+   * SUPERADMIN action: provision a paid-but-stuck subscription directly after
+   * the admin verified the charge against the gateway dashboard. Runs the
+   * SAME activateSubscription path the webhook would have (idempotent,
+   * records provisioning_error/attempts/provisioned_at on failure/success).
+   */
+  async adminProvisionSubscription(subscriptionId: string): Promise<{
+    provisioned: boolean;
+    tenant_id: string | null;
+    status: SubscriptionStatus;
+    error?: string;
+    terminal?: boolean;
+  }> {
+    const sub = await this.subscriptionRepository.findOne({
+      where: { id: subscriptionId },
+    });
+    if (!sub) throw new NotFoundException("Subscription not found.");
+    if (sub.status === SubscriptionStatus.ACTIVE && sub.tenant_id) {
+      return {
+        provisioned: true,
+        tenant_id: sub.tenant_id,
+        status: sub.status,
+      };
+    }
+    if (sub.status !== SubscriptionStatus.PENDING) {
+      throw new ConflictException(
+        `Subscription is ${sub.status} — only PENDING (paid, unprovisioned) subscriptions can be provisioned.`,
+      );
+    }
+
+    try {
+      await this.activateSubscription(
+        sub.id,
+        sub.gateway_reference ?? undefined,
+      );
+    } catch (err) {
+      const terminal = err instanceof TerminalFulfillmentError;
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Admin provisioning of subscription ${subscriptionId} failed (${terminal ? "terminal" : "retryable"}): ${message}`,
+      );
+      return {
+        provisioned: false,
+        tenant_id: null,
+        status: SubscriptionStatus.PENDING,
+        error: message,
+        terminal,
+      };
+    }
+
+    const fresh = await this.subscriptionRepository.findOne({
+      where: { id: subscriptionId },
+    });
+    return {
+      provisioned: true,
+      tenant_id: fresh?.tenant_id ?? null,
+      status: fresh?.status ?? SubscriptionStatus.ACTIVE,
+    };
+  }
+
+  /** deriveSchemaName preview for admin views — null signals a terminal gap. */
+  private previewSchemaName(companyName: string | null): string | null {
+    if (!companyName) return null;
+    try {
+      return deriveSchemaName(companyName);
+    } catch {
+      return null;
+    }
   }
 
   // ─── REACTIVATION (EXPIRED / CANCELLED / PAUSED → ACTIVE) ───────────────────

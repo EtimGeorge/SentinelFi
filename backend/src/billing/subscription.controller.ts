@@ -128,6 +128,37 @@ export class SubscriptionController {
   }
 
   /**
+   * SUPERADMIN action: replay one failed/stuck webhook ledger row NOW
+   * (instead of waiting for the reconciliation cron). `force: true` resets
+   * the attempt budget so exhausted rows can be revived after investigation.
+   */
+  @Post("provisioning/webhooks/:id/replay")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SuperAdmin)
+  @HttpCode(HttpStatus.OK)
+  async replayWebhookEvent(
+    @Param("id") id: string,
+    @Body() body: { force?: boolean },
+  ) {
+    return this.billingService.adminReplayWebhook(id, {
+      force: body?.force === true,
+    });
+  }
+
+  /**
+   * SUPERADMIN action: provision a paid-but-stuck subscription directly.
+   * Only for PENDING subscriptions whose charge the admin has verified
+   * against the gateway dashboard (the webhook may never have arrived).
+   */
+  @Post("provisioning/subscriptions/:id/provision")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SuperAdmin)
+  @HttpCode(HttpStatus.OK)
+  async provisionSubscriptionManually(@Param("id") id: string) {
+    return this.billingService.adminProvisionSubscription(id);
+  }
+
+  /**
    * Invite a team member to the authenticated user's tenant.
    */
   @Post("invite")

@@ -819,7 +819,7 @@ export const PUBLIC_ROUTES = [
 // Role configuration constants - matches UI_UX_REDESIGN_PLAN.md Section 2.1
 export const ROLE_CONFIG: Record<Role, RoleConfig> = {
   [Role.SuperAdmin]: { 
-    defaultRoute: '/super', visible: ['/super', '/super/tenants', '/super/analytics', '/super/audit-log', '/super/billing', '/super/settings'] 
+    defaultRoute: '/super', visible: ['/super', '/super/tenants', '/super/analytics', '/super/audit-log', '/super/billing', '/super/provisioning', '/super/settings'] 
   },
   [Role.CEO]: { 
     defaultRoute: '/dashboard/home', visible: ['/dashboard/home', '/financials/intelligence', '/financials/operations', '/reporting', '/settings'] 

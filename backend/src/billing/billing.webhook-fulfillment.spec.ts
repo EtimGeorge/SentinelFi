@@ -1,4 +1,5 @@
 import * as crypto from "crypto";
+import { ConflictException, NotFoundException } from "@nestjs/common";
 import { BillingService, TerminalFulfillmentError } from "./billing.service";
 import { WebhookService, MAX_FULFILLMENT_ATTEMPTS } from "./webhook.service";
 import {
@@ -42,9 +43,16 @@ function makeLedger(seed: any[] = []) {
       return { identifiers: [{ id }] };
     }),
     findOne: jest.fn(async ({ where }: any) => {
-      for (const row of rows.values())
-        if (row.gateway_event_id === where.gateway_event_id)
+      // Keyed lookups: claim paths match on gateway_event_id; admin ops
+      // (findOneById) look the ledger row up by primary id.
+      for (const row of rows.values()) {
+        if (
+          where.gateway_event_id &&
+          row.gateway_event_id === where.gateway_event_id
+        )
           return { ...row };
+        if (where.id && row.id === where.id) return { ...row };
+      }
       return null;
     }),
     update: jest.fn(async (criteria: any, partial: any) => {
@@ -109,6 +117,8 @@ function makeBilling(opts?: {
       if (where?.id && where.id !== subState.id) return null;
       return { ...subState };
     }),
+    // Ops-view lookups (getProvisioningExceptions) list the fixture row.
+    find: jest.fn(async () => [{ ...subState }]),
     update: jest.fn(async (_criteria: any, partial: any) => {
       // The fake can't evaluate raw SQL fragments (`() => "... + 1"`), so
       // only plain values are merged — exactly what assertions need.
@@ -358,5 +368,214 @@ describe("BillingService — at-least-once webhook fulfillment", () => {
         payload: { event: "charge.pending", data: { id: "y" } },
       }),
     ).resolves.toBeNull();
+  });
+});
+
+describe("BillingService — superadmin provisioning ops (manual replay / provision)", () => {
+  /** A FAILED ledger row exactly as the ops console fetches it by id. */
+  const seedFailedRow = (over: any = {}) => ({
+    id: "rec-1",
+    provider: "paystack",
+    gateway_event_id: "evt-manual",
+    payload: paystackEvent({ id: "evt-manual" }),
+    status: WebhookFulfillmentStatus.FAILED,
+    attempts: 3,
+    last_error: "tenant migration exploded",
+    claimed_at: new Date("2026-01-01T00:00:00Z"),
+    processed_at: new Date("2026-01-01T00:00:00Z"),
+    fulfilled_at: null,
+    subscription_id: null,
+    ...over,
+  });
+
+  it("adminReplayWebhook: unknown record id → 404", async () => {
+    const { service } = makeBilling();
+    await expect(service.adminReplayWebhook("nope")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it("adminReplayWebhook: already-FULFILLED row → 409, nothing replayed", async () => {
+    const { service, tenantService } = makeBilling({
+      ledger: makeLedger([
+        seedFailedRow({ status: WebhookFulfillmentStatus.FULFILLED }),
+      ]),
+    });
+    await expect(service.adminReplayWebhook("rec-1")).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(tenantService.ensureTenantProvisioned).not.toHaveBeenCalled();
+  });
+
+  it("adminReplayWebhook: exhausted row without force → 409 demanding force replay", async () => {
+    const { service, ledger } = makeBilling({
+      ledger: makeLedger([
+        seedFailedRow({ attempts: MAX_FULFILLMENT_ATTEMPTS }),
+      ]),
+    });
+    await expect(service.adminReplayWebhook("rec-1")).rejects.toThrow(
+      /force replay/,
+    );
+    // The guard must not burn an attempt on refusal.
+    expect(ledger.rows.get("evt-manual").attempts).toBe(
+      MAX_FULFILLMENT_ATTEMPTS,
+    );
+  });
+
+  it("adminReplayWebhook force: resets the exhausted budget, replays, and activates the subscription", async () => {
+    const { service, ledger, subState, tenantService } = makeBilling({
+      ledger: makeLedger([
+        seedFailedRow({ attempts: MAX_FULFILLMENT_ATTEMPTS }),
+      ]),
+    });
+    const result = await service.adminReplayWebhook("rec-1", { force: true });
+    expect(result).toEqual({
+      replayed: true,
+      status: WebhookFulfillmentStatus.FULFILLED,
+      subscription_id: "sub-1",
+    });
+    const row = ledger.rows.get("evt-manual");
+    expect(row.status).toBe(WebhookFulfillmentStatus.FULFILLED);
+    expect(row.attempts).toBe(1); // fresh budget from the force reset
+    expect(row.fulfilled_at).toBeInstanceOf(Date);
+    expect(subState.status).toBe(SubscriptionStatus.ACTIVE);
+    expect(subState.tenant_id).toBe("t-1");
+    expect(tenantService.ensureTenantProvisioned).toHaveBeenCalledTimes(1);
+  });
+
+  it("adminReplayWebhook: CAS conflict (row claimed mid-flight) → 409, no fulfillment", async () => {
+    const { service, ledger, tenantService } = makeBilling({
+      ledger: makeLedger([seedFailedRow()]),
+    });
+    ledger.update.mockResolvedValueOnce({ affected: 0 });
+    await expect(service.adminReplayWebhook("rec-1")).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(tenantService.ensureTenantProvisioned).not.toHaveBeenCalled();
+  });
+
+  it("adminReplayWebhook: retryable failure reports replayed:false and stays re-claimable", async () => {
+    const ensure = jest.fn().mockRejectedValue(new Error("migration exploded"));
+    const { service, ledger } = makeBilling({
+      ledger: makeLedger([seedFailedRow({ attempts: 1 })]),
+      ensure,
+    });
+    const result = await service.adminReplayWebhook("rec-1");
+    expect(result.replayed).toBe(false);
+    expect(result.status).toBe(WebhookFulfillmentStatus.FAILED);
+    expect(result.terminal).toBe(false);
+    expect(result.error).toContain("migration exploded");
+    const row = ledger.rows.get("evt-manual");
+    expect(row.status).toBe(WebhookFulfillmentStatus.FAILED);
+    expect(row.attempts).toBe(2); // claim incremented; cap not burned
+  });
+
+  it("adminReplayWebhook: terminal failure burns the cap so automatic retries stop", async () => {
+    const { service, ledger } = makeBilling({
+      ledger: makeLedger([
+        seedFailedRow({
+          attempts: 2,
+          // actionable but unattributable — replay can never succeed
+          payload: {
+            event: "charge.success",
+            data: { id: "evt-manual", reference: "r" },
+          },
+        }),
+      ]),
+    });
+    const result = await service.adminReplayWebhook("rec-1");
+    expect(result.replayed).toBe(false);
+    expect(result.terminal).toBe(true);
+    expect(ledger.rows.get("evt-manual").attempts).toBe(
+      MAX_FULFILLMENT_ATTEMPTS,
+    );
+  });
+
+  it("adminProvisionSubscription: PENDING subscription provisions through the shared activation path", async () => {
+    const { service, subState, tenantService } = makeBilling();
+    const result = await service.adminProvisionSubscription("sub-1");
+    expect(result).toEqual({
+      provisioned: true,
+      tenant_id: "t-1",
+      status: SubscriptionStatus.ACTIVE,
+    });
+    expect(subState.status).toBe(SubscriptionStatus.ACTIVE);
+    expect(subState.provisioned_at).toBeInstanceOf(Date);
+    expect(tenantService.ensureTenantProvisioned).toHaveBeenCalledTimes(1);
+  });
+
+  it("adminProvisionSubscription: already-ACTIVE with tenant is an idempotent no-op", async () => {
+    const { service, tenantService } = makeBilling({
+      sub: pendingSub({ status: SubscriptionStatus.ACTIVE, tenant_id: "t-9" }),
+    });
+    const result = await service.adminProvisionSubscription("sub-1");
+    expect(result).toEqual({
+      provisioned: true,
+      tenant_id: "t-9",
+      status: SubscriptionStatus.ACTIVE,
+    });
+    expect(tenantService.ensureTenantProvisioned).not.toHaveBeenCalled();
+  });
+
+  it("adminProvisionSubscription: non-PENDING statuses are rejected with 409", async () => {
+    const { service, tenantService } = makeBilling({
+      sub: pendingSub({ status: SubscriptionStatus.CANCELLED }),
+    });
+    await expect(
+      service.adminProvisionSubscription("sub-1"),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(tenantService.ensureTenantProvisioned).not.toHaveBeenCalled();
+  });
+
+  it("adminProvisionSubscription: unknown id → 404", async () => {
+    const { service } = makeBilling();
+    await expect(
+      service.adminProvisionSubscription("sub-ghost"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("adminProvisionSubscription: retryable failure is reported on the result, not thrown", async () => {
+    const ensure = jest.fn().mockRejectedValue(new Error("migration exploded"));
+    const { service, subState } = makeBilling({ ensure });
+    const result = await service.adminProvisionSubscription("sub-1");
+    expect(result.provisioned).toBe(false);
+    expect(result.status).toBe(SubscriptionStatus.PENDING);
+    expect(result.terminal).toBe(false);
+    expect(result.error).toContain("migration exploded");
+    expect(subState.provisioning_error).toContain("migration exploded");
+  });
+
+  it("adminProvisionSubscription: terminal gap (missing provisioning fields) reports terminal:true", async () => {
+    const { service } = makeBilling({ sub: pendingSub({ company_name: "" }) });
+    const result = await service.adminProvisionSubscription("sub-1");
+    expect(result.provisioned).toBe(false);
+    expect(result.terminal).toBe(true);
+    expect(result.error).toContain("company_name");
+  });
+  it("getProvisioningExceptions: surfaces failed rows and stuck paid subs with a schema preview", async () => {
+    const { service } = makeBilling({
+      ledger: makeLedger([seedFailedRow()]),
+    });
+    const view = await service.getProvisioningExceptions();
+    expect(view.counts).toEqual({
+      failed_webhooks: 1,
+      unprovisioned_paid: 1,
+    });
+    expect(view.failed_webhooks[0]).toMatchObject({
+      id: "rec-1",
+      gateway_event_id: "evt-manual",
+      status: WebhookFulfillmentStatus.FAILED,
+      attempts: 3,
+    });
+    expect(view.unprovisioned_paid[0].id).toBe("sub-1");
+    expect(view.unprovisioned_paid[0].schema_name_preview).toEqual(
+      expect.any(String),
+    );
+  });
+
+  it("getProvisioningExceptions: empty company name previews as null (terminal naming gap)", async () => {
+    const { service } = makeBilling({ sub: pendingSub({ company_name: "" }) });
+    const view = await service.getProvisioningExceptions();
+    expect(view.unprovisioned_paid[0].schema_name_preview).toBeNull();
   });
 });

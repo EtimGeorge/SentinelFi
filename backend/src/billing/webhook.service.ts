@@ -505,6 +505,38 @@ export class WebhookService {
     return res.affected === 1;
   }
 
+  /** Single ledger row by id — superadmin console lookups (replay action). */
+  async findOneById(id: string): Promise<ProcessedWebhookEntity | null> {
+    return this.processedWebhookRepository.findOne({ where: { id } });
+  }
+
+  /**
+   * CAS re-claim for the SUPERADMIN manual-replay action. Same optimistic
+   * lock as reclaimForReplay; `resetAttempts` burns a fresh attempt budget
+   * for exhausted rows (attempts >= cap) after the admin investigated —
+   * deliberate human override of the automatic retry ceiling.
+   */
+  async adminReclaimForReplay(
+    row: ProcessedWebhookEntity,
+    opts: { resetAttempts?: boolean } = {},
+  ): Promise<boolean> {
+    const res = await this.processedWebhookRepository.update(
+      { id: row.id, status: row.status, attempts: row.attempts },
+      {
+        status: WebhookFulfillmentStatus.PROCESSING,
+        attempts: opts.resetAttempts ? 1 : row.attempts + 1,
+        claimed_at: new Date(),
+        last_error: null,
+      },
+    );
+    if (res.affected === 1 && opts.resetAttempts) {
+      this.logger.warn(
+        `Admin replay reset the attempt budget for webhook ${row.gateway_event_id} (was ${row.attempts}/${MAX_FULFILLMENT_ATTEMPTS}).`,
+      );
+    }
+    return res.affected === 1;
+  }
+
   /** Shared unique-violation check (TOCTOU races on the ledger insert). */
   private isUniqueViolation(err: any): boolean {
     const code = err?.code ?? err?.errno ?? err?.driverError?.code ?? "";

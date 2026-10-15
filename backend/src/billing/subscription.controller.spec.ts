@@ -44,6 +44,20 @@ describe("SubscriptionController (tenant isolation)", () => {
         message: "unlocked",
         tenantId,
       })),
+      getProvisioningExceptions: jest.fn(async () => ({
+        counts: { failed_webhooks: 0, unprovisioned_paid: 0 },
+      })),
+      adminReplayWebhook: jest.fn(
+        async (id: string, opts: { force?: boolean }) => ({
+          replayed: true,
+          id,
+          force: opts?.force === true,
+        }),
+      ),
+      adminProvisionSubscription: jest.fn(async (id: string) => ({
+        provisioned: true,
+        id,
+      })),
     } as unknown as jest.Mocked<BillingService>;
     const controller = new SubscriptionController(billingService);
     return { controller, billingService };
@@ -156,6 +170,56 @@ describe("SubscriptionController (tenant isolation)", () => {
       const { controller, billingService } = makeController();
       await controller.adUnlock(reqFor("tenant-A"));
       expect(billingService.grantAdUnlock).toHaveBeenCalledWith("tenant-A");
+    });
+  });
+
+  describe("superadmin provisioning ops endpoints", () => {
+    it("getProvisioningExceptions delegates to the service view", async () => {
+      const { controller, billingService } = makeController();
+      await controller.getProvisioningExceptions();
+      expect(billingService.getProvisioningExceptions).toHaveBeenCalledTimes(
+        1,
+      );
+    });
+
+    it("replayWebhookEvent defaults force to false and forwards the record id", async () => {
+      const { controller, billingService } = makeController();
+      await controller.replayWebhookEvent("rec-9", {});
+      expect(billingService.adminReplayWebhook).toHaveBeenCalledWith("rec-9", {
+        force: false,
+      });
+    });
+
+    it("replayWebhookEvent forwards force:true for the force-replay action", async () => {
+      const { controller, billingService } = makeController();
+      await controller.replayWebhookEvent("rec-9", { force: true });
+      expect(billingService.adminReplayWebhook).toHaveBeenCalledWith("rec-9", {
+        force: true,
+      });
+    });
+
+    it("replayWebhookEvent coerces non-boolean force values to false", async () => {
+      const { controller, billingService } = makeController();
+      await controller.replayWebhookEvent("rec-9", { force: "yes" as any });
+      expect(billingService.adminReplayWebhook).toHaveBeenCalledWith("rec-9", {
+        force: false,
+      });
+    });
+
+    it("replayWebhookEvent survives a missing body (force stays false)", async () => {
+      const { controller, billingService } = makeController();
+      await controller.replayWebhookEvent("rec-9", undefined as any);
+      expect(billingService.adminReplayWebhook).toHaveBeenCalledWith("rec-9", {
+        force: false,
+      });
+    });
+
+    it("provisionSubscriptionManually forwards the subscription id", async () => {
+      const { controller, billingService } = makeController();
+      await controller.provisionSubscriptionManually("sub-77");
+      expect(billingService.adminProvisionSubscription).toHaveBeenCalledWith(
+        "sub-77",
+      );
     });
   });
 });

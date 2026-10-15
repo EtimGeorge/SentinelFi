@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, LayoutGrid, Folders, ShieldCheck, TrendingUp, LineChart, PieChart, BarChart2, BarChart3, Wallet, Receipt, Files, ClipboardList, ClipboardCheck, ScrollText, Network, Banknote, Briefcase, CalendarClock, ShoppingCart, CreditCard, Gauge, Cog, Crown, Contact, Eye, TrendingDown, Newspaper, Settings, Code2, Wrench, Globe,
   // probe-globe
-  TentTree, Gavel, Building2, Building, Users, Presentation, Scale, CircleDollarSign, Archive, Command, LifeBuoy, LucideIcon, Shield, DollarSign, FileText,
+  TentTree, Gavel, Building2, Building, Users, Presentation, Scale, CircleDollarSign, Archive, Command, LifeBuoy, LucideIcon, Shield, DollarSign, FileText, Satellite,
 } from 'lucide-react';
 import { Role } from '@shared/types/role.enum'; // Corrected import
 
@@ -166,6 +166,9 @@ export const superAdminNavigationMap: NavItem[] = [
   },
   {
     name: 'Billing', icon: DollarSign, path: '/super/billing', roles: [Role.SuperAdmin],
+  },
+  {
+    name: 'Provisioning Ops', icon: Satellite, path: '/super/provisioning', roles: [Role.SuperAdmin], exactMatch: true,
   },
   {
     name: 'System Settings', icon: Settings, path: '/super/settings', roles: [Role.SuperAdmin],
