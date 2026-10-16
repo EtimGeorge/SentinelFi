@@ -18,6 +18,8 @@ import { P2PReceiptEntity } from "./entities/p2p-receipt.entity";
 import { P2PPurchaseOrderLineEntity } from "./entities/p2p-purchase-order-line.entity";
 import { P2PReceiptLineEntity } from "./entities/p2p-receipt-line.entity";
 import { VendorEntity } from "./entities/vendor.entity";
+import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
+import { EncumbranceSourceType } from "@shared/types";
 import { BudgetLedgerEntity } from "./entities/budget-ledger.entity";
 import { PayrollLineItemEntity } from "./entities/payroll-line-item.entity";
 import { ApprovalLogEntity } from "../common/entities/approval-log.entity";
@@ -573,6 +575,78 @@ describe("FinanceCoreService — atomic document numbering", () => {
           { description: "Big", quantity: 1, unitAmount: 500 },
         ]),
       ).rejects.toThrow(/exceeds the approved requisition amount/);
+    });
+
+    it("excludes the requisition's own hold when checking the budget ceiling", async () => {
+      const requisition = {
+        id: "req-1",
+        tenant_id: tenantId,
+        status: "PENDING_APPROVAL",
+        estimated_amount: 1000,
+        currency: "USD",
+        exchange_rate: 1,
+        base_amount: 1000,
+        gl_account_id: "gl-1",
+        cost_center_id: "cc-1",
+        description: "Valve spares",
+        vendor_id: null,
+        vendor_name: null,
+        costCenter: { id: "cc-1" },
+      };
+      const txManager = {
+        findOne: jest.fn(async (entity: unknown) => {
+          if (entity === P2PRequisitionEntity) return requisition;
+          if (entity === OperationalBudgetEntity) {
+            return { name: "Ops", budgeted_amount: 10000, actual_spent: 0 };
+          }
+          return null;
+        }),
+        create: jest.fn((_entity: unknown, obj: Record<string, unknown>) => ({
+          ...obj,
+        })),
+        save: jest.fn(async (x: any) =>
+          Array.isArray(x)
+            ? x.map((row, i) => ({ ...row, id: `pol-${i + 1}` }))
+            : { ...x, id: x.id ?? "gen-1" },
+        ),
+        query: jest.fn(),
+      };
+      dataSourceMock.transaction.mockImplementation(async (cb: any) =>
+        cb(txManager),
+      );
+      jest
+        .spyOn(service as any, "nextDocumentNumber")
+        .mockResolvedValue("PO-2026-0009");
+      (service as any).doaService = { validateAuthority: jest.fn() };
+      jest
+        .spyOn(service as any, "resolveOperationalBudgetForCostCenter")
+        .mockResolvedValue("budget-1");
+      const validate = jest
+        .fn()
+        .mockResolvedValue({ action: "NONE", message: "" });
+      (service as any).budgetControlService = {
+        validateOperationalExpenseVariance: validate,
+      };
+      operationalBudgetsService.getActiveEncumbrancesForBudget.mockResolvedValue(
+        [
+          {
+            source_type: EncumbranceSourceType.REQUISITION,
+            source_id: "req-1",
+            amount: 1000,
+          },
+          {
+            source_type: EncumbranceSourceType.PURCHASE_ORDER,
+            source_id: "po-9",
+            amount: 500,
+          },
+        ],
+      );
+
+      await service.createPurchaseOrder("req-1", { id: "u1" } as any);
+
+      expect(validate).toHaveBeenCalledWith(
+        expect.objectContaining({ committedAmount: 500, amount: 1000 }),
+      );
     });
 
     it("creates receipt lines and rolls received quantity onto the PO line", async () => {

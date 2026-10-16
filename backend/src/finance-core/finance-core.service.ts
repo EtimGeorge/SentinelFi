@@ -643,10 +643,19 @@ export class FinanceCoreService {
               budgetId,
               tenantId,
             );
-          const committedPipeline = activeEncumbrances.reduce(
-            (sum, enc) => sum + Number(enc.amount || 0),
-            0,
-          );
+          // Exclude this requisition's OWN soft-hold. It is still RESERVED at
+          // this point (it is only released below, once the PO is persisted),
+          // so counting it here AND adding the requisition amount as `amount`
+          // below would double-charge the requisition against the ceiling.
+          const committedPipeline = activeEncumbrances
+            .filter(
+              (enc) =>
+                !(
+                  enc.source_type === EncumbranceSourceType.REQUISITION &&
+                  enc.source_id === requisitionId
+                ),
+            )
+            .reduce((sum, enc) => sum + Number(enc.amount || 0), 0);
           const check =
             await this.budgetControlService.validateOperationalExpenseVariance({
               budgetName: budget.name,

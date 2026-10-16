@@ -12,6 +12,7 @@ import { randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 import { RoleEntity } from "./role.entity";
 import { RetryableQuery } from "../common/config/database.config";
+import { ensureRbacSeeded } from "../database/seeds/rbac.seed-data";
 
 @Injectable()
 export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
@@ -76,12 +77,36 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
 
     try {
       // Use RetryableQuery with generous retries and delay during startup
-      const superAdminRole = await RetryableQuery.execute(
+      let superAdminRole = await RetryableQuery.execute(
         () =>
           this.roleRepository.findOne({ where: { name: superAdminRoleName } }),
         5, // 5 retries
         1000, // 1s base delay
       );
+
+      if (!superAdminRole) {
+        // Self-heal instead of failing boot. `roles`/`permissions` are seeded
+        // by the public migration `SeedRbacRolesAndPermissions...`, but public
+        // migrations are opt-in (RUN_MIGRATIONS_ON_BOOT) so a fresh production
+        // database can legitimately arrive here with an empty RBAC catalog.
+        // ensureRbacSeeded() is insert-if-absent, so it only fills gaps and
+        // never overwrites an admin's customisations.
+        this.logger.warn(
+          `The '${superAdminRoleName}' role is missing — running the RBAC seed to repair it.`,
+        );
+        try {
+          await ensureRbacSeeded(this.roleRepository.manager);
+          superAdminRole = await this.roleRepository.findOne({
+            where: { name: superAdminRoleName },
+          });
+        } catch (seedError) {
+          this.logger.error(
+            `RBAC self-heal failed: ${
+              seedError instanceof Error ? seedError.message : String(seedError)
+            }`,
+          );
+        }
+      }
 
       if (!superAdminRole) {
         if (isProduction) {

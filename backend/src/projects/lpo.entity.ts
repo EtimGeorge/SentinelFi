@@ -21,6 +21,7 @@ export enum LpoStatus {
   CANCELLED = "CANCELLED",
 }
 
+@Index("IDX_lpo_tenant_approval_status", ["tenant_id", "approval_status"])
 @Entity({ name: "lpo" })
 export class LpoEntity {
   @PrimaryGeneratedColumn("uuid")

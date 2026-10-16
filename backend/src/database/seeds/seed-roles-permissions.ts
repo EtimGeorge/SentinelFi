@@ -8,11 +8,11 @@ import { DataSource } from "typeorm"; // Import DataSource directly
 import { RoleEntity } from "../../auth/role.entity";
 import { PermissionEntity } from "../../auth/permission.entity";
 import { Logger } from "@nestjs/common"; // Keep Logger, it's a simple class, though a plain console.log might be faster
-import { Role } from "@shared/types/role.enum"; // Import the shared Role enum
 // Removed: import { NestFactory } from '@nestjs/core';
 // Removed: import { AppModule } from '../../app.module';
 
 import AppDataSource from "../../../ormconfig"; // Import the default public AppDataSource from monorepo root config
+import { PERMISSIONS, ROLES } from "./rbac.seed-data";
 
 async function bootstrap() {
   const logger = new Logger("SeedRolesPermissions");
@@ -29,95 +29,9 @@ async function bootstrap() {
   const roleRepository = dataSource.getRepository(RoleEntity);
   const permissionRepository = dataSource.getRepository(PermissionEntity);
 
-  // Define Permissions
-  const permissionsData = [
-    // User Management
-    { name: "users:create", description: "Create new user accounts" },
-    { name: "users:read", description: "View user profiles and lists" },
-    { name: "users:update", description: "Update user profiles and roles" },
-    { name: "users:delete", description: "Deactivate or delete user accounts" },
-    { name: "users:assign_roles", description: "Assign roles to users" },
-
-    // Role Management (SuperAdmin only)
-    { name: "roles:create", description: "Create new roles" },
-    { name: "roles:read", description: "View role definitions" },
-    {
-      name: "roles:update",
-      description: "Update role definitions and permissions",
-    },
-    { name: "roles:delete", description: "Delete roles" },
-
-    // Project Management
-    { name: "projects:create", description: "Create new projects" },
-    { name: "projects:read", description: "View project details" },
-    { name: "projects:update", description: "Update project details" },
-    { name: "projects:delete", description: "Delete projects" },
-
-    // WBS Management (Budgeting)
-    { name: "wbs:create", description: "Create WBS categories and line items" },
-    { name: "wbs:read", description: "View WBS structures and budgets" },
-    { name: "wbs:update", description: "Update WBS structures and budgets" },
-    { name: "wbs:delete", description: "Delete WBS categories and line items" },
-
-    // Expense Management
-    { name: "expenses:create", description: "Create new expense entries" },
-    { name: "expenses:read", description: "View expense entries" },
-    {
-      name: "expenses:update",
-      description: "Update own or assigned expense entries",
-    },
-    {
-      name: "expenses:approve",
-      description: "Approve or reject expense entries",
-    },
-    { name: "expenses:delete", description: "Delete expense entries" },
-
-    // Operational Budgets
-    {
-      name: "operational_budgets:create",
-      description: "Create operational budgets",
-    },
-    {
-      name: "operational_budgets:read",
-      description: "View operational budgets",
-    },
-    {
-      name: "operational_budgets:update",
-      description: "Update operational budgets",
-    },
-    {
-      name: "operational_budgets:delete",
-      description: "Delete operational budgets",
-    },
-
-    // Reporting & Analytics
-    { name: "reports:read", description: "View various reports and analytics" },
-    { name: "reports:export", description: "Export report data" },
-
-    // Tenant Settings Management
-    {
-      name: "tenant_settings:read",
-      description: "View tenant-specific settings",
-    },
-    {
-      name: "tenant_settings:update",
-      description: "Update tenant-specific settings",
-    },
-
-    // SuperAdmin Specific (Platform-level operations)
-    {
-      name: "superadmin:manage_tenants",
-      description: "Create, update, delete tenants (platform-level)",
-    },
-    {
-      name: "superadmin:impersonate",
-      description: "Impersonate tenant users for support",
-    },
-    {
-      name: "superadmin:view_all_data",
-      description: "View data across all tenants",
-    },
-  ];
+  // Permission catalog is defined once in ./rbac.seed-data.ts and shared with
+  // the SeedRbacRolesAndPermissions migration so the two cannot drift apart.
+  const permissionsData = PERMISSIONS;
 
   const existingPermissions = await permissionRepository.find();
   const permissionsToCreate = permissionsData.filter(
@@ -135,161 +49,14 @@ async function bootstrap() {
 
   const allPermissions = await permissionRepository.find(); // Get all permissions, including previously existing ones
 
-  // Define Roles and assign Permissions
-  const rolesData = [
-    {
-      name: "SuperAdmin", // Explicit string literal workaround
-      description: "Global administrator with full platform access",
-      permissions: allPermissions, // SuperAdmin gets all permissions
-    },
-    {
-      name: "Admin", // Legacy - retained in seeder for backward compatibility with migration
-      description: "Legacy tenant admin role (migrated to Admin Director)",
-      permissions: allPermissions.filter(
-        (p) =>
-          !p.name.startsWith("superadmin:") && !p.name.startsWith("roles:"),
-      ),
-    },
-    {
-      name: "Finance", // Legacy - retained in seeder for backward compatibility with migration
-      description:
-        "Legacy finance oversight role (migrated to Finance Manager)",
-      permissions: allPermissions.filter(
-        (p) =>
-          p.name === "expenses:read" ||
-          p.name === "expenses:approve" ||
-          p.name === "operational_budgets:read" ||
-          p.name === "reports:read" ||
-          p.name === "reports:export" ||
-          p.name === "wbs:read" ||
-          p.name === "projects:read",
-      ),
-    },
-    {
-      name: Role.CFO,
-      description:
-        "Chief Financial Officer - Ultimate financial authority (Tenant Tier)",
-      permissions: allPermissions.filter(
-        (p) =>
-          !p.name.startsWith("superadmin:") &&
-          !p.name.startsWith("users:delete"),
-      ),
-    },
-    {
-      name: Role.AdminDirector,
-      description:
-        "Director of Administration - Strategic resource management (Tenant Tier)",
-      permissions: allPermissions.filter(
-        (p) =>
-          !p.name.startsWith("superadmin:") &&
-          !p.name.startsWith("expenses:approve"),
-      ),
-    },
-    {
-      name: Role.OperationalDirector,
-      description:
-        "Director of Operations - Operational strategy and budget oversight (Tenant Tier)",
-      permissions: allPermissions.filter(
-        (p) =>
-          !p.name.startsWith("superadmin:") && !p.name.startsWith("users:"),
-      ),
-    },
-    {
-      name: Role.TechnicalDirector,
-      description:
-        "Director of Technology - Formerly IT Head, technical governance (Tenant Tier)",
-      permissions: allPermissions.filter(
-        (p) =>
-          !p.name.startsWith("superadmin:") &&
-          (p.name.startsWith("users:") || p.name === "reports:read"),
-      ),
-    },
-    {
-      name: Role.CEO, // From shared enum
-      description: "Tenant user with high-level overview and reporting access",
-      permissions: allPermissions.filter(
-        (p) =>
-          p.name === "reports:read" ||
-          p.name === "reports:export" ||
-          p.name === "projects:read" ||
-          p.name === "wbs:read" ||
-          p.name === "expenses:read" ||
-          p.name === "operational_budgets:read",
-      ),
-    },
-    {
-      name: "IT Head", // Legacy - retained in seeder for backward compatibility with migration
-      description: "Legacy IT management role (migrated to Technical Director)",
-      permissions: allPermissions.filter(
-        (p) =>
-          p.name.startsWith("users:") ||
-          p.name === "tenant_settings:read" ||
-          p.name === "reports:read",
-      ),
-    },
-    {
-      name: Role.FinanceManager,
-      description:
-        "Finance Manager - Operational financial control and primary approvals (Tenant Tier)",
-      permissions: allPermissions.filter(
-        (p) =>
-          p.name.startsWith("expenses:") ||
-          p.name.startsWith("operational_budgets:") ||
-          p.name.startsWith("reports:") ||
-          p.name.startsWith("wbs:"),
-      ),
-    },
-    {
-      name: Role.AdminManager,
-      description:
-        "Admin Manager - Human resources and administrative operations (Tenant Tier)",
-      permissions: allPermissions.filter(
-        (p) => p.name.startsWith("users:") || p.name === "reports:read",
-      ),
-    },
-    {
-      name: Role.ProjectManager,
-      description:
-        "Project Manager - Project-level WBS and budget management (Tenant Tier)",
-      permissions: allPermissions.filter(
-        (p) =>
-          p.name.startsWith("projects:") ||
-          p.name.startsWith("wbs:") ||
-          p.name === "expenses:read" ||
-          p.name === "reports:read",
-      ),
-    },
-    {
-      name: Role.FinanceOfficer,
-      description:
-        "Finance Officer - Data entry and initial verification (Tenant Tier)",
-      permissions: allPermissions.filter(
-        (p) =>
-          p.name === "expenses:create" ||
-          p.name === "expenses:read" ||
-          p.name === "wbs:read",
-      ),
-    },
-    {
-      name: Role.AdminOfficer,
-      description:
-        "Admin Officer - Basic user support and administrative tasks (Tenant Tier)",
-      permissions: allPermissions.filter((p) => p.name === "users:read"),
-    },
-    {
-      name: Role.AssignedProjectUser, // From shared enum
-      description:
-        "Standard user assigned to specific projects, primarily for data entry",
-      permissions: allPermissions.filter(
-        (p) =>
-          p.name === "projects:read" ||
-          p.name === "wbs:read" ||
-          p.name === "expenses:create" ||
-          p.name === "expenses:read" ||
-          p.name === "expenses:update", // Can update their own expenses
-      ),
-    },
-  ];
+  // Role definitions (name/description + the permission-grant rule) also live
+  // in ./rbac.seed-data.ts. `grant` is applied to the persisted entities so the
+  // join table receives rows with real permission ids.
+  const rolesData = ROLES.map((role) => ({
+    name: role.name,
+    description: role.description,
+    permissions: role.grant(allPermissions),
+  }));
 
   for (const roleData of rolesData) {
     const role = await roleRepository.findOne({

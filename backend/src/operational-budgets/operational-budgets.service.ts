@@ -12,6 +12,7 @@ import {
   Like,
   Between,
   DataSource,
+  In,
   LessThanOrEqual,
   SelectQueryBuilder,
 } from "typeorm";
@@ -384,7 +385,17 @@ export class OperationalBudgetsService {
     return result.affected ?? 0;
   }
 
-  /** Active (non-terminal) encumbrances against a budget — the committed pipeline. */
+  /**
+   * Active (non-terminal) encumbrances against a budget — the committed pipeline.
+   *
+   * Both RESERVED (soft hold on a requisition / pending expense) and FIRM
+   * (commitment firmed at PO/approval time) count towards the ceiling: they are
+   * the two states that still represent money promised but not yet realised.
+   * Only LIQUIDATED and RELEASED are terminal. Omitting FIRM here understated
+   * the committed pipeline the moment a commitment firmed, which let the PO
+   * budget-control check (finance-core firmRequisition) approve further
+   * commitments past the true ceiling.
+   */
   async getActiveEncumbrancesForBudget(
     budgetId: string,
     tenantId: string,
@@ -393,7 +404,7 @@ export class OperationalBudgetsService {
       where: {
         tenant_id: tenantId,
         operational_budget_id: budgetId,
-        status: EncumbranceStatus.RESERVED,
+        status: In([EncumbranceStatus.RESERVED, EncumbranceStatus.FIRM]),
       },
       order: { created_at: "DESC" },
     });
