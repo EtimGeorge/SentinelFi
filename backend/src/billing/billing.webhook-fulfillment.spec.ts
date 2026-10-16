@@ -93,6 +93,7 @@ function pendingSub(over: any = {}) {
     provisioning_error: null,
     provisioning_attempts: 0,
     provisioned_at: null,
+    provisioning_notification_sent: false,
     ...over,
   };
 }
@@ -120,10 +121,16 @@ function makeBilling(opts?: {
     // Ops-view lookups (getProvisioningExceptions) list the fixture row.
     find: jest.fn(async () => [{ ...subState }]),
     update: jest.fn(async (_criteria: any, partial: any) => {
-      // The fake can't evaluate raw SQL fragments (`() => "... + 1"`), so
-      // only plain values are merged — exactly what assertions need.
+      // The fake can't evaluate raw SQL fragments (`() => "\"... + 1"`), so
+      // simulate the increment for known raw-SQL columns, then merge plain values.
       for (const [k, v] of Object.entries(partial as any)) {
-        if (typeof v !== "function") subState[k] = v;
+        if (typeof v === "function") {
+          if (k === "provisioning_attempts") {
+            subState[k] = (subState[k] ?? 0) + 1;
+          }
+        } else {
+          subState[k] = v;
+        }
       }
       return { affected: 1 };
     }),
@@ -182,6 +189,7 @@ function makeBilling(opts?: {
   return {
     service,
     ledger,
+    emailService,
     subscriptionRepository,
     subState,
     tenantService,
@@ -577,5 +585,112 @@ describe("BillingService — superadmin provisioning ops (manual replay / provis
     const { service } = makeBilling({ sub: pendingSub({ company_name: "" }) });
     const view = await service.getProvisioningExceptions();
     expect(view.unprovisioned_paid[0].schema_name_preview).toBeNull();
+  });
+});
+
+/* =========================================================================
+ * BillingService — provisioning-failure notifications
+ * Pins the email gating contract: first-failure + terminal, no storm.
+ * ========================================================================= */
+describe("BillingService — provisioning-failure notifications", () => {
+  const failingEnsure = jest.fn().mockRejectedValue(
+    new Error("tenant migration exploded at /internal/path/schema.go:42:1"),
+  );
+
+  it("sends first-failure email on attempts 0→1, sets provisioning_notification_sent", async () => {
+    const { service, subState, emailService } = (makeBilling({ ensure: failingEnsure }) as any);
+
+    await expect(
+      service.handlePaystackWebhook(
+        rawFor(paystackEvent()),
+        signFor(rawFor(paystackEvent())),
+      ),
+    ).rejects.toThrow("tenant migration exploded");
+
+    expect(emailService.sendProvisioningFailureEmail).toHaveBeenCalledTimes(1);
+    const call = emailService.sendProvisioningFailureEmail.mock.calls[0];
+    expect(call[0]).toBe("admin@acme.com");
+    expect(call[1].firstName).toBe("Ada");
+    expect(call[1].companyName).toBe("Acme Corp");
+    expect(call[1].plan).toBe("professional");
+    expect(call[1].failureReason).not.toContain("/internal/path/schema.go");
+    expect(call[1].failureReason).not.toContain("at ");
+    expect(call[1].failureReason).toContain("tenant migration exploded");
+
+    expect(subState.provisioning_notification_sent).toBe(true);
+    expect(emailService.sendProvisioningTerminalAlert).not.toHaveBeenCalled();
+  });
+
+  it("does NOT re-send first-failure email when provisioning_notification_sent already true", async () => {
+    const { service, subState, emailService } = (makeBilling({
+      sub: pendingSub({
+        provisioning_attempts: 1,
+        provisioning_notification_sent: true,
+      }),
+      ensure: failingEnsure,
+    }) as any);
+
+    await expect(
+      service.handlePaystackWebhook(
+        rawFor(paystackEvent()),
+        signFor(rawFor(paystackEvent())),
+      ),
+    ).rejects.toThrow("tenant migration exploded");
+
+    expect(emailService.sendProvisioningFailureEmail).not.toHaveBeenCalled();
+    expect(subState.provisioning_notification_sent).toBe(true);
+  });
+
+  it("sends terminal user email + superadmin alert on unattributable event", async () => {
+    const { service, emailService } = (makeBilling({
+      sub: pendingSub({ provisioning_attempts: 0, provisioning_notification_sent: false }),
+      ensure: failingEnsure,
+    }) as any);
+
+    const ev = { event: "charge.success", data: { id: "evt-noid", reference: "r" } };
+    const raw = rawFor(ev);
+    const sig = signFor(raw);
+
+    await expect(service.handlePaystackWebhook(raw, sig)).resolves.toBeUndefined();
+
+    expect(emailService.sendProvisioningFailureEmail).toHaveBeenCalledTimes(1);
+    expect(emailService.sendProvisioningTerminalAlert).toHaveBeenCalledTimes(1);
+    const alertCall = emailService.sendProvisioningTerminalAlert.mock.calls[0];
+    expect(alertCall[0]).toBeDefined();
+    expect(alertCall[1].companyName).toBe("Acme Corp");
+    expect(alertCall[1].plan).toBe("professional");
+    expect(alertCall[1].subscriptionId).toBe("sub-1");
+  });
+
+  it("sanitizeErrorMessage strips stack traces and truncates long messages", async () => {
+    const { service } = makeBilling();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sanitized = (service as any).sanitizeErrorMessage(
+      new Error("Something failed at /app/src/internal/module.ts:100:5"),
+    );
+    expect(sanitized).not.toContain("/app/src/internal/module.ts");
+    expect(sanitized).not.toContain("at ");
+    expect(sanitized).toContain("Something failed");
+
+    const longMsg = "x".repeat(500);
+    const truncated = (service as any).sanitizeErrorMessage(longMsg);
+    expect(truncated.length).toBe(303);
+    expect(truncated.endsWith("…")).toBe(true);
+  });
+
+  it("adminProvisionSubscription terminal failure sends first-failure + terminal emails", async () => {
+    const { service, emailService } = (makeBilling({
+      sub: pendingSub({ company_name: "" }),
+      ensure: failingEnsure,
+    }) as any);
+
+    const result = await service.adminProvisionSubscription("sub-1");
+    expect(result.provisioned).toBe(false);
+    expect(result.terminal).toBe(true);
+
+    // First-failure email (attempts 0→1) + terminal user email + superadmin alert
+    expect(emailService.sendProvisioningFailureEmail).toHaveBeenCalledTimes(2);
+    expect(emailService.sendProvisioningTerminalAlert).toHaveBeenCalledTimes(1);
   });
 });

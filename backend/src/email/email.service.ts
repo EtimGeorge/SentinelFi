@@ -122,6 +122,28 @@ export interface SubscriptionReactivatedContext {
   dashboardUrl: string;
 }
 
+export interface ProvisioningFailureContext {
+  firstName: string;
+  companyName: string;
+  plan: string;
+  failureReason: string;
+  failureDate: string;
+  retryUrl: string;
+  supportUrl?: string;
+}
+
+export interface ProvisioningTerminalAlertContext {
+  firstName: string;
+  companyName: string;
+  plan: string;
+  failureReason: string;
+  failureDate: string;
+  subscriptionId: string;
+  tenantId: string;
+  attempts: number;
+  dashboardUrl: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -592,6 +614,45 @@ export class EmailService implements OnModuleInit {
       },
     );
     this.logger.log(`[EmailService] Reactivation → ${to}`);
+  }
+
+  // ─── Provisioning-Failure Emails ────────────────────────────────────────
+
+  /**
+   * Sent to the workspace admin when payment was captured but tenant
+   * schema provisioning failed. Gated by the caller so only the first
+   * observed failure (and terminal failures) trigger an email — never
+   * a storm on gateway retries or cron replays.
+   */
+  async sendProvisioningFailureEmail(
+    to: string,
+    context: ProvisioningFailureContext,
+    metadata?: EmailMeta,
+  ): Promise<void> {
+    const subject = `⚠️ SentinelFi® Provisioning Failed — Payment Received, Workspace Not Yet Active`;
+    await this.sendTemplatedEmail(to, subject, "provisioning-failure", context, {
+      template: "provisioning-failure",
+      tenantId: metadata?.tenantId ?? null,
+    });
+    this.logger.log(`[EmailService] Provisioning failure → ${to}`);
+  }
+
+  /**
+   * Sent to the superadmin when provisioning has reached a terminal
+   * state (attempt cap burned or unrecoverable error). Requires
+   * `SUPERADMIN_EMAIL` to be configured; silently no-ops otherwise.
+   */
+  async sendProvisioningTerminalAlert(
+    to: string,
+    context: ProvisioningTerminalAlertContext,
+    metadata?: EmailMeta,
+  ): Promise<void> {
+    const subject = `🚨 SentinelFi® Terminal Provisioning Failure — Tenant ${context.companyName} (${context.plan})`;
+    await this.sendTemplatedEmail(to, subject, "provisioning-terminal-alert", context, {
+      template: "provisioning-terminal-alert",
+      tenantId: metadata?.tenantId ?? null,
+    });
+    this.logger.log(`[EmailService] Terminal provisioning alert → ${to}`);
   }
 
   // ─── Email Audit Statistics ─────────────────────────────────────────────

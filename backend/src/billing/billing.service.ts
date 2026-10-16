@@ -543,6 +543,23 @@ export class BillingService {
       await this.webhookService.markFailed(claim.recordId, message, {
         terminal,
       });
+
+      // Notify user + superadmin on provisioning failure (first failure + terminal).
+      // Fire-and-forget: a notification failure must never mask the original error
+      // or change the webhook settlement contract.
+      const target = this.extractFulfillmentTarget(provider, payload);
+      if (target.subscriptionId) {
+        this.sendProvisioningFailureEmails(
+          target.subscriptionId,
+          message,
+          terminal,
+        ).catch((notifyErr: Error) =>
+          this.logger.error(
+            `[BILLING] Provisioning-failure notification failed for ${target.subscriptionId}: ${notifyErr.message}`,
+          ),
+        );
+      }
+
       if (terminal) {
         this.logger.error(
           `[BILLING] TERMINAL fulfillment failure for ${provider} event ${eventId}: ${message} — retries halted; visible in superadmin provisioning exceptions.`,
@@ -837,6 +854,149 @@ export class BillingService {
       periodEnd: periodEnd.toDateString(),
       dashboardUrl: `${frontendUrl}/dashboard`,
     }, { tenantId: sub.tenant_id ?? null });
+  }
+
+  // ─── PROVISIONING-FAILURE NOTIFICATIONS ─────────────────────────────────
+
+  /**
+   * Sends provisioning-failure emails to the workspace admin and (on terminal
+   * failure) a superadmin alert. All sends are wrapped in try/catch so a
+   * notification failure never masks the original provisioning error.
+   *
+   * Gating:
+   *   - First-failure email: sent once, when `provisioning_attempts` just
+   *     went 0→1 AND `provisioning_notification_sent` is false.
+   *   - Terminal email + superadmin alert: sent when `isTerminal` is true
+   *     (TerminalFulfillmentError or attempt cap burned).
+   *
+   * The subscription is re-fetched fresh so `provisioning_attempts` reflects
+   * the increment that `recordProvisioningError` just committed.
+   */
+  private async sendProvisioningFailureEmails(
+    subscriptionId: string,
+    error: Error | string,
+    isTerminal: boolean,
+  ): Promise<void> {
+    // Fresh read so we see the just-incremented provisioning_attempts.
+    const sub = await this.subscriptionRepository.findOne({
+      where: { id: subscriptionId },
+    });
+    if (!sub) {
+      this.logger.warn(
+        `[BILLING] Cannot send provisioning-failure email: subscription ${subscriptionId} not found.`,
+      );
+      return;
+    }
+
+    const sanitizedReason = this.sanitizeErrorMessage(error);
+    const frontendUrl = this.configService.get<string>(
+      "FRONTEND_URL",
+      "https://sentinelfi.com",
+    );
+    const toEmail = sub.admin_email!;
+    const firstName =
+      sub.admin_first_name || sub.company_name || "there";
+    const companyName = sub.company_name || "Your workspace";
+    const baseContext = {
+      firstName,
+      companyName,
+      plan: sub.plan,
+      failureReason: sanitizedReason,
+      failureDate: new Date().toDateString(),
+      retryUrl: `${frontendUrl}/billing/success?ref=${sub.id}`,
+      supportUrl: `${frontendUrl}/support`,
+    };
+
+    // ── First-failure email (user) ──────────────────────────────────────
+    // Gated on attempts === 1 (just incremented from 0) and the idempotency
+    // flag not yet set, so admin force-replays don't re-trigger it.
+    const isFirstFailure =
+      (sub.provisioning_attempts ?? 0) === 1 &&
+      !sub.provisioning_notification_sent;
+
+    if (isFirstFailure) {
+      try {
+        await this.emailService.sendProvisioningFailureEmail(toEmail, {
+          ...baseContext,
+        }, { tenantId: sub.tenant_id ?? null });
+
+        await this.subscriptionRepository.update(
+          { id: sub.id },
+          { provisioning_notification_sent: true },
+        );
+        this.logger.log(
+          `[BILLING] First-failure provisioning email sent to ${toEmail} (subscription ${subscriptionId}).`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `[BILLING] First-failure provisioning email failed for ${toEmail}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    // ── Terminal failure: user email + superadmin alert ─────────────────
+    if (isTerminal) {
+      // Terminal user email (distinct from first-failure: tells them it's now
+      // requiring manual intervention, not just an automatic retry).
+      try {
+        await this.emailService.sendProvisioningFailureEmail(toEmail, {
+          ...baseContext,
+        }, { tenantId: sub.tenant_id ?? null });
+        this.logger.log(
+          `[BILLING] Terminal provisioning email sent to ${toEmail} (subscription ${subscriptionId}).`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `[BILLING] Terminal provisioning email failed for ${toEmail}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      // Superadmin terminal alert.
+      try {
+        const superadminEmail = this.configService.get<string>(
+          "SUPERADMIN_EMAIL",
+        );
+        if (superadminEmail) {
+          await this.emailService.sendProvisioningTerminalAlert(
+            superadminEmail,
+            {
+              firstName,
+              companyName,
+              plan: sub.plan,
+              failureReason: sanitizedReason,
+              failureDate: new Date().toDateString(),
+              subscriptionId: sub.id,
+              tenantId: sub.tenant_id ?? "unknown",
+              attempts: sub.provisioning_attempts ?? 0,
+              dashboardUrl: `${frontendUrl}/super/provisioning`,
+            },
+            { tenantId: null },
+          );
+          this.logger.log(
+            `[BILLING] Terminal provisioning superadmin alert sent to ${superadminEmail} (subscription ${subscriptionId}).`,
+          );
+        }
+      } catch (err) {
+        this.logger.error(
+          `[BILLING] Terminal provisioning superadmin alert failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Strips stack traces, file paths, and other technical internals from an
+   * error before it is shown to a user in an email. Prevents leaking internal
+   * implementation details and keeps the message concise.
+   */
+  private sanitizeErrorMessage(error: Error | string): string {
+    const raw = error instanceof Error ? error.message : String(error);
+    const sanitized = raw
+      .replace(/at\s+\S+.*/g, "") // remove stack frames
+      .replace(/\([^)]*:\d+:\d+\)/g, "") // remove file:line:col
+      .replace(/\s+at\s+/g, " ")
+      .trim();
+    return sanitized.length > 300 ? sanitized.slice(0, 300) + "…" : sanitized;
   }
 
   /**
@@ -1204,6 +1364,20 @@ export class BillingService {
       this.logger.error(
         `Admin replay of ${row.provider} event ${row.gateway_event_id} failed (${terminal ? "terminal" : "retryable"}): ${message}`,
       );
+
+      // Notify user + superadmin on provisioning failure (first failure + terminal).
+      if (row.subscription_id) {
+        this.sendProvisioningFailureEmails(
+          row.subscription_id,
+          message,
+          terminal,
+        ).catch((notifyErr: Error) =>
+          this.logger.error(
+            `[BILLING] Provisioning-failure notification failed for ${row.subscription_id}: ${notifyErr.message}`,
+          ),
+        );
+      }
+
       return {
         replayed: false,
         status: WebhookFulfillmentStatus.FAILED,
@@ -1255,6 +1429,18 @@ export class BillingService {
       this.logger.error(
         `Admin provisioning of subscription ${subscriptionId} failed (${terminal ? "terminal" : "retryable"}): ${message}`,
       );
+
+      // Notify user + superadmin on provisioning failure (first failure + terminal).
+      await this.sendProvisioningFailureEmails(
+        subscriptionId,
+        message,
+        terminal,
+      ).catch((notifyErr: Error) =>
+        this.logger.error(
+          `[BILLING] Provisioning-failure notification failed for ${subscriptionId}: ${notifyErr.message}`,
+        ),
+      );
+
       return {
         provisioned: false,
         tenant_id: null,

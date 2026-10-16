@@ -153,4 +153,10 @@ export class SubscriptionEntity {
   /** When provisioning completed (subscription flipped ACTIVE with a tenant). */
   @Column({ type: "timestamptz", nullable: true })
   provisioned_at!: Date | null;
+
+  /** Hard idempotency: true once a provisioning-failure email (first or terminal)
+   * has been sent for this subscription, preventing email storms on admin
+   * force-replays that reset provisioning_attempts back to 1. */
+  @Column({ type: "boolean", default: false })
+  provisioning_notification_sent!: boolean;
 }

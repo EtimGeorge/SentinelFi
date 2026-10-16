@@ -1,0 +1,38 @@
+<h1 style="font-size:26px;font-weight:900;color:#742a2a;margin:0 0 8px;letter-spacing:-0.5px;">🚨 Terminal Provisioning Failure</h1>
+<p style="color:#718096;font-size:15px;margin:0 0 24px;">
+  A paid subscription has reached a <strong>terminal provisioning failure</strong> and requires
+  manual superadmin intervention. Payment was captured but the tenant schema could not be provisioned.
+</p>
+
+<div class="alert-danger">
+  <strong>Tenant:</strong> {{companyName}}<br>
+  <strong>Plan:</strong> {{plan}}<br>
+  <strong>Subscription ID:</strong> {{subscriptionId}}<br>
+  <strong>Tenant ID:</strong> {{tenantId}}<br>
+  <strong>Attempts exhausted:</strong> {{attempts}}/{{maxAttempts}}<br>
+  <strong>Failure date:</strong> {{failureDate}}<br>
+  <strong>Reason:</strong> <em>{{failureReason}}</em>
+</div>
+
+<table class="info-table">
+  <tr><td>Admin contact</td><td>{{firstName}}</td></tr>
+  <tr><td>Subscription ID</td><td style="font-family:monospace;font-size:12px;">{{subscriptionId}}</td></tr>
+</table>
+
+<h3 style="font-size:16px;font-weight:700;color:#2d3748;margin:28px 0 12px;">Recommended actions</h3>
+<ul style="color:#4a5568;font-size:14px;line-height:1.8;padding-left:20px;">
+  <li>Review the failure reason above and check the webhook ledger for full context.</li>
+  <li>If the issue is transient (e.g., migration timeout), use the SuperAdmin
+      <strong>Provisioning Ops → Replay Webhook</strong> action with <em>force</em> to reset the attempt budget.</li>
+  <li>If the subscription row has missing or invalid provisioning fields, correct them and replay.</li>
+  <li>As a last resort, use <strong>Provision Subscription Manually</strong> after verifying the charge
+      against the gateway dashboard.</li>
+</ul>
+
+<div style="text-align:center;margin:28px 0;">
+  <a href="{{dashboardUrl}}" class="button" style="background:linear-gradient(135deg,#742a2a,#c53030);">Open Provisioning Ops →</a>
+</div>
+
+<p style="color:#a0aec0;font-size:12px;text-align:center;">
+  SentinelFi® Platform — SuperAdmin Alert
+</p>
