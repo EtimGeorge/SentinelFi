@@ -1,4 +1,9 @@
 import { PDFDocument, rgb, StandardFonts, PageSizes, PDFPage } from "pdf-lib";
+import {
+  resolveReportBrand,
+  embedBrandLogo,
+  drawBrandedHeader,
+} from "./report-brand";
 import { ProjectEntity } from "../projects/project.entity";
 import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
 import { LiveExpenseEntity } from "../wbs/live-expense.entity";
@@ -33,41 +38,26 @@ export class PdfUtility {
     const { width, height } = page.getSize();
     let y = height - 50;
 
+    // FE-2: tenant branding resolved once per document.
+    const brand = resolveReportBrand(context);
+    const brandLogo = await embedBrandLogo(pdfDoc, brand.logoBase64);
+    const brandTitle = context?.projectName
+      ? `${title} - ${context.projectName}`
+      : title;
+
     const drawHeader = (currentPage: PDFPage, totalPages: number) => {
-      currentPage.drawText(context?.tenantName || "SentinelFi", {
-        x: 50,
-        y: height - 20,
-        font: boldFont,
-        size: 10,
-        color: rgb(0.5, 0.5, 0.5),
-      });
-      currentPage.drawText(
-        context?.projectName ? `${title} - ${context.projectName}` : title,
-        {
-          x: 50,
-          y: height - 35,
-          font: boldFont,
-          size: 14,
-          color: rgb(0, 0, 0),
-        },
-      );
-      currentPage.drawText(`Date: ${new Date().toLocaleDateString()}`, {
-        x: width - 150,
-        y: height - 30,
+      drawBrandedHeader({
+        page: currentPage,
+        pdfDoc,
         font,
-        size: 10,
-        color: rgb(0, 0, 0),
+        boldFont,
+        title: brandTitle,
+        brand,
+        logo: brandLogo,
+        width,
+        height,
+        pageLabel: `Page ${pdfDoc.getPages().indexOf(currentPage) + 1} of ${totalPages}`,
       });
-      currentPage.drawText(
-        `Page ${pdfDoc.getPages().indexOf(currentPage) + 1} of ${totalPages}`,
-        {
-          x: width / 2 - 30,
-          y: 20,
-          font,
-          size: 8,
-          color: rgb(0, 0, 0),
-        },
-      );
     };
 
     // Initial header draw is flawed, will be addressed in final pass
@@ -171,35 +161,26 @@ export class PdfUtility {
     const { width, height } = page.getSize();
     let y = height - 50;
 
+    // FE-2: tenant branding resolved once per document.
+    const brand = resolveReportBrand(context);
+    const brandLogo = await embedBrandLogo(pdfDoc, brand.logoBase64);
+    const brandTitle = context?.projectName
+      ? `${title} - ${context.projectName}`
+      : title;
+
     const drawHeader = (currentPage: PDFPage, totalPages: number) => {
-      currentPage.drawText(context?.tenantName || "SentinelFi", {
-        x: 50,
-        y: height - 20,
-        font: boldFont,
-        size: 10,
-        color: rgb(0.5, 0.5, 0.5),
-      });
-      currentPage.drawText(
-        context?.projectName ? `${title} - ${context.projectName}` : title,
-        {
-          x: 50,
-          y: height - 35,
-          font: boldFont,
-          size: 14,
-          color: rgb(0, 0, 0),
-        },
-      );
-      currentPage.drawText(`Date: ${new Date().toLocaleDateString()}`, {
-        x: width - 150,
-        y: height - 30,
+      drawBrandedHeader({
+        page: currentPage,
+        pdfDoc,
         font,
-        size: 10,
-        color: rgb(0, 0, 0),
+        boldFont,
+        title: brandTitle,
+        brand,
+        logo: brandLogo,
+        width,
+        height,
+        pageLabel: `Page ${pdfDoc.getPages().indexOf(currentPage) + 1} of ${totalPages}`,
       });
-      currentPage.drawText(
-        `Page ${pdfDoc.getPages().indexOf(currentPage) + 1} of ${totalPages}`,
-        { x: width / 2 - 30, y: 20, font, size: 8, color: rgb(0, 0, 0) },
-      );
     };
 
     drawHeader(page, 1);
@@ -322,35 +303,26 @@ export class PdfUtility {
     const { width, height } = page.getSize();
     let y = height - 50;
 
+    // FE-2: tenant branding resolved once per document.
+    const brand = resolveReportBrand(context);
+    const brandLogo = await embedBrandLogo(pdfDoc, brand.logoBase64);
+    const brandTitle = context?.projectName
+      ? `${title} - ${context.projectName}`
+      : title;
+
     const drawHeader = (currentPage: PDFPage, totalPages: number) => {
-      currentPage.drawText(context?.tenantName || "SentinelFi", {
-        x: 50,
-        y: height - 20,
-        font: boldFont,
-        size: 10,
-        color: rgb(0.5, 0.5, 0.5),
-      });
-      currentPage.drawText(
-        context?.projectName ? `${title} - ${context.projectName}` : title,
-        {
-          x: 50,
-          y: height - 35,
-          font: boldFont,
-          size: 14,
-          color: rgb(0, 0, 0),
-        },
-      );
-      currentPage.drawText(`Date: ${new Date().toLocaleDateString()}`, {
-        x: width - 150,
-        y: height - 30,
+      drawBrandedHeader({
+        page: currentPage,
+        pdfDoc,
         font,
-        size: 10,
-        color: rgb(0, 0, 0),
+        boldFont,
+        title: brandTitle,
+        brand,
+        logo: brandLogo,
+        width,
+        height,
+        pageLabel: `Page ${pdfDoc.getPages().indexOf(currentPage) + 1} of ${totalPages}`,
       });
-      currentPage.drawText(
-        `Page ${pdfDoc.getPages().indexOf(currentPage) + 1} of ${totalPages}`,
-        { x: width / 2 - 30, y: 20, font, size: 8, color: rgb(0, 0, 0) },
-      );
     };
 
     drawHeader(page, 1);
@@ -469,35 +441,26 @@ export class PdfUtility {
     const { width, height } = page.getSize();
     let y = height - 50;
 
+    // FE-2: tenant branding resolved once per document.
+    const brand = resolveReportBrand(context);
+    const brandLogo = await embedBrandLogo(pdfDoc, brand.logoBase64);
+    const brandTitle = context?.projectName
+      ? `${title} - ${context.projectName}`
+      : title;
+
     const drawHeader = (currentPage: PDFPage, totalPages: number) => {
-      currentPage.drawText(context?.tenantName || "SentinelFi", {
-        x: 50,
-        y: height - 20,
-        font: boldFont,
-        size: 10,
-        color: rgb(0.5, 0.5, 0.5),
-      });
-      currentPage.drawText(
-        context?.projectName ? `${title} - ${context.projectName}` : title,
-        {
-          x: 50,
-          y: height - 35,
-          font: boldFont,
-          size: 14,
-          color: rgb(0, 0, 0),
-        },
-      );
-      currentPage.drawText(`Date: ${new Date().toLocaleDateString()}`, {
-        x: width - 150,
-        y: height - 30,
+      drawBrandedHeader({
+        page: currentPage,
+        pdfDoc,
         font,
-        size: 10,
-        color: rgb(0, 0, 0),
+        boldFont,
+        title: brandTitle,
+        brand,
+        logo: brandLogo,
+        width,
+        height,
+        pageLabel: `Page ${pdfDoc.getPages().indexOf(currentPage) + 1} of ${totalPages}`,
       });
-      currentPage.drawText(
-        `Page ${pdfDoc.getPages().indexOf(currentPage) + 1} of ${totalPages}`,
-        { x: width / 2 - 30, y: 20, font, size: 8, color: rgb(0, 0, 0) },
-      );
     };
 
     drawHeader(page, 1);
@@ -594,32 +557,25 @@ export class PdfUtility {
         ? text.substring(0, maxLen - 1) + "…"
         : text || "";
 
+    // FE-2: tenant branding resolved once per document.
+    const brand = resolveReportBrand(context);
+    const brandLogo = await embedBrandLogo(pdfDoc, brand.logoBase64);
+    const brandTitle = context?.projectName
+      ? `${title} - ${context.projectName}`
+      : title;
+
     const drawPageHeader = (currentPage: PDFPage) => {
-      currentPage.drawText(context?.tenantName || "SentinelFi", {
-        x: 50,
-        y: height - 20,
-        font: boldFont,
-        size: 10,
-        color: rgb(0.5, 0.5, 0.5),
-      });
-      currentPage.drawText(
-        context?.projectName ? `${title} - ${context.projectName}` : title,
-        { x: 50, y: height - 35, font: boldFont, size: 14, color: BLACK },
-      );
-      currentPage.drawText(`Generated: ${new Date().toLocaleDateString()}`, {
-        x: width - 160,
-        y: height - 35,
+      drawBrandedHeader({
+        page: currentPage,
+        pdfDoc,
         font,
-        size: 9,
-        color: GRAY,
-      });
-      const pg = pdfDoc.getPages().indexOf(currentPage) + 1;
-      currentPage.drawText(`Page ${pg}`, {
-        x: width / 2 - 15,
-        y: 20,
-        font,
-        size: 8,
-        color: GRAY,
+        boldFont,
+        title: brandTitle,
+        brand,
+        logo: brandLogo,
+        width,
+        height,
+        datePrefix: "Generated",
       });
     };
 

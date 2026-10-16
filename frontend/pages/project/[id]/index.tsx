@@ -53,6 +53,9 @@ const ProjectExpensePage: React.FC = () => {
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [days, setDays] = useState('1');
+  const [expenseDate, setExpenseDate] = useState(
+    () => new Date().toISOString().split('T')[0],
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [project, setProject] = useState<{ project_name: string; currency: string } | null>(null);
 
@@ -85,13 +88,14 @@ const ProjectExpensePage: React.FC = () => {
     setIsSubmitting(true);
     try {
       await createLiveExpense({
-        wbs_id: selectedWbsId, amount: parseFloat(amount), description, quantity: parseFloat(quantity) || 1, days: parseFloat(days) || 1, expense_date: new Date().toISOString().split('T')[0],
+        wbs_id: selectedWbsId, amount: parseFloat(amount), description, quantity: parseFloat(quantity) || 1, days: parseFloat(days) || 1, expense_date: expenseDate,
       });
       toast.success('Expense logged successfully');
       setAmount('');
       setDescription('');
       setQuantity('1');
       setDays('1');
+      setExpenseDate(new Date().toISOString().split('T')[0]);
       setSelectedWbsId('');
       fetchProjectData(); // Refresh to show updated variance
     } catch (err: any) {
@@ -208,7 +212,9 @@ const ProjectExpensePage: React.FC = () => {
                     <label className="block text-sm font-medium text-white mb-2">Expense Date <span className="text-alert-critical">*</span></label>
                     <Input
                       type="date"
-                      value={new Date().toISOString().split('T')[0]}
+                      label="Expense Date"
+                      value={expenseDate}
+                      onChange={(e) => setExpenseDate(e.target.value)}
                       className="w-full"
                     />
                   </div>

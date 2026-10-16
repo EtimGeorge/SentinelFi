@@ -59,6 +59,30 @@ export class TenantController {
   }
 
   /**
+   * Returns only the display-safe branding subset for the caller's own
+   * tenant (name, logo, primary color, address, currency). Unlike GET `my`,
+   * this intentionally omits subscription internals (plan, price, quotas,
+   * provisioning errors), so every authenticated tenant member — including
+   * officer-tier report viewers — can render branded reports. No @Roles
+   * metadata: RolesGuard allows metadata-less routes.
+   */
+  @Get("my/display-profile")
+  async getMyDisplayProfile(@Req() req: AuthenticatedRequest): Promise<{
+    name: string;
+    brandLogoBase64: string | null;
+    brandPrimaryColorHex: string | null;
+    companyAddress: string | null;
+    default_currency_code: string;
+  }> {
+    if (!req.user.tenant_id) {
+      throw new ForbiddenException(
+        "No tenant associated with this account. If you are a SuperAdmin, use the global search.",
+      );
+    }
+    return this.tenantService.getMyDisplayProfile(req.user.tenant_id);
+  }
+
+  /**
    * Updates branding metadata for the caller's own tenant.
    * Access: Tenant Admins, CFOs, etc.
    */

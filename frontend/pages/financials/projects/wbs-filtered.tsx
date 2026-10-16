@@ -11,7 +11,7 @@ import api from '../../../lib/api';
 import { WBSItem, STATUS_CONFIG } from './wbs';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { TableSkeleton } from '../../../components/common/LoadingSkeleton';
-import { CheckCircle, Clock, XCircle, AlertTriangle, Send, Trash2, Edit3, Plus, ArrowUp, ArrowDown, Eye, ChevronDown, ChevronRight, Zap } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertTriangle, Send, Plus, ChevronDown, ChevronRight, Zap } from 'lucide-react';
 import Link from 'next/link';
 
 const WBSFilteredPage: React.FC = () => {
@@ -113,16 +113,6 @@ const WBSFilteredPage: React.FC = () => {
       fetchData();
     } catch (e: any) {
       console.error('Status change failed:', e);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this item and all children?')) return;
-    try {
-      await api.delete(`/wbs/budget-draft/${id}?recursive=true`);
-      fetchData();
-    } catch (e: any) {
-      console.error('Delete failed:', e);
     }
   };
 

@@ -39,6 +39,7 @@ const BudgetManagementPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
+  const [detailsItem, setDetailsItem] = useState<WbsBudget | null>(null);
 
   // Filters
   const [wbsCodeFilter, setWbsCodeFilter] = useState('');
@@ -261,7 +262,10 @@ const BudgetManagementPage: React.FC = () => {
                   rowKey={(b) => b.wbs_id}
                   actions={[
                     {
-                      key: 'view', label: 'View Details', primary: true, icon: <Activity className="w-4 h-4" />, onClick: (b) => router.push(`/financials/projects/budgets?id=${b.wbs_id}`),
+                      key: 'view', label: 'View Details', primary: true, icon: <Activity className="w-4 h-4" />, onClick: (b) => setDetailsItem(b),
+                    },
+                    {
+                      key: 'wbs', label: 'Edit in WBS Designer', icon: <Edit3 className="w-4 h-4" />, onClick: (b) => router.push(`/financials/projects/wbs?projectId=${b.project?.project_id || ''}`),
                     },
                     {
                       key: 'submit', label: 'Submit', icon: <Send className="w-4 h-4" />, visible: (b: WbsBudget) => b.status === 'draft' && canManage, onClick: (b) => handleStatusChange(b.wbs_id, 'pending'),
@@ -290,6 +294,74 @@ const BudgetManagementPage: React.FC = () => {
             )}
           </Card>
         </div>
+
+        {/* FE-3: working line-item details drawer (the old action pushed a
+            query param this page ignores — a dead end). */}
+        {detailsItem && (() => {
+          const d = detailsItem as WbsBudget & Record<string, any>;
+          const st = STATUS_CONFIG[d.status?.toLowerCase?.() || 'draft'] || STATUS_CONFIG.draft;
+          const rows: Array<[string, string]> = [
+            ['WBS Code', d.wbs_code || '—'],
+            ['Description', d.description || '—'],
+            ['Project', d.project?.project_name || '—'],
+            ['Budgeted', convertToDisplay(d.total_cost_budgeted, d.project?.currency || 'NGN')],
+            ['Actual Spend', convertToDisplay(d.total_cost_actual || 0, d.project?.currency || 'NGN')],
+            ['Committed (LPO)', convertToDisplay(d.total_committed_lpo || 0, d.project?.currency || 'NGN')],
+            ['Status', st.label],
+            ['Unit of Measure', d.uom || '—'],
+          ];
+          return (
+            <div
+              className="fixed inset-0 z-50 flex justify-end bg-black/60"
+              onClick={() => setDetailsItem(null)}
+              role="presentation"
+            >
+              <div
+                className="w-full max-w-md h-full bg-gray-900 border-l border-gray-700 p-6 overflow-y-auto"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`Budget line ${d.wbs_code} details`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-black text-white">Budget Line Details</h3>
+                  <button
+                    onClick={() => setDetailsItem(null)}
+                    aria-label="Close details"
+                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                </div>
+                <dl className="space-y-4">
+                  {rows.map(([label, value]) => (
+                    <div key={label} className="flex justify-between gap-4 border-b border-gray-800 pb-3">
+                      <dt className="text-xs font-bold text-gray-500 uppercase">{label}</dt>
+                      <dd className="text-sm font-bold text-gray-200 text-right break-words min-w-0">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="flex flex-col gap-3 mt-8">
+                  <Button
+                    variant="primary"
+                    icon={<Edit3 className="w-4 h-4" />}
+                    onClick={() => router.push(`/financials/projects/wbs?projectId=${d.project?.project_id || ''}`)}
+                  >
+                    Edit in WBS Designer
+                  </Button>
+                  {d.project?.project_id && (
+                    <Link
+                      href={`/projects/${d.project.project_id}/overview`}
+                      className="text-center text-sm font-bold text-brand-primary hover:underline"
+                    >
+                      Open Project Dossier
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </PageContainer>
     </>
   );

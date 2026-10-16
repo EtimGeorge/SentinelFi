@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
-  BarChart3, TrendingDown, TrendingUp, AlertTriangle, Loader2, FileDown, Printer, SlidersHorizontal, Filter, RefreshCw, Projector, Calendar, Lock, Shield, Download, FileText, ChevronRight
+  BarChart3, TrendingDown, TrendingUp, AlertTriangle, Loader2, FileDown, Printer, SlidersHorizontal, Filter, RefreshCw, Projector, Shield, Download, FileText, ChevronRight
 } from 'lucide-react';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import Tooltip from '../../components/common/Tooltip';
+import {
+  useReportBranding,
+  buildReportContext,
+  sha256Hex,
+  ReportHeader,
+  ReportFooter,
+} from '../../components/reports/ReportBranding';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { getWBSColor } from '../../lib/utils';
 import { RollupData } from '../../components/dashboard/WBSHierarchyTree';
@@ -41,6 +48,8 @@ const VarianceReportPage: React.FC = () => {
   const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly' | 'all'>('all');
   const [varianceFilter, setVarianceFilter] = useState<VarianceStatus>(VarianceStatus.All);
   const [viewMode, setViewMode] = useState<'analytics' | 'report'>('report');
+  const branding = useReportBranding();
+  const [reportHash, setReportHash] = useState<string | null>(null);
 
   const isAdminOrCEO = hasAnyRole([Role.AdminDirector, Role.CEO]);
 
@@ -134,9 +143,9 @@ const VarianceReportPage: React.FC = () => {
       setLoading(true);
       const loadId = toast.loading(`Preparing ${format.toUpperCase()} variance report...`);
 
-      const exportContext = {
-        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
-      };
+      const exportContext = buildReportContext({
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: branding.tenantName || user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+      }, branding);
 
       const response = await api.post('/reporting/generate', {
         type: 'VARIANCE_ANALYSIS', format: format, context: exportContext, filters: {
@@ -150,6 +159,11 @@ const VarianceReportPage: React.FC = () => {
       link.setAttribute('download', `variance_report_${interval}_${Date.now()}.${format}`);
       document.body.appendChild(link);
       link.click();
+      try {
+        setReportHash(await sha256Hex(new Blob([response.data])));
+      } catch {
+        setReportHash(null);
+      }
       toast.success('Variance intelligence exported successfully', { id: loadId });
     } catch (error) {
       toast.error('Export failed');
@@ -163,14 +177,28 @@ const VarianceReportPage: React.FC = () => {
       setLoading(true);
       const loadId = toast.loading('Archiving variance intelligence in DCS...');
 
-      const exportContext = {
-        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
-      };
+      const exportContext = buildReportContext({
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: branding.tenantName || user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+      }, branding);
 
       await api.post('/reporting/generate', {
         type: 'VARIANCE_ANALYSIS', format: 'pdf', pushToDcs: true, context: exportContext, filters: { projectId: selectedProjectId === 'all' ? undefined : selectedProjectId, interval }
       });
-      toast.success('Verification complete. Variance intelligence pushed to DCS.', { id: loadId });
+      toast.success(
+        (t) => (
+          <span className="flex items-center gap-3">
+            Verification complete. Variance intelligence pushed to DCS.
+            <a
+              href="/reporting/archive"
+              className="underline font-black"
+              onClick={() => toast.dismiss(t.id)}
+            >
+              View in Archive
+            </a>
+          </span>
+        ),
+        { id: loadId, duration: 8000 },
+      );
     } catch (error) {
       toast.error('DCS synchronization failed');
     } finally {
@@ -321,14 +349,14 @@ const VarianceReportPage: React.FC = () => {
               </div>
 
               <div className="max-w-4xl mx-auto space-y-12">
-                <header className="text-center space-y-4 border-b-2 border-slate-100 pb-12">
-                  <h2 className="text-3xl font-black uppercase tracking-tighter leading-tight">Financial Variance<br /><span className="text-brand-primary">Intelligence Report</span></h2>
-                  <div className="flex items-center justify-center gap-6 text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
-                    <span className="flex items-center gap-2"><Calendar className="w-3 h-3" /> Interval: {interval.toUpperCase()}</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>
-                    <span className="flex items-center gap-2"><Lock className="w-3 h-3" /> SECURED: {format(new Date(), 'PP')}</span>
-                  </div>
-                </header>
+                <ReportHeader
+                  branding={branding}
+                  title={<>Financial Variance<br /><span style={{ color: branding.brandPrimaryColorHex }}>Intelligence Report</span></>}
+                  meta={[
+                    { label: 'Interval', value: interval.toUpperCase() },
+                    { label: 'Secured', value: format(new Date(), 'PP') },
+                  ]}
+                />
 
                 <div className="space-y-8">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -388,16 +416,7 @@ const VarianceReportPage: React.FC = () => {
                   </table>
                 </div>
 
-                <footer className="pt-12 border-t border-slate-200 mt-20 flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <Lock className="w-4 h-4 text-slate-300" />
-                    <span className="text-xs font-black text-slate-400 ">Verified Multi-Tenant Integrity Hub</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-black text-slate-900 ">{userCurrency.code} Valuation</p>
-                    <p className="text-xs text-slate-400 font-medium">SentinelFi Intelligence</p>
-                  </div>
-                </footer>
+                <ReportFooter hash={reportHash} branding={branding} valuationCode={userCurrency.code} />
               </div>
             </div>
           </main>

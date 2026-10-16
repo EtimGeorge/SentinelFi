@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Card from "../../components/common/Card";
 import Button from "../../components/common/Button";
+import Modal from "../../components/common/Modal";
+import Input from "../../components/common/Input";
 import DataTable from "../../components/common/DataTable";
 import { Spinner } from "../../components/common/Spinner";
 import { useApprovalsStore, ApprovalItem } from "../../store/approvalsStore";
@@ -67,6 +69,11 @@ const ApprovalsPage = () => {
   const [projectFilters, setProjectFilters] = useState<any>({});
   const [opexFilters, setOpexFilters] = useState<any>({});
   const [overrunFilters, setOverrunFilters] = useState<any>({});
+
+  // FE-3: overrun rejection (reason captured for the audit trail).
+  const [rejectTarget, setRejectTarget] = useState<{ id: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
 
   const isAuthorized = hasAnyRole(APPROVAL_AUTHORIZED_ROLES);
 
@@ -381,9 +388,9 @@ const ApprovalsPage = () => {
         if (action === "APPROVE") {
           await apiClient.post(`/wbs/expense/overruns/${id}/approve`);
         } else {
-          // Rejecting an overrun means we just delete the pending record (or mark it rejected)
-          // Using a mock endpoint here as the user might want a proper /reject in the future.
-          // For now, if they reject it, we just remove it from their view.
+          // FE-3/BE-3: real rejection endpoint — the decision is persisted
+          // (REJECTED) and journaled, not just hidden from view.
+          await apiClient.post(`/wbs/expense/overruns/${id}/reject`, {});
         }
       }
 
@@ -409,6 +416,26 @@ const ApprovalsPage = () => {
     }
     toast.dismiss();
     toast.success(`Project ${action.toLowerCase()} complete.`);
+  };
+
+  const confirmRejectOverrun = async () => {
+    if (!rejectTarget) return;
+    setRejecting(true);
+    try {
+      await apiClient.post(`/wbs/expense/overruns/${rejectTarget.id}/reject`, {
+        reason: rejectReason.trim() || undefined,
+      });
+      toast.success("Overrun rejected successfully");
+      removePendingApproval(rejectTarget.id);
+      setRejectTarget(null);
+      setRejectReason("");
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || "Failed to reject overrun",
+      );
+    } finally {
+      setRejecting(false);
+    }
   };
 
   // Pagination Logic
@@ -965,12 +992,10 @@ const ApprovalsPage = () => {
                             ),
                         },
                         {
-                          key: "deny", label: "Deny", danger: true, icon: <XCircle className="w-4 h-4" />, onClick: (item) =>
-                            handleAction(
-                              item.id,
-                              "EXPENSE_OVERRUN",
-                              "REJECT",
-                            ),
+                          key: "deny", label: "Deny", danger: true, icon: <XCircle className="w-4 h-4" />, onClick: (item) => {
+                            setRejectTarget({ id: item.id });
+                            setRejectReason("");
+                          },
                         },
                       ]}
                       emptyMessage="There are no pending budget overrun requests awaiting governance action."
@@ -1164,6 +1189,35 @@ const ApprovalsPage = () => {
           </section>
         </div>
       )}
+
+      {/* FE-3: overrun rejection with a reason for the audit trail. */}
+      <Modal
+        isOpen={!!rejectTarget}
+        onClose={() => setRejectTarget(null)}
+        title="Deny Budget Overrun"
+      >
+        <div className="space-y-6 pt-4 text-center">
+          <div className="w-20 h-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+            <XCircle className="w-10 h-10" />
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tighter">Confirm Denial?</h3>
+            <p className="text-sm text-slate-400 max-w-xs mx-auto mt-2 font-medium">
+              The pending overrun stays on the ledger as rejected evidence and the decision is journaled.
+            </p>
+          </div>
+          <Input
+            label="Rejection Reason"
+            placeholder="Recorded on the audit trail"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+          />
+          <div className="flex gap-3 justify-center pt-6">
+            <Button variant="outline" className="px-8 border-slate-800" onClick={() => setRejectTarget(null)}>Cancel</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white px-8 font-black text-xs" onClick={confirmRejectOverrun} isLoading={rejecting}>Deny Overrun</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

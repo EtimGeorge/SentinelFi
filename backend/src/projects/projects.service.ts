@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { CorrelatedLogger } from "../common/logger/correlated-logger";
-import { Repository, SelectQueryBuilder, DataSource } from "typeorm";
+import { Repository, SelectQueryBuilder, DataSource, EntityManager } from "typeorm";
 import { ProjectEntity } from "./project.entity";
 import { LpoEntity, LpoStatus } from "./lpo.entity";
 import { ProjectInflowEntity } from "./project-inflow.entity";
@@ -26,6 +26,9 @@ import { LiveExpenseEntity } from "../wbs/live-expense.entity";
 import { ApprovalStatus } from "../../../shared/types/approval-status.enum";
 import { VarianceFlag } from "../../../shared/types/variance-flag.enum";
 import { BudgetControlService } from "../common/budget-control.service";
+import { DOAService } from "../common/doa.service";
+import { UserPayload } from "@shared/types/user";
+import { queryOutstandingCommitment } from "../common/outstanding-commitment";
 import { PdfUtility } from "../common/pdf.utility";
 import { ExcelUtility } from "../common/excel.utility";
 import { WordUtility } from "../common/word.utility";
@@ -54,6 +57,7 @@ export class ProjectsService {
     @Inject("PROJECTAUDIT_REPOSITORY")
     private auditRepository: Repository<ProjectAuditEntity>,
     private readonly budgetControlService: BudgetControlService,
+    private readonly doaService: DOAService,
   ) {}
 
   // Centralised governance roles for LPO commitment overrides (mirrors WbsService)
@@ -131,34 +135,43 @@ export class ProjectsService {
   }
 
   /**
-   * Outstanding commitment on a WBS line: total unpaid on APPROVED LPOs
-   * plus the value of expenses still awaiting approval.
+   * Outstanding commitment on a WBS line (BE-5: canonical shared math —
+   * see `common/outstanding-commitment.ts` for the unified rule).
    */
   private async computeOutstandingCommitment(
     wbsId: string,
     tenantId: string,
   ): Promise<number> {
-    const results = await this.dataSource.query(
-      `SELECT 
-         (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) 
-            FROM lpo 
-           WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'APPROVED' AND status <> 'CANCELLED') +
-         (SELECT COALESCE(SUM(amount), 0) 
-            FROM live_expense 
-           WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
-       AS total`,
-      [wbsId, tenantId],
-    );
-    return parseFloat(results[0]?.total || 0);
+    return queryOutstandingCommitment(this.dataSource, wbsId, tenantId);
   }
 
-  private async generateLpoNumber(project: ProjectEntity): Promise<string> {
+  /**
+   * BE-4: atomically allocates the next LPO number for (tenant, project, year).
+   * Backed by the tenant `document_sequence` table — the same mechanism
+   * finance-core uses for REQ-/PO- numbers. The INSERT ... ON CONFLICT
+   * DO UPDATE ... RETURNING is a single atomic statement, so concurrent
+   * allocations serialise on the composite-PK row lock and never collide
+   * (unlike the old per-project count()+1, which also rewound on deletion).
+   * Numbering semantics are unchanged: LPO-YYYY-NNNN per project per year.
+   * Must be called with the creation transaction's manager so the number
+   * allocation and the LPO insert commit atomically together.
+   */
+  private async generateLpoNumber(
+    manager: EntityManager,
+    project: ProjectEntity,
+  ): Promise<string> {
     const year = new Date().getFullYear();
-    const prefix = `LPO-${year}`;
-    const count = await this.lpoRepository.count({
-      where: { project_id: project.project_id, tenant_id: project.tenant_id },
-    });
-    return `${prefix}-${String(count + 1).padStart(4, "0")}`;
+    const rows: Array<{ last_value: number | string }> = await manager.query(
+      `INSERT INTO "document_sequence" ("tenant_id", "doc_type", "period_year", "last_value")
+       VALUES ($1, $2, $3, 1)
+       ON CONFLICT ("tenant_id", "doc_type", "period_year")
+       DO UPDATE SET "last_value" = "document_sequence"."last_value" + 1,
+                     "updated_at" = now()
+       RETURNING "last_value"`,
+      [project.tenant_id, `LPO:${project.project_id}`, year],
+    );
+    const seq = Number(rows?.[0]?.last_value ?? 0);
+    return `LPO-${year}-${seq.toString().padStart(4, "0")}`;
   }
 
   /**
@@ -251,7 +264,8 @@ export class ProjectsService {
       const lpo = queryRunner.manager.create(LpoEntity, {
         ...createLpoDto,
         lpo_number:
-          createLpoDto.lpo_number || (await this.generateLpoNumber(project)),
+          createLpoDto.lpo_number ||
+          (await this.generateLpoNumber(queryRunner.manager, project)),
         tenant_id: tenantId,
         created_by_user_id: userId,
         status: LpoStatus.OPEN,
@@ -311,12 +325,18 @@ export class ProjectsService {
   /**
    * Approves a pending LPO, books the committed value against the WBS line
    * and writes an audit trail entry.
+   *
+   * BE-6: the approver's Delegation-of-Authority tier is enforced against the
+   * committed amount (same rule as WBS budget approval and PO creation) —
+   * booking someone else's over-budget commitment without the authority for
+   * it is no longer possible.
    */
   async approveLpo(
     id: string,
     tenantId: string,
     userId: string,
     authorizerRole: string,
+    actor?: UserPayload,
   ): Promise<LpoEntity> {
     const lpo = await this.lpoRepository.findOne({
       where: { id, tenant_id: tenantId },
@@ -332,6 +352,19 @@ export class ProjectsService {
     }
     if (lpo.status === LpoStatus.CANCELLED) {
       throw new BadRequestException("A cancelled LPO cannot be approved.");
+    }
+
+    // BE-6: Delegation of Authority — the approver must personally hold the
+    // tier for the committed amount, in the project's currency.
+    if (actor) {
+      const projectRow = await this.projectRepository.findOne({
+        where: { project_id: lpo.project_id, tenant_id: tenantId },
+      });
+      await this.doaService.validateAuthority(
+        actor,
+        Number(lpo.amount_committed),
+        projectRow?.currency || "USD",
+      );
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -449,8 +482,14 @@ export class ProjectsService {
     }
 
     lpo.amount_paid = newPaid;
-    lpo.status =
-      newPaid >= Number(lpo.amount_committed) ? LpoStatus.CLOSED : lpo.status; // partial payments keep OPEN; UI derives PARTIALLY PAID from amount_paid
+    // BE-6: full lifecycle — OPEN → PARTIALLY_PAID → CLOSED. The old code
+    // kept partial payments OPEN, leaving PARTIALLY_PAID unreachable and
+    // forcing every consumer to re-derive payment state from amounts.
+    if (newPaid >= Number(lpo.amount_committed)) {
+      lpo.status = LpoStatus.CLOSED;
+    } else if (newPaid > 0) {
+      lpo.status = LpoStatus.PARTIALLY_PAID;
+    }
     const saved = await this.lpoRepository.save(lpo);
 
     await this.logAudit(

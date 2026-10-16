@@ -154,20 +154,25 @@ const ProjectOverviewPage: React.FC = () => {
                         />
 
                         {[
-                            { label: 'Initiation', desc: 'SOW & Setup', icon: Briefcase, active: true },
-                            { label: 'Budgeting', desc: 'WBS Allocation', icon: Layers, active: budgets.length > 0 },
-                            { label: 'Execution', desc: 'Disbursements', icon: Zap, active: expenses.length > 0 },
-                            { label: 'Closure', desc: 'Audit & Archive', icon: ShieldCheck, active: project.status === ProjectStatus.COMPLETED }
+                            { label: 'Initiation', desc: 'SOW & Setup', icon: Briefcase, active: true, target: 'overview' as DossierTab },
+                            { label: 'Budgeting', desc: 'WBS Allocation', icon: Layers, active: budgets.length > 0, target: 'budget' as DossierTab },
+                            { label: 'Execution', desc: 'Disbursements', icon: Zap, active: expenses.length > 0, target: 'expenses' as DossierTab },
+                            { label: 'Closure', desc: 'Audit & Archive', icon: ShieldCheck, active: project.status === ProjectStatus.COMPLETED, target: 'history' as DossierTab }
                         ].map((step, i) => (
-                            <div key={i} className="relative z-10 flex flex-col items-center">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 shadow-xl ${step.active ? 'bg-brand-primary border-brand-primary text-white scale-110 shadow-brand-primary/20' : 'bg-brand-dark border-gray-700 text-gray-500'}`}>
+                            <button
+                                key={i}
+                                onClick={() => setActiveTab(step.target)}
+                                title={`Go to ${step.label}`}
+                                className="relative z-10 flex flex-col items-center cursor-pointer bg-transparent"
+                            >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 elev-lg ${step.active ? 'bg-brand-primary border-brand-primary text-white scale-110 shadow-brand-primary/20' : 'bg-brand-dark border-gray-700 text-gray-500 hover:border-gray-500'}`}>
                                     {step.active && project.status === ProjectStatus.COMPLETED && i < 3 ? <Check className="w-5 h-5" /> : <step.icon className="w-5 h-5" />}
                                 </div>
                                 <div className="mt-3 text-center">
                                     <p className={`text-xs font-black  ${step.active ? 'text-white' : 'text-gray-500'}`}>{step.label}</p>
                                     <p className="text-xs text-gray-600 font-medium mt-0.5 hidden md:block">{step.desc}</p>
                                 </div>
-                            </div>
+                            </button>
                         ))}
                     </div>
                 </div>

@@ -370,7 +370,12 @@ export class AuthService {
       this.logger.debug(
         `[LOGIN DIAGNOSTIC] Querying public schema for user: ${email}`,
       );
-      // GRACEFUL TIMEOUT: Wrap the query in a timeout to fail fast if DB hangs (10s)
+      // GRACEFUL TIMEOUT: fail fast if the DB genuinely hangs. This budget is
+      // deliberately kept above the pool's 15s connect timeout and the 25s
+      // statement_timeout so a cold pool talking to a remote database cannot
+      // trip it. The previous 10s cap fired on logins that were healthy but
+      // slow, surfacing as a spurious "Database operation timed out"; the outer
+      // TimeoutInterceptor still bounds the whole login request at 60s.
       user = await this.runWithTimeout(
         RetryableQuery.execute(
           () =>
@@ -389,7 +394,7 @@ export class AuthService {
           3,
           100,
         ),
-        10000,
+        30000,
         `LoginQuery:${email}`,
       );
 

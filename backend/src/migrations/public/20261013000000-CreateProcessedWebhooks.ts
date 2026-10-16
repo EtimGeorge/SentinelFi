@@ -18,8 +18,8 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  * `gateway_event_id` is what makes the insert-once-then-conflict pattern in
  * WebhookService safe under concurrent retries.
  */
-export class CreateProcessedWebhooks1777000000003 implements MigrationInterface {
-  name = "CreateProcessedWebhooks1777000000003";
+export class CreateProcessedWebhooks20261013000000 implements MigrationInterface {
+  name = "CreateProcessedWebhooks20261013000000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);

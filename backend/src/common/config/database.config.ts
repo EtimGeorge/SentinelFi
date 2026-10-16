@@ -277,7 +277,14 @@ export class DatabaseConfig {
             process.env.NODE_ENV === "production" ? "verify-full" : "require",
         },
         max: Math.min(maxPoolSize, 8), // Cap production pool to avoid Neon connection churn
-        min: 1,
+        // Small floor of pre-warmed connections. Connections are opened lazily
+        // (one remote TCP+TLS handshake each) and pg-pool only ever *retains*
+        // connections up to `min`, so without a floor the first concurrent
+        // burst pays for cold handshakes serially on the critical path.
+        // Keep-alive + the 30s health ping stop Neon autosuspending them.
+        // Ceiling is still max; across both pools (public + tenant) this stays
+        // within the Neon-safe total already implied by max (5 + 5 = 10).
+        min: Math.min(3, Math.min(maxPoolSize, 8)),
         idleTimeoutMillis: 15000,
         connectionTimeoutMillis: 15000, // FAST FAIL: 15s instead of 60s
         statement_timeout: 25000, // 25s limit
@@ -565,6 +572,44 @@ export class DatabaseConfig {
   }
 
   /**
+   * Pre-opens the pool's warm floor in parallel at boot.
+   *
+   * pg-pool never opens a connection nobody asked for, and it only retains
+   * connections up to `options.min` — so the `min` floor only takes effect once
+   * something has actually created that many connections. Filling it up front
+   * moves the remote TCP+TLS handshakes onto startup instead of leaving them on
+   * the first burst of concurrent requests.
+   *
+   * Failures are deliberately non-fatal: if the database is unreachable the
+   * pool will still open connections on demand once it recovers.
+   *
+   * @static
+   * @param {DataSource} dataSource - The TypeORM DataSource instance.
+   * @param {number} [connections=3] - How many connections to pre-open.
+   */
+  static async warmPool(
+    dataSource: DataSource,
+    connections: number = 3,
+  ): Promise<void> {
+    const target = Math.max(0, connections);
+    if (target === 0 || !dataSource.isInitialized) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        Array.from({ length: target }, () =>
+          dataSource.query("SELECT 1 as warmup"),
+        ),
+      );
+      this.logger.log(`✓ Pool warmed with ${target} connection(s)`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Pool warmup skipped: ${message}`);
+    }
+  }
+
+  /**
    * Initializes comprehensive health monitoring and resilience mechanisms.
    *
    * @static
@@ -579,6 +624,9 @@ export class DatabaseConfig {
 
     // Start keep-alive scheduler
     this.startKeepAliveScheduler(dataSource);
+
+    // Fill the `min` floor before the first requests arrive (non-blocking).
+    void this.warmPool(dataSource);
 
     // Enhanced health check with actual query execution
     let consecutiveFailures = 0;

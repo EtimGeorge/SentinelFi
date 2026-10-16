@@ -65,6 +65,7 @@ import { Buffer } from "buffer"; // Needed for export methods
 import { randomUUID } from "crypto";
 import { NotificationsService } from "../notifications/notifications.service"; // NEW: Import NotificationsService
 import { BudgetControlService } from "../common/budget-control.service";
+import { queryOutstandingCommitment } from "../common/outstanding-commitment";
 import { DOAService } from "../common/doa.service";
 import {
   ApprovalLogEntity,
@@ -209,6 +210,39 @@ export class WbsService {
   ];
 
   // WBS Budget (Draft) Operations
+  /**
+   * BE-2: best-effort project-journal write. The audit trail must never break
+   * the money path, so failures are logged, not thrown. Skipped when there is
+   * no project to attribute the event to, or no actor to attribute it by
+   * (performed_by_user_id is non-nullable).
+   */
+  private async auditProjectEvent(
+    projectId: string | null | undefined,
+    tenantId: string,
+    userId: string | null | undefined,
+    changeType: string,
+    oldValue: number | null,
+    newValue: number | null,
+    description: string,
+  ): Promise<void> {
+    if (!projectId || !userId) return;
+    try {
+      await this.projectsService.logAudit(
+        projectId,
+        tenantId,
+        userId,
+        changeType,
+        oldValue,
+        newValue,
+        description,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `[WBS] project_audit write failed (${changeType}): ${(err as Error).message}`,
+      );
+    }
+  }
+
   async createWbsBudgetDraft(
     createWbsDto: CreateWbsBudgetDto,
     userId: string,
@@ -296,6 +330,16 @@ export class WbsService {
       );
     }
 
+    await this.auditProjectEvent(
+      saved.project_id,
+      tenant_id,
+      userId,
+      "WBS_CREATED",
+      null,
+      Number(saved.total_cost_budgeted),
+      `WBS "${saved.wbs_code}" created as draft (${saved.description || "no description"}).`,
+    );
+
     return saved;
   }
 
@@ -343,13 +387,37 @@ export class WbsService {
       return newWbsBudget;
     });
 
-    return this.wbsBudgetRepository.save(wbsBudgets);
+    const savedBatch = await this.wbsBudgetRepository.save(wbsBudgets);
+
+    // One journal row per project (batches may span projects).
+    const batchAgg = new Map<string, { count: number; total: number }>();
+    for (const item of savedBatch) {
+      if (!item.project_id) continue;
+      const agg = batchAgg.get(item.project_id) ?? { count: 0, total: 0 };
+      agg.count += 1;
+      agg.total += Number(item.total_cost_budgeted) || 0;
+      batchAgg.set(item.project_id, agg);
+    }
+    for (const [pid, agg] of batchAgg) {
+      await this.auditProjectEvent(
+        pid,
+        tenant_id,
+        userId,
+        "WBS_BATCH_CREATED",
+        null,
+        agg.total,
+        `Batch draft creation: ${agg.count} WBS line(s) created as draft.`,
+      );
+    }
+
+    return savedBatch;
   }
 
   async updateWbsBudget(
     id: string,
     updateWbsBudgetDto: UpdateWbsBudgetDto,
     tenant_id: string,
+    actorId?: string,
   ): Promise<WbsBudgetEntity> {
     const wbsBudget = await this.wbsBudgetRepository.findOne({
       where: { wbs_id: id, tenant_id: tenant_id }, // Changed id to wbs_id
@@ -361,14 +429,42 @@ export class WbsService {
       );
     }
 
+    // --- [BASELINE LOCK] Approved (or in-review) budget lines are baselined.
+    // Direct edits would silently rewrite financial history that expenses,
+    // LPOs and reports already consumed. DRAFT/REJECTED/RECALLED lines stay
+    // editable; APPROVED/PENDING lines must go through recall first so the
+    // change is re-approved and audited.
+    if (
+      wbsBudget.status === WbsBudgetStatus.APPROVED ||
+      wbsBudget.status === WbsBudgetStatus.PENDING
+    ) {
+      throw new BadRequestException(
+        `BASELINE_LOCKED: WBS "${wbsBudget.wbs_code}" is ${wbsBudget.status} and baselined. ` +
+          `Recall the approval first (PATCH /wbs/budget/:id/recall), edit, then resubmit — ` +
+          `direct edits to baselined lines are blocked to preserve the financial audit trail.`,
+      );
+    }
+
+    const oldTotal = Number(wbsBudget.total_cost_budgeted);
     this.wbsBudgetRepository.merge(wbsBudget, updateWbsBudgetDto);
-    return this.wbsBudgetRepository.save(wbsBudget);
+    const savedBudget = await this.wbsBudgetRepository.save(wbsBudget);
+    await this.auditProjectEvent(
+      savedBudget.project_id,
+      tenant_id,
+      actorId,
+      "WBS_UPDATED",
+      Number.isNaN(oldTotal) ? null : oldTotal,
+      Number(savedBudget.total_cost_budgeted),
+      `WBS "${savedBudget.wbs_code}" edited while ${savedBudget.status}.`,
+    );
+    return savedBudget;
   }
 
   async deleteWbsItem(
     id: string, // Keep 'id' as parameter name for controller consistency
     tenant_id: string,
     options: { recursive: boolean } = { recursive: false },
+    actorId?: string,
   ): Promise<void> {
     const wbsItem = await this.wbsBudgetRepository.findOne({
       where: { wbs_id: id, tenant_id: tenant_id }, // Changed id to wbs_id
@@ -435,6 +531,16 @@ export class WbsService {
     }
 
     await this.wbsBudgetRepository.delete({ wbs_id: id, tenant_id: tenant_id });
+
+    await this.auditProjectEvent(
+      wbsItem.project_id,
+      tenant_id,
+      actorId,
+      "WBS_DELETED",
+      Number(wbsItem.total_cost_budgeted),
+      null,
+      `WBS "${wbsItem.wbs_code}" deleted${options.recursive && childIds.length > 0 ? ` with ${childIds.length} child line(s)` : ""}.`,
+    );
   }
 
   private async findAllChildren(
@@ -493,14 +599,12 @@ export class WbsService {
     let finalFlag = VarianceFlag.NO_VARIANCE;
 
     if (wbsItem) {
-      const committedResults = await this.dataSource.query(
-        `SELECT 
-           (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) FROM lpo WHERE wbs_id = $1 AND tenant_id = $2) +
-           (SELECT COALESCE(SUM(amount), 0) FROM live_expense WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
-         AS total`,
-        [wbsItem.wbs_id, tenant_id],
+      // BE-5: canonical outstanding-commitment math (shared helper).
+      const committedAmount = await queryOutstandingCommitment(
+        this.dataSource,
+        wbsItem.wbs_id,
+        tenant_id,
       );
-      const committedAmount = parseFloat(committedResults[0]?.total || 0);
 
       const varianceResult = await this.budgetControlService.validateWbsExpense(
         wbsItem,
@@ -648,6 +752,17 @@ export class WbsService {
       }
 
       await queryRunner.commitTransaction();
+
+      await this.auditProjectEvent(
+        expenseDto.project_id ?? wbsItem?.project_id,
+        tenant_id,
+        userId,
+        "EXPENSE_LOGGED",
+        null,
+        Number(expenseDto.amount),
+        `Expense ${savedExpense.id} logged on WBS "${wbsItem?.wbs_code ?? wbs_id ?? "unlinked"}" (${approvalStatus}, ${finalFlag}).`,
+      );
+
       return savedExpense;
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -720,15 +835,12 @@ export class WbsService {
         let finalFlag = VarianceFlag.NO_VARIANCE;
 
         if (wbsItem) {
-          // 1. Financial Variance Check
-          const committedResults = await queryRunner.manager.query(
-            `SELECT 
-                       (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) FROM lpo WHERE wbs_id = $1 AND tenant_id = $2) +
-                       (SELECT COALESCE(SUM(amount), 0) FROM live_expense WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
-                     AS total`,
-            [wbsItem.wbs_id, tenant_id],
+          // 1. Financial Variance Check (BE-5: canonical shared math).
+          const committedAmount = await queryOutstandingCommitment(
+            queryRunner.manager,
+            wbsItem.wbs_id,
+            tenant_id,
           );
-          const committedAmount = parseFloat(committedResults[0]?.total || 0);
           const varianceResult =
             await this.budgetControlService.validateWbsExpense(
               wbsItem,
@@ -860,6 +972,28 @@ export class WbsService {
       }
     }
 
+    // One journal row per project for the successfully posted lines.
+    const batchSavedAgg = new Map<string, { count: number; total: number }>();
+    for (const item of results.saved) {
+      const pid = (item as any).project_id as string | null | undefined;
+      if (!pid) continue;
+      const agg = batchSavedAgg.get(pid) ?? { count: 0, total: 0 };
+      agg.count += 1;
+      agg.total += Number((item as any).amount) || 0;
+      batchSavedAgg.set(pid, agg);
+    }
+    for (const [pid, agg] of batchSavedAgg) {
+      await this.auditProjectEvent(
+        pid,
+        tenant_id,
+        userId,
+        "EXPENSE_BATCH_LOGGED",
+        null,
+        agg.total,
+        `Batch expense posting: ${agg.count} line(s) posted.`,
+      );
+    }
+
     return {
       saved: results.saved,
       errors: results.errors,
@@ -906,6 +1040,7 @@ export class WbsService {
     expenseId: string,
     tenant_id: string,
     authorizerRole: string,
+    actorId?: string,
   ): Promise<LiveExpenseEntity> {
     const expense = await this.liveExpenseRepository.findOne({
       where: { id: expenseId, tenant_id },
@@ -947,6 +1082,16 @@ export class WbsService {
 
       await queryRunner.commitTransaction();
 
+      await this.auditProjectEvent(
+        expense.wbsBudget?.project_id ?? expense.wbsBudget?.project?.project_id,
+        tenant_id,
+        actorId,
+        "EXPENSE_OVERRUN_APPROVED",
+        null,
+        Number(expense.amount),
+        `Overrun on expense ${expense.id} approved by ${authorizerRole} (${expense.override_reason || "no reason recorded"}).`,
+      );
+
       // 3. Notify the enterprise that an override was authorized
       this.notificationsService.sendOverrideApprovedAlert({
         authorizer: authorizerRole,
@@ -975,11 +1120,66 @@ export class WbsService {
     }
   }
 
+  /**
+   * BE-3: rejects a pending overrun. Pending expenses never touched the
+   * denormalized actuals (only APPROVED postings increment), so rejection is
+   * a pure state transition + journal + notification — nothing to unwind.
+   * The expense stays on the ledger as REJECTED evidence instead of vanishing.
+   */
+  async rejectOverrun(
+    expenseId: string,
+    tenant_id: string,
+    rejecterRole: string,
+    actorId?: string,
+    reason?: string,
+  ): Promise<LiveExpenseEntity> {
+    const expense = await this.liveExpenseRepository.findOne({
+      where: { id: expenseId, tenant_id },
+      relations: ["wbsBudget", "wbsBudget.project"],
+    });
+
+    if (!expense) {
+      throw new NotFoundException(`Expense ${expenseId} not found.`);
+    }
+
+    if (expense.approval_status !== ApprovalStatus.PENDING_APPROVAL) {
+      throw new BadRequestException(
+        `Expense is not in a pending state (Current: ${expense.approval_status}).`,
+      );
+    }
+
+    expense.approval_status = ApprovalStatus.REJECTED;
+    const savedExpense =
+      await this.liveExpenseRepository.save(expense);
+
+    await this.auditProjectEvent(
+      expense.wbsBudget?.project_id ?? expense.wbsBudget?.project?.project_id,
+      tenant_id,
+      actorId,
+      "EXPENSE_OVERRUN_REJECTED",
+      Number(expense.amount),
+      null,
+      `Overrun on expense ${expense.id} rejected by ${rejecterRole} (${reason || expense.override_reason || "no reason recorded"}).`,
+    );
+
+    this.notificationsService.sendVarianceAlert(
+      "Overrun Rejected",
+      `Overrun expense ${expense.id} on WBS ${expense.wbsBudget?.wbs_code || "Unknown"} was rejected by ${rejecterRole}. Reason: ${reason || expense.override_reason || "not provided"}.`,
+      "warning",
+    );
+
+    this.logger.log(
+      `[WBS] Overrun rejected by ${rejecterRole} for Expense: ${expense.id}`,
+    );
+    return savedExpense;
+  }
+
   async updateLiveExpenseEntry(
     id: string,
     updateDto: UpdateLiveExpenseDto,
     tenant_id: string,
     actorRole?: string,
+    actorId?: string,
   ): Promise<LiveExpenseEntity> {
     const liveExpense = await this.liveExpenseRepository.findOne({
       where: { id, tenant_id },
@@ -1002,14 +1202,12 @@ export class WbsService {
           })
         : null;
       if (wbsItem) {
-        const committedResults = await this.dataSource.query(
-          `SELECT 
-             (SELECT COALESCE(SUM(amount_committed - amount_paid), 0) FROM lpo WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'APPROVED' AND status <> 'CANCELLED') +
-             (SELECT COALESCE(SUM(amount), 0) FROM live_expense WHERE wbs_id = $1 AND tenant_id = $2 AND approval_status = 'PENDING_APPROVAL')
-           AS total`,
-          [wbsItem.wbs_id, tenant_id],
+        // BE-5: canonical outstanding-commitment math (shared helper).
+        const committedAmount = await queryOutstandingCommitment(
+          this.dataSource,
+          wbsItem.wbs_id,
+          tenant_id,
         );
-        const committedAmount = parseFloat(committedResults[0]?.total || 0);
         const varianceResult = await this.budgetControlService.validateWbsExpense(
           wbsItem,
           updateDto.amount,
@@ -1146,12 +1344,36 @@ export class WbsService {
         }
       }
 
+      const oldAmount = Number(liveExpense.amount);
+      const preUpdateWbsId = liveExpense.wbs_id;
       Object.assign(liveExpense, updateDto);
       const saved = await queryRunner.manager.save(
         LiveExpenseEntity,
         liveExpense,
       );
       await queryRunner.commitTransaction();
+
+      let expenseProjectId: string | null | undefined =
+        (saved as any).project_id ?? liveExpense.project_id;
+      if (!expenseProjectId && saved.wbs_id) {
+        const wbsRow = await this.wbsBudgetRepository.findOne({
+          where: { wbs_id: saved.wbs_id, tenant_id },
+        });
+        expenseProjectId = wbsRow?.project_id;
+      }
+      const wbsNote =
+        updateDto.wbs_id && updateDto.wbs_id !== preUpdateWbsId
+          ? ` Moved from WBS ${preUpdateWbsId} to ${updateDto.wbs_id}.`
+          : "";
+      await this.auditProjectEvent(
+        expenseProjectId,
+        tenant_id,
+        actorId,
+        "EXPENSE_UPDATED",
+        Number.isNaN(oldAmount) ? null : oldAmount,
+        Number(saved.amount),
+        `Expense ${saved.id} corrected.${wbsNote}`,
+      );
       return saved;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -1161,7 +1383,11 @@ export class WbsService {
     }
   }
 
-  async deleteLiveExpenseEntry(id: string, tenant_id: string): Promise<void> {
+  async deleteLiveExpenseEntry(
+    id: string,
+    tenant_id: string,
+    actorId?: string,
+  ): Promise<void> {
     const liveExpense = await this.liveExpenseRepository.findOne({
       where: { id, tenant_id: tenant_id },
     });
@@ -1212,6 +1438,24 @@ export class WbsService {
       await queryRunner.manager.delete(LiveExpenseEntity, { id, tenant_id });
 
       await queryRunner.commitTransaction();
+
+      let deletedProjectId: string | null | undefined =
+        liveExpense.project_id;
+      if (!deletedProjectId && liveExpense.wbs_id) {
+        const wbsRow = await this.wbsBudgetRepository.findOne({
+          where: { wbs_id: liveExpense.wbs_id, tenant_id },
+        });
+        deletedProjectId = wbsRow?.project_id;
+      }
+      await this.auditProjectEvent(
+        deletedProjectId,
+        tenant_id,
+        actorId,
+        "EXPENSE_DELETED",
+        Number(liveExpense.amount),
+        null,
+        `Expense ${id} deleted (was ${liveExpense.approval_status}). Reversed spend is unwound from WBS actuals above.`,
+      );
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -1223,6 +1467,7 @@ export class WbsService {
   async deleteLiveExpenseBatch(
     ids: string[],
     tenant_id: string,
+    actorId?: string,
   ): Promise<{ successCount: number; errors: any[] }> {
     const results: {
       successCount: number;
@@ -1230,7 +1475,7 @@ export class WbsService {
     } = { successCount: 0, errors: [] };
     for (const id of ids) {
       try {
-        await this.deleteLiveExpenseEntry(id, tenant_id);
+        await this.deleteLiveExpenseEntry(id, tenant_id, actorId);
         results.successCount++;
       } catch (err: any) {
         results.errors.push({ id, message: err.message });
@@ -1444,6 +1689,16 @@ export class WbsService {
       comments: `Status changed from ${oldStatus} to ${newStatus}`,
     } as any);
     await this.approvalLogRepo.save(log);
+
+    await this.auditProjectEvent(
+      wbsBudget.project_id,
+      tenant_id,
+      actor.id,
+      "WBS_STATUS_CHANGE",
+      null,
+      Number(wbsBudget.total_cost_budgeted),
+      `WBS "${wbsBudget.wbs_code}" status ${oldStatus} → ${newStatus}.`,
+    );
 
     // Send notification on status change
     const actionLabel =
@@ -3110,6 +3365,16 @@ export class WbsService {
 
     this.logger.log(
       `Budget ${wbsId} approval recalled by ${recalledBy.email}.`,
+    );
+
+    await this.auditProjectEvent(
+      budget.project_id,
+      tenantId,
+      recalledBy.id,
+      "WBS_RECALLED",
+      null,
+      Number(budget.total_cost_budgeted),
+      `WBS approval recalled (${reason || "no reason given"}). Line returns to the editable queue.`,
     );
 
     return updated;

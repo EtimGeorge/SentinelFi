@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
-  PieChart, Download, FileText, Loader2, TrendingDown, TrendingUp, AlertTriangle, Calendar, Printer, Filter, RefreshCw, Lock, Shield, ChevronDown, ChevronRight, Layers
+  PieChart, Download, FileText, Loader2, TrendingDown, TrendingUp, AlertTriangle, Printer, Filter, RefreshCw, Shield, ChevronDown, ChevronRight, Layers
 } from 'lucide-react';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import Tooltip from '../../components/common/Tooltip';
+import {
+  useReportBranding,
+  buildReportContext,
+  sha256Hex,
+  ReportHeader,
+  ReportFooter,
+} from '../../components/reports/ReportBranding';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../../components/context/CurrencyContext';
@@ -63,6 +70,8 @@ const OpexEfficiencyPage: React.FC = () => {
   const { selectedProjectId } = useGlobalStore();
 
   const [loading, setLoading] = useState(false);
+  const branding = useReportBranding();
+  const [reportHash, setReportHash] = useState<string | null>(null);
   const [rollup, setRollup] = useState<OpexRollupResult | null>(null);
   const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly' | 'all'>('all');
   const [viewMode, setViewMode] = useState<'analytics' | 'report'>('report');
@@ -120,9 +129,9 @@ const OpexEfficiencyPage: React.FC = () => {
       setLoading(true);
       const loadId = toast.loading(`Preparing ${exportFormat.toUpperCase()} OPEX report...`);
 
-      const exportContext = {
-        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: 'Operational Overview', projectMap: {}
-      };
+      const exportContext = buildReportContext({
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: branding.tenantName || user?.tenant_name || '', projectName: 'Operational Overview', projectMap: {}
+      }, branding);
 
       const response = await api.post('/reporting/generate', {
         type: 'OPEX_EFFICIENCY', format: exportFormat, context: exportContext, filters: { interval }
@@ -134,6 +143,11 @@ const OpexEfficiencyPage: React.FC = () => {
       link.setAttribute('download', `opex_report_${interval}_${Date.now()}.${exportFormat}`);
       document.body.appendChild(link);
       link.click();
+      try {
+        setReportHash(await sha256Hex(new Blob([response.data])));
+      } catch {
+        setReportHash(null);
+      }
       toast.success('OPEX Intelligence exported', { id: loadId });
     } catch (error) {
       toast.error('Export failed');
@@ -147,14 +161,28 @@ const OpexEfficiencyPage: React.FC = () => {
       setLoading(true);
       const loadId = toast.loading('Archiving OPEX audit in DCS...');
 
-      const exportContext = {
-        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: 'Operational Overview', projectMap: {}
-      };
+      const exportContext = buildReportContext({
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: branding.tenantName || user?.tenant_name || '', projectName: 'Operational Overview', projectMap: {}
+      }, branding);
 
       await api.post('/reporting/generate', {
         type: 'OPEX_EFFICIENCY', format: 'pdf', pushToDcs: true, context: exportContext, filters: { interval }
       });
-      toast.success('OPEX Intelligence pushed to DCS.', { id: loadId });
+      toast.success(
+        (t) => (
+          <span className="flex items-center gap-3">
+            OPEX Intelligence pushed to DCS.
+            <a
+              href="/reporting/archive"
+              className="underline font-black"
+              onClick={() => toast.dismiss(t.id)}
+            >
+              View in Archive
+            </a>
+          </span>
+        ),
+        { id: loadId, duration: 8000 },
+      );
     } catch (error) {
       toast.error('DCS synchronization failed');
     } finally {
@@ -274,14 +302,14 @@ const OpexEfficiencyPage: React.FC = () => {
 
               <div className="max-w-4xl mx-auto space-y-10 py-8">
                 {/* Report Header */}
-                <header className="text-center space-y-4 border-b-2 border-slate-100 pb-12">
-                  <h2 className="text-3xl font-black uppercase tracking-tighter leading-tight">Operational Expenditure<br /><span className="text-brand-primary">Efficiency Report</span></h2>
-                  <div className="flex items-center justify-center gap-6 text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
-                    <span className="flex items-center gap-2"><Calendar className="w-3 h-3" /> Period: {interval.toUpperCase()}</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-200" />
-                    <span className="flex items-center gap-2"><Lock className="w-3 h-3" /> {format(new Date(), 'PP')}</span>
-                  </div>
-                </header>
+                <ReportHeader
+                  branding={branding}
+                  title={<>Operational Expenditure<br /><span style={{ color: branding.brandPrimaryColorHex }}>Efficiency Report</span></>}
+                  meta={[
+                    { label: 'Period', value: interval.toUpperCase() },
+                    { label: 'Generated', value: format(new Date(), 'PP') },
+                  ]}
+                />
 
                 {/* Loading State */}
                 {loading && (
@@ -392,16 +420,7 @@ const OpexEfficiencyPage: React.FC = () => {
                 )}
 
                 {/* Footer */}
-                <footer className="pt-12 border-t border-slate-200 mt-20 flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <Shield className="w-4 h-4 text-slate-300" />
-                    <span className="text-xs font-black text-slate-400 ">Enterprise Compliance Verified</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-black text-slate-900 ">{userCurrency.code} Valuation</p>
-                    <p className="text-xs text-slate-400 font-medium">SentinelFi OPEX Hub</p>
-                  </div>
-                </footer>
+                <ReportFooter hash={reportHash} branding={branding} valuationCode={userCurrency.code} />
               </div>
             </div>
           </main>

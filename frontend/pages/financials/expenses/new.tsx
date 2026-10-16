@@ -400,7 +400,9 @@ export default function ProjectExpenseLogger() {
           });
         }
         toast.success(`${lines.length} OPEX expense entries submitted successfully.`);
-        router.push('/financials/projects/expenses');
+        // FE-3: OPEX entries live in the operations ledger, not the CAPEX
+        // stream — redirect where the entries are actually visible.
+        router.push('/financials/operations/manage');
       }
     } catch (err: any) {
       const data = err?.response?.data;

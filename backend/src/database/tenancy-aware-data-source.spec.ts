@@ -29,7 +29,7 @@ function harness() {
     options: { type: "postgres" },
     createQueryRunner: jest.fn(() => runner),
     query: jest.fn(async (sql: string) => {
-      if (/set\s+search_path/i.test(sql)) searchPaths.push(sql);
+      if (/search_path/i.test(sql)) searchPaths.push(sql);
       if (/app\.current_tenant_id/i.test(sql)) rlsContexts.push(sql);
       return [];
     }),
@@ -81,12 +81,17 @@ describe("TenancyAwareDataSource schema resolution", () => {
     await dataSource.createQueryRunner().connect();
 
     const sql = searchPaths[0];
-    // The security property is that the value stays a single identifier, so
-    // quotes and statement separators cannot survive into the SQL.
+    // The security property is that the hostile value collapses to a single
+    // bare identifier: its quotes, the injected statement and the comment must
+    // not survive into the SQL, and the search_path must be exactly one
+    // identifier followed by "public". The context is applied as one
+    // set_config() statement, so no ";" may appear either.
     expect(sql).not.toContain('"');
     expect(sql).not.toContain(";");
     expect(sql).not.toContain("--");
-    expect(sql).toMatch(/^SET search_path TO [A-Za-z0-9_]+, public$/);
+    expect(sql).toMatch(
+      /set_config\('search_path', '[A-Za-z0-9_]+, public', false\)/,
+    );
   });
 
   it("throws TenantContextMissingError when CLS is active but SCHEMA_NAME is unset", async () => {

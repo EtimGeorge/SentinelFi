@@ -314,6 +314,28 @@ export class TenantService {
   }
 
   /**
+   * Display-safe branding subset for the caller's own tenant. Never expose
+   * subscription internals (plan, price, quotas, provisioning errors) here —
+   * this endpoint is readable by every tenant member.
+   */
+  async getMyDisplayProfile(id: string): Promise<{
+    name: string;
+    brandLogoBase64: string | null;
+    brandPrimaryColorHex: string | null;
+    companyAddress: string | null;
+    default_currency_code: string;
+  }> {
+    const tenant = await this.findOneTenant(id);
+    return {
+      name: tenant.name,
+      brandLogoBase64: tenant.brandLogoBase64 ?? null,
+      brandPrimaryColorHex: tenant.brandPrimaryColorHex ?? null,
+      companyAddress: tenant.companyAddress ?? null,
+      default_currency_code: tenant.default_currency_code,
+    };
+  }
+
+  /**
    * Updates a tenant's information in the public schema.
    */
   async updateTenant(

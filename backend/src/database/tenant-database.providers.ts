@@ -20,6 +20,9 @@ export const TenantConnectionProvider: Provider = {
     ) as DataSourceOptions;
     const dataSource = new TenancyAwareDataSource(options, cls);
     await dataSource.initialize();
+    // Fill this pool's warm floor too - most tenant requests land here, so a
+    // cold pool would otherwise pay serial handshakes on the first burst.
+    await DatabaseConfig.warmPool(dataSource);
     return dataSource;
   },
 };

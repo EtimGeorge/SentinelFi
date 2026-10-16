@@ -4,6 +4,7 @@ import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
 import { LiveExpenseEntity } from "../wbs/live-expense.entity";
 import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
 import { formatCurrency } from "@shared/utils/currency"; // Reusing shared utility for consistency
+import { resolveReportBrand } from "./report-brand";
 
 export class ExcelUtility {
   static formatCurrencyWithContext(amount: number, context?: any): string {
@@ -12,6 +13,18 @@ export class ExcelUtility {
       return `${context.currencySymbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
     return ExcelUtility.formatCurrencyWithContext(amount, context);
+  }
+
+  /**
+   * FE-2: branded A1 title cell (tenant name + optional address, in the
+   * tenant primary color). Falls back to the historic slate default.
+   */
+  private static brandTitle(context?: any): { value: string; color: string } {
+    const brand = resolveReportBrand(context);
+    return {
+      value: brand.address ? `${brand.name} · ${brand.address}` : brand.name,
+      color: brand.primaryArgb,
+    };
   }
 
   private static applyHeaderStyle(worksheet: ExcelJS.Worksheet) {
@@ -58,8 +71,8 @@ export class ExcelUtility {
       ? context.projectName.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "")
       : title.substring(0, 30);
     const worksheet = workbook.addWorksheet(sheetTitle);
-    worksheet.getCell("A1").value = context?.tenantName || "SentinelFi";
-    worksheet.getCell("A1").font = { bold: true, color: { argb: "FF4A5568" } };
+    worksheet.getCell("A1").value = ExcelUtility.brandTitle(context).value;
+    worksheet.getCell("A1").font = { bold: true, color: { argb: ExcelUtility.brandTitle(context).color } };
     worksheet.getCell("A2").value = title;
     worksheet.getCell("A2").font = { bold: true, size: 14 };
     worksheet.getCell("A3").value = `Date: ${new Date().toLocaleDateString()}`;
@@ -116,8 +129,8 @@ export class ExcelUtility {
       ? context.projectName.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "")
       : title.substring(0, 30);
     const worksheet = workbook.addWorksheet(sheetTitle);
-    worksheet.getCell("A1").value = context?.tenantName || "SentinelFi";
-    worksheet.getCell("A1").font = { bold: true, color: { argb: "FF4A5568" } };
+    worksheet.getCell("A1").value = ExcelUtility.brandTitle(context).value;
+    worksheet.getCell("A1").font = { bold: true, color: { argb: ExcelUtility.brandTitle(context).color } };
     worksheet.getCell("A2").value = title;
     worksheet.getCell("A2").font = { bold: true, size: 14 };
     worksheet.getCell("A3").value = `Date: ${new Date().toLocaleDateString()}`;
@@ -172,8 +185,8 @@ export class ExcelUtility {
       ? context.projectName.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "")
       : title.substring(0, 30);
     const worksheet = workbook.addWorksheet(sheetTitle);
-    worksheet.getCell("A1").value = context?.tenantName || "SentinelFi";
-    worksheet.getCell("A1").font = { bold: true, color: { argb: "FF4A5568" } };
+    worksheet.getCell("A1").value = ExcelUtility.brandTitle(context).value;
+    worksheet.getCell("A1").font = { bold: true, color: { argb: ExcelUtility.brandTitle(context).color } };
     worksheet.getCell("A2").value = title;
     worksheet.getCell("A2").font = { bold: true, size: 14 };
     worksheet.getCell("A3").value = `Date: ${new Date().toLocaleDateString()}`;
@@ -238,8 +251,8 @@ export class ExcelUtility {
       ? context.projectName.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, "")
       : title.substring(0, 30);
     const worksheet = workbook.addWorksheet(sheetTitle);
-    worksheet.getCell("A1").value = context?.tenantName || "SentinelFi";
-    worksheet.getCell("A1").font = { bold: true, color: { argb: "FF4A5568" } };
+    worksheet.getCell("A1").value = ExcelUtility.brandTitle(context).value;
+    worksheet.getCell("A1").font = { bold: true, color: { argb: ExcelUtility.brandTitle(context).color } };
     worksheet.getCell("A2").value = title;
     worksheet.getCell("A2").font = { bold: true, size: 14 };
     worksheet.getCell("A3").value = `Date: ${new Date().toLocaleDateString()}`;
@@ -304,10 +317,10 @@ export class ExcelUtility {
     summarySheet.getColumn(1).width = 30;
     summarySheet.getColumn(2).width = 25;
 
-    summarySheet.getCell("A1").value = context?.tenantName || "SentinelFi";
+    summarySheet.getCell("A1").value = ExcelUtility.brandTitle(context).value;
     summarySheet.getCell("A1").font = {
       bold: true,
-      color: { argb: "FF4A5568" },
+      color: { argb: ExcelUtility.brandTitle(context).color },
     };
     summarySheet.addRow([
       context?.projectName ? `${title} - ${context.projectName}` : title,

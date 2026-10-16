@@ -37,6 +37,12 @@ export interface ReportOptions {
     tenantName: string;
     projectName: string;
     projectMap: Record<string, string>;
+    // FE-2: tenant branding, collected in settings and threaded through
+    // every renderer (PDF/Excel/Word). All optional — renderers fall back
+    // to neutral defaults when unset.
+    companyAddress?: string;
+    brandPrimaryColorHex?: string;
+    brandLogoBase64?: string;
   };
 }
 

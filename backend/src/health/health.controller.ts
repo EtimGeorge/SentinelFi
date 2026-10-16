@@ -12,11 +12,18 @@ import { Transport } from "@nestjs/microservices";
 import { AiAssistantService } from "../ai-assistant/ai-assistant.service";
 import { Public } from "../common/decorators/public.decorator";
 import { DatabaseConfig } from "../common/config/database.config";
+import { SkipThrottle } from "@nestjs/throttler";
 
 // Liveness/readiness probes must be reachable by orchestration platforms (K8s,
 // Docker HEALTHCHECK, LB) without a token. These endpoints intentionally expose
 // only up/down/status — never sensitive data. Use an authenticated `/health/deep`
 // for tenant scoped internals.
+//
+// @SkipThrottle keeps probes off the throttler guard: that guard awaits the
+// remote Redis rate-limit store on every request, and probes fire frequently,
+// so counting them added needless latency (and could rate-limit a busy platform
+// out of its own liveness endpoint).
+@SkipThrottle()
 @Controller("health")
 export class HealthController {
   constructor(

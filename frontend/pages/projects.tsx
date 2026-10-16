@@ -205,7 +205,21 @@ const ProjectsPage: React.FC = () => {
         project_name: '', rfq_number: '', client_id: '', currency: 'NGN', contract_value: 0, contingency_percent: 5, vat_rate: 7.5, wht_rate: 5, sow_details: '', wbs_template_id: '',
       });
 
-      toast.success(`Project "${newProject.project_name}" initialized successfully!`);
+      toast.success(
+        (t) => (
+          <span className="flex items-center gap-3">
+            Project &quot;{newProject.project_name}&quot; initialized successfully! Next: build the WBS.
+            <a
+              href={`/financials/projects/wbs?projectId=${newProject.project_id}`}
+              className="underline font-black"
+              onClick={() => toast.dismiss(t.id)}
+            >
+              Open WBS Designer
+            </a>
+          </span>
+        ),
+        { duration: 9000 },
+      );
       router.push(`/projects/${newProject.project_id}/overview`);
 
     } finally {

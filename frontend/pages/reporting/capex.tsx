@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
-  BarChart2, Download, FileText, Loader2, TrendingUp, AlertCircle, Calendar, Printer, Search, Filter, ChevronRight, RefreshCw, Projector, Lock, Shield
+  BarChart2, Download, FileText, Loader2, TrendingUp, AlertCircle, Printer, Search, Filter, ChevronRight, RefreshCw, Projector
 } from 'lucide-react';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import Tooltip from '../../components/common/Tooltip';
+import {
+  useReportBranding,
+  buildReportContext,
+  sha256Hex,
+  ReportHeader,
+  ReportFooter,
+} from '../../components/reports/ReportBranding';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import toast from 'react-hot-toast';
 import { useCurrency } from '../../components/context/CurrencyContext';
@@ -24,6 +31,8 @@ const CapexPerformancePage: React.FC = () => {
   const [projects, setProjects] = useState<any[]>([]);
   const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly' | 'all'>('all');
   const [viewMode, setViewMode] = useState<'analytics' | 'report'>('report');
+  const branding = useReportBranding();
+  const [reportHash, setReportHash] = useState<string | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -112,9 +121,9 @@ const CapexPerformancePage: React.FC = () => {
       setLoading(true);
       const loadId = toast.loading(`Preparing ${format.toUpperCase()} report...`);
 
-      const exportContext = {
-        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
-      };
+      const exportContext = buildReportContext({
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: branding.tenantName || user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+      }, branding);
 
       const response = await api.post('/reporting/generate', {
         type: 'CAPEX_SUMMARY', format: format, context: exportContext, filters: {
@@ -128,6 +137,11 @@ const CapexPerformancePage: React.FC = () => {
       link.setAttribute('download', `capex_report_${interval}_${Date.now()}.${format}`);
       document.body.appendChild(link);
       link.click();
+      try {
+        setReportHash(await sha256Hex(new Blob([response.data])));
+      } catch {
+        setReportHash(null);
+      }
       toast.success('Report generated successfully', { id: loadId });
     } catch (error) {
       toast.error('Export failed');
@@ -145,14 +159,28 @@ const CapexPerformancePage: React.FC = () => {
       setLoading(true);
       const loadId = toast.loading('Synchronizing CAPEX report with DCS...');
 
-      const exportContext = {
-        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
-      };
+      const exportContext = buildReportContext({
+        currencyRate: userCurrency.rate, currencySymbol: userCurrency.symbol, tenantName: branding.tenantName || user?.tenant_name || '', projectName: selectedProjectId === 'all' ? 'All Portfolio Projects' : projects.find(p => p.project_id === selectedProjectId)?.project_name || '', projectMap: Object.fromEntries(projects.map(p => [p.project_id, p.project_name]))
+      }, branding);
 
       await api.post('/reporting/generate', {
         type: 'CAPEX_SUMMARY', format: 'pdf', pushToDcs: true, context: exportContext, filters: { projectId: selectedProjectId === 'all' ? undefined : selectedProjectId, interval }
       });
-      toast.success('CAPEX Intelligence successfully pushed to DCS.', { id: loadId });
+      toast.success(
+        (t) => (
+          <span className="flex items-center gap-3">
+            CAPEX Intelligence successfully pushed to DCS.
+            <a
+              href="/reporting/archive"
+              className="underline font-black"
+              onClick={() => toast.dismiss(t.id)}
+            >
+              View in Archive
+            </a>
+          </span>
+        ),
+        { id: loadId, duration: 8000 },
+      );
     } catch (error) {
       toast.error('DCS synchronization failed');
     } finally {
@@ -243,6 +271,7 @@ const CapexPerformancePage: React.FC = () => {
                   <button
                     onClick={handlePushToDCS}
                     disabled={loading || !stats?.items?.length}
+                    title={!stats?.items?.length ? 'Load report data before syncing to the archive' : 'Sync this report to the DCS archive'}
                     className="w-full flex items-center justify-between px-4 py-3 bg-alert-warning/10 hover:bg-alert-warning/20 border border-alert-warning/20 rounded-xl text-alert-warning text-xs font-black  transition-all group disabled:opacity-30"
                   >
                     <div className="flex items-center gap-3">
@@ -250,6 +279,12 @@ const CapexPerformancePage: React.FC = () => {
                       Push to DCS
                     </div>
                   </button>
+                  {!stats?.items?.length && !loading && (
+                    <p className="text-xs text-slate-500 font-medium">
+                      No data to sync yet — adjust the filters above. Pushed reports land in{' '}
+                      <a href="/reporting/archive" className="underline font-bold text-brand-primary">the Archive</a>.
+                    </p>
+                  )}
                 </div>
 
                 <div className="p-4 bg-brand-primary/5 border border-brand-primary/10 rounded-2xl">
@@ -323,15 +358,14 @@ const CapexPerformancePage: React.FC = () => {
 
               {/* Internal Report Structure */}
               <div className="max-w-4xl mx-auto space-y-12 py-8">
-                <header className="text-center space-y-4 border-b-2 border-slate-100 pb-12">
-                  <div className="mx-auto w-16 h-1 bg-brand-primary/20 rounded-full mb-6" />
-                  <h2 className="text-3xl font-black uppercase tracking-tighter leading-tight">Capital Expenditure<br /><span className="text-brand-primary">Performance Intelligence</span></h2>
-                  <div className="flex items-center justify-center gap-6 text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
-                    <span className="flex items-center gap-2"><Calendar className="w-3 h-3" /> Interval: {interval.toUpperCase()}</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>
-                    <span className="flex items-center gap-2"><Lock className="w-3 h-3" /> SECURED: {format(new Date(), 'PP')}</span>
-                  </div>
-                </header>
+                <ReportHeader
+                  branding={branding}
+                  title={<>Capital Expenditure<br /><span style={{ color: branding.brandPrimaryColorHex }}>Performance Intelligence</span></>}
+                  meta={[
+                    { label: 'Interval', value: interval.toUpperCase() },
+                    { label: 'Secured', value: format(new Date(), 'PP') },
+                  ]}
+                />
 
                 <div className="space-y-8">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -400,28 +434,7 @@ const CapexPerformancePage: React.FC = () => {
                   </table>
                 </div>
 
-                <footer className="pt-12 border-t border-slate-200 mt-20 flex flex-col md:flex-row justify-between items-center gap-8">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-slate-900 rounded-lg">
-                        <Shield className="w-4 h-4 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-black text-slate-900  leading-none">Cryptographic Integrity</p>
-                        <p className="font-mono text-xs text-slate-400 tracking-tighter mt-1 truncate max-w-[200px]">
-                          SHA256: {stats?.items?.length > 0 ? 'F5C8...84XJ' : 'NULL_VOID'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-center md:text-right space-y-1">
-                    <p className="text-xs font-black text-slate-950 ">{userCurrency.code} Valuation Model</p>
-                    <p className="text-xs text-slate-400 font-medium tracking-tight">SentinelFi Financial Intelligence Systems</p>
-                    <div className="flex items-center justify-center md:justify-end gap-1 mt-2">
-                      {[1, 2, 3, 4, 5].map(i => <div key={i} className="w-1 h-1 bg-slate-200 rounded-full"></div>)}
-                    </div>
-                  </div>
-                </footer>
+                <ReportFooter hash={reportHash} branding={branding} valuationCode={userCurrency.code} />
               </div>
             </div>
           </main>

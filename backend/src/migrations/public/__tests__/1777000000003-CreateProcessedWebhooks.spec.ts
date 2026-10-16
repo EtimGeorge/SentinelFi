@@ -1,5 +1,5 @@
 import type { QueryRunner } from "typeorm";
-import { CreateProcessedWebhooks1777000000003 } from "../1777000000003-CreateProcessedWebhooks";
+import { CreateProcessedWebhooks20261013000000 } from "../20261013000000-CreateProcessedWebhooks";
 
 function recordingRunner() {
   const recorded: string[] = [];
@@ -12,10 +12,10 @@ function recordingRunner() {
   return { runner, recorded };
 }
 
-describe("CreateProcessedWebhooks1777000000003", () => {
+describe("CreateProcessedWebhooks20261013000000", () => {
   it("creates the public.processed_webhooks idempotency ledger", async () => {
     const { runner, recorded } = recordingRunner();
-    await new CreateProcessedWebhooks1777000000003().up(runner);
+    await new CreateProcessedWebhooks20261013000000().up(runner);
     const sql = recorded.join("\n");
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."processed_webhooks"');
     expect(sql).toContain('"id" uuid NOT NULL DEFAULT uuid_generate_v4()');
@@ -27,7 +27,7 @@ describe("CreateProcessedWebhooks1777000000003", () => {
 
   it("creates the unique dedupe index on gateway_event_id", async () => {
     const { runner, recorded } = recordingRunner();
-    await new CreateProcessedWebhooks1777000000003().up(runner);
+    await new CreateProcessedWebhooks20261013000000().up(runner);
     const sql = recorded.join("\n");
     expect(sql).toContain(
       'CREATE UNIQUE INDEX IF NOT EXISTS "IDX_processed_webhooks_gateway_event_id"',
@@ -37,7 +37,7 @@ describe("CreateProcessedWebhooks1777000000003", () => {
 
   it("drops the table and indexes on rollback", async () => {
     const { runner, recorded } = recordingRunner();
-    await new CreateProcessedWebhooks1777000000003().down(runner);
+    await new CreateProcessedWebhooks20261013000000().down(runner);
     const sql = recorded.join("\n");
     expect(sql).toContain('DROP TABLE IF EXISTS "public"."processed_webhooks"');
     expect(sql).toContain('DROP INDEX IF EXISTS "public"."IDX_processed_webhooks_gateway_event_id"');

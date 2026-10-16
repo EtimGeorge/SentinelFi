@@ -19,6 +19,7 @@ import { useCurrency } from '../../../components/context/CurrencyContext';
 import { WBSApplyTemplateModal } from '../../../components/projects/WBSApplyTemplateModal';
 import { WBSImportModal } from '../../../components/projects/WBSImportModal';
 import { WbsCategoryModal } from '../../../components/projects/WbsCategoryModal';
+import ConfirmDialog from '../../../components/common/ConfirmDialog';
 
 export interface WBSItem {
   wbs_id: string;
@@ -87,6 +88,9 @@ const WBSManagerPage: React.FC = () => {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  // FE-3: delete confirmation target (replaces window.confirm).
+  const [deleteTarget, setDeleteTarget] = useState<WBSItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [forensics, setForensics] = useState<{
@@ -413,18 +417,18 @@ const WBSManagerPage: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure? This will delete the item and all its children.')) return;
-
-    setLoading(true);
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await api.delete(`/wbs/budget-draft/${id}?recursive=true`);
+      await api.delete(`/wbs/budget-draft/${deleteTarget.wbs_id}?recursive=true`);
       toast.success('Deleted successfully');
+      setDeleteTarget(null);
       fetchData();
     } catch (e: any) {
-      toast.error(`Delete failed: ${e.message}`);
+      toast.error(`Delete failed: ${e.response?.data?.message || e.message}`);
     } finally {
-      setLoading(false);
+      setDeleting(false);
     }
   };
 
@@ -571,7 +575,7 @@ const WBSManagerPage: React.FC = () => {
                 <button onClick={() => handleAction('edit', item.parent_wbs_id, item)} className="p-1.5 text-gray-400 hover:bg-gray-700 rounded-lg transition" title="Edit">
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={() => handleDelete(item.wbs_id)} className="p-1.5 text-red-500 hover:bg-red-900/40 rounded-lg transition" title="Delete">
+                    <button onClick={() => setDeleteTarget(item)} className="p-1.5 text-red-500 hover:bg-red-900/40 rounded-lg transition" title="Delete" aria-label={`Delete WBS ${item.wbs_code}`}>
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <div className="w-px h-4 bg-gray-700 mx-1" />
@@ -1093,6 +1097,19 @@ const WBSManagerPage: React.FC = () => {
           // Re-fetch categories
           api.get<WBSCategory[]>('/wbs/categories').then(res => setCategories(res.data));
         }}
+      />
+
+      {/* FE-3: delete confirmation (was window.confirm). */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete WBS Item"
+        message={deleteTarget ? `Delete "${deleteTarget.wbs_code} — ${deleteTarget.description}" and all of its child lines? Lines carrying expenses or LPO commitments are protected by the backend and will refuse deletion.` : ''}
+        confirmLabel="Delete Item"
+        cancelLabel="Cancel"
+        tone="danger"
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
 
       {/* PDF Preview Modal Integration */}

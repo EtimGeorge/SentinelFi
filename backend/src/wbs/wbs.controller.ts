@@ -405,7 +405,7 @@ export class WbsController {
     }
     const tenantIdFromToken = req.user.tenant_id;
     try {
-      await this.wbsService.deleteWbsItem(id, tenantIdFromToken, { recursive });
+      await this.wbsService.deleteWbsItem(id, tenantIdFromToken, { recursive }, req.user.id);
     } catch (error: any) {
       if (
         error instanceof NotFoundException ||
@@ -534,6 +534,7 @@ export class WbsController {
         id,
         updateWbsBudgetDto,
         tenantIdFromToken,
+        req.user.id,
       );
     } catch (error: any) {
       if (error instanceof NotFoundException) {
@@ -708,6 +709,7 @@ export class WbsController {
         id,
         req.user.tenant_id,
         (req.user.roles?.[0] as any)?.name ?? (req.user.roles?.[0] || "System"),
+        req.user.id,
       );
     } catch (error: any) {
       if (
@@ -717,6 +719,37 @@ export class WbsController {
         throw error;
       throw new InternalServerErrorException(
         `Failed to approve overrun: ${error.message}`,
+      );
+    }
+  }
+
+  @Post("expense/overruns/:id/reject")
+  @Roles(Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager)
+  @HttpCode(HttpStatus.OK)
+  async rejectOverrun(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() body: { reason?: string } | undefined,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException("User not authenticated.");
+    }
+    try {
+      return await this.wbsService.rejectOverrun(
+        id,
+        req.user.tenant_id,
+        (req.user.roles?.[0] as any)?.name ?? (req.user.roles?.[0] || "System"),
+        req.user.id,
+        body?.reason,
+      );
+    } catch (error: any) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      )
+        throw error;
+      throw new InternalServerErrorException(
+        `Failed to reject overrun: ${error.message}`,
       );
     }
   }
@@ -738,6 +771,7 @@ export class WbsController {
       updateLiveExpenseDto,
       tenantIdFromToken,
       (req.user.roles?.[0] as any)?.name ?? req.user.roles?.[0],
+      req.user.id,
     );
   }
 
@@ -751,7 +785,7 @@ export class WbsController {
     if (!req.user || !req.user.tenant_id) {
       throw new UnauthorizedException("User not authenticated.");
     }
-    await this.wbsService.deleteLiveExpenseEntry(id, req.user.tenant_id);
+    await this.wbsService.deleteLiveExpenseEntry(id, req.user.tenant_id, req.user.id);
   }
 
   @Post("expense/live-entry/batch-delete")
@@ -764,7 +798,7 @@ export class WbsController {
     if (!req.user || !req.user.tenant_id) {
       throw new UnauthorizedException("User not authenticated.");
     }
-    return this.wbsService.deleteLiveExpenseBatch(ids, req.user.tenant_id);
+    return this.wbsService.deleteLiveExpenseBatch(ids, req.user.tenant_id, req.user.id);
   }
 
   // --- WBS CATEGORY ENDPOINTS ---

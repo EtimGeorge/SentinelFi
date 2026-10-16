@@ -521,6 +521,7 @@ export class ProjectsController {
       req.user.tenant_id,
       req.user.id,
       actorRole || "System",
+      req.user as any,
     );
   }
 

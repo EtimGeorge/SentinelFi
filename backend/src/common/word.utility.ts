@@ -16,8 +16,22 @@ import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
 import { LiveExpenseEntity } from "../wbs/live-expense.entity";
 import { OperationalBudgetEntity } from "../operational-budgets/operational-budget.entity";
 import { formatCurrency } from "@shared/utils/currency"; // Reusing shared utility for consistency
+import { resolveReportBrand } from "./report-brand";
 
 export class WordUtility {
+  /**
+   * FE-2: branded tenant line (name + optional address) and primary color
+   * for the tenant heading. Falls back to the historic slate default.
+   */
+  private static brandTenantLine(context?: any): string {
+    const brand = resolveReportBrand(context);
+    return brand.address ? `${brand.name} · ${brand.address}` : brand.name;
+  }
+
+  private static brandColor(context?: any): string {
+    return resolveReportBrand(context).primaryHex;
+  }
+
   static formatCurrencyWithContext(amount: number, context?: any): string {
     if (context && context.currencyRate && context.currencySymbol) {
       const converted = amount * context.currencyRate;
@@ -137,9 +151,9 @@ export class WordUtility {
             new Paragraph({
               children: [
                 new TextRun({
-                  text: context?.tenantName || "SentinelFi",
+                  text: WordUtility.brandTenantLine(context),
                   bold: true,
-                  color: "4A5568",
+                  color: WordUtility.brandColor(context),
                   size: 20,
                 }),
               ],
@@ -270,9 +284,9 @@ export class WordUtility {
             new Paragraph({
               children: [
                 new TextRun({
-                  text: context?.tenantName || "SentinelFi",
+                  text: WordUtility.brandTenantLine(context),
                   bold: true,
-                  color: "4A5568",
+                  color: WordUtility.brandColor(context),
                   size: 20,
                 }),
               ],
@@ -410,9 +424,9 @@ export class WordUtility {
             new Paragraph({
               children: [
                 new TextRun({
-                  text: context?.tenantName || "SentinelFi",
+                  text: WordUtility.brandTenantLine(context),
                   bold: true,
-                  color: "4A5568",
+                  color: WordUtility.brandColor(context),
                   size: 20,
                 }),
               ],
@@ -547,9 +561,9 @@ export class WordUtility {
             new Paragraph({
               children: [
                 new TextRun({
-                  text: context?.tenantName || "SentinelFi",
+                  text: WordUtility.brandTenantLine(context),
                   bold: true,
-                  color: "4A5568",
+                  color: WordUtility.brandColor(context),
                   size: 20,
                 }),
               ],
@@ -804,9 +818,9 @@ export class WordUtility {
             new Paragraph({
               children: [
                 new TextRun({
-                  text: context?.tenantName || "SentinelFi",
+                  text: WordUtility.brandTenantLine(context),
                   bold: true,
-                  color: "4A5568",
+                  color: WordUtility.brandColor(context),
                   size: 20,
                 }),
               ],

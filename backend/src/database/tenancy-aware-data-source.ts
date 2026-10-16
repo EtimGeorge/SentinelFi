@@ -162,28 +162,29 @@ export class TenancyAwareDataSource extends DataSource {
           // Only hex/hyphens survive sanitization so this is safe for a SET literal.
           const rlsTenantContext =
             tenantId && /^[0-9a-fA-F-]{36}$/.test(tenantId) ? tenantId : "SYS";
+          // Set both pieces of per-connection session state in ONE statement so
+          // a remote database pays a single round trip per new connection
+          // instead of two. `set_config(name, value, false)` is the function
+          // form of `SET` (false = session scope, matching the previous `SET`
+          // semantics). Both values are sanitized above to a bare identifier /
+          // uuid-or-SYS literal, so nothing can escape its string literal — and
+          // keeping it a single statement means no ";" can ever be introduced
+          // (the property the schema-resolution test guards).
+          const contextSql =
+            `SELECT set_config('search_path', '${sanitizedSchema}, public', false), ` +
+            `set_config('app.current_tenant_id', '${rlsTenantContext}', false)`;
           const setContext = async () => {
             if (
               this.driver &&
               typeof (this.driver as any).query === "function"
             ) {
               await (this.driver as any).query(
-                `SET search_path TO ${sanitizedSchema}, public`,
-                undefined,
-                queryRunner,
-              );
-              await (this.driver as any).query(
-                `SET app.current_tenant_id = '${rlsTenantContext}'`,
+                contextSql,
                 undefined,
                 queryRunner,
               );
             } else {
-              await queryRunner.query(
-                `SET search_path TO ${sanitizedSchema}, public`,
-              );
-              await queryRunner.query(
-                `SET app.current_tenant_id = '${rlsTenantContext}'`,
-              );
+              await queryRunner.query(contextSql);
             }
           };
 

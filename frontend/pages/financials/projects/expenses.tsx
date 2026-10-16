@@ -14,7 +14,7 @@ import { LiveExpense } from "@shared/types/expense";
 import { Project } from "@shared/types/project";
 import toast from 'react-hot-toast';
 import {
-  DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2, Activity, AlertTriangle, TrendingUp, CheckCircle, Target, X
+  DollarSign, Download, Printer, Search, RefreshCcw, Edit, Trash2, Activity, AlertTriangle, TrendingUp, CheckCircle, Target, X, Plus
 } from "lucide-react";
 import Modal from "../../../components/common/Modal";
 import EmptyState from "../../../components/common/EmptyState";
@@ -230,7 +230,18 @@ const ExpenseManagementPage: React.FC = () => {
       <PageContainer
         title="Expense Management"
         subtitle="Track, filter, and analyze live real-world expense data against WBS budgets."
-        headerContent={<Target className="w-8 h-8 text-brand-secondary" />}
+        headerContent={
+          <div className="flex items-center gap-3">
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => router.push('/financials/expenses/new')}
+            >
+              Log Expense
+            </Button>
+            <Target className="w-8 h-8 text-brand-secondary" aria-hidden="true" />
+          </div>
+        }
       >
         {/* KPI Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -345,7 +356,9 @@ const ExpenseManagementPage: React.FC = () => {
                   rowKey={(e) => String(e.id || e.expense_id || '')}
                   actions={[
                     {
-                      key: 'view', label: 'View Dossier', primary: true, icon: <Activity className="w-4 h-4" />, onClick: (e) => router.push(`/financials/projects/expenses?id=${e.id}`),
+                      key: 'view', label: 'View Dossier', primary: true, icon: <Activity className="w-4 h-4" />,
+                      visible: (e: LiveExpense) => !!e.wbsBudget?.project?.project_id,
+                      onClick: (e) => router.push(`/projects/${e.wbsBudget?.project?.project_id}/overview`),
                     },
                     {
                       key: 'edit', label: 'Edit', icon: <Edit className="w-4 h-4" />, onClick: (e) => openEditModal(e),

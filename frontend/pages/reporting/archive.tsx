@@ -4,6 +4,7 @@ import {
   FileText, Download, Search, Shield, RefreshCw, ExternalLink, Archive
 } from 'lucide-react';
 import DataTable from '../../components/common/DataTable';
+import { TableSkeleton } from '../../components/common/LoadingSkeleton';
 import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
@@ -59,10 +60,13 @@ const DcsArchivePage: React.FC = () => {
     }
   };
 
-  const handleShare = (id: string) => {
-    const link = `${window.location.origin}/reporting/export/${id}`;
+  const handleShare = (item: ArchiveItem) => {
+    // FE-3: the old link pointed at a backend API route (auth-gated file
+    // bytes), not a shareable page. Copy a link to the vault entry itself so
+    // an authenticated colleague lands where the file can be downloaded.
+    const link = `${window.location.origin}/reporting/archive`;
     navigator.clipboard.writeText(link);
-    toast.success('Document link copied to clipboard');
+    toast.success(`Archive link copied — "${item.file_name}" lives in the vault`);
   };
 
   const filteredArchives = archives.filter(a =>
@@ -122,6 +126,9 @@ const DcsArchivePage: React.FC = () => {
           {/* Main List Area */}
           <main className="flex-1">
             <Card className="p-0 overflow-hidden bg-slate-900/40 backdrop-blur-xl border-slate-800 rounded-3xl">
+              {loading ? (
+                <div className="p-6"><TableSkeleton columns={5} rows={5} /></div>
+              ) : (
               <DataTable
                 columns={[
                   { key: 'file_name', label: 'Document Name', tier: 'P0', get: (item) => (
@@ -172,14 +179,15 @@ const DcsArchivePage: React.FC = () => {
                     </div>
                   )},
                 ]}
-                rows={loading ? [] : filteredArchives}
+                rows={filteredArchives}
                 rowKey={(item) => item.id}
-                emptyMessage={loading ? 'Loading archive...' : 'The digital vault is empty'}
+                emptyMessage="The digital vault is empty"
                 actions={[
                   { key: 'download', label: 'Download File', icon: <Download className="w-4 h-4" />, primary: true, onClick: (item) => handleDownload(item.id, item.file_name) },
-                  { key: 'share', label: 'Copy Shareable Link', icon: <ExternalLink className="w-4 h-4" />, onClick: (item) => handleShare(item.id) },
+                  { key: 'share', label: 'Copy Archive Link', icon: <ExternalLink className="w-4 h-4" />, onClick: (item) => handleShare(item) },
                 ]}
               />
+              )}
             </Card>
           </main>
         </div>

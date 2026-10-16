@@ -7,6 +7,9 @@ import Card from '../../../../components/common/Card';
 import DataTable from "../../../../components/common/DataTable";
 import Button from '../../../../components/common/Button';
 import Select from '../../../../components/common/Select';
+import Modal from '../../../../components/common/Modal';
+import Input from '../../../../components/common/Input';
+import ConfirmDialog from '../../../../components/common/ConfirmDialog';
 import api from '../../../../lib/api';
 import { useAuth } from '../../../../components/context/AuthContext';
 import { useCurrency } from '../../../../components/context/CurrencyContext';
@@ -69,6 +72,10 @@ const ProjectBudgetPreviewPage: React.FC = () => {
   // Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<WbsBudgetExtended | null>(null);
+  // FE-3: submit confirmation + recall-with-reason (replaces window.confirm/prompt).
+  const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
+  const [recallTarget, setRecallTarget] = useState<WbsBudgetExtended | null>(null);
+  const [recallReason, setRecallReason] = useState('');
   const [editFormData, setEditFormData] = useState({
     description: '', quantity: 0, uom: '', days: 0, unit_cost: 0
   });
@@ -213,12 +220,12 @@ const ProjectBudgetPreviewPage: React.FC = () => {
   };
 
   const handleSubmitProject = async () => {
-    if (!window.confirm("Submit all draft/rejected project budgets for approval?")) return;
     setIsSubmitting(true);
     toast('Submitting project budget...', { icon: 'â³' });
     try {
       await api.patch(`/wbs/project/${projectId}/submit`);
       toast.success('Project budget submitted for approval!');
+      setIsSubmitConfirmOpen(false);
       fetchProjectData();
     } catch (e: any) {
       toast.error(e.response?.data?.message || 'Failed to submit budget');
@@ -227,15 +234,19 @@ const ProjectBudgetPreviewPage: React.FC = () => {
     }
   };
 
-  const handleRecallApproval = async (item: WbsBudgetExtended) => {
-    const reason = window.prompt(`Enter reason for recalling approval on WBS ${item.wbs_code}:`);
-    if (reason === null) return;
-
+  const handleRecallApproval = async () => {
+    if (!recallTarget) return;
+    if (!recallReason.trim()) {
+      toast.error('A recall reason is required for the audit trail.');
+      return;
+    }
     setIsSubmitting(true);
     toast('Recalling approval...', { icon: 'â³' });
     try {
-      await api.patch(`/wbs/budget/${item.wbs_id}/recall`, { reason });
+      await api.patch(`/wbs/budget/${recallTarget.wbs_id}/recall`, { reason: recallReason.trim() });
       toast.success('Approval recalled successfully');
+      setRecallTarget(null);
+      setRecallReason('');
       fetchProjectData();
     } catch (e: any) {
       toast.error(e.response?.data?.message || 'Failed to recall approval');
@@ -304,7 +315,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
                       </button>
                     )}
                     {canApprove && String(item.status).toUpperCase() === 'APPROVED' && (
-                      <button onClick={() => handleRecallApproval(item)} className="text-xs flex items-center gap-1 text-orange-500 hover:text-orange-400 mt-2 print:hidden transition">
+                      <button onClick={() => { setRecallTarget(item); setRecallReason(''); }} className="text-xs flex items-center gap-1 text-orange-500 hover:text-orange-400 mt-2 print:hidden transition">
                         <RotateCcw className="w-3 h-3" /> Recall Approval
                       </button>
                     )}
@@ -320,7 +331,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
                     </button>
                   )}
                   {canApprove && String(item.status).toUpperCase() === 'APPROVED' && (
-                    <button onClick={() => handleRecallApproval(item)} className="text-xs flex items-center gap-1 text-orange-500 hover:text-orange-400 mt-2 print:hidden transition">
+                    <button onClick={() => { setRecallTarget(item); setRecallReason(''); }} className="text-xs flex items-center gap-1 text-orange-500 hover:text-orange-400 mt-2 print:hidden transition">
                       <RotateCcw className="w-3 h-3" /> Recall Approval
                     </button>
                   )}
@@ -413,7 +424,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
         headerContent={
           <div className="flex items-center gap-4 print:hidden">
             {canSubmit && (
-              <Button onClick={handleSubmitProject} variant="primary" isLoading={isSubmitting} icon={<Send className="w-4 h-4" />}>
+              <Button onClick={() => setIsSubmitConfirmOpen(true)} variant="primary" isLoading={isSubmitting} icon={<Send className="w-4 h-4" />}>
                 Submit Project Budget
               </Button>
             )}
@@ -596,6 +607,45 @@ const ProjectBudgetPreviewPage: React.FC = () => {
           )}
         </Card>
       </PageContainer>
+
+      {/* FE-3: submit confirmation (was window.confirm). */}
+      <ConfirmDialog
+        open={isSubmitConfirmOpen}
+        title="Submit Project Budget"
+        message="Submit all draft and rejected budget lines for approval? Reviewers will be notified through the Governance Hub."
+        confirmLabel="Submit for Approval"
+        cancelLabel="Cancel"
+        tone="default"
+        busy={isSubmitting}
+        onConfirm={handleSubmitProject}
+        onCancel={() => setIsSubmitConfirmOpen(false)}
+      />
+
+      {/* FE-3: recall with a mandatory reason (was window.prompt). */}
+      <Modal
+        isOpen={!!recallTarget}
+        onClose={() => setRecallTarget(null)}
+        title="Recall Budget Approval"
+      >
+        <div className="space-y-4 pt-4">
+          <p className="text-sm text-slate-400">
+            Recalling <span className="font-mono font-bold text-white">{recallTarget?.wbs_code}</span> returns
+            the line to the editable queue. The reason is journaled on the project audit trail.
+          </p>
+          <Input
+            label="Recall Reason"
+            placeholder="Required for audit trail"
+            value={recallReason}
+            onChange={(e) => setRecallReason(e.target.value)}
+          />
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setRecallTarget(null)}>Cancel</Button>
+            <Button variant="primary" onClick={handleRecallApproval} isLoading={isSubmitting}>
+              Recall Approval
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Inline Edit Modal */}
       {isEditModalOpen && (

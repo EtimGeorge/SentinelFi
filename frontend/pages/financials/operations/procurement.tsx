@@ -391,7 +391,7 @@ const P2PDeskPage: React.FC = () => {
             <Button variant="outline" size="sm" className="bg-brand-dark/50" onClick={() => setFilterOpen(o => !o)}><Filter className="w-3.5 h-3.5 mr-2" /> Filter</Button>
             <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)}>
               <Plus className="w-3.5 h-3.5 mr-2" />
-              {activeTab === 'requisitions' ? 'New Requisition' : activeTab === 'purchase-orders' ? 'Generate PO' : 'Record Invoice'}
+              New Requisition
             </Button>
           </div>
         </div>
@@ -462,6 +462,13 @@ const P2PDeskPage: React.FC = () => {
                 value={formData.vendorId}
                 onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
               />
+              <p className="-mt-2 text-xs text-slate-500">
+                Missing a supplier?{' '}
+                <a href="/financials/operations/vendors" className="text-brand-primary hover:underline font-bold">
+                  Open the Vendor Master
+                </a>{' '}
+                to register them first.
+              </p>
 
               <Input
                 label="Vendor Name (free text)"
