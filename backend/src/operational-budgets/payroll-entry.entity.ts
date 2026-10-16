@@ -7,6 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  Index,
 } from "typeorm";
 import { OperationalBudgetEntity } from "./operational-budget.entity";
 import { UserEntity } from "../auth/user.entity";
@@ -19,6 +20,10 @@ export enum PayrollEntryStatus {
 }
 
 @Entity({ name: "payroll_entry" })
+@Index("IDX_payroll_entry_tenant", ["tenant_id"])
+@Index("IDX_payroll_entry_budget", ["operational_budget_id"])
+@Index("IDX_payroll_entry_tenant_budget", ["tenant_id", "operational_budget_id"])
+@Index("IDX_payroll_entry_tenant_status", ["tenant_id", "status"])
 export class PayrollEntryEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

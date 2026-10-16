@@ -2381,6 +2381,44 @@ export class OperationalBudgetsService {
       ]),
     );
 
+    // Active P2P commitments (requisitions + purchase orders) per budget.
+    //
+    // These holds are recorded by `createEncumbrance` with a NULL
+    // `operational_budget_category_id`, so they belong to the budget and cannot
+    // be attributed to a category line — hence they feed `byDepartment` and the
+    // totals' `committed`, never `byCategory`.
+    //
+    // Two filters matter for correctness:
+    //   - source_type IN (REQUISITION, PURCHASE_ORDER) excludes EXPENSE holds,
+    //     which merely mirror the PENDING expenses already counted above and
+    //     would otherwise double-count.
+    //   - status IN (RESERVED, FIRM) excludes the terminal LIQUIDATED/RELEASED
+    //     states (a received+settled PO is no longer a committed pipeline).
+    const p2pEncumbranceQb = this.encumbranceRepository
+      .createQueryBuilder("enc")
+      .select("enc.operational_budget_id", "budget_id")
+      .addSelect("SUM(enc.amount)", "committed")
+      .where("enc.tenant_id = :tenantId", { tenantId })
+      .andWhere("enc.operational_budget_id IS NOT NULL")
+      .andWhere("enc.source_type IN (:...p2pSources)", {
+        p2pSources: [
+          EncumbranceSourceType.REQUISITION,
+          EncumbranceSourceType.PURCHASE_ORDER,
+        ],
+      })
+      .andWhere("enc.status IN (:...activeStatuses)", {
+        activeStatuses: [EncumbranceStatus.RESERVED, EncumbranceStatus.FIRM],
+      });
+    scopeByBudget(p2pEncumbranceQb, "enc");
+    p2pEncumbranceQb.groupBy("enc.operational_budget_id");
+
+    const p2pCommittedByBudget = new Map<string, number>(
+      (await p2pEncumbranceQb.getRawMany()).map((r) => [
+        r.budget_id,
+        parseFloat(r.committed) || 0,
+      ]),
+    );
+
     // Department ownership per budget (for byDepartment rollup keys).
     const budgetMeta = await this.operationalBudgetRepository
       .createQueryBuilder("b")
@@ -2394,6 +2432,7 @@ export class OperationalBudgetsService {
     const byCategory: OpexAnalyticsSeries[] = [];
     const byDepartmentMap = new Map<string, OpexAnalyticsSeriesDepartment>();
     let totalCommitted = 0;
+    let totalCommittedEncumbrances = 0;
 
     for (const budget of rollup.budgets) {
       const payroll = payrollByBudget.get(budget.budget_id) ?? {
@@ -2406,13 +2445,15 @@ export class OperationalBudgetsService {
         (sum, cat) => sum + (committedByCategory.get(cat.id) ?? 0),
         0,
       );
+      const p2pCommitted = p2pCommittedByBudget.get(budget.budget_id) ?? 0;
       // Phase 4 (4.5): whole-budget overrun wins — PERMANENT_VARIANCE on every
       // offending category; otherwise a category alone over its line is a
       // TIMING_VARIANCE (period shift with budget-level headroom).
       const budgetProjected =
         Number(budget.actual || 0) +
         budgetCommittedTotal +
-        (payroll.pending || 0);
+        (payroll.pending || 0) +
+        p2pCommitted;
       const budgetLevelOverrun =
         budgetProjected > Number(budget.budgeted || 0);
 
@@ -2452,16 +2493,19 @@ export class OperationalBudgetsService {
         committed: 0,
         variance: 0,
         variancePct: 0,
+        committedEncumbrances: 0,
       };
       row.budgeted += budget.budgeted;
       row.actual += budget.actual + payroll.paid;
-      row.committed += categoryCommitted + payroll.pending;
+      row.committed += categoryCommitted + payroll.pending + p2pCommitted;
+      row.committedEncumbrances += p2pCommitted;
       row.variance = row.budgeted - row.actual;
       row.variancePct =
         row.budgeted > 0 ? (row.variance / row.budgeted) * 100 : 0;
       byDepartmentMap.set(deptKey, row);
 
-      totalCommitted += categoryCommitted + payroll.pending;
+      totalCommitted += categoryCommitted + payroll.pending + p2pCommitted;
+      totalCommittedEncumbrances += p2pCommitted;
     }
 
     const byDepartment = [...byDepartmentMap.values()];
@@ -2588,6 +2632,8 @@ export class OperationalBudgetsService {
         // Phase 4 (4.6): rolling forecast — settled actuals plus the
         // encumbered pipeline yet to be realised.
         forecast: totalActual + totalCommitted,
+        // Budget-level P2P (requisition + PO) holds already included above.
+        committedEncumbrances: totalCommittedEncumbrances,
       },
       byCategory,
       byDepartment,

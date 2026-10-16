@@ -24,6 +24,11 @@ import {
 @Entity("opex_encumbrance")
 @Index(["tenant_id", "source_type", "source_id"])
 @Index(["tenant_id", "operational_budget_id"])
+@Index("IDX_opex_encumbrance_budget_status", [
+  "tenant_id",
+  "operational_budget_id",
+  "status",
+])
 export class OpexEncumbranceEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

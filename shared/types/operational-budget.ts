@@ -47,6 +47,12 @@ export interface OpexAnalyticsTotals {
   remaining: number;
   /** Phase 4 (4.6): rolling forecast = actual + committed (encumbered pipeline). */
   forecast: number;
+  /**
+   * Subset of `committed` that comes from active P2P holds (requisitions +
+   * purchase orders). These are held at the budget level — they carry no
+   * category — so they are included in `committed` but never in `byCategory`.
+   */
+  committedEncumbrances: number;
 }
 
 export interface OpexAnalyticsSeries {
@@ -70,6 +76,13 @@ export interface OpexAnalyticsSeriesDepartment {
   committed: number;
   variance: number;
   variancePct: number;
+  /**
+   * Subset of `committed` attributable to active P2P holds (requisitions +
+   * purchase orders). Budget-level only — P2P commitments are not
+   * category-coded, so they appear here and in `committed` but not in
+   * `byCategory`.
+   */
+  committedEncumbrances: number;
 }
 
 export interface OpexAnalyticsPeriodRow {
