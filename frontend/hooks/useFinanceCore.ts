@@ -69,6 +69,187 @@ export const useFinanceCore = () => {
         }
     }, []);
 
+    // --- Chart of Accounts management (classes / groups / accounts) ---
+    const coaBase = '/finance-core/chart-of-accounts';
+
+    const fetchGlAccounts = useCallback(async () => {
+        setLoading(true);
+        try {
+            return await apiClient.get(`${coaBase}/accounts`);
+        } catch (error) {
+            toast.error('Error fetching GL accounts');
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const seedDefaultChartOfAccounts = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await apiClient.post(`${coaBase}/seed-defaults`);
+            toast.success('Default chart of accounts seeded');
+            return res;
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to seed default chart');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const createAccountClass = useCallback(
+        async (data: { name: string; code: string; baseType: string }) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.post(`${coaBase}/classes`, data);
+                toast.success('Account class created');
+                return res;
+            } catch (error: any) {
+                toast.error(error?.response?.data?.message || 'Failed to create account class');
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    const updateAccountClass = useCallback(
+        async (id: string, data: { name?: string; code?: string; baseType?: string }) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.patch(`${coaBase}/classes/${id}`, data);
+                toast.success('Account class updated');
+                return res;
+            } catch (error: any) {
+                toast.error(error?.response?.data?.message || 'Failed to update account class');
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    const deleteAccountClass = useCallback(async (id: string) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.delete(`${coaBase}/classes/${id}`);
+            toast.success('Account class deleted');
+            return res;
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to delete account class');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const createAccountGroup = useCallback(
+        async (data: { name: string; code: string; accountClassId: string }) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.post(`${coaBase}/groups`, data);
+                toast.success('Account group created');
+                return res;
+            } catch (error: any) {
+                toast.error(error?.response?.data?.message || 'Failed to create account group');
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    const updateAccountGroup = useCallback(
+        async (
+            id: string,
+            data: { name?: string; code?: string; accountClassId?: string },
+        ) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.patch(`${coaBase}/groups/${id}`, data);
+                toast.success('Account group updated');
+                return res;
+            } catch (error: any) {
+                toast.error(error?.response?.data?.message || 'Failed to update account group');
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    const deleteAccountGroup = useCallback(async (id: string) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.delete(`${coaBase}/groups/${id}`);
+            toast.success('Account group deleted');
+            return res;
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to delete account group');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const createGlAccount = useCallback(
+        async (data: {
+            name: string;
+            code: string;
+            accountGroupId: string;
+            description?: string;
+            isActive?: boolean;
+        }) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.post(`${coaBase}/accounts`, data);
+                toast.success('GL account created');
+                return res;
+            } catch (error: any) {
+                toast.error(error?.response?.data?.message || 'Failed to create GL account');
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    const updateGlAccount = useCallback(
+        async (
+            id: string,
+            data: {
+                name?: string;
+                code?: string;
+                accountGroupId?: string;
+                description?: string;
+                isActive?: boolean;
+            },
+        ) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.patch(`${coaBase}/accounts/${id}`, data);
+                toast.success('GL account updated');
+                return res;
+            } catch (error: any) {
+                toast.error(error?.response?.data?.message || 'Failed to update GL account');
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    const deleteGlAccount = useCallback(async (id: string) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.delete(`${coaBase}/accounts/${id}`);
+            toast.success('GL account deleted');
+            return res;
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to delete GL account');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     // --- P2P Methods ---
 
     const fetchRequisitions = useCallback(async () => {
@@ -711,7 +892,7 @@ export const useFinanceCore = () => {
     }, []);
 
     return {
-        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchVendors, createVendor, updateVendor, setVendorStatus, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter, reverseOperationalExpense, getOpexNeedsAttention, getProcurementNeedsAttention, getBudgetForecastBridge, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch,
+        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchVendors, createVendor, updateVendor, setVendorStatus, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter, reverseOperationalExpense, getOpexNeedsAttention, getProcurementNeedsAttention,         getBudgetForecastBridge, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch, fetchGlAccounts, seedDefaultChartOfAccounts, createAccountClass, updateAccountClass, deleteAccountClass, createAccountGroup, updateAccountGroup, deleteAccountGroup, createGlAccount, updateGlAccount, deleteGlAccount,
     };
 };
 

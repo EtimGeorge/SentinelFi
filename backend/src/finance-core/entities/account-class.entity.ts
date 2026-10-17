@@ -8,14 +8,9 @@ import {
   OneToMany,
 } from "typeorm";
 import { AccountGroupEntity } from "./account-group.entity";
+import { AccountClassType } from "../../../../shared/types/general-ledger";
 
-export enum AccountClassType {
-  ASSET = "ASSET",
-  LIABILITY = "LIABILITY",
-  EQUITY = "EQUITY",
-  REVENUE = "REVENUE",
-  EXPENSE = "EXPENSE",
-}
+export { AccountClassType };
 
 @Entity("account_class")
 @Index(["tenant_id", "code"], { unique: true })

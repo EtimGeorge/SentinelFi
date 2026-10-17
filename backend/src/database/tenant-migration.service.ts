@@ -44,6 +44,8 @@ import { AccountClassEntity } from "../finance-core/entities/account-class.entit
 import { AccountGroupEntity } from "../finance-core/entities/account-group.entity";
 import { GLAccountEntity } from "../finance-core/entities/gl-account.entity";
 import { BudgetLedgerEntity } from "../finance-core/entities/budget-ledger.entity";
+import { JournalEntryEntity } from "../general-ledger/entities/journal-entry.entity";
+import { JournalLineEntity } from "../general-ledger/entities/journal-line.entity";
 import { P2PRequisitionEntity } from "../finance-core/entities/p2p-requisition.entity";
 import { P2PPurchaseOrderEntity } from "../finance-core/entities/p2p-purchase-order.entity";
 import { P2PInvoiceEntity } from "../finance-core/entities/p2p-invoice.entity";
@@ -152,6 +154,8 @@ export class TenantMigrationService {
         AccountGroupEntity,
         GLAccountEntity,
         BudgetLedgerEntity,
+        JournalEntryEntity,
+        JournalLineEntity,
         P2PRequisitionEntity,
         P2PPurchaseOrderEntity,
         P2PInvoiceEntity,

@@ -17,8 +17,19 @@ import {
 } from "./entities/payroll-line-item.entity";
 import { FiscalPeriodEntity } from "./entities/fiscal-period.entity";
 import { ClsService } from "nestjs-cls";
+import { EntityManager } from "typeorm";
 
 import { TENANT_DATA_SOURCE } from "../database/constants";
+import { ChartOfAccountsService } from "./chart-of-accounts.service";
+import { GeneralLedgerService } from "../general-ledger/general-ledger.service";
+import { SYSTEM_ACCOUNT_CODES } from "./default-chart-of-accounts";
+import { JournalSourceType } from "../../../shared/types/general-ledger";
+
+const round4 = (value: unknown): number => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 10000) / 10000;
+};
 
 @Injectable()
 export class PayrollService {
@@ -33,6 +44,8 @@ export class PayrollService {
     private payrollLineItemRepo: Repository<PayrollLineItemEntity>,
     @InjectRepository(FiscalPeriodEntity, TENANT_DATA_SOURCE)
     private fiscalPeriodRepo: Repository<FiscalPeriodEntity>,
+    private readonly chartOfAccountsService: ChartOfAccountsService,
+    private readonly generalLedgerService: GeneralLedgerService,
   ) {}
 
   private getTenantId(): string {
@@ -233,12 +246,112 @@ export class PayrollService {
       }
 
       run.status = PayrollRunStatus.POSTED;
+      const savedRun = await manager.save(run);
 
-      // In a real ERP, this would also create General Ledger entries.
-      // For now, we update the status, and the getBudgetConsumption will aggregate POSTED runs.
+      // Book the payroll accrual to the General Ledger. Best-effort: a GL
+      // failure must be surfaced in logs but must not strand the run between
+      // APPROVED and POSTED (the posting is idempotent by run id, so a retry
+      // after fixing the chart of accounts will reconcile).
+      await this.postPayrollToGeneralLedger(manager, savedRun, tenantId);
 
-      return await manager.save(run);
+      return savedRun;
     });
+  }
+
+  /**
+   * Build and post a balanced payroll accrual journal entry:
+   *   Dr  each line item's expense account (its gl_account_id)
+   *   Cr  Payroll Payable / Tax Payable / Benefits Payable (grouped)
+   * Idempotent by payroll run id.
+   */
+  private async postPayrollToGeneralLedger(
+    manager: EntityManager,
+    run: PayrollRunEntity,
+    tenantId: string,
+  ): Promise<void> {
+    try {
+      const lineItems = await manager.find(PayrollLineItemEntity, {
+        where: { payroll_run_id: run.id, tenant_id: tenantId },
+      });
+      if (!lineItems || lineItems.length === 0) return;
+
+      await this.chartOfAccountsService.ensureDefaultChartOfAccounts(
+        tenantId,
+        manager,
+      );
+
+      const creditCodeFor = (type: PayrollLineItemType): string => {
+        switch (type) {
+          case PayrollLineItemType.EMPLOYER_TAX:
+            return SYSTEM_ACCOUNT_CODES.TAX_PAYABLE;
+          case PayrollLineItemType.EMPLOYER_BENEFIT:
+            return SYSTEM_ACCOUNT_CODES.BENEFITS_PAYABLE;
+          default:
+            return SYSTEM_ACCOUNT_CODES.PAYROLL_PAYABLE;
+        }
+      };
+
+      const lines: Array<{
+        glAccountId: string;
+        costCenterId?: string | null;
+        description?: string | null;
+        debit?: number;
+        credit?: number;
+      }> = [];
+      const creditTotals = new Map<string, number>();
+
+      for (const item of lineItems) {
+        const amount = round4(item.amount);
+        if (amount <= 0 || !item.gl_account_id) continue;
+        lines.push({
+          glAccountId: item.gl_account_id,
+          costCenterId: item.cost_center_id ?? null,
+          description: `Payroll ${item.item_type}`,
+          debit: amount,
+        });
+        const code = creditCodeFor(item.item_type);
+        creditTotals.set(code, round4((creditTotals.get(code) ?? 0) + amount));
+      }
+
+      if (lines.length === 0) return;
+
+      for (const [code, total] of creditTotals.entries()) {
+        const account = await this.chartOfAccountsService.getAccountByCode(
+          code,
+          tenantId,
+          manager,
+        );
+        if (!account) {
+          throw new Error(
+            `Payroll control account ${code} is missing from the chart of accounts.`,
+          );
+        }
+        lines.push({
+          glAccountId: account.id,
+          description: "Payroll accrual",
+          credit: total,
+        });
+      }
+
+      await this.generalLedgerService.postJournalEntry(
+        {
+          tenantId,
+          entryDate: run.run_date,
+          memo: `Payroll accrual for ${run.run_identifier}`,
+          currency: "USD",
+          sourceType: JournalSourceType.PAYROLL,
+          sourceId: run.id,
+          sourceReference: run.run_identifier,
+          actorUserId: run.created_by_user_id ?? null,
+          lines,
+        },
+        manager,
+      );
+    } catch (err) {
+      this.logger.error(
+        `[FINANCE-CORE] Payroll GL posting failed for run ${run.id}: ${(err as Error).message}`,
+      );
+    }
   }
 
   async deleteLineItem(runId: string, lineItemId: string, tenantId: string) {

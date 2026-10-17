@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, LayoutGrid, Folders, ShieldCheck, TrendingUp, LineChart, PieChart, BarChart2, BarChart3, Wallet, Receipt, Files, ClipboardList, ClipboardCheck, ScrollText, Network, Banknote, Briefcase, CalendarClock, ShoppingCart, CreditCard, Gauge, Cog, Crown, Contact, Eye, TrendingDown, Newspaper, Settings, Code2, Wrench, Globe,
   // probe-globe
-  TentTree, Gavel, Building2, Building, Users, Presentation, Scale, CircleDollarSign, Archive, Command, LifeBuoy, LucideIcon, Shield, DollarSign, FileText, Satellite,
+  TentTree, Gavel, Building2, Building, Users, Presentation, Scale, CircleDollarSign, Archive, Command, LifeBuoy, LucideIcon, Shield, DollarSign, FileText, Satellite, BookOpen,
 } from 'lucide-react';
 import { Role } from '@shared/types/role.enum'; // Corrected import
 
@@ -89,6 +89,9 @@ export const navigationMap: NavItem[] = [
         },
         {
             name: 'Fiscal Setup', icon: Wrench, path: '/financials/operations/setup', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.FinanceManager],
+        },
+        {
+            name: 'Chart of Accounts', icon: BookOpen, path: '/financials/operations/chart-of-accounts', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager, Role.AdminManager],
         },
     ]
   },

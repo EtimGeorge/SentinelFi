@@ -13,3 +13,4 @@ export * from './get-live-expenses.dto';
 export * from './billing';
 export * from './email';
 export * from './operational-budget';
+export * from './general-ledger';

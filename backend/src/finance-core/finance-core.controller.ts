@@ -112,21 +112,8 @@ export class FinanceCoreController {
     return this.financeService.createCostCenter(body);
   }
 
-  @Get("chart-of-accounts")
-  @Roles(
-    Role.CFO,
-    Role.FinanceManager,
-    Role.FinanceOfficer,
-    Role.AdminDirector,
-    Role.AdminManager,
-    Role.CEO,
-    Role.OperationalDirector,
-    Role.TechnicalDirector,
-    Role.SuperAdmin,
-  )
-  async getChartOfAccounts() {
-    return this.financeService.getChartOfAccounts();
-  }
+  // GET /finance-core/chart-of-accounts is served by ChartOfAccountsController
+  // (identical tree shape) — removed here so the path isn't mapped twice.
 
   // --- Vendor Master ---
 

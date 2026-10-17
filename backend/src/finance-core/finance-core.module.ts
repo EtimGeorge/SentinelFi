@@ -32,12 +32,15 @@ import { ApprovalLogEntity } from "../common/entities/approval-log.entity";
 
 import { FinanceCoreService } from "./finance-core.service";
 import { FinanceCoreController } from "./finance-core.controller";
+import { ChartOfAccountsService } from "./chart-of-accounts.service";
+import { ChartOfAccountsController } from "./chart-of-accounts.controller";
 import { PayrollService } from "./payroll.service";
 import { PayrollController } from "./payroll.controller";
 import { CommonModule } from "../common/common.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { TenantModule } from "../tenants/tenant.module";
 import { OperationalBudgetsModule } from "../operational-budgets/operational-budgets.module";
+import { GeneralLedgerModule } from "../general-ledger/general-ledger.module";
 
 @Module({
   imports: [
@@ -68,9 +71,19 @@ import { OperationalBudgetsModule } from "../operational-budgets/operational-bud
     NotificationsModule, // Provides NotificationsService
     TenantModule, // Provides TenantService for branding
     OperationalBudgetsModule, // Encumbrance lifecycle + budget capacity checks
+    GeneralLedgerModule, // Double-entry GL posting engine
   ],
-  providers: [FinanceCoreService, PayrollService],
-  controllers: [FinanceCoreController, PayrollController],
-  exports: [TypeOrmModule, FinanceCoreService, PayrollService],
+  providers: [FinanceCoreService, PayrollService, ChartOfAccountsService],
+  controllers: [
+    FinanceCoreController,
+    PayrollController,
+    ChartOfAccountsController,
+  ],
+  exports: [
+    TypeOrmModule,
+    FinanceCoreService,
+    PayrollService,
+    ChartOfAccountsService,
+  ],
 })
 export class FinanceCoreModule {}
