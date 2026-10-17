@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import {
   PieChart, Download, FileText, Loader2, TrendingDown, TrendingUp, AlertTriangle, Printer, Filter, RefreshCw, Shield, ChevronDown, ChevronRight, Layers
 } from 'lucide-react';
@@ -72,6 +73,7 @@ const OpexEfficiencyPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const branding = useReportBranding();
   const [reportHash, setReportHash] = useState<string | null>(null);
+  const router = useRouter();
   const [rollup, setRollup] = useState<OpexRollupResult | null>(null);
   const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly' | 'all'>('all');
   const [viewMode, setViewMode] = useState<'analytics' | 'report'>('report');
@@ -172,13 +174,12 @@ const OpexEfficiencyPage: React.FC = () => {
         (t) => (
           <span className="flex items-center gap-3">
             OPEX Intelligence pushed to DCS.
-            <a
-              href="/reporting/archive"
+            <button
               className="underline font-black"
-              onClick={() => toast.dismiss(t.id)}
+              onClick={() => { toast.dismiss(t.id); router.push('/reporting/archive'); }}
             >
               View in Archive
-            </a>
+            </button>
           </span>
         ),
         { id: loadId, duration: 8000 },

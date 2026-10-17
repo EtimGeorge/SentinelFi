@@ -424,7 +424,7 @@ const ProvisioningPage: NextPageWithLayout = () => {
           >
             {loading && !data ? (
               <div className="p-10 text-center text-gray-500">
-                <Spinner size="lg" className="mx-auto mb-2" />
+                <Spinner className="w-10 h-10 mx-auto mb-2" />
                 Scanning fulfillment ledger…
               </div>
             ) : (
@@ -469,7 +469,7 @@ const ProvisioningPage: NextPageWithLayout = () => {
           >
             {loading && !data ? (
               <div className="p-10 text-center text-gray-500">
-                <Spinner size="lg" className="mx-auto mb-2" />
+                <Spinner className="w-10 h-10 mx-auto mb-2" />
                 Cross-checking subscriptions…
               </div>
             ) : (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import {
   BarChart2, Download, FileText, Loader2, TrendingUp, AlertCircle, Printer, Search, Filter, ChevronRight, RefreshCw, Projector
 } from 'lucide-react';
@@ -33,6 +34,7 @@ const CapexPerformancePage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'analytics' | 'report'>('report');
   const branding = useReportBranding();
   const [reportHash, setReportHash] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     fetchInitialData();
@@ -170,13 +172,12 @@ const CapexPerformancePage: React.FC = () => {
         (t) => (
           <span className="flex items-center gap-3">
             CAPEX Intelligence successfully pushed to DCS.
-            <a
-              href="/reporting/archive"
+            <button
               className="underline font-black"
-              onClick={() => toast.dismiss(t.id)}
+              onClick={() => { toast.dismiss(t.id); router.push('/reporting/archive'); }}
             >
               View in Archive
-            </a>
+            </button>
           </span>
         ),
         { id: loadId, duration: 8000 },
@@ -282,7 +283,7 @@ const CapexPerformancePage: React.FC = () => {
                   {!stats?.items?.length && !loading && (
                     <p className="text-xs text-slate-500 font-medium">
                       No data to sync yet — adjust the filters above. Pushed reports land in{' '}
-                      <a href="/reporting/archive" className="underline font-bold text-brand-primary">the Archive</a>.
+                      <button onClick={() => router.push('/reporting/archive')} className="underline font-bold text-brand-primary">the Archive</button>.
                     </p>
                   )}
                 </div>

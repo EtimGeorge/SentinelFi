@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import React, { 
+  useEffect, 
+  useMemo, 
+  useRef, 
+  useState, 
+  useCallback 
+} from 'react';
+import { createPortal } from 'react-dom';
 import { MoreVertical, ChevronDown } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
@@ -155,8 +162,9 @@ function DataTable<T>({
   columns, rows, rowKey, actions = [], expandedContent, emptyMessage = 'No data available.', className = '', virtualized = false, maxHeight = 560, estimatedRowHeight = 48,
 }: DataTableProps<T>) {
   const [bodyRef, width] = useContainerWidth();
-  const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
+  const [openMenu, setOpenMenu] = useState<{ key: string; top: number; right: number } | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const reservedWidth = useMemo(() => {
     let w = ZONE_GAP;
@@ -197,21 +205,40 @@ function DataTable<T>({
     });
   }, []);
 
-  const closeMenu = useCallback(() => setOpenMenuKey(null), []);
+  const closeMenu = useCallback(() => setOpenMenu(null), []);
 
   useEffect(() => {
-    if (!openMenuKey) return;
-    const onDocClick = () => closeMenu();
+    if (!openMenu) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (
+        e.target instanceof Element &&
+        e.target.closest("[data-dt-menu-trigger]")
+      ) {
+        return;
+      }
+      if (
+        menuRef.current &&
+        e.target instanceof Node &&
+        menuRef.current.contains(e.target)
+      ) {
+        return;
+      }
+      closeMenu();
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeMenu();
     };
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
     return () => {
       document.removeEventListener('mousedown', onDocClick);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
     };
-  }, [openMenuKey, closeMenu]);
+  }, [openMenu, closeMenu]);
 
   const autoAlign = (col: DataColumn<T>): string =>
     col.headerClassName ||
@@ -260,36 +287,54 @@ function DataTable<T>({
           <div className="relative">
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setOpenMenuKey(openMenuKey === key ? null : key); }}
+              data-dt-menu-trigger="true"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (openMenu?.key === key) {
+                  closeMenu();
+                  return;
+                }
+                const rect = e.currentTarget.getBoundingClientRect();
+                setOpenMenu({
+                  key,
+                  top: rect.bottom + 4,
+                  right: Math.max(8, window.innerWidth - rect.right),
+                });
+              }}
               className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-600 rounded transition"
               aria-haspopup="menu"
-              aria-expanded={openMenuKey === key}
+              aria-expanded={openMenu?.key === key}
               aria-label="More actions"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
-            {openMenuKey === key && (
-              <div
-                role="menu"
-                className="absolute right-0 top-8 z-30 min-w-40 bg-brand-dark border border-gray-700 rounded-lg elev-lg py-1"
-              >
-                {menuActions.map(action => (
-                  <button
-                    key={action.key}
-                    role="menuitem"
-                    type="button"
-                    onClick={() => {
-                      closeMenu();
-                      action.onClick(row);
-                    }}
-                    className={`w-full text-left px-4 py-2 text-xs font-medium flex items-center gap-2 transition ${action.danger ? 'text-red-400 hover:bg-red-900/20' : 'text-gray-300 hover:bg-gray-700/50 hover:text-white'}`}
-                  >
-                    {action.icon && <span className="w-4 h-4">{action.icon}</span>}
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            {openMenu?.key === key &&
+              typeof document !== "undefined" &&
+              createPortal(
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  style={{ position: "fixed", top: openMenu.top, right: openMenu.right }}
+                  className="z-50 min-w-40 bg-brand-dark border border-gray-700 rounded-lg elev-lg py-1"
+                >
+                  {menuActions.map(action => (
+                    <button
+                      key={action.key}
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        closeMenu();
+                        action.onClick(row);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-xs font-medium flex items-center gap-2 transition ${action.danger ? 'text-red-400 hover:bg-red-900/20' : 'text-gray-300 hover:bg-gray-700/50 hover:text-white'}`}
+                    >
+                      {action.icon && <span className="w-4 h-4">{action.icon}</span>}
+                      {action.label}
+                    </button>
+                  ))}
+                </div>,
+                document.body,
+              )}
           </div>
         )}
       </div>

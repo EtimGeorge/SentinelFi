@@ -464,9 +464,9 @@ const P2PDeskPage: React.FC = () => {
               />
               <p className="-mt-2 text-xs text-slate-500">
                 Missing a supplier?{' '}
-                <a href="/financials/operations/vendors" className="text-brand-primary hover:underline font-bold">
+                <Link href="/financials/operations/vendors" className="text-brand-primary hover:underline font-bold">
                   Open the Vendor Master
-                </a>{' '}
+                </Link>{' '}
                 to register them first.
               </p>
 

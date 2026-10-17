@@ -209,13 +209,12 @@ const ProjectsPage: React.FC = () => {
         (t) => (
           <span className="flex items-center gap-3">
             Project &quot;{newProject.project_name}&quot; initialized successfully! Next: build the WBS.
-            <a
-              href={`/financials/projects/wbs?projectId=${newProject.project_id}`}
+            <button
               className="underline font-black"
-              onClick={() => toast.dismiss(t.id)}
+              onClick={() => { toast.dismiss(t.id); router.push(`/financials/projects/wbs?projectId=${newProject.project_id}`); }}
             >
               Open WBS Designer
-            </a>
+            </button>
           </span>
         ),
         { duration: 9000 },

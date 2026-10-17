@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import {
   BarChart3, TrendingDown, TrendingUp, AlertTriangle, Loader2, FileDown, Printer, SlidersHorizontal, Filter, RefreshCw, Projector, Shield, Download, FileText, ChevronRight
 } from 'lucide-react';
@@ -50,6 +51,7 @@ const VarianceReportPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'analytics' | 'report'>('report');
   const branding = useReportBranding();
   const [reportHash, setReportHash] = useState<string | null>(null);
+  const router = useRouter();
 
   const isAdminOrCEO = hasAnyRole([Role.AdminDirector, Role.CEO]);
 
@@ -188,13 +190,12 @@ const VarianceReportPage: React.FC = () => {
         (t) => (
           <span className="flex items-center gap-3">
             Verification complete. Variance intelligence pushed to DCS.
-            <a
-              href="/reporting/archive"
+            <button
               className="underline font-black"
-              onClick={() => toast.dismiss(t.id)}
+              onClick={() => { toast.dismiss(t.id); router.push('/reporting/archive'); }}
             >
               View in Archive
-            </a>
+            </button>
           </span>
         ),
         { id: loadId, duration: 8000 },

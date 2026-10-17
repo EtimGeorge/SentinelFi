@@ -412,7 +412,7 @@ const ProjectBudgetPreviewPage: React.FC = () => {
         }, tier: 'P1' as const, cellClassName: 'text-right', minWidth: 140,
       },
     ];
-  }, [groupBy, visibleCols, project?.currency, convertToDisplay, canApprove, previewRows, handleInlineEdit, handleRecallApproval]);
+  }, [groupBy, visibleCols, project?.currency, convertToDisplay, canApprove, previewRows, handleInlineEdit]);
 
   const previewRowsData = groupBy === 'hierarchical' ? previewRows.ordered : sortedFlatRows;
     return (
