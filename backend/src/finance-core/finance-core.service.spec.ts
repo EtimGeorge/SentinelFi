@@ -173,6 +173,8 @@ describe("FinanceCoreService — atomic document numbering", () => {
           useValue: operationalBudgetsService,
         },
         { provide: BudgetControlService, useValue: {} },
+        { provide: (require("../general-ledger/general-ledger.service") as any).GeneralLedgerService, useValue: {} },
+        { provide: (require("./chart-of-accounts.service") as any).ChartOfAccountsService, useValue: {} },
       ],
     }).compile();
 
