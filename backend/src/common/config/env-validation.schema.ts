@@ -49,13 +49,18 @@ export const envValidationSchema = Joi.object({
   PDF_WORKER_TIMEOUT_MS: Joi.number().optional(),
   PDF_NAV_TIMEOUT_MS: Joi.number().optional(),
 
+  // Rate limiting (per-instance window shared via Redis). Env-tunable so prod
+  // limits can be raised for a launch or load test without a code change.
+  THROTTLE_TTL_MS: Joi.number().integer().positive().optional().default(60000),
+  THROTTLE_LIMIT: Joi.number().integer().positive().optional().default(10),
+
   // Email delivery. Resend is the default provider; SMTP is the fallback.
   // EMAIL_FROM must be a sender verified with the chosen provider or the
   // provider will reject every send. EMAIL_PREVIEW_ONLY defaults to on outside
   // production (see EmailService.isPreviewOnly) so dev never sends real mail.
   EMAIL_PROVIDER: Joi.string().valid("resend", "smtp").optional().default("resend"),
   EMAIL_FROM: Joi.string().optional(),
-  EMAIL_PREVIEW_ONLY: Joi.string().valid("true", "false").optional(),
+  EMAIL_PREVIEW_ONLY: Joi.string().valid("true", "false").optional().default("true"),
   SMTP_HOST: Joi.string().optional(),
   SMTP_PORT: Joi.number().optional(),
   SMTP_SECURE: Joi.string().valid("true", "false").optional(),
@@ -64,6 +69,11 @@ export const envValidationSchema = Joi.object({
 
   // Third Party APIs
   PAYSTACK_SECRET_KEY: Joi.string().optional(),
+  PAYPAL_CLIENT_ID: Joi.string().optional(),
+  PAYPAL_CLIENT_SECRET: Joi.string().optional(),
+  PAYPAL_WEBHOOK_ID: Joi.string().optional(),
+  PAYPAL_SANDBOX: Joi.string().valid("true", "false").optional().default("false"),
+  PAYPAL_ENV: Joi.string().valid("sandbox", "live").optional(),
   RESEND_API_KEY: Joi.string().optional(),
 
   // Cloudflare R2 object storage (optional — local-disk fallback without it).
@@ -84,4 +94,8 @@ export const envValidationSchema = Joi.object({
   // Shared secret for rewarded-network server-side verification (SSV).
   // Leave unset in dev/test; REQUIRED in production with a real network.
   ADS_SSV_SECRET: Joi.string().optional(),
+
+  // Initial superadmin (production seeding enforced elsewhere)
+  SUPERADMIN_EMAIL: Joi.string().email().optional(),
+  SUPERADMIN_PASSWORD: Joi.string().optional(),
 });

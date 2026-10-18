@@ -13,6 +13,7 @@
     "test:ci": "jest --ci --watchAll=false",
     "seed:superadmin": "ts-node -r tsconfig-paths/register scripts/seed-superadmin.ts",
     "db:run-tenant-migrations": "ts-node -r tsconfig-paths/register scripts/run-tenant-migrations.ts",
+    "backup:orchestrate": "ts-node -r tsconfig-paths/register scripts/backup-orchestrator.ts",
     "db:migrate-roles": "ts-node -r tsconfig-paths/register src/database/seeds/migrate-legacy-roles.ts",
     "db:migrate-roles:execute": "ts-node -r tsconfig-paths/register src/database/seeds/migrate-legacy-roles.ts --execute",
     "typeorm": "ts-node -r reflect-metadata -r tsconfig-paths/register --project tsconfig.typeorm.json ../node_modules/typeorm/cli.js -d ormconfig.ts",

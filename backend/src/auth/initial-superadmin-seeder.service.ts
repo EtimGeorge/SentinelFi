@@ -49,10 +49,16 @@ export class InitialSuperAdminSeederService implements OnApplicationBootstrap {
 
     // --- Determine SuperAdmin Credentials ---
     let superAdminPassword = configuredPassword;
-    if (!superAdminEmail || !superAdminPassword) {
+    const bannedProdPasswords = ["password", "admin", "superadmin", "sentinelfi", "changeme"];
+    const isDefaultProdPassword =
+      isProduction &&
+      !!superAdminPassword &&
+      bannedProdPasswords.includes(superAdminPassword.toLowerCase());
+
+    if (!superAdminEmail || !superAdminPassword || isDefaultProdPassword) {
       if (isProduction) {
         this.logger.error(
-          "FATAL: SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD must be set in production environment variables.",
+          "FATAL: SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD must be set in production environment variables. Do NOT use a default or guessable superadmin password in production.",
         );
         throw new InternalServerErrorException(
           "SuperAdmin credentials not configured for production.",

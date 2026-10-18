@@ -134,17 +134,25 @@ function backendEnvFilePaths(): string[] {
     // Distributed rate limiting: counters live in Redis so the limit is shared
     // across every API instance. Degrades to in-process limiting if Redis is
     // down. (See RedisThrottlerStorage.)
+    // TTL/limit are env-tunable so a load test or a launch-day spike can be
+    // sized without a code change (THROTTLE_TTL_MS / THROTTLE_LIMIT).
     ThrottlerModule.forRootAsync({
-      inject: [RedisThrottlerStorage],
-      useFactory: (storage: RedisThrottlerStorage) => ({
-        throttlers: [
-          {
-            ttl: 60000,
-            limit: 10,
-          },
-        ],
-        storage,
-      }),
+      inject: [RedisThrottlerStorage, ConfigService],
+      useFactory: (storage: RedisThrottlerStorage, config: ConfigService) => {
+        const parsePositive = (value: unknown, fallback: number) => {
+          const n = Number(value);
+          return Number.isFinite(n) && n > 0 ? n : fallback;
+        };
+        return {
+          throttlers: [
+            {
+              ttl: parsePositive(config.get("THROTTLE_TTL_MS"), 60000),
+              limit: parsePositive(config.get("THROTTLE_LIMIT"), 10),
+            },
+          ],
+          storage,
+        };
+      },
     }),
     // Enables @Cron decorators (e.g. the daily tenant-archive purge sweep).
     ScheduleModule.forRoot(),

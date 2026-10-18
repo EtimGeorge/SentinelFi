@@ -1,0 +1,77 @@
+name: Nightly DB Backup
+
+# Off-site, portable Postgres dumps (plain .sql + custom .dump) uploaded to
+# Cloudflare R2. This is the "we can rebuild from a file" layer; Neon PITR
+# remains the fast-recovery layer. See docs/technical/OPERATOR_MANUAL.md.
+#
+# Required repository secrets:
+#   PROD_DATABASE_URL       Neon DIRECT (unpooled) connection string
+#   R2_ACCOUNT_ID           Cloudflare account id
+#   R2_ACCESS_KEY_ID        R2 token access key
+#   R2_SECRET_ACCESS_KEY    R2 token secret
+#   R2_BUCKET               bucket name
+#   R2_ENDPOINT             (optional) S3 endpoint override
+#
+# A failed run here means production has NO fresh off-site backup. Treat a red
+# run as a SEV-2: check the job log, rotate R2 creds if expired, re-run manually.
+
+on:
+  schedule:
+    - cron: "17 2 * * *" # daily 02:17 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: nightly-db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: pg_dump → R2
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      BACKUP_REQUIRE_OFFSITE: "true"
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_REGION: auto
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # pg_dump must be >= the Neon server major version or pg_dump refuses to
+      # run. Pull the current pgdg client (17) rather than the runner default.
+      - name: Install matching PostgreSQL client
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Verify required secrets are present
+        run: |
+          missing=""
+          for v in PROD_DATABASE_URL R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET; do
+            [ -z "${!v}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"; exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run backup orchestrator
+        run: npm run backup:orchestrate --workspace backend
+
+      - name: Confirm off-site objects are reachable
+        run: |
+          ls -la backups || true

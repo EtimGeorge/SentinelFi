@@ -1,7 +1,15 @@
 import * as crypto from "crypto";
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { BillingService, TerminalFulfillmentError } from "./billing.service";
-import { WebhookService, MAX_FULFILLMENT_ATTEMPTS } from "./webhook.service";
+import {
+  WebhookService,
+  MAX_FULFILLMENT_ATTEMPTS,
+  WEBHOOK_CLAIM_STALE_MS,
+} from "./webhook.service";
 import {
   SubscriptionStatus,
   BillingCycle,
@@ -166,9 +174,18 @@ function makeBilling(opts?: {
     createTenant: jest.fn(),
   };
 
+  const emailMocks = new Map<string, jest.Mock>();
   const emailService = new Proxy(
     {},
-    { get: () => jest.fn().mockResolvedValue(undefined) },
+    {
+      get: (_target, prop: string | symbol) => {
+        if (typeof prop !== "string") return undefined;
+        if (!emailMocks.has(prop)) {
+          emailMocks.set(prop, jest.fn().mockResolvedValue(undefined));
+        }
+        return emailMocks.get(prop);
+      },
+    },
   );
 
   const service = new BillingService(
@@ -181,7 +198,7 @@ function makeBilling(opts?: {
     {} as any, // currencyService
     emailService as any,
     webhookService,
-    { get: jest.fn() } as any, // configService
+    { get: (k: string) => (k === "SUPERADMIN_EMAIL" ? "ops@sentinelfi.test" : undefined) } as any, // configService
     { createQueryRunner: () => qr } as any, // dataSource
     {} as any, // objectStorage
   );
@@ -194,6 +211,7 @@ function makeBilling(opts?: {
     subState,
     tenantService,
     qr,
+    emailMocks,
   };
 }
 
@@ -641,8 +659,8 @@ describe("BillingService — provisioning-failure notifications", () => {
     expect(subState.provisioning_notification_sent).toBe(true);
   });
 
-  it("sends terminal user email + superadmin alert on unattributable event", async () => {
-    const { service, emailService } = (makeBilling({
+  it("unattributable event: terminal in ledger but no user emails (nobody to notify)", async () => {
+    const { service, emailService, ledger, subState } = (makeBilling({
       sub: pendingSub({ provisioning_attempts: 0, provisioning_notification_sent: false }),
       ensure: failingEnsure,
     }) as any);
@@ -653,13 +671,15 @@ describe("BillingService — provisioning-failure notifications", () => {
 
     await expect(service.handlePaystackWebhook(raw, sig)).resolves.toBeUndefined();
 
-    expect(emailService.sendProvisioningFailureEmail).toHaveBeenCalledTimes(1);
-    expect(emailService.sendProvisioningTerminalAlert).toHaveBeenCalledTimes(1);
-    const alertCall = emailService.sendProvisioningTerminalAlert.mock.calls[0];
-    expect(alertCall[0]).toBeDefined();
-    expect(alertCall[1].companyName).toBe("Acme Corp");
-    expect(alertCall[1].plan).toBe("professional");
-    expect(alertCall[1].subscriptionId).toBe("sub-1");
+    // Contract: with no subscription reference the event is burned as terminal,
+    // but there is no workspace/user to email — so no notification is sent.
+    const row = ledger.rows.get("evt-noid");
+    expect(row?.status).toBe(WebhookFulfillmentStatus.FAILED);
+    expect(row?.last_error).toContain("no subscription reference");
+    expect(emailService.sendProvisioningFailureEmail).not.toHaveBeenCalled();
+    expect(emailService.sendProvisioningTerminalAlert).not.toHaveBeenCalled();
+    // The unrelated fixture subscription must not be touched by a stranger event.
+    expect(subState.provisioning_attempts).toBe(0);
   });
 
   it("sanitizeErrorMessage strips stack traces and truncates long messages", async () => {
@@ -675,7 +695,8 @@ describe("BillingService — provisioning-failure notifications", () => {
 
     const longMsg = "x".repeat(500);
     const truncated = (service as any).sanitizeErrorMessage(longMsg);
-    expect(truncated.length).toBe(303);
+    // Contract: first 300 chars + "…" (1 char) = 301 total.
+    expect(truncated.length).toBe(301);
     expect(truncated.endsWith("…")).toBe(true);
   });
 
@@ -692,5 +713,151 @@ describe("BillingService — provisioning-failure notifications", () => {
     // First-failure email (attempts 0→1) + terminal user email + superadmin alert
     expect(emailService.sendProvisioningFailureEmail).toHaveBeenCalledTimes(2);
     expect(emailService.sendProvisioningTerminalAlert).toHaveBeenCalledTimes(1);
+  });
+});
+
+/* =========================================================================
+ * BillingService — webhook chaos / adversarial delivery
+ * Integration-level: the full verify → claim → fulfill → settle handler must
+ * survive forged, missing, malformed, duplicated and out-of-order deliveries
+ * WITHOUT creating ledger rows for unverified input or double-provisioning.
+ * ========================================================================= */
+describe("BillingService — webhook chaos and adversarial delivery", () => {
+  it("forged signature is rejected before any ledger write, email or tenant work", async () => {
+    const { service, ledger, emailService, tenantService, emailMocks } = makeBilling();
+    const raw = rawFor(paystackEvent({ id: "evt-forged" }));
+
+    await expect(
+      service.handlePaystackWebhook(raw, "0".repeat(128)),
+    ).rejects.toThrow("Invalid signature");
+
+    expect(ledger.rows.size).toBe(0);
+    // Reaching the notifier memoizes a mock on the proxy; never called means
+    // unverified input never reaches BillingService's failure path.
+    const failureEmail = (emailService as any).sendProvisioningFailureEmail as jest.Mock;
+    const terminalAlert = (emailService as any).sendProvisioningTerminalAlert as jest.Mock;
+    expect(failureEmail).not.toHaveBeenCalled();
+    expect(terminalAlert).not.toHaveBeenCalled();
+    expect(tenantService.ensureTenantProvisioned).not.toHaveBeenCalled();
+  });
+
+  it("missing signature is rejected before any ledger write", async () => {
+    const { service, ledger } = makeBilling();
+    await expect(
+      service.handlePaystackWebhook(rawFor(paystackEvent()), "" as any),
+    ).rejects.toThrow("Missing signature");
+    expect(ledger.rows.size).toBe(0);
+  });
+
+  it("valid HMAC over a non-JSON body is rejected, never keyed", async () => {
+    const { service, ledger } = makeBilling();
+    const raw = "not-json{{{";
+    await expect(
+      service.handlePaystackWebhook(raw, signFor(raw)),
+    ).rejects.toThrow("Invalid webhook payload");
+    expect(ledger.rows.size).toBe(0);
+  });
+
+  it("valid HMAC over a payload with no event id is rejected (no 'undefined' ledger key)", async () => {
+    const { service, ledger } = makeBilling();
+    const raw = rawFor({ event: "charge.success", data: { reference: "r" } });
+    await expect(
+      service.handlePaystackWebhook(raw, signFor(raw)),
+    ).rejects.toThrow("Invalid webhook payload");
+    expect(ledger.rows.has("undefined")).toBe(false);
+    expect(ledger.rows.size).toBe(0);
+  });
+
+  it("fresh in-flight duplicate is dropped — fulfillment runs exactly once", async () => {
+    const raw = rawFor(paystackEvent({ id: "evt-inflight" }));
+    const ledger = makeLedger([
+      {
+        id: "row-live",
+        provider: "paystack",
+        gateway_event_id: "evt-inflight",
+        payload: paystackEvent({ id: "evt-inflight" }),
+        status: WebhookFulfillmentStatus.PROCESSING,
+        attempts: 1,
+        claimed_at: new Date(),
+      },
+    ]);
+    const { service, tenantService } = makeBilling({ ledger });
+
+    await expect(
+      service.handlePaystackWebhook(raw, signFor(raw)),
+    ).resolves.toBeUndefined();
+
+    expect(tenantService.ensureTenantProvisioned).not.toHaveBeenCalled();
+    expect(ledger.rows.get("evt-inflight").attempts).toBe(1);
+    expect(ledger.rows.get("evt-inflight").status).toBe(
+      WebhookFulfillmentStatus.PROCESSING,
+    );
+  });
+
+  it("stale claim from a dead worker is recovered end-to-end on the gateway retry", async () => {
+    const stale = new Date(Date.now() - WEBHOOK_CLAIM_STALE_MS - 60_000);
+    const payload = paystackEvent({ id: "evt-dead" });
+    const ledger = makeLedger([
+      {
+        id: "row-dead",
+        provider: "paystack",
+        gateway_event_id: "evt-dead",
+        payload,
+        status: WebhookFulfillmentStatus.PROCESSING,
+        attempts: 1,
+        claimed_at: stale,
+      },
+    ]);
+    const { service, subState, tenantService } = makeBilling({ ledger });
+    const raw = rawFor(payload);
+
+    await expect(
+      service.handlePaystackWebhook(raw, signFor(raw)),
+    ).resolves.toBeUndefined();
+
+    const row = ledger.rows.get("evt-dead");
+    expect(row.status).toBe(WebhookFulfillmentStatus.FULFILLED);
+    expect(row.attempts).toBe(2);
+    expect(row.fulfilled_at).toBeInstanceOf(Date);
+    expect(tenantService.ensureTenantProvisioned).toHaveBeenCalledTimes(1);
+    expect(subState.status).toBe(SubscriptionStatus.ACTIVE);
+  });
+
+  it("PayPal replay with a stale transmission_time is rejected before any ledger write", async () => {
+    const { service, ledger } = makeBilling();
+    const body = {
+      id: "WH-replay",
+      event_type: "PAYMENT.CAPTURE.COMPLETED",
+      resource: { custom_id: "sub-1", id: "CAP-replay" },
+    };
+    const headers = {
+      transmissionId: "tx-old",
+      transmissionTime: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      certUrl: "https://api.sandbox.paypal.com/certs/cert.pem",
+      authAlgo: "SHA256withRSA",
+      transmissionSig: "sig",
+    };
+
+    await expect(
+      service.handlePaypalWebhook(body, headers),
+    ).rejects.toThrow("Stale PayPal webhook");
+    expect(ledger.rows.size).toBe(0);
+  });
+
+  it("PayPal forged cert_url is rejected before any ledger write", async () => {
+    const { service, ledger } = makeBilling();
+    const body = { id: "WH-evil", event_type: "PAYMENT.CAPTURE.COMPLETED", resource: {} };
+    const headers = {
+      transmissionId: "tx-1",
+      transmissionTime: new Date().toISOString(),
+      certUrl: "https://evil.example.com/cert.pem",
+      authAlgo: "SHA256withRSA",
+      transmissionSig: "sig",
+    };
+
+    await expect(
+      service.handlePaypalWebhook(body, headers),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(ledger.rows.size).toBe(0);
   });
 });

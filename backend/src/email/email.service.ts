@@ -236,10 +236,9 @@ export class EmailService implements OnModuleInit {
   // ─── Core Send Methods ────────────────────────────────────────────────────
 
   private isPreviewOnly(): boolean {
-    return (
-      this.configService.get<string>("NODE_ENV") === "development" &&
-      this.configService.get<boolean>("EMAIL_PREVIEW_ONLY", true)
-    );
+    const previewOnly = this.configService.get("EMAIL_PREVIEW_ONLY");
+    const isPreview = previewOnly === true || previewOnly === "true";
+    return this.configService.get<string>("NODE_ENV") === "development" && isPreview;
   }
 
   /**

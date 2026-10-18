@@ -35,4 +35,16 @@ describe("TenantClientArchitecture schema isolation", () => {
       `conname = '${constraint}' AND connamespace = current_schema()::regnamespace AND conrelid = '${table}'::regclass`,
     );
   });
+
+  it("reverts cleanly via down()", async () => {
+    const downStatements: string[] = [];
+    const runner = {
+      query: jest.fn(async (sql: string) => { downStatements.push(sql); }),
+    } as unknown as QueryRunner;
+    await new TenantClientArchitecture1770291298000().down(runner);
+    expect(downStatements.length).toBeGreaterThan(0);
+    const all = downStatements.join("\n");
+    expect(all).toContain("ALTER TABLE");
+    expect(all).toContain("project");
+  });
 });

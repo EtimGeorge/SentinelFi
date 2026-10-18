@@ -90,7 +90,7 @@ describe("EmailService", () => {
   });
 
   it("persists a failed log row and rethrows when the provider errors", async () => {
-    const svc = build({ NODE_ENV: "production" });
+    const svc = build({ NODE_ENV: "production", EMAIL_PREVIEW_ONLY: "false" });
     (svc as any).provider = {
       getName: () => "Mock",
       sendEmail: jest.fn().mockRejectedValue(new Error("smtp down")),

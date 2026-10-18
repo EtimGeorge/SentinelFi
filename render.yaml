@@ -225,6 +225,97 @@ services:
         value: "5242880"
 
   # ---------------------------------------------------------------------------
+  # Staging — API (non-prod). Required for migration rehearsal + ZAP deep scans.
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: sentinelfi-api-staging
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerContext: .
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /api/v1/health/live
+    autoDeploy: true
+    envVars:
+      - fromGroup: sentinelfi-pdf-shared
+      - key: NODE_ENV
+        value: staging
+      - key: PORT
+        value: "3001"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION_TIME
+        value: 3600s
+      - key: FRONTEND_URL
+        sync: false
+      - key: FRONTEND_ALLOWED_ORIGINS
+        sync: false
+      - key: SWAGGER_ENABLED
+        value: "true"
+      - key: RUN_MIGRATIONS_ON_BOOT
+        value: "true"
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sentinelfi-redis
+          property: connectionString
+      - key: AI_AGENT_URL
+        sync: false
+      - key: PDF_WORKER_URL
+        sync: false
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_PREVIEW_ONLY
+        value: "true"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_REGION
+        value: auto
+      - key: R2_PUBLIC_BASE_URL
+        sync: false
+      - key: SUPERADMIN_EMAIL
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: sentinelfi-web-staging
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerContext: .
+    dockerfilePath: ./frontend/Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: PORT
+        value: "3000"
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_WS_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: BACKEND_INTERNAL_URL
+        value: http://sentinelfi-api-staging:3001
+
+  # ---------------------------------------------------------------------------
   # AI agent — FastAPI + document tooling. HEAVY image (LibreOffice/Tesseract);
   # the 512MB free instance is NOT sufficient — use a paid plan (see docs).
   # ---------------------------------------------------------------------------
