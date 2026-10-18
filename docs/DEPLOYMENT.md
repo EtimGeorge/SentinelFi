@@ -367,7 +367,12 @@ LibreOffice/Tesseract image and moving off spin-down.
 - **Rotating JWT_SECRET:** invalidates all sessions — do it during a window.
 - **Rotating PDF_WORKER_TOKEN:** update the `sentinelfi-pdf-shared` group once;
   both services redeploy with the new value.
-- **Backups:** Neon point-in-time restore; R2 versioning on the bucket.
+- **Backups:** Neon PITR (fast recovery) **plus** nightly off-site logical dumps
+  — `.github/workflows/db-backup.yml` → R2 (`db-backups/`). Restoration steps,
+  RPO/RTO targets and the quarterly restore drill are in
+  `docs/technical/OPERATOR_MANUAL.md` §2.
+- **R2 versioning:** enable it on the uploads bucket so deleted/overwritten
+  objects are recoverable.
 - **Logs:** each service streams structured logs; `worker.ts` logs JSON with a
   correlation id (`x-correlation-id`) for tracing render calls.
 
@@ -405,6 +410,7 @@ These are known and intentionally documented rather than hidden:
 | Everything slow after idle | free-tier spin-down | uptime ping / upgrade |
 | Redis "ENOTFOUND" | stale/mistyped host | use Render-provided `REDIS_URL` |
 | Uploads vanish after deploy | R2 not configured | set `R2_*` env on the API (§6) |
+| Nightly backup job red | missing/expired repo secrets | check `PROD_DATABASE_URL` + `R2_*` secrets, re-run workflow |
 
 ---
 
