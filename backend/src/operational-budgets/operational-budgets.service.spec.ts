@@ -125,6 +125,8 @@ function buildService(overrides: {
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
+    {} as any,
   );
 
   return { service, encBuilder };

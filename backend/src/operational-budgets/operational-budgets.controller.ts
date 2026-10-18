@@ -663,7 +663,13 @@ export class OperationalBudgetsController {
     Role.SuperAdmin,
   )
   async createCategory(
-    @Body() body: { name: string; type: string; description?: string },
+    @Body()
+    body: {
+      name: string;
+      type: string;
+      description?: string;
+      gl_account_id?: string | null;
+    },
     @Req() req: AuthenticatedRequest,
   ) {
     if (!req.user || !req.user.tenant_id) {
@@ -674,6 +680,7 @@ export class OperationalBudgetsController {
       body.type,
       req.user.tenant_id,
       body.description,
+      body.gl_account_id ?? null,
     );
   }
 

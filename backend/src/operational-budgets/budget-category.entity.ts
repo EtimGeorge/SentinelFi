@@ -41,6 +41,17 @@ export class BudgetCategoryEntity {
   @Column({ type: "boolean", default: true })
   is_active!: boolean;
 
+  /**
+   * GL account approved expenses in this category are debited to.
+   *
+   * Only meaningful on tenant-owned catalog rows: system defaults
+   * (tenant_id NULL) are shared across tenants while gl_account is
+   * tenant-scoped, so they always fall back to
+   * SYSTEM_ACCOUNT_CODES.GENERAL_EXPENSE.
+   */
+  @Column({ type: "uuid", nullable: true })
+  gl_account_id!: string | null;
+
   @CreateDateColumn({ type: "timestamptz" })
   created_at!: Date;
 

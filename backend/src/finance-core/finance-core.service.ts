@@ -61,6 +61,13 @@ import { OperationalBudgetStatus } from "@shared/types";
 import { VendorEntity, VendorStatus } from "./entities/vendor.entity";
 import { CreateVendorDto, UpdateVendorDto } from "./dto/vendor.dto";
 import { QueryVendorsDto } from "./dto/query-vendors.dto";
+import {
+  GeneralLedgerService,
+  PostJournalEntryInput,
+} from "../general-ledger/general-ledger.service";
+import { ChartOfAccountsService } from "./chart-of-accounts.service";
+import { JournalSourceType } from "@shared/types";
+import { SYSTEM_ACCOUNT_CODES } from "./default-chart-of-accounts";
 
 @Injectable()
 export class FinanceCoreService {
@@ -109,6 +116,8 @@ export class FinanceCoreService {
     private readonly tenantService: TenantService,
     private readonly operationalBudgetsService: OperationalBudgetsService,
     private readonly budgetControlService: BudgetControlService,
+    private readonly generalLedgerService: GeneralLedgerService,
+    private readonly chartOfAccountsService: ChartOfAccountsService,
   ) {}
 
   private getTenantId(): string {
@@ -119,6 +128,186 @@ export class FinanceCoreService {
       throw new InternalServerErrorException("Tenant context missing. Request must include a valid tenant.");
     }
     return tenantId;
+  }
+
+  private roundAmount(value: number): number {
+    return Math.round(Number(value || 0) * 10000) / 10000;
+  }
+
+  private currentUserId(): string | null {
+    const user = this.cls.get("USER") as { id?: string } | undefined;
+    return user?.id ?? null;
+  }
+
+  /**
+   * Post a journal entry for a business document — best-effort by design.
+   *
+   * `build` runs inside the guard so account resolution failures are caught
+   * too. The business document has already been saved when this runs, so a
+   * ledger problem must not fail the request: errors are logged and swallowed.
+   * The posting itself is idempotent on (source_type, source_id), so a retried
+   * call returns the existing entry instead of double-booking.
+   */
+  private async postToGeneralLedger(
+    tenantId: string,
+    context: string,
+    build: () => Promise<PostJournalEntryInput>,
+  ): Promise<void> {
+    try {
+      const input = await build();
+      await this.generalLedgerService.postJournalEntry({ ...input, tenantId });
+      this.logger.log(`[GL] POSTED | ${context}`);
+    } catch (error) {
+      this.logger.error(
+        `[GL] POSTING FAILED (continuing) | ${context} | ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Vendor invoice accrual: Dr the invoice's expense account, Cr payables
+   * split across AP / tax withholding / retention.
+   *
+   * Amounts are booked in base currency (USD): `base_amount` is the invoice's
+   * normalised value and every payable leg derives from the same
+   * exchange_rate. The expense debit is computed as the sum of the rounded
+   * credits, so the entry balances exactly even when per-leg rounding is
+   * involved.
+   */
+  private postInvoiceEntry(tenantId: string, invoice: P2PInvoiceEntity) {
+    return this.postToGeneralLedger(
+      tenantId,
+      `VENDOR INVOICE ${invoice.invoice_number}`,
+      async () => {
+        const rate = Number(invoice.exchange_rate || 1);
+        const baseRetention = this.roundAmount(
+          Number(invoice.retention_amount || 0) * rate,
+        );
+        const baseWht = this.roundAmount(
+          Number(invoice.wht_amount || 0) * rate,
+        );
+        const baseNetPayable = this.roundAmount(
+          Number(invoice.net_payable || 0) * rate,
+        );
+        const baseExpense = this.roundAmount(
+          baseRetention + baseWht + baseNetPayable,
+        );
+        if (!(baseExpense > 0)) {
+          throw new Error("Nothing to recognise (zero-value invoice).");
+        }
+
+        const payable = await this.chartOfAccountsService.requireAccountsByCode(tenantId, [
+          SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE,
+          SYSTEM_ACCOUNT_CODES.TAX_PAYABLE,
+          SYSTEM_ACCOUNT_CODES.RETENTION_PAYABLE,
+        ]);
+        const debitAccount = await this.glAccountRepo.findOne({
+          where: { id: invoice.gl_account_id, tenant_id: tenantId },
+        });
+        if (!debitAccount) {
+          throw new Error(
+            `Invoice expense account ${invoice.gl_account_id} not found.`,
+          );
+        }
+
+        return {
+          entryDate: invoice.invoice_date,
+          memo: `Vendor invoice ${invoice.invoice_number} — ${invoice.vendor_name}`,
+          sourceType: JournalSourceType.VENDOR_INVOICE,
+          sourceId: invoice.id,
+          sourceReference: invoice.invoice_number,
+          actorUserId: this.currentUserId(),
+          lines: [
+            {
+              glAccountId: debitAccount.id,
+              debit: baseExpense,
+              description: `Expense recognised — invoice ${invoice.invoice_number}`,
+            },
+            ...(baseNetPayable > 0
+              ? [
+                  {
+                    glAccountId:
+                      payable.get(SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE)!.id,
+                    credit: baseNetPayable,
+                    description: `Net payable — invoice ${invoice.invoice_number}`,
+                  },
+                ]
+              : []),
+            ...(baseWht > 0
+              ? [
+                  {
+                    glAccountId:
+                      payable.get(SYSTEM_ACCOUNT_CODES.TAX_PAYABLE)!.id,
+                    credit: baseWht,
+                    description: `Withholding tax held — invoice ${invoice.invoice_number}`,
+                  },
+                ]
+              : []),
+            ...(baseRetention > 0
+              ? [
+                  {
+                    glAccountId:
+                      payable.get(SYSTEM_ACCOUNT_CODES.RETENTION_PAYABLE)!.id,
+                    credit: baseRetention,
+                    description: `Retention withheld — invoice ${invoice.invoice_number}`,
+                  },
+                ]
+              : []),
+          ],
+        } satisfies PostJournalEntryInput;
+      },
+    );
+  }
+
+  /**
+   * Settlement of a vendor invoice: Dr AP for the net payable, Cr cash. The
+   * withholding and retention legs stay on the payables until remitted — they
+   * were credited at invoice time and are not part of this cash movement.
+   */
+  private postPaymentEntry(
+    tenantId: string,
+    invoice: P2PInvoiceEntity,
+    actorUserId?: string,
+  ) {
+    return this.postToGeneralLedger(
+      tenantId,
+      `VENDOR PAYMENT ${invoice.invoice_number}`,
+      async () => {
+        const rate = Number(invoice.exchange_rate || 1);
+        const cashOut = this.roundAmount(
+          Number(invoice.net_payable || 0) * rate,
+        );
+        if (!(cashOut > 0)) {
+          throw new Error("Nothing to settle (zero net payable).");
+        }
+
+        const payable = await this.chartOfAccountsService.requireAccountsByCode(tenantId, [
+          SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE,
+          SYSTEM_ACCOUNT_CODES.CASH_AND_BANK,
+        ]);
+
+        return {
+          memo: `Payment of vendor invoice ${invoice.invoice_number}`,
+          sourceType: JournalSourceType.VENDOR_PAYMENT,
+          sourceId: invoice.id,
+          sourceReference: invoice.invoice_number,
+          actorUserId: actorUserId ?? this.currentUserId(),
+          lines: [
+            {
+              glAccountId:
+                payable.get(SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE)!.id,
+              debit: cashOut,
+              description: `Settled — invoice ${invoice.invoice_number}`,
+            },
+            {
+              glAccountId: payable.get(SYSTEM_ACCOUNT_CODES.CASH_AND_BANK)!.id,
+              credit: cashOut,
+              description: `Cash out — invoice ${invoice.invoice_number}`,
+            },
+          ],
+        } satisfies PostJournalEntryInput;
+      },
+    );
   }
 
   /**
@@ -980,6 +1169,10 @@ export class FinanceCoreService {
       }
     }
 
+    // GL accrual — recognise the expense and split the payables (AP, WHT,
+    // retention). Best-effort: never blocks invoice creation.
+    await this.postInvoiceEntry(tenantId, saved);
+
     return saved;
   }
 
@@ -1050,6 +1243,10 @@ export class FinanceCoreService {
     this.logger.log(
       `[FINANCE-CORE] INVOICE PAID | ${invoice.invoice_number} | By: ${actorRole} (${actorUserId})`,
     );
+
+    // GL settlement — clear the AP leg against cash. Best-effort: never
+    // blocks the payment.
+    await this.postPaymentEntry(tenantId, paid, actorUserId);
 
     return paid;
   }

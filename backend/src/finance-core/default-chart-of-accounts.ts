@@ -72,6 +72,12 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccountClass[] = [
             description:
               "Employer benefit contributions owed. Auto-credited when a payroll run is posted.",
           },
+          {
+            name: "Retention Payable",
+            code: "2150",
+            description:
+              "Retainage withheld from contractor invoices until final acceptance. Auto-credited when a vendor invoice is posted.",
+          },
         ],
       },
     ],
@@ -145,4 +151,7 @@ export const SYSTEM_ACCOUNT_CODES = {
   TAX_PAYABLE: "2130",
   BENEFITS_PAYABLE: "2140",
   ACCOUNTS_PAYABLE: "2110",
+  RETENTION_PAYABLE: "2150",
+  CASH_AND_BANK: "1110",
+  GENERAL_EXPENSE: "5290",
 } as const;

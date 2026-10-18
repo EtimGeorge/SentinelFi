@@ -58,6 +58,14 @@ import {
   OpexNeedsAttentionResult,
 } from "@shared/types";
 import { NotificationsService } from "../notifications/notifications.service";
+import {
+  GeneralLedgerService,
+  PostJournalEntryInput,
+} from "../general-ledger/general-ledger.service";
+import { ChartOfAccountsService } from "../finance-core/chart-of-accounts.service";
+import { GLAccountEntity } from "../finance-core/entities/gl-account.entity";
+import { JournalSourceType } from "@shared/types";
+import { SYSTEM_ACCOUNT_CODES } from "../finance-core/default-chart-of-accounts";
 
 /**
  * Normalise a Postgres `date` column to `YYYY-MM-DD`.
@@ -146,6 +154,8 @@ export class OperationalBudgetsService {
     private readonly budgetControlService: BudgetControlService,
     private readonly notificationsService: NotificationsService,
     private readonly auditService: AuditService,
+    private readonly generalLedgerService: GeneralLedgerService,
+    private readonly chartOfAccountsService: ChartOfAccountsService,
   ) {}
 
   // Centralized Governance Constants
@@ -163,6 +173,194 @@ export class OperationalBudgetsService {
     "SuperAdmin",
     "Finance Officer",
   ];
+
+  // ─── GL postings (double-entry) ──────────────────────────────────────────
+
+  private roundAmount(value: number): number {
+    return Math.round(Number(value || 0) * 10000) / 10000;
+  }
+
+  /**
+   * Best-effort GL posting: account resolution runs inside the guard so chart
+   * problems are caught too, and failures are logged rather than thrown — an
+   * approval or reversal must never fail because the ledger is unavailable.
+   * Idempotent on (source_type, source_id), so a retried call is safe.
+   */
+  private async postToGeneralLedger(
+    tenantId: string,
+    context: string,
+    build: () => Promise<PostJournalEntryInput>,
+  ): Promise<void> {
+    try {
+      const input = await build();
+      await this.generalLedgerService.postJournalEntry({ ...input, tenantId });
+      this.logger.log(`[GL] POSTED | ${context}`);
+    } catch (error) {
+      this.logger.error(
+        `[GL] POSTING FAILED (continuing) | ${context} | ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Debit side of an OPEX posting: the category's mapped GL account when the
+   * catalog has one (`budget_category.gl_account_id`, added by migration
+   * 20260205000000), otherwise the default "General and Sundry" account — so
+   * categories that were never mapped still post instead of failing.
+   *
+   * The budget-category catalog is the shared taxonomy and joins to a budget's
+   * category rows by name — the same convention deleteCategory's usage guard
+   * already relies on. A tenant-owned catalog row is preferred; system-default
+   * rows are shared across tenants while gl_account is tenant-scoped, so they
+   * are never mapped and always land on the fallback account.
+   */
+  private async resolveExpenseAccountId(
+    tenantId: string,
+    expense: OperationalExpenseEntity,
+  ): Promise<string> {
+    if (expense.operational_budget_category_id) {
+      const category = await this.dataSource
+        .getRepository(OperationalBudgetCategoryEntity)
+        .findOne({
+          where: {
+            operational_budget_category_id:
+              expense.operational_budget_category_id,
+            tenant_id: tenantId,
+          },
+        });
+
+      if (category?.name) {
+        const mapped = await this.dataSource
+          .getRepository(BudgetCategoryEntity)
+          .findOne({
+            where: { tenant_id: tenantId, name: category.name },
+          });
+
+        if (mapped?.gl_account_id) {
+          const account = await this.dataSource
+            .getRepository(GLAccountEntity)
+            .findOne({
+              where: { id: mapped.gl_account_id, tenant_id: tenantId },
+            });
+          if (!account || !account.is_active) {
+            throw new Error(
+              `Mapped GL account for category "${category.name}" is missing or inactive.`,
+            );
+          }
+          return account.id;
+        }
+      }
+    }
+
+    const fallback = await this.chartOfAccountsService.requireAccountsByCode(
+      tenantId,
+      [SYSTEM_ACCOUNT_CODES.GENERAL_EXPENSE],
+    );
+    return fallback.get(SYSTEM_ACCOUNT_CODES.GENERAL_EXPENSE)!.id;
+  }
+
+  /**
+   * Approved OPEX expense: Dr the expense account, Cr accounts payable.
+   * The operational encumbrance has already been liquidated against the
+   * budget; this is its mirror double-entry on the financial ledger.
+   */
+  private postExpenseApprovalEntry(
+    tenantId: string,
+    expense: OperationalExpenseEntity,
+    actorUserId: string,
+  ): Promise<void> {
+    return this.postToGeneralLedger(
+      tenantId,
+      `OPEX EXPENSE ${expense.operational_expense_id}`,
+      async () => {
+        const amount = this.roundAmount(Number(expense.amount || 0));
+        if (!(amount > 0)) throw new Error("Zero-value expense.");
+        const expenseAccountId = await this.resolveExpenseAccountId(
+          tenantId,
+          expense,
+        );
+        const payable = await this.chartOfAccountsService.requireAccountsByCode(
+          tenantId,
+          [SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE],
+        );
+
+        return {
+          tenantId,
+          entryDate: expense.expense_date,
+          memo: `OPEX expense — ${expense.item_description}`,
+          sourceType: JournalSourceType.OPEX_EXPENSE,
+          sourceId: expense.operational_expense_id,
+          sourceReference: expense.vendor
+            ? String(expense.vendor).slice(0, 150)
+            : undefined,
+          actorUserId,
+          lines: [
+            {
+              glAccountId: expenseAccountId,
+              debit: amount,
+              description: expense.item_description,
+            },
+            {
+              glAccountId:
+                payable.get(SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE)!.id,
+              credit: amount,
+              description: `Payable — ${expense.item_description}`,
+            },
+          ],
+        } satisfies PostJournalEntryInput;
+      },
+    );
+  }
+
+  /**
+   * Reversal of an approved OPEX expense: Dr payables, Cr the expense account
+   * (the mirror of the approval entry). Keyed on REVERSAL + expense id so it
+   * cannot collide with the approval entry it cancels out.
+   */
+  private postExpenseReversalEntry(
+    tenantId: string,
+    expense: OperationalExpenseEntity,
+    actorUserId: string,
+  ): Promise<void> {
+    return this.postToGeneralLedger(
+      tenantId,
+      `OPEX REVERSAL ${expense.operational_expense_id}`,
+      async () => {
+        const amount = this.roundAmount(Number(expense.amount || 0));
+        if (!(amount > 0)) throw new Error("Zero-value expense.");
+        const expenseAccountId = await this.resolveExpenseAccountId(
+          tenantId,
+          expense,
+        );
+        const payable = await this.chartOfAccountsService.requireAccountsByCode(
+          tenantId,
+          [SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE],
+        );
+
+        return {
+          tenantId,
+          entryDate: new Date(),
+          memo: `Reversal of OPEX expense — ${expense.item_description}`,
+          sourceType: JournalSourceType.REVERSAL,
+          sourceId: expense.operational_expense_id,
+          actorUserId,
+          lines: [
+            {
+              glAccountId:
+                payable.get(SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE)!.id,
+              debit: amount,
+              description: `Reversal — ${expense.item_description}`,
+            },
+            {
+              glAccountId: expenseAccountId,
+              credit: amount,
+              description: `Reversal — ${expense.item_description}`,
+            },
+          ],
+        } satisfies PostJournalEntryInput;
+      },
+    );
+  }
 
   private isOverrideRoleFor(flag: VarianceFlag, role?: string): boolean {
     if (!role) return false;
@@ -604,6 +802,13 @@ export class OperationalBudgetsService {
     }
 
     await this.writeExpenseAudit(userId, tenantId, saved.operational_expense_id, null, saved);
+
+    // Auto-approved at log time (no variance override required) → recognise
+    // the expense now. Expenses left PENDING post when they are approved.
+    if (finalStatus === OperationalExpenseStatus.APPROVED) {
+      await this.postExpenseApprovalEntry(tenantId, saved, userId);
+    }
+
     return saved;
   }
 
@@ -861,6 +1066,12 @@ export class OperationalBudgetsService {
       this.logger.warn(
         `[OPEX] REVERSED by ${actorRole} (${actorUserId}) | ${expense.item_description} | ${expense.amount} | Reason: ${reason || "No reason provided"}`,
       );
+
+      // GL reversal — mirror the approval entry only after the reversal has
+      // committed, and best-effort: a ledger problem must not undo an
+      // already-committed reversal. Keyed on REVERSAL + expense id, so it can
+      // never collide with the approval entry it cancels out.
+      await this.postExpenseReversalEntry(tenantId, reversed, actorUserId);
 
       return reversed;
     } catch (error) {
@@ -1186,6 +1397,10 @@ export class OperationalBudgetsService {
     this.logger.warn(
       `[OPEX] APPROVED by ${actorRole} | ${expense.item_description} | Approver: ${approverUserId} (SoD: submitter ${expense.logged_by_user_id} != approver)`,
     );
+
+    // GL recognition — Dr expense, Cr payable. Best-effort, and idempotent on
+    // (OPEX_EXPENSE, expense id) so a replay cannot double-book.
+    await this.postExpenseApprovalEntry(tenantId, approved, approverUserId);
 
     return approved;
   }
@@ -1585,13 +1800,17 @@ export class OperationalBudgetsService {
     type: string, // Cast to enum in implementation if needed
     tenantId: string,
     description?: string,
+    glAccountId?: string | null,
   ): Promise<BudgetCategoryEntity> {
+    await this.assertCategoryGlAccount(tenantId, glAccountId ?? null);
+
     const category = this.budgetCategoryRepository.create({
       name,
       type: type as any,
       tenant_id: tenantId,
       description,
       is_system_default: false,
+      gl_account_id: glAccountId ?? null,
     });
     return this.budgetCategoryRepository.save(category);
   }
@@ -1617,9 +1836,41 @@ export class OperationalBudgetsService {
       );
     }
 
+    if (dto.gl_account_id !== undefined) {
+      await this.assertCategoryGlAccount(tenantId, dto.gl_account_id);
+    }
+
     Object.assign(category, dto);
     category.updated_at = new Date();
     return this.budgetCategoryRepository.save(category);
+  }
+
+  /**
+   * Guard a category -> GL account mapping: the account must exist in the
+   * tenant's own chart and be active, otherwise every expense in that category
+   * would fail to post. `null` clears the mapping (falls back to the default
+   * expense account).
+   */
+  private async assertCategoryGlAccount(
+    tenantId: string,
+    glAccountId: string | null,
+  ): Promise<void> {
+    if (!glAccountId) return;
+
+    const account = await this.dataSource
+      .getRepository(GLAccountEntity)
+      .findOne({ where: { id: glAccountId, tenant_id: tenantId } });
+
+    if (!account) {
+      throw new BadRequestException(
+        "gl_account_id must reference a GL account in this tenant's chart.",
+      );
+    }
+    if (!account.is_active) {
+      throw new BadRequestException(
+        "gl_account_id must reference an active GL account.",
+      );
+    }
   }
 
   async deleteCategory(

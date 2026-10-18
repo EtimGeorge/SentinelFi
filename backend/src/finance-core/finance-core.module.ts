@@ -32,7 +32,6 @@ import { ApprovalLogEntity } from "../common/entities/approval-log.entity";
 
 import { FinanceCoreService } from "./finance-core.service";
 import { FinanceCoreController } from "./finance-core.controller";
-import { ChartOfAccountsService } from "./chart-of-accounts.service";
 import { ChartOfAccountsController } from "./chart-of-accounts.controller";
 import { PayrollService } from "./payroll.service";
 import { PayrollController } from "./payroll.controller";
@@ -73,17 +72,14 @@ import { GeneralLedgerModule } from "../general-ledger/general-ledger.module";
     OperationalBudgetsModule, // Encumbrance lifecycle + budget capacity checks
     GeneralLedgerModule, // Double-entry GL posting engine
   ],
-  providers: [FinanceCoreService, PayrollService, ChartOfAccountsService],
+  // ChartOfAccountsService is provided by GeneralLedgerModule (the account
+  // master is part of the GL); only the HTTP surface lives here.
+  providers: [FinanceCoreService, PayrollService],
   controllers: [
     FinanceCoreController,
     PayrollController,
     ChartOfAccountsController,
   ],
-  exports: [
-    TypeOrmModule,
-    FinanceCoreService,
-    PayrollService,
-    ChartOfAccountsService,
-  ],
+  exports: [TypeOrmModule, FinanceCoreService, PayrollService],
 })
 export class FinanceCoreModule {}

@@ -15,9 +15,15 @@ import { OperationalBudgetsController } from "./operational-budgets.controller";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { CommonModule } from "../common/common.module";
 import { AuditModule } from "../audit/audit.module";
+import { GeneralLedgerModule } from "../general-ledger/general-ledger.module";
 
 @Module({
-  imports: [NotificationsModule, CommonModule, AuditModule],
+  imports: [
+    NotificationsModule,
+    CommonModule,
+    AuditModule,
+    GeneralLedgerModule, // Posting engine + chart of accounts for OPEX journals
+  ],
   controllers: [OperationalBudgetsController],
   providers: [
     {

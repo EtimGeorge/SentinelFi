@@ -83,6 +83,35 @@ export class ChartOfAccountsService {
     });
   }
 
+  /**
+   * Resolve several system accounts by code for an automated posting,
+   * seeding the default chart first so a tenant that has never pressed
+   * "Seed Default Chart" still resolves. Throws when an account is missing or
+   * inactive — automated postings wrap this in a best-effort guard, so a
+   * chart problem is logged rather than surfacing into a business API.
+   */
+  async requireAccountsByCode(
+    tenantId: string,
+    codes: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, GLAccountEntity>> {
+    await this.ensureDefaultChartOfAccounts(tenantId, manager);
+    const resolved = new Map<string, GLAccountEntity>();
+    for (const code of codes) {
+      const account = await this.getAccountByCode(code, tenantId, manager);
+      if (!account) {
+        throw new Error(
+          `GL account ${code} is missing from the chart of accounts.`,
+        );
+      }
+      if (!account.is_active) {
+        throw new Error(`GL account ${code} is inactive.`);
+      }
+      resolved.set(code, account);
+    }
+    return resolved;
+  }
+
   // ─── Account classes ─────────────────────────────────────────────────────
 
   async createClass(dto: CreateAccountClassDto) {
