@@ -36,7 +36,31 @@ export class DOAService {
     [Role.SuperAdmin]: Infinity,
   };
 
+  /**
+   * Segregation-of-duties ceiling. A commitment whose USD-equivalent value is
+   * at or above this amount requires a second party: the officer who raises the
+   * document may not also authorise it. Kept in lockstep with the manager-tier
+   * ceiling above (ProjectManager/FinanceManager/AdminManager cap).
+   */
+  readonly SOD_DUAL_CONTROL_THRESHOLD_USD = 20000;
+
   constructor(private readonly currencyService: CurrencyService) {}
+
+  /**
+   * True when an amount (converted to USD) is large enough that segregation of
+   * duties forbids the person who raised it from approving it themselves.
+   */
+  async requiresDualControl(
+    amount: number,
+    currency: string = "USD",
+  ): Promise<boolean> {
+    const { convertedAmount } = await this.currencyService.convertAmount(
+      amount,
+      currency,
+      "USD",
+    );
+    return convertedAmount >= this.SOD_DUAL_CONTROL_THRESHOLD_USD;
+  }
 
   /**
    * Determine the required DOA Tier based on amount

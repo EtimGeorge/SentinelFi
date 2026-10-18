@@ -4,6 +4,7 @@ import {
   Inject,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { CorrelatedLogger } from "../common/logger/correlated-logger";
 import { Repository, SelectQueryBuilder, DataSource, EntityManager } from "typeorm";
@@ -19,7 +20,7 @@ import { RegisterLpoPaymentDto } from "./dto/register-lpo-payment.dto";
 import { CreateInflowDto } from "./dto/create-inflow.dto";
 import { UpdateInflowDto } from "./dto/update-inflow.dto";
 import { UpdateProjectDto } from "./dto/update-project.dto";
-import { GetProjectsDto } from "./dto/get-projects.dto";
+import { GetProjectsDto, PROJECT_SORT_COLUMNS } from "./dto/get-projects.dto";
 import { WbsBudgetEntity } from "../wbs/wbs-budget.entity";
 import { WbsBudgetStatus } from "../../../shared/types/wbs-budget-status.enum";
 import { LiveExpenseEntity } from "../wbs/live-expense.entity";
@@ -231,6 +232,7 @@ export class ProjectsService {
 
     let approvalStatus = ApprovalStatus.APPROVED;
     let finalFlag = varianceResult.flag;
+    let dualControlRouted = false;
 
     if (
       varianceResult.action === "BLOCK" ||
@@ -254,6 +256,23 @@ export class ProjectsService {
         // No authorizer present: route to the approval queue for a CFO decision
         approvalStatus = ApprovalStatus.PENDING_APPROVAL;
       }
+    }
+
+    // --- 3b. Segregation of duties (multi-party threshold) ---
+    // The officer raising an LPO is, by definition, the actor here, so an LPO at
+    // or above the multi-party threshold can never be auto-approved inline — it
+    // must be authorised by a *different* person. Any inline override supplied is
+    // still recorded, but the status is held at PENDING_APPROVAL.
+    const lpoCurrency = (project as any)?.currency || "USD";
+    if (
+      approvalStatus === ApprovalStatus.APPROVED &&
+      (await this.doaService.requiresDualControl(amount_committed, lpoCurrency))
+    ) {
+      this.logger.log(
+        `[LPO] ${wbsItem.wbs_code} commitment ${amount_committed} ${lpoCurrency} ≥ multi-party threshold — routed to approval queue (segregation of duties).`,
+      );
+      approvalStatus = ApprovalStatus.PENDING_APPROVAL;
+      dualControlRouted = true;
     }
 
     // --- 4. Persist within a transaction: LPO + committed rollup + audit trail ---
@@ -304,7 +323,9 @@ export class ProjectsService {
           createLpoDto.vendor_name
         } for ${amount_committed} against WBS ${wbsItem.wbs_code}${
           approvalStatus === ApprovalStatus.PENDING_APPROVAL
-            ? " — routed for approval (over-budget)"
+            ? dualControlRouted
+              ? " — routed for approval (multi-party threshold: segregation of duties)"
+              : " — routed for approval (over-budget)"
             : ""
         }.`,
       });
@@ -354,17 +375,28 @@ export class ProjectsService {
       throw new BadRequestException("A cancelled LPO cannot be approved.");
     }
 
+    // Project currency drives both the DoA tier and the SoD threshold.
+    const projectRow = await this.projectRepository.findOne({
+      where: { project_id: lpo.project_id, tenant_id: tenantId },
+    });
+    const currency = projectRow?.currency || "USD";
+    const amountCommitted = Number(lpo.amount_committed);
+
+    // Segregation of duties: the officer who raised a commitment at or above the
+    // multi-party threshold may not authorise it themselves.
+    if (
+      (await this.doaService.requiresDualControl(amountCommitted, currency)) &&
+      lpo.created_by_user_id === userId
+    ) {
+      throw new ForbiddenException(
+        `Segregation of duties: ${lpo.lpo_number} was raised by you and meets the multi-party threshold — it must be authorised by a different approver.`,
+      );
+    }
+
     // BE-6: Delegation of Authority — the approver must personally hold the
     // tier for the committed amount, in the project's currency.
     if (actor) {
-      const projectRow = await this.projectRepository.findOne({
-        where: { project_id: lpo.project_id, tenant_id: tenantId },
-      });
-      await this.doaService.validateAuthority(
-        actor,
-        Number(lpo.amount_committed),
-        projectRow?.currency || "USD",
-      );
+      await this.doaService.validateAuthority(actor, amountCommitted, currency);
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -892,12 +924,22 @@ export class ProjectsService {
       page = 1,
       limit = 10,
       project_name,
+      search,
       status,
       client_id,
       sortBy = "project_name",
       sortOrder = "ASC",
     } = options;
     const skip = (page - 1) * limit;
+
+    // Defense in depth: the DTO now whitelists sortBy, but this service is
+    // also reachable from internal callers that may pass stale options, so
+    // re-verify against the allowlist before it is interpolated into ORDER BY.
+    const safeSortBy = (
+      PROJECT_SORT_COLUMNS as readonly string[]
+    ).includes(sortBy)
+      ? sortBy
+      : "project_name";
 
     const buildQuery = (withRollups: boolean) => {
       let queryBuilder = this.projectRepository
@@ -915,6 +957,19 @@ export class ProjectsService {
           project_name: `%${project_name}%`,
         });
       }
+      // Unified free-text search (GlobalSearch + project picker): match across
+      // the human-meaningful text columns of the project record.
+      if (search) {
+        queryBuilder.andWhere(
+          "(" +
+            "project.project_name ILIKE :search OR " +
+            "project.project_code ILIKE :search OR " +
+            "project.rfq_number ILIKE :search OR " +
+            "project.notes ILIKE :search" +
+            ")",
+          { search: `%${search}%` },
+        );
+      }
       if (status) {
         queryBuilder.andWhere("project.status = :status", { status });
       }
@@ -925,11 +980,11 @@ export class ProjectsService {
       // Support sorting by aggregate fields or direct fields. An aggregate sort
       // has no column to order by once the rollups are dropped, so fall back to
       // project_name in that case.
-      const sortField = sortBy.includes("_rollup")
+      const sortField = safeSortBy.includes("_rollup")
         ? withRollups
-          ? sortBy
+          ? safeSortBy
           : "project.project_name"
-        : `project.${sortBy}`;
+        : `project.${safeSortBy}`;
       queryBuilder.orderBy(sortField, sortOrder);
 
       return queryBuilder;

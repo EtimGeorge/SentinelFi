@@ -1,10 +1,14 @@
 import { ProjectsService } from "./projects.service";
 import { LpoStatus } from "./lpo.entity";
+import { WbsBudgetStatus } from "../../../shared/types/wbs-budget-status.enum";
 
 describe("ProjectsService atomic LPO numbering (BE-4)", () => {
   let service: ProjectsService;
   const manager: any = { query: jest.fn() };
-  const doaService: any = { validateAuthority: jest.fn() };
+  const doaService: any = {
+    validateAuthority: jest.fn(),
+    requiresDualControl: jest.fn().mockResolvedValue(false),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -71,11 +75,15 @@ describe("ProjectsService LPO approval + payment lifecycle (BE-6)", () => {
     },
   };
   const dataSource: any = { createQueryRunner: jest.fn(() => queryRunner) };
-  const doaService: any = { validateAuthority: jest.fn() };
+  const doaService: any = {
+    validateAuthority: jest.fn(),
+    requiresDualControl: jest.fn().mockResolvedValue(false),
+  };
 
   let service: ProjectsService;
   beforeEach(() => {
     jest.clearAllMocks();
+    doaService.requiresDualControl.mockResolvedValue(false);
     service = new ProjectsService(
       dataSource,
       projectRepository,
@@ -176,5 +184,135 @@ describe("ProjectsService LPO approval + payment lifecycle (BE-6)", () => {
       "CFO",
     );
     expect(saved.status).toBe(LpoStatus.CLOSED);
+  });
+
+  it("blocks the raiser from approving their own multi-party-threshold LPO", async () => {
+    lpoRepository.findOne.mockResolvedValue({
+      id: "lpo9",
+      project_id: "p1",
+      wbs_id: "w1",
+      lpo_number: "LPO-2026-0009",
+      vendor_name: "Acme",
+      amount_committed: 50000,
+      approval_status: "PENDING_APPROVAL",
+      status: "OPEN",
+      created_by_user_id: "u1",
+      wbsItem: { wbs_id: "w1", wbs_code: "1.1" },
+    });
+    projectRepository.findOne.mockResolvedValue({ currency: "USD" });
+    doaService.requiresDualControl.mockResolvedValue(true);
+
+    await expect(
+      service.approveLpo("lpo9", "t1", "u1", "CFO", actor),
+    ).rejects.toThrow(/Segregation of duties/);
+    expect(doaService.validateAuthority).not.toHaveBeenCalled();
+    expect(queryRunner.manager.increment).not.toHaveBeenCalled();
+  });
+
+  it("allows a different approver to authorise a multi-party-threshold LPO", async () => {
+    lpoRepository.findOne.mockResolvedValue({
+      id: "lpo9",
+      project_id: "p1",
+      wbs_id: "w1",
+      lpo_number: "LPO-2026-0009",
+      vendor_name: "Acme",
+      amount_committed: 50000,
+      approval_status: "PENDING_APPROVAL",
+      status: "OPEN",
+      created_by_user_id: "u2",
+      wbsItem: { wbs_id: "w1", wbs_code: "1.1" },
+    });
+    projectRepository.findOne.mockResolvedValue({ currency: "USD" });
+    doaService.requiresDualControl.mockResolvedValue(true);
+
+    const saved = await service.approveLpo("lpo9", "t1", "u1", "CFO", actor);
+    expect(saved.approval_status).toBe("APPROVED");
+    expect(queryRunner.manager.increment).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ProjectsService LPO segregation of duties on creation (P1)", () => {
+  const project = { project_id: "p1", tenant_id: "t1", currency: "USD" };
+  const wbsItem: any = {
+    wbs_id: "w1",
+    tenant_id: "t1",
+    project_id: "p1",
+    wbs_code: "1.1",
+    status: WbsBudgetStatus.APPROVED,
+    project,
+  };
+  const wbsBudgetRepository: any = { findOne: jest.fn() };
+  const budgetControlService: any = { validateWbsExpense: jest.fn() };
+  const manager: any = {
+    create: jest.fn((_e: any, x: any) => x),
+    save: jest.fn(async (_e: any, x: any) => x),
+    increment: jest.fn(),
+    query: jest.fn(async () => [{ last_value: 1 }]),
+  };
+  const queryRunner: any = {
+    connect: jest.fn(),
+    startTransaction: jest.fn(),
+    commitTransaction: jest.fn(),
+    rollbackTransaction: jest.fn(),
+    release: jest.fn(),
+    manager,
+  };
+  const dataSource: any = {
+    createQueryRunner: jest.fn(() => queryRunner),
+    query: jest.fn(async () => [{ total: 0 }]),
+  };
+  const doaService: any = {
+    validateAuthority: jest.fn(),
+    requiresDualControl: jest.fn(),
+  };
+
+  let service: ProjectsService;
+  const dto: any = {
+    project_id: "p1",
+    wbs_id: "w1",
+    vendor_name: "Acme",
+    description: "Steel",
+    amount_committed: 50000,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    wbsBudgetRepository.findOne.mockResolvedValue(wbsItem);
+    budgetControlService.validateWbsExpense.mockResolvedValue({
+      flag: "NO_VARIANCE",
+      action: "ALLOW",
+      message: "within budget",
+    });
+    service = new ProjectsService(
+      dataSource,
+      {} as any,
+      wbsBudgetRepository,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      budgetControlService,
+      doaService,
+    );
+  });
+
+  it("routes a >= threshold commitment to PENDING_APPROVAL even when within budget", async () => {
+    doaService.requiresDualControl.mockResolvedValue(true);
+    const saved = await service.createLpo(dto, "u1", "t1", "CFO");
+    expect(saved.approval_status).toBe("PENDING_APPROVAL");
+    expect(manager.increment).not.toHaveBeenCalled();
+    expect(doaService.requiresDualControl).toHaveBeenCalledWith(50000, "USD");
+  });
+
+  it("auto-approves and books a below-threshold commitment", async () => {
+    doaService.requiresDualControl.mockResolvedValue(false);
+    const saved = await service.createLpo(
+      { ...dto, amount_committed: 5000 },
+      "u1",
+      "t1",
+      "CFO",
+    );
+    expect(saved.approval_status).toBe("APPROVED");
+    expect(manager.increment).toHaveBeenCalledTimes(1);
   });
 });
