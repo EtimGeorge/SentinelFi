@@ -38,6 +38,7 @@ interface ProjectSummary {
 }
 
 import useGlobalStore from '../store/globalStore';
+import { invalidateProjectsDirectory } from '../hooks/useProjectsDirectory';
 
 interface WbsTemplate {
   id: string;
@@ -183,6 +184,7 @@ const ProjectsPage: React.FC = () => {
       const response = await apiRef.current.post<ProjectData>('/projects', payload);
       console.log('[handleCreateProject] API response received:', response.data);
       const newProject = response.data;
+      invalidateProjectsDirectory();
 
       // APPLY WBS TEMPLATE IF SELECTED
       if (formData.wbs_template_id) {
@@ -231,6 +233,7 @@ const ProjectsPage: React.FC = () => {
     try {
       await apiRef.current.patch(`/projects/${projectId}/archive`);
       toast.success('Project archived successfully.');
+      invalidateProjectsDirectory();
       fetchProjectData();
     } catch (e: any) {
       toast.error(`Failed to archive project: ${e.response?.data?.message || e.message}`);
@@ -244,6 +247,7 @@ const ProjectsPage: React.FC = () => {
     try {
       await apiRef.current.patch(`/projects/${projectId}/restore`);
       toast.success('Project restored successfully.');
+      invalidateProjectsDirectory();
       fetchProjectData();
     } catch (e: any) {
       toast.error(`Failed to restore project: ${e.response?.data?.message || e.message}`);
@@ -259,6 +263,7 @@ const ProjectsPage: React.FC = () => {
     try {
       await apiRef.current.delete(`/projects/${projectToDelete.project_id}`);
       toast.success('Project soft-deleted successfully.');
+      invalidateProjectsDirectory();
       setIsDeleteModalOpen(false);
       setProjectToDelete(null);
       setDeleteConfirmText('');

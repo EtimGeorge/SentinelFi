@@ -266,10 +266,10 @@ const CEODashboard: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-4">
-              <Link href="/projects/manage" className="flex items-center gap-2 text-sm text-gray-400 hover:text-brand-primary transition">
+              <Link href="/financials/projects/budgets" className="flex items-center gap-2 text-sm text-gray-400 hover:text-brand-primary transition">
                 <Settings className="w-4 h-4" /> Manage Projects
               </Link>
-              <Link href="/operational-budgets/manage" className="flex items-center gap-2 text-sm text-gray-400 hover:text-brand-primary transition">
+              <Link href="/financials/operations/manage" className="flex items-center gap-2 text-sm text-gray-400 hover:text-brand-primary transition">
                 <Settings className="w-4 h-4" /> Manage Ope-Budgets
               </Link>
             </div>

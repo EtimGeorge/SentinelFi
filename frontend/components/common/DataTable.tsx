@@ -1,5 +1,6 @@
 import React, { 
   useEffect, 
+  useLayoutEffect, 
   useMemo, 
   useRef, 
   useState, 
@@ -159,10 +160,10 @@ const KEBAB_WIDTH = 40; // overflow trigger
 const ZONE_GAP = 8; // spacing
 
 function DataTable<T>({
-  columns, rows, rowKey, actions = [], expandedContent, emptyMessage = 'No data available.', className = '', virtualized = false, maxHeight = 560, estimatedRowHeight = 48,
+  columns, rows = [], rowKey, actions = [], expandedContent, emptyMessage = 'No data available.', className = '', virtualized = false, maxHeight = 560, estimatedRowHeight = 48,
 }: DataTableProps<T>) {
   const [bodyRef, width] = useContainerWidth();
-  const [openMenu, setOpenMenu] = useState<{ key: string; top: number; right: number } | null>(null);
+  const [openMenu, setOpenMenu] = useState<{ key: string; top: number; right: number; triggerTop: number } | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -228,17 +229,43 @@ function DataTable<T>({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeMenu();
     };
+    const onScroll = (e: Event) => {
+      // Scrolling inside the menu itself (long action lists) must not close it;
+      // only page/container scrolling dismisses the popup.
+      if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) {
+        return;
+      }
+      closeMenu();
+    };
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', closeMenu);
     return () => {
       document.removeEventListener('mousedown', onDocClick);
       document.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', closeMenu);
     };
   }, [openMenu, closeMenu]);
+
+  // Keep the popup inside the viewport: it opens downwards from the trigger,
+  // so rows near the bottom edge would push it past the fold (it looked "cut"
+  // by the table margin and scrolling to reveal it used to dismiss it).
+  // Flip it above the trigger instead, or clamp it to the last visible slot.
+  useLayoutEffect(() => {
+    if (!openMenu || !menuRef.current) return;
+    const el = menuRef.current;
+    const rect = el.getBoundingClientRect();
+    const margin = 8;
+    if (openMenu.top + rect.height > window.innerHeight - margin) {
+      const flipped = openMenu.triggerTop - rect.height - 4;
+      const nextTop = flipped >= margin
+        ? flipped
+        : Math.max(margin, window.innerHeight - rect.height - margin);
+      el.style.top = `${Math.round(nextTop)}px`;
+    }
+  }, [openMenu]);
 
   const autoAlign = (col: DataColumn<T>): string =>
     col.headerClassName ||
@@ -299,6 +326,7 @@ function DataTable<T>({
                   key,
                   top: rect.bottom + 4,
                   right: Math.max(8, window.innerWidth - rect.right),
+                  triggerTop: rect.top,
                 });
               }}
               className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-600 rounded transition"
@@ -311,28 +339,38 @@ function DataTable<T>({
             {openMenu?.key === key &&
               typeof document !== "undefined" &&
               createPortal(
-                <div
-                  ref={menuRef}
-                  role="menu"
-                  style={{ position: "fixed", top: openMenu.top, right: openMenu.right }}
-                  className="z-50 min-w-40 bg-brand-dark border border-gray-700 rounded-lg elev-lg py-1"
-                >
-                  {menuActions.map(action => (
-                    <button
-                      key={action.key}
-                      role="menuitem"
-                      type="button"
-                      onClick={() => {
-                        closeMenu();
-                        action.onClick(row);
-                      }}
-                      className={`w-full text-left px-4 py-2 text-xs font-medium flex items-center gap-2 transition ${action.danger ? 'text-red-400 hover:bg-red-900/20' : 'text-gray-300 hover:bg-gray-700/50 hover:text-white'}`}
-                    >
-                      {action.icon && <span className="w-4 h-4">{action.icon}</span>}
-                      {action.label}
-                    </button>
-                  ))}
-                </div>,
+                <>
+                  {/*
+                   * Row-popover elevation tier: z-[100] renders above every z-50
+                   * app surface (shared modals, sidebar drawers, sticky headers,
+                   * nav overlays) and below the system layers — toasts and auth
+                   * banners (z-[9999]+) and the tutorial overlay (9990+).
+                   * max-height caps the menu to the viewport; the layout effect
+                   * above flips it upward when the downward slot would overflow.
+                   */}
+                  <div
+                    ref={menuRef}
+                    role="menu"
+                    style={{ position: "fixed", top: openMenu.top, right: openMenu.right }}
+                    className="z-[100] min-w-40 max-h-[calc(100vh-16px)] overflow-y-auto bg-brand-dark border border-gray-700 rounded-lg elev-lg py-1"
+                  >
+                    {menuActions.map(action => (
+                      <button
+                        key={action.key}
+                        role="menuitem"
+                        type="button"
+                        onClick={() => {
+                          closeMenu();
+                          action.onClick(row);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-xs font-medium flex items-center gap-2 transition ${action.danger ? 'text-red-400 hover:bg-red-900/20' : 'text-gray-300 hover:bg-gray-700/50 hover:text-white'}`}
+                      >
+                        {action.icon && <span className="w-4 h-4">{action.icon}</span>}
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                </>,
                 document.body,
               )}
           </div>

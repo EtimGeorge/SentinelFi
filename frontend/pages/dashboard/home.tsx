@@ -243,7 +243,7 @@ const DashboardHome: React.FC = () => {
                 ) : (
                   <p className="text-sm text-gray-500">No activity recorded in this period.</p>
                 )}
-                <Link href="/admin/audit-logs" className="mt-2 inline-block text-label text-brand-primary hover:underline">
+                <Link href="/admin/audit-log" className="mt-2 inline-block text-label text-brand-primary hover:underline">
                   View full audit log
                 </Link>
               </div>

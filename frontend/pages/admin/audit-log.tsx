@@ -55,9 +55,11 @@ const AuditLogPage: React.FC = () => {
       }
 
 
-      const response = await api.get<{ logs: AuditLogEntity[]; total: number }>('/admin/audit-logs', { params });
-      setAuditLogs(response.data.logs);
-      setTotalLogs(response.data.total);
+      const isSuperAdmin = hasAnyRole([Role.SuperAdmin]);
+      const endpoint = isSuperAdmin ? '/admin/audit-logs' : '/admin/audit-logs/tenant';
+      const response = await api.get<{ logs: AuditLogEntity[]; total: number }>(endpoint, { params });
+      setAuditLogs(response.data.logs ?? []);
+      setTotalLogs(response.data.total ?? 0);
 
       // Extract unique action types and target types for filters from *all* fetched logs (not just current page)
       // This is a simplified approach; ideally, these unique values would come from a dedicated backend endpoint.
@@ -67,6 +69,8 @@ const AuditLogPage: React.FC = () => {
       setUniqueTargetTypes(allTargetTypes.sort());
 
     } catch (e: any) {
+      setAuditLogs([]);
+      setTotalLogs(0);
       addToast(`Failed to fetch audit logs: ${e.response?.data?.message || e.message}`, 'error');
     } finally {
       setLoading(false);
@@ -76,7 +80,7 @@ const AuditLogPage: React.FC = () => {
   useEffect(() => {
     // Only fetch if user is authenticated and has appropriate roles
     // CRITICAL FIX: Call hasAnyRole inside useEffect, don't depend on it
-    if (!isInitialLoad && (hasAnyRole([Role.AdminDirector, Role.SuperAdmin, Role.TechnicalDirector]))) {
+    if (!isInitialLoad && (hasAnyRole([Role.AdminDirector, Role.SuperAdmin, Role.CEO, Role.TechnicalDirector]))) {
       fetchAuditLogs();
     }
   }, [user, isInitialLoad, fetchAuditLogs]); // FIXED: Removed hasAnyRole from dependencies
@@ -92,7 +96,7 @@ const AuditLogPage: React.FC = () => {
   }
 
   // Access Control: Only AdminDirector, SuperAdmin, TechnicalDirector can access
-  if (!user || !(hasAnyRole([Role.AdminDirector, Role.SuperAdmin, Role.TechnicalDirector]))) {
+  if (!user || !(hasAnyRole([Role.AdminDirector, Role.SuperAdmin, Role.CEO, Role.TechnicalDirector]))) {
     return (
       <PageContainer title="Access Denied" subtitle="Unauthorized Access">
         <p className="text-alert-critical flex items-center p-4 bg-red-900/30 rounded-lg">

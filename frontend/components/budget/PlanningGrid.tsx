@@ -1,61 +1,150 @@
-import React, { useState, useMemo } from 'react';
-import { ChevronRight, ChevronDown, Info, Zap, TrendingUp, TrendingDown, RefreshCcw, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { ChevronRight, ChevronDown, Info, Zap, TrendingUp, TrendingDown, RefreshCcw, HelpCircle, Save, Loader2 } from 'lucide-react';
+import api from '../../lib/api';
 import { useCurrency } from '../context/CurrencyContext';
 import Tooltip from '../common/Tooltip';
+import toast from 'react-hot-toast';
+import debounce from 'lodash/debounce';
 
 interface PlanningGridProps {
-  coa: any[];
-  departments: any[];
-  fiscalYear: any;
+  budgetId: string;
 }
 
-const PlanningGrid: React.FC<PlanningGridProps> = ({ coa, departments, fiscalYear }) => {
+interface PeriodAllocation {
+  period_date: string;
+  planned_amount: number;
+}
+
+interface GridCategory {
+  operational_budget_category_id: string;
+  name: string;
+  type?: string;
+  budgeted_amount: number;
+  allocations: PeriodAllocation[];
+}
+
+const MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+const PlanningGrid: React.FC<PlanningGridProps> = ({ budgetId }) => {
   const { userCurrency, convertToDisplay } = useCurrency();
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [categories, setCategories] = useState<GridCategory[]>([]);
+  const [periods, setPeriods] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savingMsg, setSavingMsg] = useState('');
+  // values keyed by `${categoryId}:${periodIndex}`
   const [values, setValues] = useState<Record<string, number>>({});
 
-  // Scenario & Filtering State
-  const [adjustmentFactor, setAdjustmentFactor] = useState<number>(0);
-  const [selectedDeptId, setSelectedDeptId] = useState<string>('all');
+  const fetchGrid = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/operational-budgets/${budgetId}/grid`);
+      const cats: GridCategory[] = Array.isArray(res.data) ? res.data : [];
+      setCategories(cats);
 
-  const toggleRow = (id: string) => {
-    const next = new Set(expandedRows);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setExpandedRows(next);
-  };
+      // Derive the ordered set of periods present in allocations.
+      const periodSet = new Set<string>();
+      cats.forEach(c => {
+        (c.allocations || []).forEach(a => {
+          if (a.period_date) periodSet.add(a.period_date.slice(0, 7));
+        });
+      });
+      setPeriods([...periodSet].sort());
+    } catch (error) {
+      toast.error('Failed to load planning grid.');
+    } finally {
+      setLoading(false);
+    }
+  }, [budgetId]);
 
-  const updateValue = (glId: string, pId: string, val: string) => {
-    const numeric = parseFloat(val.replace(/,/g, '')) || 0;
-    setValues(prev => ({
-      ...prev,
-      [`${glId}:${selectedDeptId}:${pId}`]: numeric
-    }));
-  };
+  useEffect(() => {
+    fetchGrid();
+  }, [fetchGrid]);
 
-  const applyScenario = (direction: 'UP' | 'DOWN') => {
-    const factor = direction === 'UP' ? (1 + adjustmentFactor / 100) : (1 - adjustmentFactor / 100);
-    const nextValues = { ...values };
-    Object.keys(nextValues).forEach(key => {
-      // Only adjust values for the currently selected department to avoid accidental global corruption
-      if (selectedDeptId === 'all' || key.includes(`:${selectedDeptId}:`)) {
-        nextValues[key] = Math.round(nextValues[key] * factor * 100) / 100;
-      }
+  // Hydrate local values from loaded allocations.
+  useEffect(() => {
+    const next: Record<string, number> = {};
+    categories.forEach(c => {
+      (c.allocations || []).forEach(a => {
+        if (a.period_date) {
+          const key = `${c.operational_budget_category_id}:${a.period_date.slice(0, 7)}`;
+          next[key] = Number(a.planned_amount || 0);
+        }
+      });
     });
-    setValues(nextValues);
+    setValues(next);
+  }, [categories]);
+
+  const periodIndex = useCallback((periodKey: string) => periods.indexOf(periodKey), [periods]);
+
+  const saveCell = useCallback(
+    debounce(async (categoryId: string, periodKey: string, amount: number) => {
+      setSavingMsg('Saving...');
+      try {
+        const dateStr = `${periodKey}-01`;
+        await api.post(`/operational-budgets/${budgetId}/planning-grid`, {
+          cells: [{
+            operational_budget_category_id: categoryId,
+            period_date: dateStr,
+            amount,
+            period_type: 'MONTHLY',
+          }],
+        });
+        setSavingMsg('All changes saved');
+        setTimeout(() => setSavingMsg(''), 2000);
+      } catch (e) {
+        setSavingMsg('Error saving!');
+        toast.error('Failed to save planning cell.');
+      }
+    }, 1000),
+    [budgetId],
+  );
+
+  const handleCellChange = (categoryId: string, periodKey: string, val: string) => {
+    const amount = parseFloat(val.replace(/,/g, '')) || 0;
+    setValues(prev => ({ ...prev, [`${categoryId}:${periodKey}`]: amount }));
+    saveCell(categoryId, periodKey, amount);
   };
 
-  const periods = fiscalYear?.periods || [];
-
-  // Aggregation Logic
-  const getRowTotal = (glId: string) => {
-    return periods.reduce((sum, p) => {
-      // If 'all', we should ideally sum over all departments, but for the grid display 
-      // we show what's relevant to the current view.
-      const val = values[`${glId}:${selectedDeptId}:${p.id}`] || 0;
-      return sum + val;
-    }, 0);
+  const getCellValue = (categoryId: string, periodKey: string) => {
+    const v = values[`${categoryId}:${periodKey}`];
+    return v == null ? 0 : v;
   };
+
+  const getRowTotal = (categoryId: string) => {
+    return periods.reduce((sum, pk) => sum + getCellValue(categoryId, pk), 0);
+  };
+
+  const getColumnTotal = (periodKey: string) => {
+    return categories.reduce((sum, c) => sum + getCellValue(c.operational_budget_category_id, periodKey), 0);
+  };
+
+  const grandTotal = categories.reduce((sum, c) => sum + getRowTotal(c.operational_budget_category_id), 0);
+
+  if (loading) {
+    return (
+      <div className="p-10 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="animate-spin text-brand-primary" />
+        <p className="text-xs text-slate-400 font-black uppercase tracking-tighter">Loading planning grid…</p>
+      </div>
+    );
+  }
+
+  if (categories.length === 0) {
+    return (
+      <div className="p-24 flex flex-col items-center justify-center text-center">
+        <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center text-slate-700 mb-4 border border-slate-800">
+          <Info size={32} />
+        </div>
+        <h3 className="text-lg font-black text-slate-300 uppercase tracking-tighter">No Budget Categories</h3>
+        <p className="text-slate-500 text-sm mt-1 max-w-xs">
+          Create OPEX budget categories in the Operations Ledger → Categories tab, then return here to allocate.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -79,172 +168,95 @@ const PlanningGrid: React.FC<PlanningGridProps> = ({ coa, departments, fiscalYea
 
           <div className="h-8 w-px bg-slate-800 mx-2" />
 
-          {/* Department Selector */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-1.5 shadow-inner">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black text-slate-600 ">Cost Center</span>
-                <Tooltip content="Select a specific business unit or department to view and manage its unique budget allocations.">
-                  <HelpCircle className="w-3 h-3 text-slate-600 hover:text-blue-400 transition cursor-help" />
-                </Tooltip>
-              </div>
-              <select
-                className="bg-transparent border-none text-xs font-black text-white outline-none focus:ring-0 cursor-pointer p-0"
-                value={selectedDeptId}
-                onChange={(e) => setSelectedDeptId(e.target.value)}
-              >
-                <option value="all">Master Overhead</option>
-                {departments.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              value={0}
+              onChange={() => {}}
+              className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs font-black text-white w-20 outline-none focus:ring-1 focus:ring-blue-500 placeholder-slate-500"
+              placeholder="0"
+              readOnly
+            />
+            <span className="absolute right-3 top-1.5 text-slate-600 text-xs font-black">%</span>
+            <button
+              className="p-1.5 bg-slate-800 text-slate-400 rounded-lg hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled
+              title="Scenario adjustments are applied per-cell; edit any cell to model."
+            >
+              <TrendingUp size={16} />
+            </button>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <input
-              type="number"
-              value={adjustmentFactor}
-              onChange={(e) => setAdjustmentFactor(Number(e.target.value))}
-              className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs font-black text-white w-20 outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="0"
-            />
-            <span className="absolute right-3 top-1.5 text-slate-600 text-xs font-black">%</span>
-          </div>
-          <button
-            onClick={() => applyScenario('UP')}
-            className="p-1.5 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500 hover:text-white transition"
-            title="Adjust Up"
-          >
-            <TrendingUp size={16} />
-          </button>
-          <button
-            onClick={() => applyScenario('DOWN')}
-            className="p-1.5 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition"
-            title="Adjust Down"
-          >
-            <TrendingDown size={16} />
-          </button>
-          <button
-            onClick={() => setValues({})}
-            className="p-1.5 bg-slate-800 text-slate-400 rounded-lg hover:text-white transition"
-            title="Clear Matrix"
-          >
-            <RefreshCcw size={16} />
-          </button>
+          <span className="text-xs font-black text-slate-400">{savingMsg}</span>
+          <Save className={`w-3.5 h-3.5 ${savingMsg ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
         </div>
       </div>
 
       <div className="overflow-x-auto w-full flex-1">
-        <div className="min-w-[1500px]">
+        <div className="min-w-[1400px]">
           {/* Table Header */}
           <div className="flex bg-slate-950 border-b border-slate-800 sticky top-0 z-10">
-            <div className="w-[350px] px-6 py-4 font-black text-xs uppercase text-slate-500 tracking-[0.2em] border-r border-white/5 flex items-center gap-2">
-              Account Architecture
-              <Tooltip content="Hierarchical structure of your General Ledger accounts, from Asset Classes to specific GL codes.">
+            <div className="w-[320px] px-6 py-4 font-black text-xs uppercase text-slate-500 tracking-[0.2em] border-r border-white/5 flex items-center gap-2">
+              Budget Category
+              <Tooltip content="Hierarchical structure of your OPEX budget categories, from Cost Centers to specific line items.">
                 <Info size={12} className="text-slate-700 hover:text-slate-400" />
               </Tooltip>
             </div>
-            {periods.map((p: any) => (
-              <div key={p.id} className="flex-1 px-4 py-4 font-black text-xs uppercase text-slate-500 text-center border-r border-white/5 tracking-tighter">
-                {p.period_name}
+            {periods.map((p) => (
+              <div key={p} className="flex-1 px-4 py-4 font-black text-xs uppercase text-slate-500 text-center border-r border-white/5 tracking-tighter">
+                {p}
               </div>
             ))}
-            <div className="w-[180px] px-6 py-4 font-black text-xs uppercase text-blue-500 text-right bg-blue-500/5 tracking-[0.2em] flex items-center justify-end gap-2">
-              <Tooltip content="Aggregated total projected expenditure across all fiscal periods for this GL account." position="left">
-                <Info size={12} className="text-blue-500/40" />
-              </Tooltip>
+            <div className="w-[160px] px-6 py-4 font-black text-xs uppercase text-blue-500 text-right bg-blue-500/5 tracking-[0.2em] flex items-center justify-end gap-2">
               Annualized Forecast
             </div>
           </div>
 
           {/* Hierarchical Data */}
           <div className="divide-y divide-slate-800/40">
-            {coa.map(acClass => (
-              <React.Fragment key={acClass.id}>
-                {/* Account Class Level */}
-                <div
-                  className="flex items-center bg-slate-900 border-l border-brand-primary/20 hover:bg-slate-800/80 transition group"
-                  onClick={() => toggleRow(acClass.id)}
-                >
-                  <div className="w-[350px] px-6 py-4 flex items-center gap-3 cursor-pointer">
-                    <div className="w-5 h-5 rounded bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-500 group-hover:text-brand-primary transition">
-                      {expandedRows.has(acClass.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                    </div>
-                    <span className="font-black text-[11px] text-slate-200 uppercase tracking-tight">
-                      {acClass.code} <span className="text-slate-500 mx-1">|</span> {acClass.name}
-                    </span>
+            {categories.map((cat) => (
+              <div key={cat.operational_budget_category_id} className="flex items-center bg-slate-900 border-l border-brand-primary/20 hover:bg-slate-800/80 transition group">
+                <div className="w-[320px] px-6 py-4 flex items-center gap-3 cursor-pointer">
+                  <div className="w-5 h-5 rounded bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-500 group-hover:text-brand-primary transition">
+                    <Zap className="w-3 h-3" />
                   </div>
-                  {periods.map((p: any) => <div key={p.id} className="flex-1" />)}
-                  <div className="w-[180px]" />
+                  <span className="font-black text-[11px] text-slate-200 uppercase tracking-tight">
+                    {cat.operational_budget_category_id.slice(0, 4).toUpperCase()} <span className="text-slate-500 mx-1">|</span> {cat.name}
+                  </span>
                 </div>
-
-                {expandedRows.has(acClass.id) && acClass.accountGroups?.map((group: any) => (
-                  <React.Fragment key={group.id}>
-                    {/* Account Group Level */}
-                    <div
-                      className="flex items-center bg-slate-900/40 hover:bg-slate-800/40 transition group cursor-pointer"
-                      onClick={() => toggleRow(group.id)}
-                    >
-                      <div className="w-[350px] pl-12 pr-6 py-3 flex items-center gap-3">
-                        <div className="w-4 h-4 rounded bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-500 group-hover:text-blue-400 transition">
-                          {expandedRows.has(group.id) ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-                        </div>
-                        <span className="font-bold text-xs text-slate-400 ">
-                          {group.code} <span className="text-slate-600 mx-1">•</span> {group.name}
-                        </span>
-                      </div>
-                      {periods.map((p: any) => <div key={p.id} className="flex-1" />)}
-                      <div className="w-[180px]" />
-                    </div>
-
-                    {expandedRows.has(group.id) && group.glAccounts?.map((gl: any) => (
-                      <React.Fragment key={gl.id}>
-                        {/* GL Account Level */}
-                        <div
-                          className="flex items-center hover:bg-blue-500/[0.02] transition border-l-2 border-transparent hover:border-blue-500/40"
-                        >
-                          <div className="w-[350px] pl-20 pr-6 py-4 flex flex-col justify-center">
-                            <span className="font-black text-xs text-white uppercase tracking-tight">{gl.name}</span>
-                            <span className="text-xs text-slate-500 font-mono mt-0.5">{gl.code}</span>
-                          </div>
-
-                          {periods.map((p: any) => (
-                            <div key={p.id} className="flex-1 px-2">
-                              <input
-                                type="text"
-                                placeholder="0.00"
-                                value={values[`${gl.id}:${selectedDeptId}:${p.id}`] || ''}
-                                className="w-full bg-slate-950/40 border border-slate-800/60 rounded-lg px-2 py-2 text-right focus:border-blue-500/50 focus:bg-slate-950 focus:ring-0 transition-all outline-none font-mono text-[11px] text-white shadow-inner"
-                                onChange={(e) => updateValue(gl.id, p.id, e.target.value)}
-                              />
-                            </div>
-                          ))}
-
-                          <div className="w-[180px] text-right px-6 font-black text-blue-500 italic text-xs tracking-tight">
-                            {convertToDisplay(getRowTotal(gl.id), 'NGN')}
-                          </div>
-                        </div>
-                      </React.Fragment>
-                    ))}
-                  </React.Fragment>
+                {periods.map((p) => (
+                  <div key={p} className="flex-1 px-2">
+                    <input
+                      type="text"
+                      placeholder="0.00"
+                      value={getCellValue(cat.operational_budget_category_id, p) === 0 ? '' : getCellValue(cat.operational_budget_category_id, p).toString()}
+                      className="w-full bg-slate-950/40 border border-slate-800/60 rounded-lg px-2 py-2 text-right focus:border-blue-500/50 focus:bg-slate-950 focus:ring-0 transition-all outline-none font-mono text-[11px] text-white shadow-inner"
+                      onChange={(e) => handleCellChange(cat.operational_budget_category_id, p, e.target.value)}
+                    />
+                  </div>
                 ))}
-              </React.Fragment>
+                <div className="w-[160px] text-right px-6 font-black text-blue-500 italic text-xs tracking-tight">
+                  {convertToDisplay(getRowTotal(cat.operational_budget_category_id), userCurrency.code)}
+                </div>
+              </div>
             ))}
+
+            {/* Totals Row */}
+            <div className="flex items-center bg-slate-800 border-t border-slate-700">
+              <div className="w-[320px] px-6 py-4 font-black text-xs uppercase text-slate-400 tracking-[0.2em]">Total</div>
+              {periods.map((p) => (
+                <div key={p} className="flex-1 px-4 py-4 font-black text-xs text-right text-slate-300 border-r border-white/5">
+                  {convertToDisplay(getColumnTotal(p), userCurrency.code)}
+                </div>
+              ))}
+              <div className="w-[160px] px-6 py-4 font-black text-xs text-right text-emerald-400 border-r border-white/5">
+                {convertToDisplay(grandTotal, userCurrency.code)}
+              </div>
+            </div>
           </div>
         </div>
-
-        {coa.length === 0 && (
-          <div className="p-24 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center text-slate-700 mb-4 border border-slate-800">
-              <Info size={32} />
-            </div>
-            <h3 className="text-lg font-black text-slate-300 uppercase tracking-tighter">No Chart Architecture</h3>
-            <p className="text-slate-500 text-sm mt-1 max-w-xs">Complete your General Ledger configuration to begin fiscal planning.</p>
-          </div>
-        )}
       </div>
     </div>
   );

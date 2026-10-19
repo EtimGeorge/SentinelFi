@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -39,8 +40,11 @@ const Modal: React.FC<ModalProps> = ({
     '2xl': 'max-w-2xl', full: 'max-w-full m-4',
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+  // z-[100] overlay — above every z-50 app surface (drawers, sticky headers,
+  // dropdowns); toasts/auth banners (z-[9999]+) and the tutorial overlay
+  // (9990+) deliberately stay on top of it.
+  const overlay = (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
       <div 
         role="dialog"
         aria-modal="true"
@@ -80,6 +84,12 @@ const Modal: React.FC<ModalProps> = ({
       <div className="absolute inset-0 -z-10" onClick={onClose} />
     </div>
   );
+
+  // Portal to <body>: ancestor transform / backdrop-filter / overflow (cards,
+  // animated wrappers, scroll containers) would otherwise re-anchor the fixed
+  // overlay, trap its z-index in a nested stacking context, and clip it at the
+  // container margins ("dialog hidden behind content / cut off").
+  return typeof document !== 'undefined' ? createPortal(overlay, document.body) : overlay;
 };
 
 export default Modal;

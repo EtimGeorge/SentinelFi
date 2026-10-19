@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 import { Loader2, Calendar, Save } from 'lucide-react';
 import debounce from 'lodash/debounce';
 import { useCurrency } from '../context/CurrencyContext';
-import { formatCurrency } from '../../lib/utils';
 
 interface BudgetGridProps {
   budgetId: string;
@@ -20,31 +19,49 @@ interface PeriodAllocation {
 interface BudgetLine {
   operational_budget_category_id: string;
   name: string;
+  type?: string;
+  budgeted_amount: number;
   allocations: PeriodAllocation[];
 }
 
 const MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
 const BudgetGrid: React.FC<BudgetGridProps> = ({ budgetId }) => {
   const { isAuthenticated } = useAuth();
-  const { userCurrency } = useCurrency();
+  const { userCurrency, convertToDisplay } = useCurrency();
   const [lines, setLines] = useState<BudgetLine[]>([]);
+  const [periods, setPeriods] = useState<string[]>([]);
+  const [budgetYear, setBudgetYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [savingMsg, setSavingMsg] = useState('');
-
-  // Derive year from current date instead of hardcoding
-  const budgetYear = new Date().getFullYear();
 
   const fetchGrid = useCallback(async () => {
     if (!isAuthenticated) return;
     setLoading(true);
     try {
       const res = await api.get(`/operational-budgets/${budgetId}/grid`);
-      setLines(res.data);
+      const cats: BudgetLine[] = Array.isArray(res.data) ? res.data : [];
+      setLines(cats);
+
+      // Derive ordered periods + year from loaded allocations (backend source of truth).
+      const periodSet = new Set<string>();
+      let year = new Date().getFullYear();
+      cats.forEach(c => {
+        (c.allocations || []).forEach(a => {
+          if (a.period_date) {
+            const key = a.period_date.slice(0, 7);
+            periodSet.add(key);
+            const y = parseInt(a.period_date.slice(0, 4), 10);
+            if (!isNaN(y)) year = y;
+          }
+        });
+      });
+      setPeriods([...periodSet].sort());
+      setBudgetYear(year);
     } catch (error) {
-      toast.error('Failed to load budget grid');
+      toast.error('Failed to load budget grid.');
     } finally {
       setLoading(false);
     }
@@ -54,33 +71,53 @@ const BudgetGrid: React.FC<BudgetGridProps> = ({ budgetId }) => {
     fetchGrid();
   }, [fetchGrid]);
 
-  // Debounced Save, stores amounts in native currency (no USD conversion)
+  // Debounced Save via canonical planning-grid endpoint (keyed on category + period_date).
   const saveCell = useCallback(
-    debounce(async (categoryId: string, monthIndex: number, amount: number) => {
+    debounce(async (categoryId: string, periodKey: string, amount: number) => {
       setSavingMsg('Saving...');
       try {
-        const date = new Date(budgetYear, monthIndex, 1);
-        const dateStr = date.toISOString().split('T')[0];
-
-        await api.post('/operational-budgets/allocation', {
-          operational_budget_category_id: categoryId, period_date: dateStr, amount, period_type: 'MONTHLY'
+        const dateStr = `${periodKey}-01`;
+        await api.post(`/operational-budgets/${budgetId}/planning-grid`, {
+          cells: [{
+            operational_budget_category_id: categoryId,
+            period_date: dateStr,
+            amount,
+            period_type: 'MONTHLY',
+          }],
         });
         setSavingMsg('All changes saved');
         setTimeout(() => setSavingMsg(''), 2000);
       } catch (e) {
         setSavingMsg('Error saving!');
+        toast.error('Failed to save planning cell.');
       }
     }, 1000),
-    [budgetYear]
+    [budgetId],
   );
 
-  const handleCellChange = (lineIndex: number, monthIndex: number, val: string) => {
-    // Store amounts in native currency, no USD conversion
-    const amount = parseFloat(val) || 0;
-    saveCell(lines[lineIndex].operational_budget_category_id, monthIndex, amount);
+  const handleCellChange = (categoryId: string, periodKey: string, val: string) => {
+    const amount = parseFloat(val.replace(/,/g, '')) || 0;
+    saveCell(categoryId, periodKey, amount);
   };
 
-  if (loading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-brand-primary" /></div>;
+  const getCellValue = (line: BudgetLine, periodKey: string) => {
+    const matched = line.allocations?.find(a => a.period_date.slice(0, 7) === periodKey);
+    return matched ? Number(matched.planned_amount || 0) : 0;
+  };
+
+  const getRowTotal = (line: BudgetLine) => {
+    return periods.reduce((sum, pk) => sum + getCellValue(line, pk), 0);
+  };
+
+  const getColumnTotal = (periodKey: string) => {
+    return lines.reduce((sum, l) => sum + getCellValue(l, periodKey), 0);
+  };
+
+  const grandTotal = lines.reduce((sum, l) => sum + getRowTotal(l), 0);
+
+  if (loading) {
+    return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-brand-primary" /></div>;
+  }
 
   return (
     <div key={userCurrency.code} className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-900/50">
@@ -94,37 +131,47 @@ const BudgetGrid: React.FC<BudgetGridProps> = ({ budgetId }) => {
         <thead className="text-xs text-gray-400 uppercase bg-gray-800">
           <tr>
             <th className="px-4 py-3 sticky left-0 bg-gray-800 z-10 w-48">Category</th>
-            {MONTHS.map(m => (
-              <th key={m} className="px-2 py-3 text-right bg-gray-800 min-w-[100px]">{m}</th>
+            {periods.map(p => (
+              <th key={p} className="px-2 py-3 text-right bg-gray-800 min-w-[100px]">{p}</th>
             ))}
             <th className="px-4 py-3 text-right bg-gray-800 font-bold text-brand-primary">Total</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-700">
-          {lines.map((line, lIdx) => (
+          {lines.map((line) => (
             <tr key={line.operational_budget_category_id} className="hover:bg-gray-800/30">
               <td className="px-4 py-2 font-medium text-white sticky left-0 bg-gray-900/90 z-10 border-r border-gray-700">
                 {line.name}
               </td>
-              {MONTHS.map((_, mIdx) => {
-                const matched = line.allocations?.find(a => new Date(a.period_date).getMonth() === mIdx);
-                const val = matched ? Number(matched.planned_amount) : 0;
-
+              {periods.map(p => {
+                const val = getCellValue(line, p);
                 return (
-                  <td key={mIdx} className="p-1 border-r border-gray-700/30">
+                  <td key={p} className="p-1 border-r border-gray-700/30">
                     <input
                       className="w-full bg-transparent text-right p-1 focus:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-brand-primary rounded font-mono text-gray-300"
                       defaultValue={val || ''}
-                      onBlur={(e) => handleCellChange(lIdx, mIdx, e.target.value)}
+                      onBlur={(e) => handleCellChange(line.operational_budget_category_id, p, e.target.value)}
                     />
                   </td>
                 );
               })}
               <td className="px-4 py-2 text-right font-bold text-white bg-gray-800/20">
-                {formatCurrency(line.allocations?.reduce((sum, a) => sum + Number(a.planned_amount), 0) || 0)}
+                {convertToDisplay(getRowTotal(line), userCurrency.code)}
               </td>
             </tr>
           ))}
+          {/* Totals Row */}
+          <tr className="bg-gray-800/40 font-black text-slate-200 border-t border-slate-700">
+            <td className="px-4 py-2 sticky left-0 bg-gray-900 z-10 border-r border-gray-700">Total</td>
+            {periods.map(p => (
+              <td key={p} className="p-1 border-r border-gray-700/30 text-right">
+                {convertToDisplay(getColumnTotal(p), userCurrency.code)}
+              </td>
+            ))}
+            <td className="px-4 py-2 text-right text-emerald-400">
+              {convertToDisplay(grandTotal, userCurrency.code)}
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>

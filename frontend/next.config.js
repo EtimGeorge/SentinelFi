@@ -71,6 +71,19 @@ const nextConfig = {
     ];
   },
 
+  // Legacy URL aliases: the page route is singular (/admin/audit-log) while the
+  // API endpoint and some old links use the plural. Redirect the plural form so
+  // bookmarked/typed URLs never 404.
+  async redirects() {
+    return [
+      {
+        source: '/admin/audit-logs',
+        destination: '/admin/audit-log',
+        permanent: false,
+      },
+    ];
+  },
+
   // Enhanced Webpack configuration for optimization
   webpack: (config, { isServer }) => {
     // Reduce bundle size on the client by stubbing server-only modules
