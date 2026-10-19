@@ -8,6 +8,16 @@ interface TutorialFabProps {
   pageKey: string;
 }
 
+/**
+ * Help & Tutorial launcher — top button of the right-corner Action Dock.
+ *
+ * Lives directly above the Messenger FAB: the dock column is standardized as
+ * [ Tutorial (44px) ] --gap-3-- [ Messenger (56px) ] anchored at the same
+ * corner offsets, so the two never drift apart. Positions encode the stack
+ * geometry of the messenger FAB (56px + 12px gap):
+ *   mobile:  bottom-20 (80px, above BottomTabBar) + 68  → bottom-[148px]
+ *   desktop: bottom-6  (24px)                    + 68  → bottom-[92px]
+ */
 export const TutorialFab: React.FC<TutorialFabProps> = ({ pageKey }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const tour = useTour();
@@ -24,28 +34,15 @@ export const TutorialFab: React.FC<TutorialFabProps> = ({ pageKey }) => {
 
   return (
     <div
-      style={{
-        position: 'fixed', bottom: 96, // Above the AI orb (which is at bottom: 24)
-        right: 24, zIndex: 9980, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, fontFamily: "'Inter', 'Segoe UI', sans-serif",
-      }}
+      className="fixed right-4 sm:right-6 bottom-[148px] md:bottom-[92px] z-[9980] flex flex-col items-end gap-2"
+      id="sentinel-tutorial-dock"
     >
       {/* Popup Menu */}
       {isMenuOpen && (
-        <div
-          style={{
-            background: 'linear-gradient(160deg, #12121f, #0f0f1a)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 14, boxShadow: '0 16px 48px rgba(0,0,0,0.6)', padding: '6px', width: 200, overflow: 'hidden', animation: 'tutorialFabSlideUp 0.2s ease forwards',
-          }}
-        >
-          <style>{`
-            @keyframes tutorialFabSlideUp {
-              from { opacity: 0; transform: translateY(8px); }
-              to { opacity: 1; transform: translateY(0); }
-            }
-          `}</style>
-
+        <div className="w-[200px] overflow-hidden rounded-2xl border border-brand-primary/25 bg-brand-dark/95 backdrop-blur-3xl p-1.5 elev-lg animate-in fade-in slide-in-from-bottom-2 duration-200">
           {/* Page label */}
-          <div style={{ padding: '8px 10px 6px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <div className="border-b border-white/5 px-2.5 py-2">
+            <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-gray-500">
               {tutorial.icon} {tutorial.title}
             </p>
           </div>
@@ -54,18 +51,14 @@ export const TutorialFab: React.FC<TutorialFabProps> = ({ pageKey }) => {
           {hasTour && (
             <button
               onClick={handleStartTour}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 10px', background: 'transparent', border: 'none', color: '#c7d2fe', fontSize: 12, cursor: 'pointer', borderRadius: 8, textAlign: 'left', transition: 'background 0.15s',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.15)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-indigo-300 transition-colors hover:bg-brand-primary/15 hover:text-white"
             >
-              <Play size={13} style={{ color: '#818cf8', flexShrink: 0 }} />
+              <Play size={13} className="shrink-0 text-indigo-400" />
               <span>{isCompleted ? 'Restart Tour' : 'Start Page Tour'}</span>
               {!isCompleted && (
-                <span style={{
-                  marginLeft: 'auto', fontSize: 9, background: '#6366f1', color: '#fff', padding: '1px 5px', borderRadius: 99, fontWeight: 700,
-                }}>NEW</span>
+                <span className="ml-auto rounded-full bg-brand-primary px-1.5 py-0.5 text-[11px] font-bold text-white">
+                  NEW
+                </span>
               )}
             </button>
           )}
@@ -74,13 +67,9 @@ export const TutorialFab: React.FC<TutorialFabProps> = ({ pageKey }) => {
           <Link
             href={`/tutorial/${pageKey}`}
             onClick={() => setIsMenuOpen(false)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', color: '#c7d2fe', fontSize: 12, textDecoration: 'none', borderRadius: 8, transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-indigo-300 transition-colors hover:bg-brand-primary/15 hover:text-white"
           >
-            <Map size={13} style={{ color: '#818cf8', flexShrink: 0 }} />
+            <Map size={13} className="shrink-0 text-indigo-400" />
             Full Step-by-Step Guide
           </Link>
         </div>
@@ -89,22 +78,20 @@ export const TutorialFab: React.FC<TutorialFabProps> = ({ pageKey }) => {
       {/* FAB Button */}
       <button
         id="sentinel-tutorial-fab"
-        onClick={() => setIsMenuOpen(o => !o)}
-        title="Help & Tutorial"
-        style={{
-          width: 44, height: 44, borderRadius: '50%', background: isMenuOpen
-            ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
-            : 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.4)', boxShadow: isMenuOpen
-            ? '0 0 20px rgba(99,102,241,0.5)'
-            : '0 4px 12px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c7d2fe', transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
+        onClick={() => setIsMenuOpen((o) => !o)}
+        aria-label="Help & Tutorial"
+        aria-expanded={isMenuOpen}
+        className={`relative flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          isMenuOpen
+            ? 'border-indigo-400/60 bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.5)]'
+            : 'border-indigo-400/40 bg-indigo-500/15 text-indigo-300 elev-sm hover:bg-indigo-500/25 hover:text-white'
+        }`}
+        data-tour="tutorial-fab"
       >
         {isMenuOpen ? <X size={16} /> : <HelpCircle size={18} />}
         {/* Unread dot if tour not yet completed */}
         {!isCompleted && !isMenuOpen && hasTour && (
-          <span style={{
-            position: 'absolute', top: -2, right: -2, width: 10, height: 10, borderRadius: '50%', background: '#6366f1', border: '2px solid #0B0F1A',
-          }} />
+          <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-brand-dark bg-brand-primary" />
         )}
       </button>
     </div>

@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import {
-  Bot, X, Minus, Send, Paperclip, Sparkles, ChevronDown, RefreshCw, BarChart2, FileText, Zap, BookOpen, AlertTriangle, CheckCircle, Loader, TrendingUp, Calendar, MessageSquare, Trash2, Map, Mic, MicOff, Copy, ChevronRight, TrendingDown, DollarSign, Table, Grid, Image as ImageIcon, Code, Link as LinkIcon,
+  Bot, X, Minus, Send, Paperclip, BotMessageSquare, ChevronDown, RefreshCw, BarChart2, FileText, Zap, BookOpen, AlertTriangle, CheckCircle, Loader, TrendingUp, Calendar, MessageSquare, Trash2, Map, Mic, MicOff, Copy, ChevronRight, TrendingDown, DollarSign, Table, Grid, Image as ImageIcon, Code, Link as LinkIcon,
 } from "lucide-react";
 import {
   AIChatMessage, AIChatScope, SuggestionChip, ActionChip, RichContent,
 } from "./types";
+import { MarkdownContent } from "./MarkdownContent";
 import DataTable from "../../components/common/DataTable";
 
 interface ChatPanelProps {
@@ -188,7 +189,7 @@ const AIMessageBubble: React.FC<{
     return (
       <div className="sentinelai-msg-appear flex gap-3">
         <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center">
-          <Sparkles className="w-4 h-4 text-white" />
+          <BotMessageSquare className="w-4 h-4 text-white" />
         </div>
         <div className="flex-1">
           <div className="px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-2xl rounded-bl-sm">
@@ -223,14 +224,12 @@ const AIMessageBubble: React.FC<{
   return (
     <div className="sentinelai-msg-appear flex gap-3">
       <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-brand-primary to-brand-secondary">
-        <Sparkles className="w-4 h-4 text-white" />
+        <BotMessageSquare className="w-4 h-4 text-white" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="relative px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-2xl rounded-bl-sm">
           {typeof message.content === "string" ? (
-            <div className="text-white/90 whitespace-pre-wrap">
-              {message.content}
-            </div>
+            <MarkdownContent content={message.content} />
           ) : (
             <RichContentRenderer content={message.content as RichContent} />
           )}
@@ -369,7 +368,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           className="fixed bottom-6 right-6 z-[9999] w-12 h-12 rounded-2xl bg-brand-primary text-white flex items-center justify-center elev-lg sentinelai-fab-glow transition-transform hover:scale-105"
           aria-label="Expand AI Assistant"
         >
-          <Sparkles className="w-6 h-6" />
+          <BotMessageSquare className="w-6 h-6" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-alert-critical rounded-full flex items-center justify-center text-xs font-bold text-white">
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -389,7 +388,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <div className="flex items-center justify-between p-4 bg-gradient-to-r from-brand-primary/20 to-brand-secondary/10 border-b border-white/5 rounded-t-2xl">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center sentinelai-fab-glow">
-                <Sparkles className="w-5 h-5 text-white" />
+                <BotMessageSquare className="w-5 h-5 text-white" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -502,7 +501,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             ))}
             {messages.length === 0 && (
               <div className="text-center py-12 text-gray-500">
-                <Sparkles className="w-12 h-12 mx-auto text-gray-700 mb-3" />
+                <BotMessageSquare className="w-12 h-12 mx-auto text-gray-700 mb-3" />
                 <p className="font-medium text-white">Start a conversation</p>
                 <p className="text-xs mt-1">
                   Ask me about budgets, projects, or expenses

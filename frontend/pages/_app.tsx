@@ -19,7 +19,8 @@ import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Role } from '../components/context/AuthContext';
 import { apiClient } from '../lib/api';
 import useUIStore from '../store/uiStore';
-import { AIChatFAB } from '../components/ai';
+import useGlobalStore from '../store/globalStore';
+import { AIAssistantRoot } from '../components/ai';
 import { TourProvider } from '../contexts/TourContext';
 import ToastProvider from '../components/ToastProvider';
 
@@ -51,14 +52,20 @@ const PAGE_CONTEXT_MAP: Record<string, string> = {
 function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPropsWithLayout
   const { isInitialized, isAuthenticated, user } = useAuth();
   const router = useRouter();
+  const workspaceProjectId = useGlobalStore((s) => s.selectedProjectId);
 
   // Derive page context for AI widget
   const currentPageCtx = Object.entries(PAGE_CONTEXT_MAP).find(
     ([path]) => router.pathname.includes(path)
   )?.[1];
 
-  // Derive project ID from route if available
-  const projectId = router.query.id as string | undefined;
+  // Project scope for the AI assistant: the workspace selector is the single
+  // source of truth; a ?projectId deep-link refines it while present.
+  const routeProjectId =
+    typeof router.query.projectId === 'string' ? router.query.projectId
+    : typeof router.query.id === 'string' ? router.query.id
+    : undefined;
+  const aiProjectId = routeProjectId || (workspaceProjectId !== 'all' ? workspaceProjectId : undefined);
 
   // Marketing/auth pages must never mount the workspace AI assistant, even for
   // signed-in users browsing the public site.
@@ -92,9 +99,13 @@ function AppContent({ Component, pageProps }: AppPropsWithLayout) { // Use AppPr
   return (
     <>
       {getLayout(<Component {...pageProps} />)}
-      {/* Global AI Assistant FAB - authenticated workspace pages only, never public/marketing routes */}
+      {/* Global AI assistant mount — authenticated workspace pages only, never
+          public/marketing routes. The header sparkle button (LayoutNav) is the
+          single entry point; this headless root renders the chat surface and
+          drives the header's attention badge. Page context + project scope flow
+          in so quick actions and AI context activate per page. */}
       {isAuthenticated && !isPublicRoute && (
-        <AIChatFAB />
+        <AIAssistantRoot pageContext={currentPageCtx} projectId={aiProjectId} />
       )}
     </>
   );
@@ -249,7 +260,7 @@ export default function App(props: AppProps) {
           </BreadcrumbProvider>
         </AuthProvider>
         <Toaster
-          position="bottom-right"
+          position="bottom-left"
           toastOptions={{
             duration: 4000, style: {
               background: '#1a1a2e', color: '#e2e8f0', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: '12px', padding: '14px 18px', fontSize: '14px', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',

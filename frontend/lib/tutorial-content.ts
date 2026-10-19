@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SentinelFi Tutorial Content Registry
  *
  * Single source of truth for all in-app tours and tutorial pages.
@@ -46,12 +46,12 @@ export interface PageTutorial {
   aiTutorPrompt: string; // System prompt injected when AI is in "Guide Me" mode
 }
 
-// ─── Tutorial Registry ──────────────────────────────────────────────────────────
+// --- Tutorial Registry ----------------------------------------------------------
 
 export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
 
   'dashboard': {
-    pageKey: 'dashboard', title: 'Executive Dashboard', description: 'The central hub for financial oversight. Monitor real-time KPIs, project health, and variance across your entire portfolio.', icon: '📊',
+    pageKey: 'dashboard', title: 'Executive Dashboard', description: 'The central hub for financial oversight. Monitor real-time KPIs, project health, and variance across your entire portfolio.', icon: '??',
     tourSteps: [
       {
         id: 'dashboard-welcome', title: 'Welcome to SentinelFi', content: 'This is your Dashboard, the single pane of glass for your entire financial portfolio. Let us walk you through the key sections.', targetSelector: null,
@@ -60,7 +60,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
         id: 'dashboard-kpi', title: 'Real-time KPI Cards', content: 'Track your total budget, actual spend, and commitments at a glance. Red values indicate budget overruns that require attention.', targetSelector: '[data-tour="kpi-cards"]', placement: 'bottom',
       },
       {
-        id: 'dashboard-ai-toggle', title: 'AI Assistant', content: 'Click this orb to launch the SentinelFi AI. You can ask "Who is over budget?" or toggle "Guide Me" for a live walkthrough.', targetSelector: '[data-tour="ai-assistant-toggle"]', placement: 'left',
+        id: 'dashboard-ai-toggle', title: 'AI Assistant', content: 'Click the AI button in the header to launch the SentinelFi assistant. You can ask "Who is over budget?" or toggle "Guide Me" for a live walkthrough.', targetSelector: '[data-tour="ai-assistant-toggle"]', placement: 'left',
       },
       {
         id: 'dashboard-nav', title: 'Navigation', content: 'Use the sidebar to jump between modules. You can collapse it to save space on smaller screens.', targetSelector: '[data-tour="sidebar-nav"]', placement: 'right',
@@ -88,7 +88,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 
   'wbs': {
-    pageKey: 'wbs', title: 'Work Breakdown Structure', description: 'The foundation of project tracking. Manage hierarchical budgets, cost centers, and unit-of-measure tracking.', icon: '🏗️',
+    pageKey: 'wbs', title: 'Work Breakdown Structure', description: 'The foundation of project tracking. Manage hierarchical budgets, cost centers, and unit-of-measure tracking.', icon: '???',
     tourSteps: [
       {
         id: 'wbs-intro', title: 'The WBS Hierarchy', content: 'Organize your project into logical work packages and cost centers.', targetSelector: null,
@@ -120,7 +120,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 
   'budgets': {
-    pageKey: 'budgets', title: 'Project Budgets', description: 'Create and manage project budget allocations, unit-of-measure roll-ups, and parent-child cost centers.', icon: '💰',
+    pageKey: 'budgets', title: 'Project Budgets', description: 'Create and manage project budget allocations, unit-of-measure roll-ups, and parent-child cost centers.', icon: '??',
     tourSteps: [
       {
         id: 'budgets-intro', title: 'Budget Management', content: 'This page is where you define project budget trees and track allocations against actuals.', targetSelector: null,
@@ -129,7 +129,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
         id: 'budgets-actions', title: 'List & Actions', content: 'Every row shows your budget tree with expandable cost centers. The action column holds add, edit, and delete controls.', targetSelector: '[data-tour="sidebar-nav"]', placement: 'right',
       },
       {
-        id: 'budgets-ai', title: 'AI Guidance', content: 'Open the AI orb and ask "How do I create a child cost center?" for a live walkthrough.', targetSelector: '[data-tour="ai-assistant-toggle"]', placement: 'left',
+        id: 'budgets-ai', title: 'AI Guidance', content: 'Open the header AI button and ask "How do I create a child cost center?" for a live walkthrough.', targetSelector: '[data-tour="ai-assistant-toggle"]', placement: 'left',
       },
     ], sections: [
       {
@@ -152,7 +152,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 
   'expenses': {
-    pageKey: 'expenses', title: 'New Expense', description: 'Record expenses against projects, WBS items, and cost centers with receipts and AI classification.', icon: '🧾',
+    pageKey: 'expenses', title: 'New Expense', description: 'Record expenses against projects, WBS items, and cost centers with receipts and AI classification.', icon: '??',
     tourSteps: [
       {
         id: 'expenses-intro', title: 'Capture Expenses', content: 'Log any spend in seconds. Assign it to a project, WBS item, and cost center for full traceability.', targetSelector: null,
@@ -161,7 +161,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
         id: 'expenses-nav', title: 'Navigate', content: 'Use the sidebar to return to your project or WBS after recording.', targetSelector: '[data-tour="sidebar-nav"]', placement: 'right',
       },
       {
-        id: 'expenses-ai', title: 'AI Classification', content: 'The AI can classify expenses and flag duplicates. Try it from the assistant orb.', targetSelector: '[data-tour="ai-assistant-toggle"]', placement: 'left',
+        id: 'expenses-ai', title: 'AI Classification', content: 'The AI can classify expenses and flag duplicates. Try it from the header AI button.', targetSelector: '[data-tour="ai-assistant-toggle"]', placement: 'left',
       },
     ], sections: [
       {
@@ -178,7 +178,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 
   'procurement': {
-    pageKey: 'procurement', title: 'Procurement Operations', description: 'Create and track procurement categories, units of measure, and inventory positions.', icon: '📦',
+    pageKey: 'procurement', title: 'Procurement Operations', description: 'Create and track procurement categories, units of measure, and inventory positions.', icon: '??',
     tourSteps: [
       {
         id: 'procurement-intro', title: 'Procurement 101', content: 'Define procurement categories and UOMs here so they are available everywhere in the platform.', targetSelector: null,
@@ -203,7 +203,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 
   'planning': {
-    pageKey: 'planning', title: 'Operations Planning', description: 'Plan fiscal years, temporal configuration, and plan-lock workflows for your financial operations.', icon: '🗓️',
+    pageKey: 'planning', title: 'Operations Planning', description: 'Plan fiscal years, temporal configuration, and plan-lock workflows for your financial operations.', icon: '???',
     tourSteps: [
       {
         id: 'planning-intro', title: 'Planning Your Year', content: 'Configure fiscal periods and temporal rules that drive how your budgets roll up over time.', targetSelector: null,
@@ -228,7 +228,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 
   'approvals': {
-    pageKey: 'approvals', title: 'Approvals', description: 'Route and approve financial actions with escalation, traceability, and audit trails.', icon: '✅',
+    pageKey: 'approvals', title: 'Approvals', description: 'Route and approve financial actions with escalation, traceability, and audit trails.', icon: '?',
     tourSteps: [
       {
         id: 'approvals-intro', title: 'Approval Workflows', content: 'Review, approve, or reject pending financial actions. Every decision is logged for audit.', targetSelector: null,
@@ -253,7 +253,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 
   'reporting': {
-    pageKey: 'reporting', title: 'Financial Reporting', description: 'Generate, download, and schedule financial reports across all your projects.', icon: '📋',
+    pageKey: 'reporting', title: 'Financial Reporting', description: 'Generate, download, and schedule financial reports across all your projects.', icon: '??',
     tourSteps: [
       {
         id: 'reporting-intro', title: 'Reporting Hub', content: 'Generate variance reports and expense audits here. Reports can be downloaded as PDFs or Excel files.', targetSelector: null,
@@ -279,7 +279,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 
   'reporting-archive': {
-    pageKey: 'reporting-archive', title: 'Reporting Archive', description: 'Browse previously generated reports, export them again, or schedule recurring deliveries.', icon: '🗂️',
+    pageKey: 'reporting-archive', title: 'Reporting Archive', description: 'Browse previously generated reports, export them again, or schedule recurring deliveries.', icon: '???',
     tourSteps: [
       {
         id: 'archive-intro', title: 'Your Report Archive', content: 'Every report you generate is stored here. Re-download, export, or schedule it.', targetSelector: null,
@@ -304,7 +304,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 
   'default': {
-    pageKey: 'default', title: 'SentinelFi Platform Guide', description: 'A general guide to using the SentinelFi Financial Intelligence platform.', icon: '🛡️',
+    pageKey: 'default', title: 'SentinelFi Platform Guide', description: 'A general guide to using the SentinelFi Financial Intelligence platform.', icon: '???',
     tourSteps: [
       {
         id: 'default-intro', title: 'Welcome', content: 'SentinelFi puts every financial signal in one place. Let us show you around.', targetSelector: null,
@@ -326,7 +326,7 @@ export const TUTORIAL_CONTENT: Record<string, PageTutorial> = {
   },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --- Helpers ------------------------------------------------------------------
 
 export function getTutorial(pageKey: string): PageTutorial {
   return TUTORIAL_CONTENT[pageKey] ?? TUTORIAL_CONTENT['default'];

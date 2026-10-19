@@ -2,13 +2,13 @@ import React from "react";
 import { useRouter } from "next/router";
 import LayoutNav from "./LayoutNav";
 import Sidebar from "./Sidebar";
+import DesktopSideNav from "./DesktopSideNav";
 import BottomTabBar from "./BottomTabBar";
 import useUIStore from "../../store/uiStore";
 import SessionTimeoutWarning from "../auth/SessionTimeoutWarning";
 import Breadcrumbs from "../common/Breadcrumbs";
 import ChatWidget from "../messaging/ChatWidget";
 import FreeTierAdBanner from "../ads/FreeTierAdBanner";
-import { useAuth } from "../context/AuthContext";
 import { TourOverlay } from "../tutorial/TourOverlay";
 import { TutorialFab } from "../tutorial/TutorialFab";
 import Head from "next/head";
@@ -31,14 +31,27 @@ interface SecuredLayoutContentProps {
   title?: string;
 }
 
+// Reserved rail widths — must stay in sync with DesktopSideNav's tunables so
+// the "push" mode animates in perfect lockstep with the panel expansion.
+const RAIL_COLLAPSED_PX = 64;
+const RAIL_EXPANDED_PX = 240;
+
 const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children, title }) => {
-  const { isDesktopSidebarCollapsed, isMobileSidebarOpen, closeMobileSidebar, toggleMobileSidebar } =
+  const { isMobileSidebarOpen, closeMobileSidebar, toggleMobileSidebar } =
     useUIStore();
   const router = useRouter();
   const pageKey = resolvePageKey(router.pathname);
+  const [isRailPinned, setIsRailPinned] = React.useState(false);
 
   // Don't show tutorial FAB on the tutorial pages themselves
   const isTutorialPage = router.pathname.startsWith('/tutorial');
+
+  // Chrome "push" mode: the spacer that reserves the rail's layout space
+  // expands to 240px in sync with the pinned panel (200ms cubic-bezier).
+  const railSpacerStyle: React.CSSProperties = {
+    width: `${isRailPinned ? RAIL_EXPANDED_PX : RAIL_COLLAPSED_PX}px`,
+    transition: 'width 200ms cubic-bezier(0.4,0,0.2,1)',
+  };
 
   return (
     <>
@@ -48,13 +61,23 @@ const SecuredLayoutContent: React.FC<SecuredLayoutContentProps> = ({ children, t
         </Head>
       )}
       <div className="flex h-screen bg-brand-dark overflow-hidden print:h-auto print:overflow-visible print:bg-white text-gray-100 print:text-black">
-        <div className="print:hidden shrink-0">
-          <Sidebar />
-        </div>
+        {/* Spacer reserving the rail's flow space (lg+). Hover-overlay mode
+            leaves it at 64px; pinned push mode transitions it to 240px. */}
+        <div
+          className="print:hidden hidden lg:block shrink-0"
+          style={railSpacerStyle}
+          aria-hidden="true"
+        />
+
+        {/* Chrome-style desktop side panel (lg+ only; hover overlay / pin push) */}
+        <DesktopSideNav onPinnedChange={setIsRailPinned} />
+
+        {/* Mobile drawer (<lg) — hamburger in LayoutNav toggles it */}
+        <Sidebar />
 
         {isMobileSidebarOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 md:hidden print:hidden backdrop-blur-sm"
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 lg:hidden print:hidden backdrop-blur-sm"
             onClick={closeMobileSidebar}
             aria-hidden="true"
           ></div>

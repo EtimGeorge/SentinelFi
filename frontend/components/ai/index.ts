@@ -1,4 +1,4 @@
-export { AIChatFAB } from './AIChatFAB';
+export { AIAssistantRoot } from './AIAssistantRoot';
 export { ChatPanel } from './ChatPanel';
 export { ChatSheet } from './ChatSheet';
 export { useAIChat } from '../../hooks/useAIChat';

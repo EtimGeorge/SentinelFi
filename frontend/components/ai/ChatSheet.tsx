@@ -1,6 +1,7 @@
-﻿import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { Bot, X, Send, Paperclip, Sparkles, Loader, Copy, CheckCircle, ChevronRight, TrendingUp, TrendingDown, DollarSign, Table, Grid, Trash2, AlertTriangle, Zap } from 'lucide-react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { Bot, X, Send, Paperclip, BotMessageSquare, Loader, Copy, CheckCircle, ChevronRight, TrendingUp, TrendingDown, DollarSign, Table, Grid, Trash2, AlertTriangle, Zap } from 'lucide-react';
 import { AIChatMessage, RichContent } from './types';
+import { MarkdownContent } from './MarkdownContent';
 import { useAIChat } from '../../hooks/useAIChat';
 import DataTable from "../../components/common/DataTable";
 
@@ -119,7 +120,7 @@ const AIMessageBubble: React.FC<{
     return (
       <div className="sentinelai-msg-appear flex gap-3">
         <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center">
-          <Sparkles className="w-4 h-4 text-white" />
+          <BotMessageSquare className="w-4 h-4 text-white" />
         </div>
         <div className="flex-1">
           <div className="px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-2xl rounded-bl-sm">
@@ -150,16 +151,16 @@ const AIMessageBubble: React.FC<{
   return (
     <div className="sentinelai-msg-appear flex gap-3">
       <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-brand-primary to-brand-secondary">
-        <Sparkles className="w-4 h-4 text-white" />
+        <BotMessageSquare className="w-4 h-4 text-white" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="relative px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-2xl rounded-bl-sm">
           {typeof message.content === 'string' ? (
-            <div className="text-white/90 whitespace-pre-wrap">{message.content}</div>
+            <MarkdownContent content={message.content} compact />
           ) : (
             <RichContentRenderer content={message.content as RichContent} />
           )}
-          
+
           <div className="flex items-center gap-2 mt-2">
             <button
               onClick={handleCopy}
@@ -285,7 +286,7 @@ export const ChatSheet: React.FC<ChatSheetProps> = ({
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-black/20">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
+              <BotMessageSquare className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -377,7 +378,7 @@ export const ChatSheet: React.FC<ChatSheetProps> = ({
           ))}
           {messages.length === 0 && (
             <div className="text-center py-16 text-gray-500">
-              <Sparkles className="w-16 h-16 mx-auto text-gray-700 mb-4" />
+              <BotMessageSquare className="w-16 h-16 mx-auto text-gray-700 mb-4" />
               <p className="font-medium text-white text-lg">Start a conversation</p>
               <p className="text-xs mt-1">Ask me about budgets, projects, or expenses</p>
             </div>
@@ -409,7 +410,7 @@ export const ChatSheet: React.FC<ChatSheetProps> = ({
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about budgets, projects, expenses…"
+                placeholder="Ask about budgets, projects, expenses "
                 rows={1}
                 disabled={isStreaming}
                 className="flex-1 bg-transparent border-none text-white text-base resize-none max-h-40 outline-none placeholder:text-gray-500"

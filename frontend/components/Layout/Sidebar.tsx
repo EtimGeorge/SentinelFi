@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import useUIStore from '../../store/uiStore';
 import { getStaticNavItemsForRole, NavItem } from '../../lib/navigationMap';
 import { getPrimaryRoleFromUser, loadUserFromStorage } from '../../lib/navigationUtils';
-import { X, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Helper component for rendering nav items, handles nesting
 const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, isCollapsed }) => {
@@ -103,21 +103,20 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
 
 import useGlobalStore from '../../store/globalStore';
 import { useCurrency } from '../../components/context/CurrencyContext';
-import { apiClient } from '../../lib/api';
+import { ProjectContextSelector } from '../common/ProjectContextSelector';
 
 const Sidebar: React.FC = () => {
   const [navItems, setNavItems] = useState<NavItem[]>([]);
   const [isNavReady, setIsNavReady] = useState(false);
-  const [projects, setProjects] = useState<any[]>([]);
 
   const {
-    isMobileSidebarOpen, closeMobileSidebar, isDesktopSidebarCollapsed, toggleDesktopSidebar
+    isMobileSidebarOpen, closeMobileSidebar
   } = useUIStore();
 
-  const { selectedProjectId, setSelectedProjectId } = useGlobalStore();
   const { userCurrency, availableCurrencies, setUserCurrencyCode } = useCurrency();
 
-  // Initialize navigation items and fetch projects
+  // Initialize navigation items (projects come from the shared directory
+  // inside ProjectContextSelector — one cached request serves all mounts).
   useEffect(() => {
     const initializeSidebar = async () => {
       try {
@@ -132,17 +131,6 @@ const Sidebar: React.FC = () => {
         }
       } catch (error) {
         console.error('[Sidebar] Failed to init nav:', error);
-      }
-      // Fetch projects for global selector, suppress 403 silently (role-gated)
-      try {
-        const res: any = await apiClient.get('/projects?limit=100');
-        setProjects(res.projects || res.data?.projects || []);
-      } catch (e: any) {
-        if (e?.response?.status !== 403 && !e?._isForbidden) {
-          console.error('[Sidebar] Failed to initialize projects:', e);
-        } else {
-          console.debug('[Sidebar] Projects fetch skipped, forbidden for role');
-        }
       }
     };
 
@@ -209,7 +197,7 @@ const Sidebar: React.FC = () => {
       <aside
         className={`fixed inset-y-0 left-0 bg-brand-dark/95 backdrop-blur-3xl border-r border-white/5 text-white elev-lg z-[60] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
                     ${isMobileSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'}
-                    md:hidden`}
+                    lg:hidden`}
         aria-label="Mobile Sidebar"
         aria-modal="true"
         role="dialog"
@@ -246,7 +234,7 @@ const Sidebar: React.FC = () => {
           </nav>
 
           {/* Workspace context (project + currency) - mobile drawer only; desktop keeps header pickers */}
-          <div className="flex-shrink-0 mt-auto pt-4 border-t border-brand-primary/30 md:hidden">
+          <div className="flex-shrink-0 mt-auto pt-4 border-t border-brand-primary/30">
             <div className="flex items-center gap-3 mb-3" aria-hidden="true">
               <span className="text-xs font-bold  text-gray-500 whitespace-nowrap">Workspace</span>
               <span className="h-px flex-1 bg-white/10" />
@@ -254,19 +242,9 @@ const Sidebar: React.FC = () => {
             <div className="space-y-2">
               <label className="block">
                 <span className="text-xs font-bold  text-gray-500">Active Project</span>
-                <select
-                  value={selectedProjectId}
-                  onChange={(e) => { setSelectedProjectId(e.target.value); closeMobileSidebar(); }}
-                  className="mt-1 w-full bg-brand-darker border border-gray-700 rounded-lg py-2 px-2 text-xs text-brand-primary font-bold focus:border-brand-primary outline-none transition cursor-pointer"
-                  aria-label="Active Project Context"
-                >
-                  <option value="all">All Projects</option>
-                  {projects.map((p) => (
-                    <option key={p.project_id} value={p.project_id}>
-                      {p.project_name}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-1">
+                  <ProjectContextSelector variant="drawer" className="w-full" />
+                </div>
               </label>
               <label className="block">
                 <span className="text-xs font-bold  text-gray-500">Currency</span>
@@ -288,57 +266,7 @@ const Sidebar: React.FC = () => {
         </div>
       </aside>
 
-      {/* Desktop Collapsible Sidebar */}
-      <aside
-        className={`hidden md:flex flex-col h-screen bg-brand-dark/90 backdrop-blur-2xl border-r border-white/5 text-gray-300 shadow-[20px_0_40px_rgba(0,0,0,0.2)] z-30 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
-                    ${isDesktopSidebarCollapsed ? 'w-14' : 'w-52'}`}
-        aria-label="Desktop Sidebar"
-      >
-        <div className="flex flex-col h-full w-full p-4">
-          <div className={`flex-shrink-0 mb-8 mt-2 flex flex-col items-center ${isDesktopSidebarCollapsed ? 'justify-center' : ''}`}>
-            {!isDesktopSidebarCollapsed && (
-              <div className="flex items-center gap-3 animate-in fade-in duration-500">
-                <div className="relative w-10 h-10 p-1.5 bg-brand-darker border border-white/10 rounded-xl transition-all duration-500 hover:border-brand-primary/50 elev-lg">
-                  <Image 
-                    src="/SentinelFi Logo Concept-bg-remv-logo-only.png" 
-                    alt="SentinelFi Logo" 
-                    fill
-                    sizes="40px"
-                    className="object-contain p-1"
-                  />
-                </div>
-                {!isDesktopSidebarCollapsed && (
-                  <span className="text-xl font-black tracking-tighter text-white uppercase font-sora">
-                    SENTINEL<span className="text-alert-critical">FI</span>
-                  </span>
-                )}
-              </div>
-            )}
-            {isDesktopSidebarCollapsed && (
-              <div className="p-2 bg-brand-primary rounded-lg animate-in zoom-in duration-300">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-            )}
-          </div>
-
-          <nav className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" data-tour="sidebar-nav">
-            <ul className="space-y-2">
-              {navItems.map((item) => <NavItemLink key={item.name} item={item} isCollapsed={isDesktopSidebarCollapsed} />)}
-            </ul>
-          </nav>
-
-          <div className="flex-shrink-0 mt-auto pt-4 border-t border-brand-primary/30">
-            <button
-              onClick={toggleDesktopSidebar}
-              data-tour="sidebar-toggle"
-              className="w-full flex items-center justify-center p-2 rounded-md text-gray-400 hover:bg-brand-primary/20 hover:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary"
-              aria-label="Toggle sidebar collapse"
-            >
-              {isDesktopSidebarCollapsed ? <ChevronsRight className="h-6 w-6" /> : <ChevronsLeft className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-      </aside>
+      
     </>
   );
 };

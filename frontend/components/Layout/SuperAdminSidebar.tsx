@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/router';
 import useUIStore from '../../store/uiStore';
 import { superAdminNavigationMap, NavItem } from '../../lib/navigationMap';
-import { X, ChevronsLeft, ChevronsRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Helper component for rendering nav items, handles nesting
 const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, isCollapsed }) => {
@@ -88,7 +88,7 @@ const NavItemLink: React.FC<{ item: NavItem, isCollapsed: boolean }> = ({ item, 
 
 const SuperAdminSidebar: React.FC = () => {
   const {
-    isMobileSidebarOpen, closeMobileSidebar, isDesktopSidebarCollapsed, toggleDesktopSidebar
+    isMobileSidebarOpen, closeMobileSidebar
   } = useUIStore();
   
   // Direct use of the superAdminNavigationMap
@@ -109,7 +109,7 @@ const SuperAdminSidebar: React.FC = () => {
       <aside
         className={`fixed inset-y-0 left-0 bg-brand-dark text-white elev-lg z-50 transition-transform duration-300 ease-in-out
                     ${isMobileSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'}
-                    md:hidden`}
+                    lg:hidden`}
         aria-label="Mobile SuperAdmin Sidebar"
       >
         <div className="flex flex-col h-full w-full p-4">
@@ -132,38 +132,7 @@ const SuperAdminSidebar: React.FC = () => {
         </div>
       </aside>
 
-      {/* Desktop Collapsible Sidebar */}
-      <aside
-        className={`hidden md:flex flex-col h-screen bg-brand-dark text-gray-300 elev-lg z-30 transition-all duration-300 ease-in-out
-                    ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'}`}
-        aria-label="Desktop SuperAdmin Sidebar"
-      >
-        <div className="flex flex-col h-full w-full p-4">
-            <div className={`flex-shrink-0 mb-8 mt-2 flex flex-col items-center ${isDesktopSidebarCollapsed ? 'justify-center' : ''}`}>
-              <h1 className={`text-xl text-white font-semibold transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden text-center
-                      ${isDesktopSidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-                SuperAdmin
-              </h1>
-            </div>
-
-          <nav className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <ul className="space-y-2">
-              {navItems.map((item) => <NavItemLink key={item.name} item={item} isCollapsed={isDesktopSidebarCollapsed} />)}
-            </ul>
-          </nav>
-
-          <div className="flex-shrink-0 mt-auto pt-4 border-t border-brand-primary/30">
-            <button
-              onClick={toggleDesktopSidebar}
-              className="w-full flex items-center justify-center p-2 rounded-md text-gray-400 hover:bg-brand-primary/20 hover:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary"
-              aria-label="Toggle sidebar collapse"
-            >
-              {isDesktopSidebarCollapsed ? <ChevronsRight className="h-6 w-6" /> : <ChevronsLeft className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-      </aside>
-    </>
+          </>
   );
 };
 

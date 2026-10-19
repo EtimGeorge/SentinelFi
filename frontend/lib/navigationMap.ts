@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Folders, ShieldCheck, TrendingUp, LineChart, PieChart, BarChart2, BarChart3, Receipt, Files, ClipboardList, ClipboardCheck, ScrollText, Network, Banknote, Briefcase, CalendarClock, ShoppingCart, CreditCard, Gauge, Cog, Crown, Contact, Eye, TrendingDown, Newspaper, Settings, Code2, Wrench, Globe,
+  LayoutDashboard, LayoutGrid, Folders, ShieldCheck, TrendingUp, LineChart, PieChart, BarChart2, BarChart3, Receipt, Files, ClipboardList, ClipboardCheck, ScrollText, Network, Banknote, Briefcase, CalendarClock, ShoppingCart, CreditCard, Gauge, Cog, Crown, Contact, Eye, TrendingDown, Newspaper, Settings, Code2, Wrench, Globe, Activity,
   // probe-globe
   TentTree, Gavel, Building2, Building, Users, Presentation, Scale, CircleDollarSign, Archive, Command, LifeBuoy, LucideIcon, Shield, DollarSign, FileText, Satellite, BookOpen,
 } from 'lucide-react';
@@ -28,6 +28,9 @@ export const navigationMap: NavItem[] = [
   // ── Overview ────────────────────────────────────────────────────────────────
   {
     name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/home', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], exactMatch: true,
+  },
+  {
+    name: 'Financials Hub', icon: LayoutGrid, path: '/financials', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.FinanceOfficer, Role.AssignedProjectUser], exactMatch: true,
   },
   {
     name: 'Governance Hub', icon: ShieldCheck, path: '/financials/approvals', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AdminManager], exactMatch: true,
@@ -67,9 +70,12 @@ export const navigationMap: NavItem[] = [
       {
         name: 'Reporting Hub', icon: Presentation, path: '/reporting', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector], exactMatch: true,
       },
-      {
-        name: 'Financial Intelligence', icon: TrendingUp, path: '/financials/intelligence', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager, Role.TechnicalDirector, Role.OperationalDirector],
-      },
+  {
+    name: 'Financial Intelligence', icon: TrendingUp, path: '/financials/intelligence', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager, Role.TechnicalDirector, Role.OperationalDirector],
+  },
+  {
+    name: 'Cash Flow Forecasting', icon: Activity, path: '/financials/intelligence/cash-flow', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager, Role.TechnicalDirector, Role.OperationalDirector],
+  },
       {
         name: 'Variance Analysis', icon: Scale, path: '/reporting/variance', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
       },
@@ -117,6 +123,15 @@ export const navigationMap: NavItem[] = [
         },
         {
             name: 'Account Ledger', icon: BookOpen, path: '/financials/operations/account-ledger', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+        },
+        {
+            name: 'Journal Entries', icon: BookOpen, path: '/financials/operations/journal-entries', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+        },
+        {
+            name: 'Balance Sheet', icon: Scale, path: '/financials/operations/balance-sheet', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+        },
+        {
+            name: 'Income Statement', icon: TrendingUp, path: '/financials/operations/income-statement', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
         },
     ]
   },

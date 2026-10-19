@@ -4,14 +4,12 @@ import { resolveNotificationsWsUrl } from '../lib/ws-url';
 
 interface UIState {
   isMobileSidebarOpen: boolean;
-  isDesktopSidebarCollapsed: boolean;
   unreadNotificationsCount: number;
   socket: WebSocket | null;
   socketConnected: boolean;
 
   toggleMobileSidebar: () => void;
   closeMobileSidebar: () => void;
-  toggleDesktopSidebar: () => void;
   setUnreadNotificationsCount: (count: number) => void;
 
   connectWebSocket: () => void;
@@ -21,6 +19,9 @@ interface UIState {
   isAiAssistantOpen: boolean;
   toggleAiAssistant: () => void;
   setAiAssistantOpen: (isOpen: boolean) => void;
+  /** Drives the header sparkle badge (proactive insight / unread while closed). */
+  aiAttention: boolean;
+  setAiAttention: (value: boolean) => void;
 
   // NEW: Reconnection state
   reconnectAttempts: number;
@@ -28,10 +29,11 @@ interface UIState {
 }
 
 const useUIStore = create<UIState>((set, get) => ({
-  isMobileSidebarOpen: false, isDesktopSidebarCollapsed: false, unreadNotificationsCount: 0, socket: null, socketConnected: false, reconnectAttempts: 0, // Initialize
+  isMobileSidebarOpen: false, unreadNotificationsCount: 0, socket: null, socketConnected: false, reconnectAttempts: 0, // Initialize
   reconnectTimeoutId: null, // Initialize
 
-  toggleMobileSidebar: () => set((state) => ({ isMobileSidebarOpen: !state.isMobileSidebarOpen })), closeMobileSidebar: () => set({ isMobileSidebarOpen: false }), toggleDesktopSidebar: () => set((state) => ({ isDesktopSidebarCollapsed: !state.isDesktopSidebarCollapsed })), setUnreadNotificationsCount: (count) => set({ unreadNotificationsCount: count }), isAiAssistantOpen: false, toggleAiAssistant: () => set((state) => ({ isAiAssistantOpen: !state.isAiAssistantOpen })), setAiAssistantOpen: (isOpen) => set({ isAiAssistantOpen: isOpen }),
+  toggleMobileSidebar: () => set((state) => ({ isMobileSidebarOpen: !state.isMobileSidebarOpen })), closeMobileSidebar: () => set({ isMobileSidebarOpen: false }), setUnreadNotificationsCount: (count) => set({ unreadNotificationsCount: count }),   isAiAssistantOpen: false, toggleAiAssistant: () => set((state) => ({ isAiAssistantOpen: !state.isAiAssistantOpen })), setAiAssistantOpen: (isOpen) => set({ isAiAssistantOpen: isOpen }),
+  aiAttention: false, setAiAttention: (value) => set({ aiAttention: value }),
 
   // REMOVED POLLING MECHANISM
   // fetchUnreadNotificationsCount: async () => {

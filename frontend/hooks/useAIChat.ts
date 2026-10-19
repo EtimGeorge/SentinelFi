@@ -100,10 +100,13 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     }
   }, [storageKey]);
 
-  // Update scope when page changes
+  // Update scope when page or project context changes
   useEffect(() => {
-    setScopeState((prev) => ({ ...prev, page: currentPage }));
-  }, [currentPage]);
+    setScopeState((prev) => {
+      if (prev.page === currentPage && prev.projectId === projectId) return prev;
+      return { ...prev, page: currentPage, projectId };
+    });
+  }, [currentPage, projectId]);
 
   // Stable chat session id, persisted per tenant/user so guardrails and
   // server-side context stay consistent across page reloads.
@@ -286,7 +289,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         abortControllerRef.current = null;
       }
     },
-    [currentPage, messages, projectId, scope, isStreaming, generateId],
+    [currentPage, messages, projectId, isStreaming, generateId],
   );
 
   const clearHistory = useCallback(() => {
