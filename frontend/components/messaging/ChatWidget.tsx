@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useMessaging, Message, Conversation } from '../../services/messaging.service';
 import { useAuth } from '../context/AuthContext';
 import { useSecuredApi } from '../hooks/useSecuredApi';
-import { Users, Search, MessageCircle, X, Send, Loader2, Plus, ArrowLeft, Check, CheckCircle2 } from 'lucide-react';
+import { Users, Search, MessageCircle, X, Send, Loader2, Plus, ArrowLeft, Check, CheckCircle2, CheckCheck, ChevronUp } from 'lucide-react';
 import Tooltip from '../common/Tooltip';
 
 interface ChatWidgetProps {
@@ -13,26 +13,30 @@ interface ChatWidgetProps {
 
 type ViewMode = 'CONVERSATIONS' | 'DIRECTORY' | 'CHAT';
 
-const ChatWidget: React.FC<ChatWidgetProps> = ({ 
-  initialRecipientId, initialRecipientName, initialConversationId 
+const ChatWidget: React.FC<ChatWidgetProps> = ({
+  initialRecipientId, initialRecipientName, initialConversationId
 }) => {
   const { user } = useAuth();
-  const { 
-    messages, conversations, sendMessage, isConnected, fetchHistory, createConversation, activeConversationId, setActiveConversationId
+  const {
+    messages, conversations, sendMessage, isConnected, fetchHistory, createConversation, activeConversationId, setActiveConversationId,
+    typingUsers, onlineUsers, hasMoreHistory, isLoadingEarlier, loadEarlier,
+    emitTyping, emitStopTyping, emitMarkRead, totalUnread, fetchConversations,
   } = useMessaging();
   const api = useSecuredApi();
-  
+
   const [isOpen, setIsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('CONVERSATIONS');
   const [inputValue, setInputValue] = useState('');
-  
+
   // Directory State
   const [directory, setDirectory] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingDirectory, setLoadingDirectory] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  
+
   const scrollRef = useRef<HTMLDivElement>(null);
+  const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevViewModeRef = useRef<ViewMode>('CONVERSATIONS');
 
   // Sync with props if they change
   useEffect(() => {
@@ -51,7 +55,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       handleDirectChatStart(initialRecipientId);
       setIsOpen(true);
     }
+    // Deep-link props drive this effect only when they change; handler identity
+    // is irrelevant and would re-fire the navigation on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConversationId, initialRecipientId]);
+
+  // Refresh conversations when the widget is opened — unread badges, previews
+  // and ordering are computed server-side at fetch time.
+  useEffect(() => {
+    if (isOpen) fetchConversations();
+  }, [isOpen, fetchConversations]);
 
   // Handle auto-scroll
   useEffect(() => {
@@ -63,7 +76,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const fetchDirectory = async () => {
     try {
       setLoadingDirectory(true);
-      const res = await api.get('/tenant/users'); 
+      const res = await api.get('/tenant/users');
       const others = res.data.filter((u: any) => u.id !== user?.id);
       setDirectory(others);
     } catch (err) {
@@ -124,14 +137,50 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     if (inputValue.trim() && activeConversationId) {
       sendMessage(activeConversationId, inputValue);
       setInputValue('');
+      emitStopTyping(activeConversationId);
+      if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
     }
   };
 
-  const openConversation = (convId: string) => {
+  const handleInputChange = (value: string) => {
+    setInputValue(value);
+    if (!activeConversationId) return;
+    if (value.trim()) {
+      emitTyping(activeConversationId);
+      // Debounce the stop signal; cleared/restarted on every keystroke.
+      if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = setTimeout(
+        () => emitStopTyping(activeConversationId),
+        2500,
+      );
+    } else {
+      emitStopTyping(activeConversationId);
+      if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    }
+  };
+
+  const openConversation = useCallback((convId: string) => {
     setActiveConversationId(convId);
     fetchHistory(convId);
     setViewMode('CHAT');
-  };
+    // Socket-side read broadcast so the sender's ticks flip immediately.
+    emitMarkRead(convId);
+  }, [setActiveConversationId, fetchHistory, emitMarkRead]);
+
+  // Stop the typing signal when leaving the chat view or closing the widget.
+  useEffect(() => {
+    if (prevViewModeRef.current === 'CHAT' && viewMode !== 'CHAT' && activeConversationId) {
+      emitStopTyping(activeConversationId);
+    }
+    prevViewModeRef.current = viewMode;
+  }, [viewMode, activeConversationId, emitStopTyping]);
+
+  useEffect(() => {
+    if (!isOpen && activeConversationId) {
+      emitStopTyping(activeConversationId);
+      if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    }
+  }, [isOpen, activeConversationId, emitStopTyping]);
 
   const filteredDirectory = directory.filter(u => 
     (u.first_name + ' ' + u.last_name).toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -139,27 +188,41 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   );
 
   const activeConversation = conversations.find(c => c.id === activeConversationId);
+  const otherMember = activeConversation?.members.find(m => m.user_id !== user?.id);
+  const chatPeerOnline = activeConversation?.type === 'DIRECT' && otherMember
+    ? onlineUsers.has(otherMember.user_id)
+    : false;
   const getChatTitle = () => {
     if (!activeConversation) return 'Chat';
     if (activeConversation.type === 'GROUP') return activeConversation.name || 'Group Chat';
-    const otherMember = activeConversation.members.find(m => m.user_id !== user?.id);
     return otherMember ? `${otherMember.user.first_name} ${otherMember.user.last_name}` : 'Direct Chat';
   };
 
   return (
-    <div className={`fixed bottom-6 left-6 z-[9999] transition-all duration-500 ease-in-out ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-2'}`}>
+    <div
+      // Right-corner Action Dock (standard messenger convention — matches the
+      // Tutorial FAB stacked above and the AI header entry).
+      // Mobile: lifted above the BottomTabBar (bottom-20).
+      className={`fixed right-4 sm:right-6 bottom-20 md:bottom-6 z-[9990] transition-all duration-500 ease-in-out ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-2'}`}
+    >
       {!isOpen ? (
-        <Tooltip content="Open Messages" position="right">
+        <Tooltip content="Open Messages" position="left">
           <button
             onClick={() => setIsOpen(true)}
             className="w-14 h-14 bg-brand-primary rounded-2xl flex items-center justify-center text-white elev-lg hover:bg-brand-primary/90 hover:scale-105 transition-all outline-none focus:ring-4 focus:ring-brand-primary/30 group"
+            aria-label={totalUnread > 0 ? `Messages, ${totalUnread} unread` : "Messages"}
           >
             <MessageCircle className="w-6 h-6 group-hover:animate-pulse" />
-            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white elev-sm"></span>
+            {/* Real unread badge — was a static decorative dot that always showed. */}
+            {totalUnread > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-[11px] font-bold rounded-full border-2 border-white elev-sm">
+                {totalUnread > 99 ? "99+" : totalUnread}
+              </span>
+            )}
           </button>
         </Tooltip>
       ) : (
-        <div className="flex flex-col w-[min(360px,calc(100vw-48px))] max-h-[calc(100vh-100px)] h-[min(580px,calc(100dvh-100px))] bg-white border border-slate-200 rounded-3xl elev-lg overflow-hidden transform origin-bottom-left transition-all">
+        <div className="flex flex-col w-[min(360px,calc(100vw-48px))] max-h-[calc(100vh-100px)] h-[min(580px,calc(100dvh-100px))] bg-white border border-slate-200 rounded-3xl elev-lg overflow-hidden transform origin-bottom-right transition-all">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white z-10">
             <div className="flex items-center gap-3">
@@ -172,7 +235,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 </button>
               )}
               <span className="font-black  text-xs uppercase">
-                {viewMode === 'CONVERSATIONS' ? 'Messages' : viewMode === 'DIRECTORY' ? 'New Message' : getChatTitle()}
+                {viewMode === 'CONVERSATIONS' ? 'Messages' : viewMode === 'DIRECTORY' ? 'New Message' : (
+                  <span className="flex items-center gap-1.5">
+                    {chatPeerOnline && <span className="w-1.5 h-1.5 bg-green-400 rounded-full" aria-label="Online" />}
+                    {getChatTitle()}
+                  </span>
+                )}
               </span>
             </div>
             <Tooltip content="Close" position="bottom">
@@ -209,24 +277,43 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                       const isGroup = conv.type === 'GROUP';
                       const otherMember = conv.members.find(m => m.user_id !== user?.id);
                       const name = isGroup ? (conv.name || 'Group Chat') : `${otherMember?.user.first_name} ${otherMember?.user.last_name}`;
-                      
+                      const unread = conv.unread_count ?? 0;
+                      const memberOnline = !isGroup && otherMember && onlineUsers.has(otherMember.user_id);
+                      const stamp = conv.last_message_at || conv.last_activity_at;
+
                       return (
-                        <button 
+                        <button
                           key={conv.id}
                           onClick={() => openConversation(conv.id)}
                           className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all group ${activeConversationId === conv.id ? 'bg-white elev-sm ring-1 ring-slate-100' : 'hover:bg-slate-100'}`}
                         >
-                          <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isGroup ? 'bg-indigo-100 text-indigo-600' : 'bg-brand-primary/10 text-brand-primary'}`}>
-                            {isGroup ? <Users className="w-5 h-5" /> : name?.[0]}
+                          <div className="relative shrink-0">
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-xs ${isGroup ? 'bg-indigo-100 text-indigo-600' : 'bg-brand-primary/10 text-brand-primary'}`}>
+                              {isGroup ? <Users className="w-5 h-5" /> : name?.[0]}
+                            </div>
+                            {memberOnline && (
+                              <span
+                                className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"
+                                title="Online"
+                                aria-label="Online"
+                              />
+                            )}
                           </div>
                           <div className="flex-1 text-left min-w-0">
-                            <p className="text-xs font-bold text-slate-900 truncate group-hover:text-brand-primary transition-colors">{name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className={`text-xs font-bold text-slate-900 truncate group-hover:text-brand-primary transition-colors ${unread > 0 ? 'font-black' : ''}`}>{name}</p>
+                              {unread > 0 && (
+                                <span className="ml-auto shrink-0 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-brand-primary text-white text-[11px] font-bold rounded-full">
+                                  {unread > 99 ? "99+" : unread}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-slate-400 truncate mt-0.5">
-                              {conv.type === 'GROUP' ? `${conv.members.length} members` : 'Direct Message'}
+                              {conv.last_message_preview || (isGroup ? `${conv.members.length} members` : 'Direct Message')}
                             </p>
                           </div>
-                          <div className="text-xs text-slate-300 font-medium">
-                            {new Date(conv.last_activity_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <div className="text-xs text-slate-300 font-medium shrink-0">
+                            {new Date(stamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </button>
                       );
@@ -319,6 +406,22 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             {viewMode === 'CHAT' && activeConversationId && (
               <div className="flex-1 flex flex-col h-full animate-in fade-in zoom-in-95 duration-300 z-10">
                 <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto space-y-4">
+                  {hasMoreHistory && (
+                    <div className="flex justify-center">
+                      <button
+                        onClick={loadEarlier}
+                        disabled={isLoadingEarlier}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-full transition-colors disabled:opacity-50"
+                      >
+                        {isLoadingEarlier ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <ChevronUp className="w-3 h-3" />
+                        )}
+                        Earlier messages
+                      </button>
+                    </div>
+                  )}
                   {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center opacity-50 space-y-3">
                       <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
@@ -331,7 +434,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     messages.map((msg: Message, idx) => {
                       const isMe = msg.sender_id === user?.id;
                       const showAvatar = idx === 0 || messages[idx-1].sender_id !== msg.sender_id;
-                      
+
+                      // Read receipt for my own messages: every other member's
+                      // last_read_at must cover this message's timestamp.
+                      const readByAll = isMe && (() => {
+                        const others = activeConversation?.members.filter(m => m.user_id !== user?.id) ?? [];
+                        if (!others.length) return false;
+                        return others.every(
+                          (m) => m.last_read_at && new Date(m.last_read_at) >= new Date(msg.created_at),
+                        );
+                      })();
+
                       return (
                         <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                           {showAvatar ? (
@@ -348,8 +461,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                             <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-xs elev-sm shadow-slate-200/50 transition-all ${isMe ? 'bg-slate-900 text-white rounded-br-none' : 'bg-white border border-slate-100 text-slate-700 rounded-bl-none'}`}>
                               {msg.content}
                             </div>
-                            <span className="text-xs text-slate-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-xs text-slate-300 mt-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                               {isMe && (readByAll ? <CheckCheck className="w-3 h-3 text-brand-primary" aria-label="Read" /> : <Check className="w-3 h-3 text-slate-400" aria-label="Sent" />)}
                             </span>
                           </div>
                         </div>
@@ -358,12 +472,31 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   )}
                 </div>
 
+                {/* Typing indicator */}
+                {(typingUsers[activeConversationId] ?? []).length > 0 && (
+                  <div className="px-5 py-1.5 bg-white border-t border-slate-100 flex items-center gap-2" aria-live="polite">
+                    <span className="flex items-center gap-0.5">
+                      <span className="w-1 h-1 bg-slate-400 rounded-full animate-pulse" />
+                      <span className="w-1 h-1 bg-slate-400 rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 bg-slate-400 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">
+                      {typingUsers[activeConversationId]
+                        .map((uid) => {
+                          const m = activeConversation?.members.find((mm) => mm.user_id === uid);
+                          return m ? m.user.first_name : 'Someone';
+                        })
+                        .join(', ')} typing…
+                    </span>
+                  </div>
+                )}
+
                 {/* Input Area */}
                 <div className="p-4 bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
                   <div className="relative flex items-center">
                     <input
                       value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
+                      onChange={(e) => handleInputChange(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                       placeholder="Secure message..."
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-5 pr-14 py-3.5 text-xs focus:ring-4 focus:ring-brand-primary/10 focus:border-brand-primary outline-none transition-all placeholder:text-slate-400 font-medium"
