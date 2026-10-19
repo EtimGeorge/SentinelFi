@@ -21,6 +21,7 @@
 ## Workspace temp space
 
 - Always write scratch/log/probe/temp files inside the repo's own `/.workspace-temp/` directory (already gitignored) — NEVER into the global system temp (`%TEMP%`, `C:\Users\user\AppData\Local\Temp`, etc.). The user must not have to clean up outside the project.
+- **`.workspace-temp` is disposable**: files there MAY be wiped by any cleanup pass (git clean, manual deletes, agent housekeeping). Never let the ONLY copy of a deliverable live there — if a session produces something the user needs long-term (guides, configs, reports), write it to a durable location (e.g. `docs/` or repo root) and, if it contains secrets, exclude it via `.git/info/exclude`.
 
 ## Verification
 
