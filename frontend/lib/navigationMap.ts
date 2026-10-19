@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, LayoutGrid, Folders, ShieldCheck, TrendingUp, LineChart, PieChart, BarChart2, BarChart3, Wallet, Receipt, Files, ClipboardList, ClipboardCheck, ScrollText, Network, Banknote, Briefcase, CalendarClock, ShoppingCart, CreditCard, Gauge, Cog, Crown, Contact, Eye, TrendingDown, Newspaper, Settings, Code2, Wrench, Globe,
+  LayoutDashboard, Folders, ShieldCheck, TrendingUp, LineChart, PieChart, BarChart2, BarChart3, Receipt, Files, ClipboardList, ClipboardCheck, ScrollText, Network, Banknote, Briefcase, CalendarClock, ShoppingCart, CreditCard, Gauge, Cog, Crown, Contact, Eye, TrendingDown, Newspaper, Settings, Code2, Wrench, Globe,
   // probe-globe
   TentTree, Gavel, Building2, Building, Users, Presentation, Scale, CircleDollarSign, Archive, Command, LifeBuoy, LucideIcon, Shield, DollarSign, FileText, Satellite, BookOpen,
 } from 'lucide-react';
@@ -25,53 +25,72 @@ const ALL_ROLES: Role[] = [
 ];
 
 export const navigationMap: NavItem[] = [
-  // --- General Section ---
+  // ── Overview ────────────────────────────────────────────────────────────────
   {
     name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard/home', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], exactMatch: true,
   },
   {
     name: 'Governance Hub', icon: ShieldCheck, path: '/financials/approvals', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AdminManager], exactMatch: true,
   },
+  // ── Projects: portfolio + per-project financial control (merged
+  //    "Project Portfolio" and "Project Financials" — they described the same
+  //    domain from two doors) ─────────────────────────────────────────────────
   {
-    name: 'Project Portfolio', icon: Folders, path: '/projects', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], exactMatch: false,
-  },
-  {
-    name: 'Financial Intelligence', icon: TrendingUp, path: '/financials/intelligence', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager, Role.TechnicalDirector, Role.OperationalDirector], exactMatch: false,
-  },
-  // --- Expenses Section (Consolidated CAPEX/OPEX) ---
-  {
-
-    name: 'Expenses', icon: Wallet, path: '/financials/expenses', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], children: [
+    name: 'Projects', icon: Folders, path: '/projects', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], children: [
       {
-        name: 'Log Expense', icon: Banknote, path: '/financials/expenses/new', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], exactMatch: true,
+        name: 'Portfolio Overview', icon: Folders, path: '/projects', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], exactMatch: true,
+      },
+      {
+        name: 'Project Hub', icon: Command, path: '/financials/projects', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], exactMatch: true,
+      },
+      {
+        name: 'WBS Designer', icon: Network, path: '/financials/projects/wbs', roles: [Role.CEO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector],
+      },
+      {
+        name: 'Project Budgets', icon: Banknote, path: '/financials/projects/budgets', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
+      },
+      {
+        name: 'Project Analytics', icon: BarChart3, path: '/financials/projects/analytics', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
       },
       {
         name: 'Project Ledger (CAPEX)', icon: Files, path: '/financials/projects/expenses', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
       },
       {
-        name: 'Operations Ledger (OPEX)', icon: Banknote, path: '/financials/operations/manage', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+        name: 'Log Expense', icon: Banknote, path: '/financials/expenses/new', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], exactMatch: true,
       },
     ]
   },
-  // --- Global Financial Control Section ---
+  // ── Insights & Reporting: merged "Financial Intelligence" (CAPEX dashboard)
+  //    with the Reporting section so analysis lives under one roof ────────────
   {
-    name: 'Project Financials', icon: LayoutGrid, path: '/financials/projects', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], children: [
-        {
-            name: 'Project Hub', icon: Command, path: '/financials/projects', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser], exactMatch: true,
-        },
-        {
-            name: 'WBS Designer', icon: Network, path: '/financials/projects/wbs', roles: [Role.CEO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector],
-        },
-        {
-            name: 'Project Budgets', icon: Banknote, path: '/financials/projects/budgets', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager, Role.AssignedProjectUser],
-        },
-        {
-            name: 'Project Analytics', icon: BarChart3, path: '/financials/projects/analytics', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
-        },
+    name: 'Insights & Reporting', icon: LineChart, path: '/reporting', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector], children: [
+      {
+        name: 'Reporting Hub', icon: Presentation, path: '/reporting', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector], exactMatch: true,
+      },
+      {
+        name: 'Financial Intelligence', icon: TrendingUp, path: '/financials/intelligence', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager, Role.TechnicalDirector, Role.OperationalDirector],
+      },
+      {
+        name: 'Variance Analysis', icon: Scale, path: '/reporting/variance', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
+      },
+      {
+        name: 'CAPEX Performance', icon: CircleDollarSign, path: '/reporting/capex', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
+      },
+      {
+        name: 'OPEX Efficiency', icon: PieChart, path: '/reporting/opex', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
+      },
+      {
+        name: 'Document Archive', icon: Archive, path: '/reporting/archive', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
+      }
     ]
   },
+  // ── Corporate Operations: OPEX lifecycle (absorbed "Operations Ledger (OPEX)"
+  //    from the old Expenses group) ────────────────────────────────────────────
   {
     name: 'Corporate Operations', icon: Briefcase, path: '/financials/operations', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager], children: [
+        {
+                name: 'Operations Ledger (OPEX)', icon: Banknote, path: '/financials/operations/manage', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+        },
         {
                 name: 'OPEX Planning', icon: CalendarClock, path: '/financials/operations/planning', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector, Role.OperationalDirector, Role.FinanceManager],
         },
@@ -93,28 +112,15 @@ export const navigationMap: NavItem[] = [
         {
             name: 'Chart of Accounts', icon: BookOpen, path: '/financials/operations/chart-of-accounts', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager, Role.AdminManager],
         },
+        {
+            name: 'Trial Balance', icon: Scale, path: '/financials/operations/trial-balance', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+        },
+        {
+            name: 'Account Ledger', icon: BookOpen, path: '/financials/operations/account-ledger', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
+        },
     ]
   },
-  {
-    name: 'Reporting', icon: Presentation, path: '/reporting', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector], children: [
-      {
-        name: 'Intelligence Hub', icon: LineChart, path: '/reporting', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector], exactMatch: true,
-      },
-      {
-        name: 'Variance Analysis', icon: Scale, path: '/reporting/variance', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
-      },
-      {
-        name: 'CAPEX Performance', icon: CircleDollarSign, path: '/reporting/capex', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
-      },
-      {
-        name: 'OPEX Efficiency', icon: PieChart, path: '/reporting/opex', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
-      },
-      {
-        name: 'Document Archive', icon: Archive, path: '/reporting/archive', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.TechnicalDirector, Role.OperationalDirector],
-      }
-    ]
-  },
-  // --- Administration Section (Tenant Level) ---
+  // ── Administration (Tenant Level) ───────────────────────────────────────────
   {
     name: 'Admin', icon: Crown, path: '/admin', roles: [Role.CEO, Role.AdminDirector, Role.AdminManager, Role.TechnicalDirector], children: [
         {
@@ -134,7 +140,7 @@ export const navigationMap: NavItem[] = [
         }
     ]
   },
-// --- User Section ---
+  // ── Utilities (bottom of the rail) ──────────────────────────────────────────
   {
     name: 'Documentation', icon: FileText, path: '/docs', roles: ALL_ROLES, exactMatch: false,
   },

@@ -250,6 +250,47 @@ export const useFinanceCore = () => {
         }
     }, []);
 
+    // --- GL Reports ---
+
+    const glReportsBase = '/finance-core/general-ledger/reports';
+
+    const fetchTrialBalance = useCallback(
+        async (range?: { from?: string; to?: string }) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.get(`${glReportsBase}/trial-balance`, {
+                    params: range,
+                });
+                return res;
+            } catch (error) {
+                toast.error('Error fetching trial balance');
+                return { rows: [], totalDebit: 0, totalCredit: 0, balanced: true };
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    const fetchAccountLedger = useCallback(
+        async (accountId: string, range?: { from?: string; to?: string }) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.get(
+                    `/finance-core/general-ledger/accounts/${accountId}/ledger`,
+                    { params: range },
+                );
+                return res;
+            } catch (error) {
+                toast.error('Error fetching account ledger');
+                return { account: null, openingBalance: 0, closingBalance: 0, entries: [] };
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
     // --- P2P Methods ---
 
     const fetchRequisitions = useCallback(async () => {
@@ -892,7 +933,7 @@ export const useFinanceCore = () => {
     }, []);
 
     return {
-        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchVendors, createVendor, updateVendor, setVendorStatus, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter, reverseOperationalExpense, getOpexNeedsAttention, getProcurementNeedsAttention,         getBudgetForecastBridge, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch, fetchGlAccounts, seedDefaultChartOfAccounts, createAccountClass, updateAccountClass, deleteAccountClass, createAccountGroup, updateAccountGroup, deleteAccountGroup, createGlAccount, updateGlAccount, deleteGlAccount,
+        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchVendors, createVendor, updateVendor, setVendorStatus, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter, reverseOperationalExpense, getOpexNeedsAttention, getProcurementNeedsAttention,         getBudgetForecastBridge, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch, fetchGlAccounts, seedDefaultChartOfAccounts, createAccountClass, updateAccountClass, deleteAccountClass, createAccountGroup, updateAccountGroup, deleteAccountGroup, createGlAccount, updateGlAccount, deleteGlAccount, fetchTrialBalance, fetchAccountLedger,
     };
 };
 
