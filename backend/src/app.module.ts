@@ -28,7 +28,9 @@ import { TenantMigrationModule } from "./database/tenant-migration.module";
 import { CommonModule } from "./common/common.module";
 import { DatabaseConfig } from "./common/config/database.config";
 import { TenantRepositoriesModule } from "./tenant-repositories.module"; // Import TenantRepositoriesModule
+import { BankReconciliationModule } from "./bank-reconciliation/bank-reconciliation.module";
 import { CurrencyModule } from "./currency/currency.module";
+import { BudgetVirementModule } from "./budget-virement/budget-virement.module";
 import { ClientModule } from "./clients/client.module";
 import { FinanceCoreModule } from "./finance-core/finance-core.module";
 import { ReportingModule } from "./reporting/reporting.module";
@@ -231,6 +233,8 @@ function backendEnvFilePaths(): string[] {
     AuditModule,
     ProjectsModule,
     OperationalBudgetsModule,
+    BankReconciliationModule,
+    BudgetVirementModule,
     SuperAdminModule,
     BillingModule,
     SettingsModule,
