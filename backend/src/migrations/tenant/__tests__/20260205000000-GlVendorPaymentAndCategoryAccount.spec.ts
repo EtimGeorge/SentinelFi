@@ -37,4 +37,3 @@ describe("GlVendorPaymentAndCategoryAccount20260205000000", () => {
     expect(sql).toContain('ALTER TABLE "budget_category" DROP COLUMN IF EXISTS "gl_account_id"');
   });
 });
-});
