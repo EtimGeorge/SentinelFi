@@ -218,3 +218,78 @@ describe("GeneralLedgerService — entity wiring", () => {
     expect(new GLAccountEntity()).toBeInstanceOf(GLAccountEntity);
   });
 });
+
+function makeStatementService(rawRows: Array<Record<string, unknown>>) {
+  const cls = { get: jest.fn().mockReturnValue("tenant-1") };
+  const qb = {
+    innerJoin: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
+    addGroupBy: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    getRawMany: jest.fn().mockResolvedValue(rawRows),
+  };
+  const journalLineRepo = { createQueryBuilder: jest.fn(() => qb) };
+  return new GeneralLedgerService(
+    {} as never,
+    cls as never,
+    {} as never,
+    journalLineRepo as never,
+    {} as never,
+  );
+}
+
+describe("GeneralLedgerService — financial statements", () => {
+  it("classifies accounts into balance-sheet sections and balances via the period result", async () => {
+    const service = makeStatementService([
+      { accountId: "a1", code: "1200", name: "Cash", baseType: "ASSET", debit: 500, credit: 0 },
+      { accountId: "l1", code: "2100", name: "Payable", baseType: "LIABILITY", debit: 0, credit: 200 },
+      { accountId: "r1", code: "4000", name: "Sales", baseType: "REVENUE", debit: 0, credit: 300 },
+      { accountId: "e1", code: "5000", name: "Rent", baseType: "EXPENSE", debit: 0, credit: 0 },
+    ]);
+
+    const sheet = await service.getBalanceSheet({});
+    expect(sheet.totalAssets).toBe(500);
+    expect(sheet.totalLiabilities).toBe(200);
+    // period result = revenue 300 - expenses 0 = 300
+    expect(sheet.periodResult).toBe(300);
+    expect(sheet.totalEquity).toBe(300);
+    expect(sheet.totalLiabilitiesAndEquity).toBe(500);
+    expect(sheet.balanced).toBe(true);
+  });
+
+  it("reports an out-of-balance sheet when assets do not equal L+E", async () => {
+    const service = makeStatementService([
+      { accountId: "a1", code: "1200", name: "Cash", baseType: "ASSET", debit: 999, credit: 0 },
+      { accountId: "l1", code: "2100", name: "Payable", baseType: "LIABILITY", debit: 0, credit: 200 },
+    ]);
+
+    const sheet = await service.getBalanceSheet({});
+    expect(sheet.balanced).toBe(false);
+  });
+
+  it("computes net income as revenue minus expenses", async () => {
+    const service = makeStatementService([
+      { accountId: "r1", code: "4000", name: "Sales", baseType: "REVENUE", debit: 0, credit: 1000 },
+      { accountId: "e1", code: "5000", name: "Rent", baseType: "EXPENSE", debit: 400, credit: 0 },
+    ]);
+
+    const pnl = await service.getIncomeStatement({});
+    expect(pnl.totalRevenue).toBe(1000);
+    expect(pnl.totalExpenses).toBe(400);
+    expect(pnl.netIncome).toBe(600);
+  });
+
+  it("reports a net loss when expenses exceed revenue", async () => {
+    const service = makeStatementService([
+      { accountId: "r1", code: "4000", name: "Sales", baseType: "REVENUE", debit: 0, credit: 100 },
+      { accountId: "e1", code: "5000", name: "Rent", baseType: "EXPENSE", debit: 250, credit: 0 },
+    ]);
+
+    const pnl = await service.getIncomeStatement({});
+    expect(pnl.netIncome).toBe(-150);
+  });
+});

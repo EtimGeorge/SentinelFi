@@ -64,6 +64,33 @@ export class FinanceCoreController {
     });
   }
 
+  @Post("fiscal-years/:id/rollover")
+  @Roles(
+    Role.CFO,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.SuperAdmin,
+    Role.CEO,
+  )
+  async rolloverFiscalYear(
+    @Param("id") id: string,
+    @Body() body: { label: string; startDate: string; endDate: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user || !req.user.tenant_id) {
+      throw new UnauthorizedException(
+        "User not authenticated or tenant ID is missing.",
+      );
+    }
+    return this.financeService.rolloverFiscalYear(
+      id,
+      body.label,
+      new Date(body.startDate),
+      new Date(body.endDate),
+      req.user,
+    );
+  }
+
   @Get("departments")
   @Roles(
     Role.CFO,

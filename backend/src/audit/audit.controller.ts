@@ -39,7 +39,7 @@ export class AuditController {
    * Filtered audit logs for Tenant Admins (Only their own tenant).
    */
   @Get("tenant")
-  @Roles(Role.AdminDirector, Role.CEO)
+  @Roles(Role.AdminDirector, Role.CEO, Role.TechnicalDirector)
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
   async findTenantLogs(

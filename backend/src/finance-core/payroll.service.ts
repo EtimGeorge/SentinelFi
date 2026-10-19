@@ -23,6 +23,11 @@ import { TENANT_DATA_SOURCE } from "../database/constants";
 import { ChartOfAccountsService } from "./chart-of-accounts.service";
 import { GeneralLedgerService } from "../general-ledger/general-ledger.service";
 import { SYSTEM_ACCOUNT_CODES } from "./default-chart-of-accounts";
+import {
+  ApprovalLogEntity,
+  ApprovalDocumentType,
+  ApprovalStatus,
+} from "../common/entities/approval-log.entity";
 import { JournalSourceType } from "../../../shared/types/general-ledger";
 
 const round4 = (value: unknown): number => {
@@ -46,6 +51,8 @@ export class PayrollService {
     private fiscalPeriodRepo: Repository<FiscalPeriodEntity>,
     private readonly chartOfAccountsService: ChartOfAccountsService,
     private readonly generalLedgerService: GeneralLedgerService,
+    @InjectRepository(ApprovalLogEntity, TENANT_DATA_SOURCE)
+    private approvalLogRepo: Repository<ApprovalLogEntity>,
   ) {}
 
   private getTenantId(): string {
@@ -207,8 +214,11 @@ export class PayrollService {
       where: { id, tenant_id: this.getTenantId() },
     });
     if (!run) throw new NotFoundException("Payroll run not found");
-    if (run.status !== PayrollRunStatus.DRAFT)
-      throw new ConflictException("Only DRAFT runs can be approved");
+    if (
+      run.status !== PayrollRunStatus.DRAFT &&
+      run.status !== PayrollRunStatus.REVIEW
+    )
+      throw new ConflictException("Only DRAFT or REVIEW runs can be approved");
 
     if (
       approverUserId &&
@@ -221,7 +231,52 @@ export class PayrollService {
     }
 
     run.status = PayrollRunStatus.APPROVED;
-    return this.payrollRunRepo.save(run);
+    const savedRun = await this.payrollRunRepo.save(run);
+
+    // PERSIST APPROVAL LOG — payroll run approved
+    await this.approvalLogRepo.save(
+      this.approvalLogRepo.create({
+        tenant_id: this.getTenantId(),
+        document_type: ApprovalDocumentType.PAYROLL_RUN,
+        document_id: id,
+        status: ApprovalStatus.APPROVED,
+        actor_id: approverUserId ?? null,
+        amount: Number(savedRun.total_gross_pay || 0),
+        comments: `Payroll run approved`,
+      } as any),
+    );
+
+    return savedRun;
+  }
+
+  async submitForReview(id: string, submittedByUserId?: string) {
+    const tenantId = this.getTenantId();
+    const run = await this.payrollRunRepo.findOne({
+      where: { id, tenant_id: tenantId },
+    });
+    if (!run) throw new NotFoundException("Payroll run not found");
+    if (run.status !== PayrollRunStatus.DRAFT)
+      throw new ConflictException(
+        "Only DRAFT runs can be submitted for review",
+      );
+
+    run.status = PayrollRunStatus.REVIEW;
+    const savedRun = await this.payrollRunRepo.save(run);
+
+    // PERSIST APPROVAL LOG — payroll run submitted for review
+    await this.approvalLogRepo.save(
+      this.approvalLogRepo.create({
+        tenant_id: tenantId,
+        document_type: ApprovalDocumentType.PAYROLL_RUN,
+        document_id: id,
+        status: ApprovalStatus.SUBMITTED,
+        actor_id: submittedByUserId ?? null,
+        amount: Number(savedRun.total_gross_pay || 0),
+        comments: `Payroll run submitted for governance review`,
+      } as any),
+    );
+
+    return savedRun;
   }
 
   async postRun(id: string) {
@@ -253,6 +308,19 @@ export class PayrollService {
       // APPROVED and POSTED (the posting is idempotent by run id, so a retry
       // after fixing the chart of accounts will reconcile).
       await this.postPayrollToGeneralLedger(manager, savedRun, tenantId);
+
+      // PERSIST APPROVAL LOG — payroll run posted
+      await manager.save(
+        manager.create(ApprovalLogEntity, {
+          tenant_id: tenantId,
+          document_type: ApprovalDocumentType.PAYROLL_RUN,
+          document_id: id,
+          status: ApprovalStatus.APPROVED,
+          actor_id: savedRun.created_by_user_id ?? null,
+          amount: Number(savedRun.total_gross_pay || 0),
+          comments: `Payroll run posted to General Ledger`,
+        } as any),
+      );
 
       return savedRun;
     });

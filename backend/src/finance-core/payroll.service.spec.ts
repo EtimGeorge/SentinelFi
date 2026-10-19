@@ -15,6 +15,7 @@ import { FiscalPeriodEntity } from "./entities/fiscal-period.entity";
 import { TENANT_DATA_SOURCE } from "../database/constants";
 import { ChartOfAccountsService } from "./chart-of-accounts.service";
 import { GeneralLedgerService } from "../general-ledger/general-ledger.service";
+import { ApprovalLogEntity } from "../common/entities/approval-log.entity";
 import { JournalSourceType } from "../../../shared/types/general-ledger";
 
 describe("PayrollService — fiscal period close enforcement", () => {
@@ -95,6 +96,10 @@ describe("PayrollService — fiscal period close enforcement", () => {
         },
         { provide: ChartOfAccountsService, useValue: chartOfAccountsService },
         { provide: GeneralLedgerService, useValue: generalLedgerService },
+        {
+          provide: getRepositoryToken(ApprovalLogEntity, TENANT_DATA_SOURCE),
+          useValue: { create: jest.fn(), save: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -194,7 +199,7 @@ describe("PayrollService — fiscal period close enforcement", () => {
     it("posts an approved run into an open period", async () => {
       const posted = await service.postRun("run-1");
       expect(posted.status).toBe(PayrollRunStatus.POSTED);
-      expect(manager.save).toHaveBeenCalledTimes(1);
+      expect(manager.save).toHaveBeenCalledTimes(2); // run + approval log entry
     });
 
     it("books a balanced payroll accrual to the GL", async () => {

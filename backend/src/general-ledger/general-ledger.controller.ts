@@ -71,6 +71,21 @@ export class GeneralLedgerController {
     });
   }
 
+  @Get("reports/balance-sheet")
+  @Roles(...READ_ROLES)
+  async getBalanceSheet(@Query() query: { asOf?: string }) {
+    return this.glService.getBalanceSheet({ asOf: query.asOf });
+  }
+
+  @Get("reports/income-statement")
+  @Roles(...READ_ROLES)
+  async getIncomeStatement(@Query() query: { from?: string; to?: string }) {
+    return this.glService.getIncomeStatement({
+      from: query.from,
+      to: query.to,
+    });
+  }
+
   // ─── Journal entries ─────────────────────────────────────────────────────
 
   @Get()

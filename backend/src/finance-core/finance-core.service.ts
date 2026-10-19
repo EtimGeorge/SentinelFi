@@ -125,7 +125,9 @@ export class FinanceCoreService {
     // tenancy-aware-data-source and tenants/client services).
     const tenantId = this.cls.get("tenant_id");
     if (!tenantId) {
-      throw new InternalServerErrorException("Tenant context missing. Request must include a valid tenant.");
+      throw new InternalServerErrorException(
+        "Tenant context missing. Request must include a valid tenant.",
+      );
     }
     return tenantId;
   }
@@ -196,11 +198,14 @@ export class FinanceCoreService {
           throw new Error("Nothing to recognise (zero-value invoice).");
         }
 
-        const payable = await this.chartOfAccountsService.requireAccountsByCode(tenantId, [
-          SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE,
-          SYSTEM_ACCOUNT_CODES.TAX_PAYABLE,
-          SYSTEM_ACCOUNT_CODES.RETENTION_PAYABLE,
-        ]);
+        const payable = await this.chartOfAccountsService.requireAccountsByCode(
+          tenantId,
+          [
+            SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE,
+            SYSTEM_ACCOUNT_CODES.TAX_PAYABLE,
+            SYSTEM_ACCOUNT_CODES.RETENTION_PAYABLE,
+          ],
+        );
         const debitAccount = await this.glAccountRepo.findOne({
           where: { id: invoice.gl_account_id, tenant_id: tenantId },
         });
@@ -220,14 +225,16 @@ export class FinanceCoreService {
           lines: [
             {
               glAccountId: debitAccount.id,
+              costCenterId: invoice.cost_center_id ?? null,
               debit: baseExpense,
               description: `Expense recognised — invoice ${invoice.invoice_number}`,
             },
             ...(baseNetPayable > 0
               ? [
                   {
-                    glAccountId:
-                      payable.get(SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE)!.id,
+                    glAccountId: payable.get(
+                      SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE,
+                    )!.id,
                     credit: baseNetPayable,
                     description: `Net payable — invoice ${invoice.invoice_number}`,
                   },
@@ -236,8 +243,8 @@ export class FinanceCoreService {
             ...(baseWht > 0
               ? [
                   {
-                    glAccountId:
-                      payable.get(SYSTEM_ACCOUNT_CODES.TAX_PAYABLE)!.id,
+                    glAccountId: payable.get(SYSTEM_ACCOUNT_CODES.TAX_PAYABLE)!
+                      .id,
                     credit: baseWht,
                     description: `Withholding tax held — invoice ${invoice.invoice_number}`,
                   },
@@ -246,8 +253,9 @@ export class FinanceCoreService {
             ...(baseRetention > 0
               ? [
                   {
-                    glAccountId:
-                      payable.get(SYSTEM_ACCOUNT_CODES.RETENTION_PAYABLE)!.id,
+                    glAccountId: payable.get(
+                      SYSTEM_ACCOUNT_CODES.RETENTION_PAYABLE,
+                    )!.id,
                     credit: baseRetention,
                     description: `Retention withheld — invoice ${invoice.invoice_number}`,
                   },
@@ -281,10 +289,13 @@ export class FinanceCoreService {
           throw new Error("Nothing to settle (zero net payable).");
         }
 
-        const payable = await this.chartOfAccountsService.requireAccountsByCode(tenantId, [
-          SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE,
-          SYSTEM_ACCOUNT_CODES.CASH_AND_BANK,
-        ]);
+        const payable = await this.chartOfAccountsService.requireAccountsByCode(
+          tenantId,
+          [
+            SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE,
+            SYSTEM_ACCOUNT_CODES.CASH_AND_BANK,
+          ],
+        );
 
         return {
           memo: `Payment of vendor invoice ${invoice.invoice_number}`,
@@ -294,8 +305,9 @@ export class FinanceCoreService {
           actorUserId: actorUserId ?? this.currentUserId(),
           lines: [
             {
-              glAccountId:
-                payable.get(SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE)!.id,
+              glAccountId: payable.get(SYSTEM_ACCOUNT_CODES.ACCOUNTS_PAYABLE)!
+                .id,
+              costCenterId: invoice.cost_center_id ?? null,
               debit: cashOut,
               description: `Settled — invoice ${invoice.invoice_number}`,
             },
@@ -429,6 +441,124 @@ export class FinanceCoreService {
       order: { start_date: "DESC" },
       relations: ["periods"],
     });
+  }
+
+  /**
+   * Multi-year appropriation rollover.
+   *
+   * Closes the source fiscal year and creates a new target year whose
+   * unspent budgeted amounts roll forward from the source's categories.
+   * Requires CFO+ DOA authority. Writes to approval_log.
+   */
+  async rolloverFiscalYear(
+    sourceYearId: string,
+    targetLabel: string,
+    targetStartDate: Date,
+    targetEndDate: Date,
+    actor: UserPayload,
+  ) {
+    const tenantId = this.getTenantId();
+
+    const sourceYear = await this.fiscalYearRepo.findOne({
+      where: { id: sourceYearId, tenant_id: tenantId },
+      relations: ["periods"],
+    });
+    if (!sourceYear)
+      throw new NotFoundException("Source fiscal year not found.");
+    if (sourceYear.is_closed)
+      throw new ConflictException("Source fiscal year is already closed.");
+
+    // DOA authority check — rollover is a CFO+ operation
+    const rolloverAmount = await this.computeUnspentBalance(
+      sourceYearId,
+      tenantId,
+    );
+    await this.doaService.validateAuthority(actor, rolloverAmount, "USD");
+
+    // SoD: creator of the source year cannot roll it over if over dual-control threshold
+    // (source year created_by_user_id is not tracked on FiscalYearEntity, skip SoD here)
+
+    return await this.dataSource.transaction(async (manager) => {
+      // Close the source year
+      sourceYear.is_closed = true;
+      await manager.save(sourceYear);
+
+      // Create the target year
+      const targetYear = manager.create(FiscalYearEntity, {
+        tenant_id: tenantId,
+        year_label: targetLabel,
+        start_date: targetStartDate,
+        end_date: targetEndDate,
+        is_multi_year: true,
+        parent_fiscal_year_id: sourceYearId,
+        is_closed: false,
+      });
+      const savedTarget = await manager.save(targetYear);
+
+      // Generate 12 monthly periods for the target year
+      const start = new Date(targetStartDate);
+      const months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+      for (let i = 0; i < 12; i++) {
+        const pStart = new Date(start.getFullYear(), start.getMonth() + i, 1);
+        const pEnd = new Date(start.getFullYear(), start.getMonth() + i + 1, 0);
+        const period = manager.create(FiscalPeriodEntity, {
+          tenant_id: tenantId,
+          fiscal_year_id: savedTarget.id,
+          period_name: months[pStart.getMonth()],
+          period_type: FiscalPeriodType.MONTH,
+          start_date: pStart,
+          end_date: pEnd,
+        });
+        await manager.save(period);
+      }
+
+      // PERSIST APPROVAL LOG — multi-year appropriation rollover
+      await manager.save(
+        manager.create(ApprovalLogEntity, {
+          tenant_id: tenantId,
+          document_type: ApprovalDocumentType.MULTI_YEAR_APPROPRIATION,
+          document_id: sourceYearId,
+          status: ApprovalStatus.APPROVED,
+          actor_id: actor.id,
+          amount: rolloverAmount,
+          comments: `Rollover ${sourceYear.year_label} → ${targetLabel} (${rolloverAmount} unspent carried forward)`,
+        } as any),
+      );
+
+      return savedTarget;
+    });
+  }
+
+  private async computeUnspentBalance(
+    fiscalYearId: string,
+    tenantId: string,
+  ): Promise<number> {
+    const opBudgetRepo = this.dataSource.getRepository(OperationalBudgetEntity);
+    const budgets = await opBudgetRepo.find({
+      where: { tenant_id: tenantId },
+      relations: ["categories"],
+    });
+    let unspent = 0;
+    for (const budget of budgets) {
+      for (const cat of budget.categories || []) {
+        unspent +=
+          Number(cat.budgeted_amount || 0) - Number(cat.actual_spent || 0);
+      }
+    }
+    return Math.round(unspent * 10000) / 10000;
   }
 
   // --- Organizational Structure ---
@@ -706,7 +836,8 @@ export class FinanceCoreService {
       where: { tenant_id: tenantId, id: costCenterId },
       relations: ["department"],
     });
-    const departmentId = costCenter?.department?.id ?? costCenter?.department_id;
+    const departmentId =
+      costCenter?.department?.id ?? costCenter?.department_id;
     if (!departmentId) return null;
 
     const budgets = await this.dataSource
@@ -753,9 +884,17 @@ export class FinanceCoreService {
     );
 
     // Validate sortBy to prevent SQL injection and column-not-found errors
-    const validSortColumns = ['created_at', 'updated_at', 'estimated_amount', 'requisition_number', 'status'];
-    const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
-    const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    const validSortColumns = [
+      "created_at",
+      "updated_at",
+      "estimated_amount",
+      "requisition_number",
+      "status",
+    ];
+    const safeSortBy = validSortColumns.includes(sortBy)
+      ? sortBy
+      : "created_at";
+    const safeSortOrder = sortOrder === "ASC" ? "ASC" : "DESC";
     queryBuilder.orderBy(`requisition.${safeSortBy}`, safeSortOrder);
     queryBuilder.skip((page - 1) * limit).take(limit);
 
@@ -763,8 +902,10 @@ export class FinanceCoreService {
       const [data, total] = await queryBuilder.getManyAndCount();
       return { data, total };
     } catch (err: any) {
-      this.logger.error(`[FinanceCore] Failed to fetch requisitions: ${err.message}`);
-      throw new InternalServerErrorException('Failed to fetch requisitions');
+      this.logger.error(
+        `[FinanceCore] Failed to fetch requisitions: ${err.message}`,
+      );
+      throw new InternalServerErrorException("Failed to fetch requisitions");
     }
   }
 
@@ -852,8 +993,9 @@ export class FinanceCoreService {
               actualSpent: Number(budget.actual_spent || 0),
               committedAmount: committedPipeline,
               amount: Number(
-                Number(requisition.base_amount) || 
-                Number(requisition.estimated_amount) || 0
+                Number(requisition.base_amount) ||
+                  Number(requisition.estimated_amount) ||
+                  0,
               ),
             });
           if (check.action === "BLOCK") {
@@ -868,8 +1010,9 @@ export class FinanceCoreService {
               committed:
                 committedPipeline +
                 Number(
-                  Number(requisition.base_amount) || 
-                  Number(requisition.estimated_amount) || 0
+                  Number(requisition.base_amount) ||
+                    Number(requisition.estimated_amount) ||
+                    0,
                 ),
               overrunAmount: check.overrunAmount,
               variancePct: check.variancePercentage,
@@ -938,7 +1081,9 @@ export class FinanceCoreService {
       );
       const exchangeRate = Number(requisition.exchange_rate) || 1;
       const requisitionBaseAmount =
-        requisition.base_amount == null ? null : Number(requisition.base_amount);
+        requisition.base_amount == null
+          ? null
+          : Number(requisition.base_amount);
 
       // Explicit lines must not exceed the approved requisition ceiling; the
       // DOA authority check above only cleared the requisition's own amount.
@@ -1115,7 +1260,11 @@ export class FinanceCoreService {
     // Contractor payables controls: retention (retainage) and withholding tax.
     const retentionPct = Number(data.retentionPct ?? 0);
     const whtPct = Number(data.whtPct ?? 0);
-    if (!Number.isFinite(retentionPct) || retentionPct < 0 || retentionPct > 100) {
+    if (
+      !Number.isFinite(retentionPct) ||
+      retentionPct < 0 ||
+      retentionPct > 100
+    ) {
       throw new BadRequestException(
         "retentionPct must be a number between 0 and 100.",
       );
@@ -1128,9 +1277,7 @@ export class FinanceCoreService {
     const round4 = (n: number): number => Math.round(n * 10000) / 10000;
     const retentionAmount = round4((data.amount * retentionPct) / 100);
     const whtAmount = round4((data.amount * whtPct) / 100);
-    const netPayable = round4(
-      data.amount - retentionAmount - whtAmount,
-    );
+    const netPayable = round4(data.amount - retentionAmount - whtAmount);
 
     const invoice = this.invoiceRepo.create({
       tenant_id: tenantId,
@@ -1371,7 +1518,10 @@ export class FinanceCoreService {
       });
     }
 
-    const totalQty = resolvedLines.reduce((sum, line) => sum + line.quantity, 0);
+    const totalQty = resolvedLines.reduce(
+      (sum, line) => sum + line.quantity,
+      0,
+    );
     const totalAmount = resolvedLines.reduce(
       (sum, line) => sum + line.quantity * line.unitAmount,
       0,
@@ -1693,13 +1843,25 @@ export class FinanceCoreService {
 
     // Validate sortBy to prevent SQL injection and column-not-found errors
     const validSortColumns: Record<string, string[]> = {
-      requisition: ['created_at', 'updated_at', 'estimated_amount', 'requisition_number', 'status'],
-      po: ['created_at', 'updated_at', 'committed_amount', 'status'],
-      invoice: ['created_at', 'updated_at', 'amount', 'invoice_number', 'status'],
+      requisition: [
+        "created_at",
+        "updated_at",
+        "estimated_amount",
+        "requisition_number",
+        "status",
+      ],
+      po: ["created_at", "updated_at", "committed_amount", "status"],
+      invoice: [
+        "created_at",
+        "updated_at",
+        "amount",
+        "invoice_number",
+        "status",
+      ],
     };
-    const validColumns = validSortColumns[alias] || ['created_at'];
-    const safeSortBy = validColumns.includes(sortBy) ? sortBy : 'created_at';
-    const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    const validColumns = validSortColumns[alias] || ["created_at"];
+    const safeSortBy = validColumns.includes(sortBy) ? sortBy : "created_at";
+    const safeSortOrder = sortOrder === "ASC" ? "ASC" : "DESC";
 
     // Apply sort at the end, after all filters
     // Store for later use

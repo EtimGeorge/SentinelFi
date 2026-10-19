@@ -31,6 +31,12 @@ export class FiscalYearEntity {
   @Column({ type: "boolean", default: false })
   is_closed!: boolean;
 
+  @Column({ type: "boolean", default: false })
+  is_multi_year!: boolean;
+
+  @Column({ type: "uuid", nullable: true })
+  parent_fiscal_year_id!: string | null;
+
   @OneToMany(() => FiscalPeriodEntity, (period) => period.fiscalYear)
   periods!: FiscalPeriodEntity[];
 

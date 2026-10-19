@@ -113,6 +113,22 @@ export class PayrollController {
     return this.payrollService.addLineItem(id, data);
   }
 
+  @Post("runs/:id/submit-for-review")
+  @Roles(
+    Role.CFO,
+    Role.FinanceManager,
+    Role.AdminDirector,
+    Role.AdminManager,
+    Role.SuperAdmin,
+    Role.CEO,
+    Role.TechnicalDirector,
+  )
+  submitForReview(@Param("id") id: string, @Req() req: AuthenticatedRequest) {
+    if (!req.user || !req.user.tenant_id)
+      throw new UnauthorizedException("Tenant context missing.");
+    return this.payrollService.submitForReview(id, req.user.id);
+  }
+
   @Patch("runs/:id/approve")
   @Roles(
     Role.CFO,
@@ -123,10 +139,7 @@ export class PayrollController {
     Role.CEO,
     Role.TechnicalDirector,
   )
-  approveRun(
-    @Param("id") id: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  approveRun(@Param("id") id: string, @Req() req: AuthenticatedRequest) {
     if (!req.user || !req.user.tenant_id)
       throw new UnauthorizedException("Tenant context missing.");
     return this.payrollService.approveRun(id, req.user.id);

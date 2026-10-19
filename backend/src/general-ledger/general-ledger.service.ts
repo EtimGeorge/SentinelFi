@@ -17,6 +17,7 @@ import {
   JournalSourceType,
   ACCOUNT_CLASS_NORMAL_BALANCE,
   AccountClassType,
+  NormalBalance,
 } from "../../../shared/types/general-ledger";
 import { QueryJournalEntriesDto } from "./dto/journal-entry.dto";
 
@@ -39,6 +40,14 @@ export interface PostJournalEntryInput {
   actorUserId?: string | null;
   status?: JournalEntryStatus;
   lines: JournalLineInput[];
+}
+
+export interface StatementRow {
+  accountId: string;
+  code: string;
+  name: string;
+  amount: number;
+  signed: number;
 }
 
 const round4 = (value: unknown): number => {
@@ -498,6 +507,184 @@ export class GeneralLedgerService {
       openingBalance: 0,
       closingBalance: running,
       entries,
+    };
+  }
+
+  // ─── Financial Statements ────────────────────────────────────────────────
+
+  /**
+   * Shared per-account rollup of POSTED journal lines within a date range,
+   * grouped by account class base type. Debit/credit are summed as positive
+   * figures; `balance` is the debit-minus-credit (natural-side interpretation
+   * is left to the caller).
+   */
+  private async rollupByAccount(range: {
+    from?: string;
+    to?: string;
+  }): Promise<
+    Array<{
+      accountId: string;
+      code: string;
+      name: string;
+      baseType: AccountClassType;
+      debit: number;
+      credit: number;
+      balance: number;
+    }>
+  > {
+    const tenantId = this.getTenantId();
+    const qb = this.journalLineRepo
+      .createQueryBuilder("line")
+      .innerJoin(
+        JournalEntryEntity,
+        "entry",
+        "entry.id = line.journal_entry_id AND entry.status = :posted",
+        { posted: JournalEntryStatus.POSTED },
+      )
+      .innerJoin(GLAccountEntity, "acc", "acc.id = line.gl_account_id")
+      .innerJoin("account_group", "grp", "grp.id = acc.account_group_id")
+      .innerJoin("account_class", "cls", "cls.id = grp.account_class_id")
+      .select("line.gl_account_id", "accountId")
+      .addSelect("acc.code", "code")
+      .addSelect("acc.name", "name")
+      .addSelect("cls.base_type", "baseType")
+      .addSelect("COALESCE(SUM(line.debit), 0)", "debit")
+      .addSelect("COALESCE(SUM(line.credit), 0)", "credit")
+      .where("line.tenant_id = :tenantId", { tenantId })
+      .groupBy("line.gl_account_id")
+      .addGroupBy("acc.code")
+      .addGroupBy("acc.name")
+      .addGroupBy("cls.base_type")
+      .orderBy("acc.code", "ASC");
+
+    if (range.from) {
+      qb.andWhere("entry.entry_date >= :from", { from: range.from });
+    }
+    if (range.to) {
+      qb.andWhere("entry.entry_date <= :to", { to: range.to });
+    }
+
+    const raw = await qb.getRawMany();
+    return raw.map((r) => {
+      const debit = round4(r.debit);
+      const credit = round4(r.credit);
+      return {
+        accountId: r.accountId as string,
+        code: r.code as string,
+        name: r.name as string,
+        baseType: r.baseType as AccountClassType,
+        debit,
+        credit,
+        balance: round4(debit - credit),
+      };
+    });
+  }
+
+  private static emptySections() {
+    return {
+      ASSET: [] as StatementRow[],
+      LIABILITY: [] as StatementRow[],
+      EQUITY: [] as StatementRow[],
+      REVENUE: [] as StatementRow[],
+      EXPENSE: [] as StatementRow[],
+    };
+  }
+
+  private toStatementRow(r: {
+    accountId: string;
+    code: string;
+    name: string;
+    baseType: AccountClassType;
+    balance: number;
+  }): StatementRow {
+    const normal = ACCOUNT_CLASS_NORMAL_BALANCE[r.baseType];
+    const signed =
+      normal === NormalBalance.DEBIT ? r.balance : round4(-r.balance);
+    return {
+      accountId: r.accountId,
+      code: r.code,
+      name: r.name,
+      amount: round4(Math.abs(signed)),
+      signed,
+    };
+  }
+
+  /**
+   * Balance Sheet (Statement of Financial Position) as of a date.
+   *
+   * Assets are debit-normal; liabilities and equity are credit-normal. Equities
+   * include the P&L-derived result for the period so the sheet balances:
+   *   Assets = Liabilities + Equity + (Revenue - Expenses)
+   *
+   * `balanced` reports whether that identity holds within epsilon (accumulated
+   * retained earnings from prior periods must have been booked as an equity
+   * entry for it to hold across periods).
+   */
+  async getBalanceSheet(range: { asOf?: string } = {}) {
+    const rows = await this.rollupByAccount({ to: range.asOf });
+
+    const sections = GeneralLedgerService.emptySections();
+    for (const row of rows) {
+      sections[row.baseType].push(this.toStatementRow(row));
+    }
+
+    const sum = (list: Array<{ amount: number }>) =>
+      round4(list.reduce((s, r) => s + r.amount, 0));
+
+    const totalAssets = sum(sections.ASSET);
+    const totalLiabilities = sum(sections.LIABILITY);
+    const totalEquityAccounts = sum(sections.EQUITY);
+    const totalRevenue = sum(sections.REVENUE);
+    const totalExpenses = sum(sections.EXPENSE);
+    const periodResult = round4(totalRevenue - totalExpenses);
+    const totalEquity = round4(totalEquityAccounts + periodResult);
+
+    const totalLiabilitiesAndEquity = round4(totalLiabilities + totalEquity);
+
+    return {
+      asOf: range.asOf ?? null,
+      assets: sections.ASSET,
+      liabilities: sections.LIABILITY,
+      equity: sections.EQUITY,
+      totalAssets,
+      totalLiabilities,
+      totalEquity,
+      periodResult,
+      totalLiabilitiesAndEquity,
+      balanced:
+        Math.abs(totalAssets - totalLiabilitiesAndEquity) <=
+        GeneralLedgerService.BALANCE_EPSILON,
+    };
+  }
+
+  /**
+   * Income Statement (P&L) for a period: revenue minus expenses.
+   */
+  async getIncomeStatement(range: { from?: string; to?: string } = {}) {
+    const rows = await this.rollupByAccount(range);
+
+    const revenue = rows
+      .filter((r) => r.baseType === AccountClassType.REVENUE)
+      .map((r) => this.toStatementRow(r));
+    const expenses = rows
+      .filter((r) => r.baseType === AccountClassType.EXPENSE)
+      .map((r) => this.toStatementRow(r));
+
+    const sum = (list: Array<{ amount: number }>) =>
+      round4(list.reduce((s, r) => s + r.amount, 0));
+
+    const totalRevenue = sum(revenue);
+    const totalExpenses = sum(expenses);
+    const netIncome = round4(totalRevenue - totalExpenses);
+
+    return {
+      from: range.from ?? null,
+      to: range.to ?? null,
+      revenue,
+      expenses,
+      totalRevenue,
+      totalExpenses,
+      netIncome,
     };
   }
 
