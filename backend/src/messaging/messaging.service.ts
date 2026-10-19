@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, In } from "typeorm";
+import { Repository, In, LessThan } from "typeorm";
 import { MessageEntity } from "./entities/message.entity";
 import { ConversationEntity } from "./entities/conversation.entity";
 import { ConversationMemberEntity } from "./entities/conversation-member.entity";
@@ -124,11 +124,74 @@ export class MessagingService {
 
     const convIds = userMemberships.map((m) => m.conversation_id);
 
-    return await this.conversationRepository.find({
+    const conversations = await this.conversationRepository.find({
       where: { id: In(convIds), tenant_id: tenantId },
       relations: ["members", "members.user"],
       order: { last_activity_at: "DESC" },
     });
+
+    // ── Unread counts + last-message preview ──────────────────────────────
+    // Two aggregate queries total (not per-conversation) so the conversations
+    // list stays O(1)-ish regardless of how many conversations a user has.
+    const readAtByConv = new Map<string, Date | null>(
+      userMemberships.map((m) => [m.conversation_id, m.last_read_at ?? null]),
+    );
+
+    const unreadRows: { conversation_id: string; unread: string }[] =
+      await this.conversationRepository.manager.query(
+        `SELECT m.conversation_id, COUNT(*)::text AS unread
+           FROM message m
+           JOIN conversation_member cm
+             ON cm.conversation_id = m.conversation_id AND cm.user_id = $2
+          WHERE m.conversation_id = ANY($1::uuid[])
+            AND m.tenant_id = $3::uuid
+            AND m.sender_id != $2::uuid
+            AND m.created_at > COALESCE(cm.last_read_at, 'epoch')
+          GROUP BY m.conversation_id`,
+        [convIds, userId, tenantId],
+      );
+
+    const unreadByConv = new Map<string, number>();
+    for (const row of unreadRows) {
+      unreadByConv.set(row.conversation_id, Number(row.unread) || 0);
+    }
+
+    const lastMessageRows: {
+      conversation_id: string;
+      content: string;
+      sender_id: string;
+      created_at: Date;
+    }[] = await this.conversationRepository.manager.query(
+      `SELECT DISTINCT ON (m.conversation_id)
+              m.conversation_id, m.content, m.sender_id, m.created_at
+         FROM message m
+        WHERE m.conversation_id = ANY($1::uuid[])
+          AND m.tenant_id = $2::uuid
+        ORDER BY m.conversation_id, m.created_at DESC`,
+      [convIds, tenantId],
+    );
+
+    const lastMessageByConv = new Map<string, any>();
+    for (const row of lastMessageRows) {
+      lastMessageByConv.set(row.conversation_id, row);
+    }
+
+    for (const conv of conversations) {
+      const unread = unreadByConv.get(conv.id) ?? 0;
+      (conv as any).unread_count = unread;
+      const last = lastMessageByConv.get(conv.id);
+      if (last) {
+        (conv as any).last_message_preview = String(last.content || "").slice(
+          0,
+          120,
+        );
+        (conv as any).last_message_at = last.created_at;
+      }
+      // Expose caller's own read marker for receipt rendering.
+      (conv as any).viewer_last_read_at = readAtByConv.get(conv.id) ?? null;
+    }
+
+    return conversations;
   }
 
   async getChatHistory(
@@ -136,6 +199,7 @@ export class MessagingService {
     userId: string,
     tenantId: string,
     limit: number = 50,
+    before?: Date,
   ): Promise<MessageEntity[]> {
     const isMember = await this.memberRepository.findOne({
       where: { conversation_id: conversationId, user_id: userId },
@@ -149,6 +213,23 @@ export class MessagingService {
     const safeLimit = Number.isFinite(limit)
       ? Math.max(1, Math.min(Math.floor(limit), 200))
       : 50;
+
+    if (before) {
+      // Cursor pagination ("load earlier"): fetch the N messages immediately
+      // preceding the cursor, then hand them back in ascending order so the
+      // client can prepend them verbatim.
+      const older = await this.messageRepository.find({
+        where: {
+          conversation_id: conversationId,
+          tenant_id: tenantId,
+          created_at: LessThan(before),
+        },
+        order: { created_at: "DESC" },
+        take: safeLimit,
+        relations: ["sender"],
+      });
+      return older.reverse();
+    }
 
     return await this.messageRepository.find({
       where: { conversation_id: conversationId, tenant_id: tenantId },

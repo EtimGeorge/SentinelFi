@@ -94,12 +94,21 @@ export class MessagingController {
     @Req() req: any,
     @Param("conversationId", ParseUUIDPipe) conversationId: string,
     @Query("limit") limit?: string,
+    @Query("before") before?: string,
   ): Promise<MessageEntity[]> {
+    let beforeDate: Date | undefined;
+    if (before) {
+      beforeDate = new Date(before);
+      if (Number.isNaN(beforeDate.getTime())) {
+        throw new BadRequestException("Invalid `before` cursor timestamp.");
+      }
+    }
     return await this.messagingService.getChatHistory(
       conversationId,
       req.user.id,
       req.user.tenant_id,
       limit ? parseInt(limit, 10) : 50,
+      beforeDate,
     );
   }
 

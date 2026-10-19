@@ -12,6 +12,8 @@ import { Logger } from "@nestjs/common";
 import { MessagingService } from "./messaging.service";
 import { JwtService } from "@nestjs/jwt";
 
+/** Multi-tab presence: userId → set of live socket ids. */
+
 @WebSocketGateway({
   path: "/ws-messaging", // We'll keep this path for backward compatibility with frontend proxy
   cors: {
@@ -25,6 +27,9 @@ export class MessagingGateway
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(MessagingGateway.name);
 
+  /** userId → live socket ids (multi-tab/desktop support). */
+  private readonly onlineSockets = new Map<string, Set<string>>();
+
   constructor(
     private readonly messagingService: MessagingService,
     private readonly jwtService: JwtService,
@@ -34,13 +39,38 @@ export class MessagingGateway
     this.logger.log(`New messaging client connecting: ${client.id}`);
   }
 
-  handleDisconnect(client: Socket) {
-    this.logger.log(`Client disconnected: ${client.id}`);
-    const userId = client.data?.userId;
-    if (userId) {
-      // In a real system, you'd track if this was their LAST active socket
-      // before emitting an offline status via Redis presence tracking.
-      // For now, we rely on the client emitting an offline event or leaving the room.
+  async handleDisconnect(client: Socket) {
+    const userId = client.data?.userId as string | undefined;
+    if (!userId) return;
+
+    const sockets = this.onlineSockets.get(userId);
+    if (sockets) {
+      sockets.delete(client.id);
+      if (sockets.size > 0) {
+        // Still online via another tab — presence unchanged.
+        return;
+      }
+      this.onlineSockets.delete(userId);
+    }
+
+    // Last socket for this user: broadcast offline to every room they were in.
+    try {
+      const convs = await this.messagingService.getConversationsForUser(
+        userId,
+        client.data?.tenantId,
+      );
+      for (const conv of convs) {
+        this.server
+          .to(`conv_room_${conv.id}`)
+          .emit("presence", { userId, status: "offline" });
+      }
+      this.server
+        .to(`user_room_${userId}`)
+        .emit("presence", { userId, status: "offline" });
+    } catch (e: any) {
+      this.logger.warn(
+        `Failed to broadcast offline presence for ${userId}: ${e.message}`,
+      );
     }
   }
 
@@ -67,10 +97,26 @@ export class MessagingGateway
       );
       for (const conv of convs) {
         client.join(`conv_room_${conv.id}`);
-        // Notify others in this conversation that user is online
-        client
-          .to(`conv_room_${conv.id}`)
-          .emit("presence", { userId, status: "online" });
+      }
+
+      // 3. Reference-counted presence: only announce "online" on the FIRST
+      //    live socket for this user; announce current presence state to the
+      //    connecting client so it can render accurate dots on load.
+      const wasOffline = !this.onlineSockets.has(userId);
+      if (!this.onlineSockets.has(userId)) {
+        this.onlineSockets.set(userId, new Set());
+      }
+      this.onlineSockets.get(userId)!.add(client.id);
+
+      const onlineUserIds = Array.from(this.onlineSockets.keys());
+      client.emit("presence_snapshot", { onlineUserIds });
+
+      if (wasOffline) {
+        for (const conv of convs) {
+          client
+            .to(`conv_room_${conv.id}`)
+            .emit("presence", { userId, status: "online" });
+        }
       }
 
       this.logger.log(
@@ -89,7 +135,7 @@ export class MessagingGateway
   @SubscribeMessage("send_message")
   async handleSendMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string; content: string },
+    @MessageBody() data: { conversationId: string; content: string; tempId?: string },
   ) {
     const userId = client.data?.userId;
     const tenantId = client.data?.tenantId;
@@ -121,17 +167,23 @@ export class MessagingGateway
         .to(`conv_room_${data.conversationId}`)
         .emit("new_message", message);
 
-      // We don't necessarily need a "message_sent" ack if the sender gets it via "new_message",
-      // but providing an ack is good practice for UI immediate confirmation.
+      // The sender's own read marker moves to this message implicitly.
+      await this.messagingService.markConversationAsRead(
+        data.conversationId,
+        userId,
+      );
+
+      // Ack for optimistic-UI reconciliation.
       client.emit("message_sent", {
         id: message.id,
-        tempId: (data as any).tempId,
+        tempId: data.tempId,
+        conversationId: data.conversationId,
       });
     } catch (e: any) {
       this.logger.error(`Error sending message: ${e.message}`);
       client.emit("message_error", {
         error: e.message,
-        tempId: (data as any).tempId,
+        tempId: data.tempId,
       });
     }
   }
@@ -161,5 +213,66 @@ export class MessagingGateway
     client
       .to(`conv_room_${data.conversationId}`)
       .emit("presence", { userId, status: "online" });
+  }
+
+  @SubscribeMessage("typing")
+  async handleTyping(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { conversationId: string },
+  ) {
+    const userId = client.data?.userId;
+    if (!userId || !data?.conversationId) return;
+
+    // Membership check: typing events reveal conversation existence + activity
+    // to non-members otherwise (IDOR surface).
+    const isMember = await this.messagingService.isConversationMember(
+      data.conversationId,
+      userId,
+    );
+    if (!isMember) return;
+
+    client
+      .to(`conv_room_${data.conversationId}`)
+      .emit("typing", { conversationId: data.conversationId, userId });
+  }
+
+  @SubscribeMessage("stop_typing")
+  async handleStopTyping(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { conversationId: string },
+  ) {
+    const userId = client.data?.userId;
+    if (!userId || !data?.conversationId) return;
+    client
+      .to(`conv_room_${data.conversationId}`)
+      .emit("stop_typing", { conversationId: data.conversationId, userId });
+  }
+
+  @SubscribeMessage("mark_read")
+  async handleMarkRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { conversationId: string },
+  ) {
+    const userId = client.data?.userId;
+    if (!userId || !data?.conversationId) return;
+
+    const isMember = await this.messagingService.isConversationMember(
+      data.conversationId,
+      userId,
+    );
+    if (!isMember) return;
+
+    await this.messagingService.markConversationAsRead(
+      data.conversationId,
+      userId,
+    );
+    // Tell the room so senders can flip pending → read ticks.
+    this.server
+      .to(`conv_room_${data.conversationId}`)
+      .emit("conversation_read", {
+        conversationId: data.conversationId,
+        userId,
+        readAt: new Date().toISOString(),
+      });
   }
 }
