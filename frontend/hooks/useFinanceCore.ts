@@ -291,6 +291,144 @@ export const useFinanceCore = () => {
         [],
     );
 
+    const fetchBalanceSheet = useCallback(async (range?: { asOf?: string }) => {
+        setLoading(true);
+        try {
+            return await apiClient.get(`${glReportsBase}/balance-sheet`, {
+                params: range,
+            });
+        } catch (error) {
+            toast.error('Error fetching balance sheet');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const fetchIncomeStatement = useCallback(
+        async (range?: { from?: string; to?: string }) => {
+            setLoading(true);
+            try {
+                return await apiClient.get(`${glReportsBase}/income-statement`, {
+                    params: range,
+                });
+            } catch (error) {
+                toast.error('Error fetching income statement');
+                return null;
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    // --- GL Journal Entries ---
+
+    const glBase = '/finance-core/general-ledger';
+
+    const fetchJournalEntries = useCallback(
+        async (params?: {
+            from?: string;
+            to?: string;
+            status?: string;
+            sourceType?: string;
+            limit?: number;
+        }) => {
+            setLoading(true);
+            try {
+                return await apiClient.get(glBase, { params });
+            } catch (error) {
+                toast.error('Error fetching journal entries');
+                return [];
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    const fetchJournalEntry = useCallback(async (id: string) => {
+        setLoading(true);
+        try {
+            return await apiClient.get(`${glBase}/${id}`);
+        } catch (error) {
+            toast.error('Error fetching journal entry');
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const createJournalEntry = useCallback(
+        async (data: {
+            entryDate?: string;
+            memo?: string;
+            currency?: string;
+            sourceType?: string;
+            sourceId?: string;
+            sourceReference?: string;
+            status?: string;
+            lines: Array<{
+                glAccountId: string;
+                costCenterId?: string | null;
+                description?: string;
+                debit?: number;
+                credit?: number;
+            }>;
+        }) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.post(glBase, data);
+                toast.success(
+                    data.status === 'DRAFT'
+                        ? 'Draft journal entry saved'
+                        : 'Journal entry posted',
+                );
+                return res;
+            } catch (error: any) {
+                toast.error(
+                    error?.response?.data?.message || 'Failed to create journal entry',
+                );
+                return null;
+            } finally {
+                setLoading(false);
+            }
+        },
+        [],
+    );
+
+    const postJournalEntry = useCallback(async (id: string) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.post(`${glBase}/${id}/post`, {});
+            toast.success('Draft journal entry posted');
+            return res;
+        } catch (error: any) {
+            toast.error(
+                error?.response?.data?.message || 'Failed to post journal entry',
+            );
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const voidJournalEntry = useCallback(async (id: string, reason?: string) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.post(`${glBase}/${id}/void`, { reason });
+            toast.success('Journal entry voided (reversal created)');
+            return res;
+        } catch (error: any) {
+            toast.error(
+                error?.response?.data?.message || 'Failed to void journal entry',
+            );
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     // --- P2P Methods ---
 
     const fetchRequisitions = useCallback(async () => {
@@ -549,6 +687,19 @@ export const useFinanceCore = () => {
         }
     }, []);
 
+    const submitPayrollRun = useCallback(async (id: string) => {
+        setLoading(true);
+        try {
+            const res = await apiClient.post(`/finance/payroll/runs/${id}/submit-for-review`);
+            toast.success('Payroll run submitted for review');
+            return res;
+        } catch (error) {
+            toast.error('Failed to submit payroll run for review');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     const postPayrollRun = useCallback(async (id: string) => {
         setLoading(true);
         try {
@@ -634,6 +785,17 @@ export const useFinanceCore = () => {
         setLoading(true);
         try {
             return await apiClient.delete(`/operational-budgets/expense/${id}`);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const createOperationalExpense = useCallback(async (payload: any) => {
+        setLoading(true);
+        try {
+            return await apiClient.post('/operational-budgets/expense', payload);
+        } catch (error) {
+            toast.error('Failed to create operational expense');
         } finally {
             setLoading(false);
         }
@@ -933,7 +1095,8 @@ export const useFinanceCore = () => {
     }, []);
 
     return {
-        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchVendors, createVendor, updateVendor, setVendorStatus, fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard, fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets, fetchOperationalExpenses, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter, reverseOperationalExpense, getOpexNeedsAttention, getProcurementNeedsAttention,         getBudgetForecastBridge, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch, fetchGlAccounts, seedDefaultChartOfAccounts, createAccountClass, updateAccountClass, deleteAccountClass, createAccountGroup, updateAccountGroup, deleteAccountGroup, createGlAccount, updateGlAccount, deleteGlAccount, fetchTrialBalance, fetchAccountLedger,
+        loading, fetchFiscalYears, fetchEmployees, createFiscalYear, fetchDepartments, fetchChartOfAccounts, fetchRequisitions, createRequisition, fetchPurchaseOrders, createPurchaseOrder, fetchInvoices, createInvoice, fetchVendors, createVendor, updateVendor, setVendorStatus,         fetchBudgetConsumption, fetchPayrollRuns, fetchPayrollKPIs, createPayrollRun, fetchPayrollRunDetails, 
+        addPayrollLineItem, submitPayrollRun, approvePayrollRun, postPayrollRun, fetchOperationalAnalytics, fetchCapexDashboard,  fetchOpexDashboard, downloadPurchaseOrderPdf, downloadInvoicePdf, fetchReportBlob, downloadBlob, fetchWBSForExpense, createLiveExpense, getOpexAnalytics, fetchOperationalBudgets,         fetchOperationalExpenses, createOperationalExpense, updateOperationalExpense, deleteOperationalExpense, approveOperationalExpense, rejectOperationalExpense, submitOperationalBudgetToGovernance, payInvoice, deletePayrollLineItem, createDepartment, createCostCenter, reverseOperationalExpense, getOpexNeedsAttention, getProcurementNeedsAttention,         getBudgetForecastBridge, recordReceipt, getPurchaseOrderReceipts, getThreeWayMatch, fetchGlAccounts, seedDefaultChartOfAccounts, createAccountClass, updateAccountClass, deleteAccountClass, createAccountGroup, updateAccountGroup, deleteAccountGroup, createGlAccount, updateGlAccount, deleteGlAccount, fetchTrialBalance, fetchAccountLedger, fetchBalanceSheet, fetchIncomeStatement, fetchJournalEntries, fetchJournalEntry, createJournalEntry, postJournalEntry, voidJournalEntry,
     };
 };
 

@@ -22,6 +22,7 @@ import DataTable from "../../../components/common/DataTable";
 import { useRouter } from "next/router";
 import { TableSkeleton } from "../../../components/common/LoadingSkeleton";
 import useToastStore from "../../../store/toastStore";
+import useGlobalStore from "../../../store/globalStore";
 
 const varianceBadge = (flag: string) => {
   let badgeColor = 'bg-gray-800 text-gray-400';
@@ -77,6 +78,16 @@ const ExpenseManagementPage: React.FC = () => {
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
   const [projectIdFilter, setProjectIdFilter] = useState("");
+
+  // Workspace context: the header project selector drives this page's
+  // server-side project filter. Selecting a project in the header re-queries;
+  // "All Projects" clears the filter. Page-local overrides still compose
+  // (WBS/description/date) until the workspace context changes again.
+  const workspaceProjectId = useGlobalStore((s) => s.selectedProjectId);
+  useEffect(() => {
+    setPage(1);
+    setProjectIdFilter(workspaceProjectId === "all" ? "" : workspaceProjectId);
+  }, [workspaceProjectId]);
 
   // KPIs
   const kpis = useMemo(() => {

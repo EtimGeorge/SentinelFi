@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import PageContainer from '../../../components/Layout/PageContainer';
@@ -20,6 +20,7 @@ import { WBSApplyTemplateModal } from '../../../components/projects/WBSApplyTemp
 import { WBSImportModal } from '../../../components/projects/WBSImportModal';
 import { WbsCategoryModal } from '../../../components/projects/WbsCategoryModal';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
+import useGlobalStore from '../../../store/globalStore';
 
 export interface WBSItem {
   wbs_id: string;
@@ -77,12 +78,26 @@ const WBSManagerPage: React.FC = () => {
   const [projects, setProjects] = useState<{ project_id: string; project_name: string; currency?: string }[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
 
+  // Workspace context: the header project selector is authoritative — a change
+  // in the global store re-scopes this page. A ?projectId deep-link overrides
+  // once (and writes through to the global context), and the page's own
+  // selector writes through as well, so the header and page never diverge.
+  const workspaceProjectId = useGlobalStore((s) => s.selectedProjectId);
+  const setWorkspaceProjectId = useGlobalStore((s) => s.setSelectedProjectId);
+  const selectProject = useCallback((projectId: string) => {
+    setSelectedProjectId(projectId);
+    setWorkspaceProjectId(projectId);
+  }, [setWorkspaceProjectId]);
+  useEffect(() => {
+    setSelectedProjectId(workspaceProjectId);
+  }, [workspaceProjectId]);
   // Pre-select a project when arriving from the project dossier (Quick Action / Budget tab)
   useEffect(() => {
     const { projectId } = router.query;
     if (typeof projectId === 'string' && projectId) {
-      setSelectedProjectId(projectId);
+      selectProject(projectId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query]);
   const [contractValidation, setContractValidation] = useState<ContractValidation | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -268,6 +283,8 @@ const WBSManagerPage: React.FC = () => {
   }, [isAuthenticated]);
 
   // Fetch projects
+  const workspaceProjectIdRef = useRef(workspaceProjectId);
+  workspaceProjectIdRef.current = workspaceProjectId;
   useEffect(() => {
     if (!isAuthenticated) return;
     const controller = new AbortController();
@@ -277,10 +294,15 @@ const WBSManagerPage: React.FC = () => {
         setProjects(list);
         // Clear a query-driven pre-selection if it isn't accessible to this user
         setSelectedProjectId(prev => (prev !== 'all' && !list.some(p => p.project_id === prev) ? 'all' : prev));
+        // Clear an inaccessible workspace context too (store setter takes a value, not a function).
+        const currentWorkspace = workspaceProjectIdRef.current;
+        if (currentWorkspace !== 'all' && !list.some(p => p.project_id === currentWorkspace)) {
+          setWorkspaceProjectId('all');
+        }
       })
       .catch(() => { });
     return () => controller.abort();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, setWorkspaceProjectId]);
 
   // Project Currency Map for fast lookups
   const projectCurrencyMap = useMemo(() => {
@@ -606,7 +628,7 @@ const WBSManagerPage: React.FC = () => {
               <label className="text-xs font-black text-gray-500 ">Active Project Filter</label>
               <select
                 value={selectedProjectId}
-                onChange={(e) => setSelectedProjectId(e.target.value)}
+                onChange={(e) => selectProject(e.target.value)}
                 className="bg-brand-dark border border-gray-700 rounded-lg p-2 text-xs text-white focus:ring-brand-primary outline-none min-w-[200px]"
               >
                 <option value="all">Consolidated (All Projects)</option>

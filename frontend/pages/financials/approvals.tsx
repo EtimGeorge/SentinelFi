@@ -104,6 +104,7 @@ const ApprovalsPage = () => {
     let wbsItems: ApprovalItem[] = [];
     let reqItems: ApprovalItem[] = [];
     let overrunItems: ApprovalItem[] = [];
+    let payrollItems: ApprovalItem[] = [];
 
     // 1. Fetch WBS pending items (CAPEX)
     try {
@@ -173,7 +174,25 @@ const ApprovalsPage = () => {
       console.error("Expense Overruns Fetch Error:", error);
     }
 
-    const allItems = [...wbsItems, ...reqItems, ...overrunItems];
+    // 4. Fetch Payroll runs awaiting approval (OPEX Governance stream)
+    try {
+      const payrollRes = await apiClient.get("/finance/payroll/runs");
+      const payrollData = Array.isArray(payrollRes)
+        ? payrollRes
+        : payrollRes?.data || payrollRes?.items || [];
+      payrollItems = payrollData
+        .filter((r: any) => r.status === "REVIEW")
+        .map(
+          (r: any) =>
+            ({
+              id: r.id, document_type: "PAYROLL_RUN" as const, description: `Payroll Run ${r.run_number || r.id}`, amount: Number(r.total_amount || r.gross_total || 0), submitted_by: r.submitted_by || r.requested_by?.email || "Payroll", submitted_at: r.created_at || r.submitted_at, fiscal_period: r.fiscalPeriod?.period_name || r.period_name, status: r.status,
+            }) as any,
+        );
+    } catch (error: any) {
+      console.error("Payroll Fetch Error:", error);
+    }
+
+    const allItems = [...wbsItems, ...reqItems, ...overrunItems, ...payrollItems];
     setPendingApprovals(allItems);
     setUnreadCount(allItems.length);
     setLoading(false);

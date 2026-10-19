@@ -35,6 +35,7 @@ const OpexPlanningPage: React.FC = () => {
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [bridge, setBridge] = useState<any[]>([]);
   const [bridgeLoading, setBridgeLoading] = useState(false);
+  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadBridge = async () => {
@@ -46,12 +47,17 @@ const OpexPlanningPage: React.FC = () => {
         const fyYear = selectedFy
           ? parseInt(String(selectedFy.year_label || '').replace(/\D/g, ''), 10) || new Date(selectedFy.start_date || selectedFy.startDate).getFullYear()
           : null;
-        const budget = list.find((b: any) => fyYear && new Date(b.start_date).getFullYear() === fyYear) || list[0];
+        const budget = list.find((b: any) => fyYear && new Date(b.start_date).getFullYear() === fyYear);
         if (budget?.operational_budget_id) {
+          setSelectedBudgetId(budget.operational_budget_id);
           const rows = await getBudgetForecastBridge(budget.operational_budget_id);
           setBridge(Array.isArray(rows) ? rows : []);
         } else {
+          setSelectedBudgetId(null);
           setBridge([]);
+          if (list.length > 0 && fyYear) {
+            toast.error(`No operational budget found for fiscal year ${fyYear}. Create one in Fiscal Setup first.`);
+          }
         }
       } finally {
         setBridgeLoading(false);
@@ -84,7 +90,7 @@ const OpexPlanningPage: React.FC = () => {
       const fyYear = selectedFy
         ? parseInt(String(selectedFy.year_label || '').replace(/\D/g, ''), 10) || new Date(selectedFy.start_date || selectedFy.startDate).getFullYear()
         : null;
-      const budget = list.find((b: any) => fyYear && new Date(b.start_date).getFullYear() === fyYear) || list[0];
+      const budget = list.find((b: any) => fyYear && new Date(b.start_date).getFullYear() === fyYear);
 
       if (!budget?.operational_budget_id) {
         toast.error('No operational budget found for this fiscal cycle. Create one in Fiscal Setup first.');
@@ -192,7 +198,7 @@ const OpexPlanningPage: React.FC = () => {
             <div className="flex-1 overflow-hidden relative z-10">
               {loading ? (
                 <div className="p-6"><TableSkeleton columns={5} rows={8} /></div>
-              ) : coa.length > 0 ? (
+              ) : selectedBudgetId ? (
                 <div className="flex flex-col h-full">
                   {/* Phase 4 (4.6): Forecast Bridge Pulse */}
                   {bridgeLoading ? (
@@ -240,7 +246,7 @@ const OpexPlanningPage: React.FC = () => {
                     </div>
                   ) : null}
                   <div className="flex-1 overflow-hidden">
-                    <PlanningGrid coa={coa} departments={departments} fiscalYear={selectedFy} />
+                    <PlanningGrid budgetId={selectedBudgetId} />
                   </div>
                 </div>
               ) : (

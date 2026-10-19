@@ -79,7 +79,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
     if (!selectedBudgetId) return;
     setLoadingExpenses(true);
     try {
-      const res: any = await fetchOperationalExpenses(selectedBudgetId, 'PENDING');
+      const res: any = await fetchOperationalExpenses(selectedBudgetId);
       setExpenses(res?.data || []);
     } catch (error) {
       toast.error('Failed to load expenses');
@@ -175,7 +175,12 @@ const OperationalBudgetWorkspace: React.FC = () => {
     }
   };
 
-  return (
+      {/* KPIs scoped to the selected budget's fiscal year so totals never double-count across cycles. */}
+      const selectedBudget = budgets.find(b => b.operational_budget_id === selectedBudgetId);
+      const selectedYear = selectedBudget ? new Date(selectedBudget.start_date).getFullYear() : null;
+      const budgetsForYear = selectedYear ? budgets.filter(b => new Date(b.start_date).getFullYear() === selectedYear) : budgets;
+
+      return (
     <>
       <Head>
         <title>Operations Ledger (OPEX) | SentinelFi</title>
@@ -186,7 +191,6 @@ const OperationalBudgetWorkspace: React.FC = () => {
         subtitle="Centralized registry for operational expenditures, budget consumption, and mistake correction."
       >
         <ErrorBoundary>
-          {/* KPI Ribbon */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700" />
@@ -195,7 +199,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
                 <p className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Total Master Budget</p>
               </div>
               <p className="text-3xl font-black text-white tracking-tighter">
-                {budgets.length > 0 ? convertToDisplay(budgets.reduce((acc, b) => acc + Number(b.budgeted_amount || 0), 0), 'NGN') : convertToDisplay(0, 'NGN')}
+                {budgetsForYear.length > 0 ? convertToDisplay(budgetsForYear.reduce((acc, b) => acc + Number(b.budgeted_amount || 0), 0), 'NGN') : convertToDisplay(0, 'NGN')}
               </p>
             </div>
 
@@ -206,7 +210,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
                 <p className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Total Allocated (Actual)</p>
               </div>
               <p className="text-3xl font-black text-white tracking-tighter">
-                {budgets.length > 0 ? convertToDisplay(budgets.reduce((acc, b) => acc + Number(b.actual_spent || 0), 0), 'NGN') : convertToDisplay(0, 'NGN')}
+                {budgetsForYear.length > 0 ? convertToDisplay(budgetsForYear.reduce((acc, b) => acc + Number(b.actual_spent || 0), 0), 'NGN') : convertToDisplay(0, 'NGN')}
               </p>
             </div>
 
@@ -217,7 +221,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
                 <p className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Total Remaining</p>
               </div>
               <p className="text-3xl font-black text-white tracking-tighter">
-                {budgets.length > 0 ? convertToDisplay(budgets.reduce((acc, b) => acc + (Number(b.budgeted_amount || 0) - Number(b.actual_spent || 0)), 0), 'NGN') : convertToDisplay(0, 'NGN')}
+                {budgetsForYear.length > 0 ? convertToDisplay(budgetsForYear.reduce((acc, b) => acc + (Number(b.budgeted_amount || 0) - Number(b.actual_spent || 0)), 0), 'NGN') : convertToDisplay(0, 'NGN')}
               </p>
             </div>
           </div>
@@ -286,7 +290,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
                   <EmptyState
                     icon={<List className="w-10 h-10 text-slate-600" />}
                     title="No Expenses Registered"
-                    subtitle="No pending expenses are registered for the selected budget in this period."
+                    subtitle="No expenses are registered for the selected budget in this period."
                   />
                 ) : (
                   <DataTable
@@ -307,8 +311,8 @@ const OperationalBudgetWorkspace: React.FC = () => {
                     rows={expenses}
                     rowKey={(exp) => exp.operational_expense_id}
                     actions={[
-                      { key: 'approve', label: 'Approve', primary: true, icon: <CheckCircle2 size={14} />, onClick: (exp) => handleApproveExpense(exp) },
-                      { key: 'reject', label: 'Reject', danger: true, icon: <XCircle size={14} />, onClick: (exp) => { setSelectedExpense(exp); setRejectReason(''); setIsRejectModalOpen(true); } },
+                      { key: 'approve', label: 'Approve', primary: true, icon: <CheckCircle2 size={14} />, onClick: (exp) => handleApproveExpense(exp), visible: (exp) => exp.status === 'PENDING' },
+                      { key: 'reject', label: 'Reject', danger: true, icon: <XCircle size={14} />, onClick: (exp) => { setSelectedExpense(exp); setRejectReason(''); setIsRejectModalOpen(true); }, visible: (exp) => exp.status === 'PENDING' },
                       { key: 'edit', label: 'Edit Entry', icon: <Edit size={14} />, onClick: (exp) => openEditModal(exp) },
                       { key: 'delete', label: 'Void Entry', icon: <Trash2 size={14} />, danger: true, onClick: (exp) => { setSelectedExpense(exp); setIsDeleteModalOpen(true); } },
                     ]}

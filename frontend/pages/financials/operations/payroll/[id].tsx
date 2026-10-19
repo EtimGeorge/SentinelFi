@@ -22,7 +22,7 @@ const PayrollRunDetailsPage: React.FC = () => {
   const { convertToDisplay } = useCurrency();
   const { user } = useAuth();
   const {
-    loading, fetchPayrollRunDetails, addPayrollLineItem, approvePayrollRun, postPayrollRun, fetchDepartments, fetchChartOfAccounts, fetchEmployees, deletePayrollLineItem
+    loading, fetchPayrollRunDetails, addPayrollLineItem, submitPayrollRun, approvePayrollRun, postPayrollRun, fetchDepartments, fetchChartOfAccounts, fetchEmployees, deletePayrollLineItem
   } = useFinanceCore();
 
   const [run, setRun] = useState<any>(null);
@@ -82,6 +82,10 @@ const PayrollRunDetailsPage: React.FC = () => {
     setConfirmAction({ type: 'approve' });
   };
 
+  const handleSubmitForReview = () => {
+    setConfirmAction({ type: 'submit-for-review' });
+  };
+
   const handlePost = () => {
     setConfirmAction({ type: 'post' });
   };
@@ -97,6 +101,10 @@ const PayrollRunDetailsPage: React.FC = () => {
       if (confirmAction.type === 'approve') {
         await approvePayrollRun(id as string);
         toast.success('Payroll run approved and locked from editing.');
+        loadData();
+      } else if (confirmAction.type === 'submit-for-review') {
+        await submitPayrollRun(id as string);
+        toast.success('Payroll run submitted for governance review.');
         loadData();
       } else if (confirmAction.type === 'post') {
         await postPayrollRun(id as string);
@@ -156,6 +164,16 @@ const PayrollRunDetailsPage: React.FC = () => {
               Back
             </Button>
             {run.status === 'DRAFT' && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSubmitForReview}
+                icon={<Send className="w-4 h-4" />}
+              >
+                Submit for Review
+              </Button>
+            )}
+            {run.status === 'REVIEW' && (
               <Button
                 variant="primary"
                 size="sm"
@@ -277,7 +295,7 @@ const PayrollRunDetailsPage: React.FC = () => {
                       <DollarSign size={10} /> Funding Impact
                     </p>
                     <p className="text-xs text-gray-400 leading-relaxed italic">
-                      Posting this run will permanently debit departmental OPEX budgets for the {run.fiscalPeriod?.period_name} period.
+                      Posting this run creates GL entries: debit payroll expense lines, credit payroll payable / tax / benefits accounts per the tenant Chart of Accounts. It does not automatically reduce OPEX budget actuals unless the tenant payroll mode is set to OPEX burn.
                     </p>
                   </div>
                 </div>
@@ -416,15 +434,17 @@ const PayrollRunDetailsPage: React.FC = () => {
         )}
         <ConfirmDialog
           open={!!confirmAction}
-          title={confirmAction?.type === 'delete' ? 'Delete Line Item' : confirmAction?.type === 'post' ? 'Post Payroll Run' : 'Approve Payroll Run'}
+          title={confirmAction?.type === 'delete' ? 'Delete Line Item' : confirmAction?.type === 'post' ? 'Post Payroll Run' : confirmAction?.type === 'submit-for-review' ? 'Submit Payroll for Review' : 'Approve Payroll Run'}
           message={
             confirmAction?.type === 'delete'
               ? 'Remove this line item from the payroll run?'
               : confirmAction?.type === 'post'
                 ? 'Are you sure you want to post this payroll run to the General Ledger?'
-                : 'Approve this payroll run? This will lock it from further editing.'
+                : confirmAction?.type === 'submit-for-review'
+                  ? 'Submit this payroll run for governance review? Approvers will be able to approve or reject it.'
+                  : 'Approve this payroll run? This will lock it from further editing.'
           }
-          confirmLabel={confirmAction?.type === 'delete' ? 'Delete' : confirmAction?.type === 'post' ? 'Post' : 'Approve'}
+          confirmLabel={confirmAction?.type === 'delete' ? 'Delete' : confirmAction?.type === 'post' ? 'Post' : confirmAction?.type === 'submit-for-review' ? 'Submit for Review' : 'Approve'}
           tone={confirmAction?.type === 'delete' ? 'danger' : 'default'}
           busy={confirmBusy}
           onConfirm={handleConfirmAction}

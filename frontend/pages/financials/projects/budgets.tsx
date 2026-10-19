@@ -20,6 +20,7 @@ import EmptyState from '../../../components/common/EmptyState';
 import DataTable from '../../../components/common/DataTable';
 import { useRouter } from 'next/router';
 import { TableSkeleton } from '../../../components/common/LoadingSkeleton';
+import useGlobalStore from '../../../store/globalStore';
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
   draft: { label: 'Draft', icon: Edit3, color: 'text-gray-400', bg: 'bg-gray-700/50' }, pending: { label: 'Pending', icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-900/30' }, approved: { label: 'Approved', icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30' }, rejected: { label: 'Rejected', icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30' },
@@ -46,6 +47,14 @@ const BudgetManagementPage: React.FC = () => {
   const [descriptionFilter, setDescriptionFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<WbsBudgetStatus | ''>('');
   const [projectIdFilter, setProjectIdFilter] = useState('');
+
+  // Workspace context: header project selector drives the server-side project
+  // filter (same contract as the Expenses page).
+  const workspaceProjectId = useGlobalStore((s) => s.selectedProjectId);
+  useEffect(() => {
+    setPage(1);
+    setProjectIdFilter(workspaceProjectId === 'all' ? '' : workspaceProjectId);
+  }, [workspaceProjectId]);
 
   const canManage = hasAnyRole([Role.AdminDirector, Role.FinanceManager]);
   const canApprove = hasAnyRole([Role.AdminDirector, Role.FinanceManager, Role.OperationalDirector]);

@@ -21,7 +21,11 @@ interface Project {
 }
 
 interface OperationalBudget {
-  id: string; name: string; budgeted_amount: number; actual_spent: number; category?: { name: string };
+  operational_budget_id: string; name: string; budgeted_amount: number; actual_spent: number;
+}
+
+interface OpexCategory {
+  operational_budget_category_id: string; name: string; type?: string;
 }
 
 interface WbsNode {
@@ -47,6 +51,7 @@ interface ExpenseLine {
   project_id?: string;
   // OPEX only
   opex_budget_id?: string; opex_budget_name?: string;
+  category_id?: string; category_name?: string;
   // Computed
   budget_remaining: number; variance_level: VarianceLevel;
 }
@@ -103,7 +108,6 @@ const calcVariance = (amount: number, remaining: number, budgeted: number): Vari
 const newLine = (): ExpenseLine => ({
   id: `line-${Date.now()}-${Math.random().toString(36).slice(2)}`, description: '', unit_cost: 0, quantity: 1, days: 0, amount: 0, expense_date: new Date().toISOString().split('T')[0], document_reference: '', notes_justification: '', override_reason: '', budget_remaining: 0, variance_level: 'NONE',
 });
-
 // Persistent server-error panel: renders the SERVER's message verbatim
 // (e.g. workspace deactivated) with a retry action, instead of a
 // transient generic toast that hides the real cause.
@@ -225,6 +229,8 @@ export default function ProjectExpenseLogger() {
   // problems like TENANT_DEACTIVATED read clearly instead of a generic toast).
   const [projectLoadError, setProjectLoadError] = useState<ParsedApiError | null>(null);
   const [opexLoadError, setOpexLoadError] = useState<ParsedApiError | null>(null);
+  const [opexCategories, setOpexCategories] = useState<OpexCategory[]>([]);
+  const [opexCategoryLoadError, setOpexCategoryLoadError] = useState<ParsedApiError | null>(null);
 
   // WBS data
   const [wbsNodes, setWbsNodes] = useState<WbsNode[]>([]);
@@ -268,6 +274,21 @@ export default function ProjectExpenseLogger() {
     finally { setLoadingOptions(false); }
   }, []);
 
+  const loadOpexCategories = useCallback(async () => {
+    setLoadingOptions(true);
+    setOpexCategoryLoadError(null);
+    try {
+      const res: any = await apiClient.get('/operational-budgets/categories/list');
+      const unwrapped = res?.data?.data || res?.data || res;
+      const list: OpexCategory[] = Array.isArray(unwrapped) ? unwrapped : (unwrapped?.categories || unwrapped?.items || []);
+      setOpexCategories(list);
+    } catch (e: any) {
+      console.error('Failed to load OPEX categories:', e);
+      setOpexCategoryLoadError(parseApiError(e, 'Failed to load OPEX categories.'));
+    }
+    finally { setLoadingOptions(false); }
+  }, []);
+
   const loadWbs = useCallback(async (projectId: string) => {
     try {
       const res: any = await apiClient.get(`/wbs/budgets?projectId=${projectId}&limit=500&sortBy=wbs_code`);
@@ -289,7 +310,7 @@ export default function ProjectExpenseLogger() {
     const amount = parseFloat((line.unit_cost * qty).toFixed(4));
 
     const wbs = line.wbs_id ? wbsNodes.find(n => n.wbs_id === line.wbs_id) : undefined;
-    const opex = line.opex_budget_id ? opexBudgets.find(b => b.id === line.opex_budget_id) : undefined;
+    const opex = line.opex_budget_id ? opexBudgets.find(b => b.operational_budget_id === line.opex_budget_id) : undefined;
 
     let budgeted = 0;
     let remaining = 0;
@@ -330,7 +351,7 @@ export default function ProjectExpenseLogger() {
     setLines([newLine()]);
     setSelectedProject(null); setSelectedOpexBudget(null);
     if (m === 'CAPEX') { loadProjects(); setStep('SELECT_PROJECT'); }
-    else { loadOpexBudgets(); setStep('SELECT_OPEX'); }
+    else { loadOpexBudgets(); loadOpexCategories(); setStep('SELECT_OPEX'); }
   };
 
   const handleSelectProject = (p: Project) => {
@@ -339,8 +360,9 @@ export default function ProjectExpenseLogger() {
 
   const handleSelectOpex = (b: OperationalBudget) => {
     setSelectedOpexBudget(b); setStep('ENTRY');
+    loadOpexCategories();
     // Pre-fill first line with this OPEX budget
-    setLines([recalcLine({ ...newLine(), opex_budget_id: b.id, opex_budget_name: b.name })]);
+    setLines([recalcLine({ ...newLine(), opex_budget_id: b.operational_budget_id, opex_budget_name: b.name })]);
   };
 
   // ── Submission ─────────────────────────────────────────────────────────────
@@ -350,7 +372,7 @@ export default function ProjectExpenseLogger() {
   }), [lines]);
 
   const handleSubmit = async () => {
-    const invalid = lines.filter((l) => !l.description || l.amount <= 0 || (mode === 'CAPEX' && !l.wbs_id) || (mode === 'OPEX' && !l.opex_budget_id));
+    const invalid = lines.filter((l) => !l.description || l.amount <= 0 || (mode === 'CAPEX' && !l.wbs_id) || (mode === 'OPEX' && (!l.opex_budget_id || !l.category_id)));
     if (invalid.length > 0) {
       toast.error('Complete all required fields on every line.');
       return;
@@ -393,15 +415,18 @@ export default function ProjectExpenseLogger() {
           router.push('/financials/projects/expenses');
         }
       } else {
-        // OPEX Flow
+        // OPEX Flow — canonical endpoint: POST /operational-budgets/expense
         for (const l of lines) {
-          await apiClient.post(`/operational-budgets/${l.opex_budget_id}/expenses`, {
-            description: l.description, amount: l.amount, expense_date: l.expense_date, document_reference: l.document_reference || undefined, notes_justification: l.notes_justification || undefined,
+          await apiClient.post('/operational-budgets/expense', {
+            operational_budget_category_id: l.category_id!,
+            item_description: l.description,
+            amount: l.amount,
+            expense_date: l.expense_date,
+            override_reason: l.override_reason || undefined,
           });
         }
         toast.success(`${lines.length} OPEX expense entries submitted successfully.`);
-        // FE-3: OPEX entries live in the operations ledger, not the CAPEX
-        // stream — redirect where the entries are actually visible.
+        // OPEX entries live in the operations ledger — redirect where they are visible.
         router.push('/financials/operations/manage');
       }
     } catch (err: any) {
@@ -571,16 +596,13 @@ export default function ProjectExpenseLogger() {
                   const used = b.budgeted_amount > 0
                     ? Math.min(100, (b.actual_spent / b.budgeted_amount) * 100) : 0;
                   return (
-                    <button key={b.id} onClick={() => handleSelectOpex(b)}
+                    <button key={b.operational_budget_id} onClick={() => handleSelectOpex(b)}
                       className="group text-left p-5 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-blue-500/40 hover:bg-slate-900 transition-all duration-200"
                     >
                       <div className="flex items-center gap-3 mb-3">
                         <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
                           <Building2 className="w-4 h-4 text-blue-400" />
                         </div>
-                        {b.category && (
-                          <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{b.category.name}</span>
-                        )}
                       </div>
                       <h3 className="font-black text-white text-sm uppercase tracking-tight leading-snug group-hover:text-blue-400 transition line-clamp-2">{b.name}</h3>
                       <div className="mt-3 space-y-1">
@@ -699,11 +721,33 @@ export default function ProjectExpenseLogger() {
 
                         {/* OPEX Budget Label */}
                         {mode === 'OPEX' && (
-                          <div className="lg:col-span-5">
+                          <div className="lg:col-span-3">
                             <label className="field-label">Operational Budget</label>
                             <div className="px-3 py-2.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-sm font-bold text-blue-400">
                               {line.opex_budget_name || selectedOpexBudget?.name || '-'}
                             </div>
+                          </div>
+                        )}
+
+                        {/* OPEX Category Selector */}
+                        {mode === 'OPEX' && (
+                          <div className="lg:col-span-3">
+                            <label className="field-label">Budget Category *</label>
+                            <select
+                              value={line.category_id || ''}
+                              onChange={e => updateLine(line.id, { category_id: e.target.value || undefined })}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-brand-primary/40"
+                            >
+                              <option value="">Select category…</option>
+                              {opexCategories.map(c => (
+                                <option key={c.operational_budget_category_id} value={c.operational_budget_category_id}>
+                                  {c.name}{c.type ? ` · ${c.type}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            {opexCategories.length === 0 && (
+                              <p className="text-xs text-slate-500 mt-1 italic">No categories. Create one in Operations Ledger → Categories.</p>
+                            )}
                           </div>
                         )}
 

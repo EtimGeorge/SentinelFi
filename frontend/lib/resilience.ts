@@ -116,6 +116,12 @@ export class CircuitBreaker {
       throw new Error('Circuit protection active. Please try again later.');
     }
 
+    // Track half-open test request so concurrent requests respect halfOpenMaxRequests.
+    // isOpen() may have just transitioned OPEN → HALF_OPEN and reset halfOpenRequests to 0.
+    if (this.state === 'HALF_OPEN') {
+      this.halfOpenRequests++;
+    }
+
     try {
       const result = await action();
       this.recordSuccess();
@@ -165,7 +171,7 @@ export class CircuitBreaker {
   private recordSuccess(): void {
     this.consecutiveSuccesses++;
     if (this.state === 'HALF_OPEN') {
-      this.halfOpenRequests++;
+      // halfOpenRequests was already incremented in execute() when the request was admitted.
       if (this.halfOpenRequests >= this.halfOpenMaxRequests) {
         this.state = 'CLOSED';
         this.failures = 0;
