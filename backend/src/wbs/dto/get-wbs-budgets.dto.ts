@@ -6,6 +6,11 @@ import { WBS_BUDGET_SORT_COLUMNS } from "../wbs-sort.constants";
 export class GetWbsBudgetsDto extends PaginationDto {
   @IsOptional()
   @IsString()
+  /** Unified free-text search across wbs_code and description (GlobalSearch). */
+  search?: string;
+
+  @IsOptional()
+  @IsString()
   wbsCode?: string;
 
   @IsOptional()

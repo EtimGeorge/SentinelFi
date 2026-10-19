@@ -13,6 +13,11 @@ import { LIVE_EXPENSE_SORT_COLUMNS } from "../wbs-sort.constants";
 
 export class GetLiveExpensesDto extends PaginationDto {
   @IsOptional()
+  @IsString()
+  /** Unified free-text search across description and linked WBS code (GlobalSearch). */
+  search?: string;
+
+  @IsOptional()
   @IsUUID()
   wbsId?: string;
 

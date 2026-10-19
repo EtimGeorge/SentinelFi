@@ -2022,6 +2022,7 @@ export class WbsService {
     const {
       wbsCode,
       description,
+      search,
       status,
       categoryId,
       projectId,
@@ -2052,6 +2053,12 @@ export class WbsService {
       queryBuilder.andWhere("wbs.description ILIKE :description", {
         description: `%${description}%`,
       });
+    }
+    if (search) {
+      queryBuilder.andWhere(
+        "(wbs.wbs_code ILIKE :search OR wbs.description ILIKE :search OR project.project_name ILIKE :search)",
+        { search: `%${search}%` },
+      );
     }
     if (status) {
       queryBuilder.andWhere("wbs.status = :status", { status });
@@ -2145,6 +2152,7 @@ export class WbsService {
       wbsId,
       projectId,
       description,
+      search,
       minAmount,
       maxAmount,
       userId,
@@ -2156,6 +2164,7 @@ export class WbsService {
 
     const queryBuilder = this.liveExpenseRepository
       .createQueryBuilder("liveExpense")
+      .leftJoin("liveExpense.wbsBudget", "wbsSearch")
       .where("liveExpense.tenant_id = :tenant_id", { tenant_id });
 
     if (wbsId) {
@@ -2170,6 +2179,12 @@ export class WbsService {
       queryBuilder.andWhere("liveExpense.description ILIKE :description", {
         description: `%${description}%`,
       });
+    }
+    if (search) {
+      queryBuilder.andWhere(
+        "(liveExpense.description ILIKE :search OR wbsSearch.wbs_code ILIKE :search OR wbsSearch.description ILIKE :search)",
+        { search: `%${search}%` },
+      );
     }
     if (minAmount) {
       queryBuilder.andWhere("liveExpense.amount >= :minAmount", { minAmount });
@@ -2204,6 +2219,7 @@ export class WbsService {
       if (wbsId) fallbackQuery.andWhere("liveExpense.wbs_id = :wbsId", { wbsId });
       if (projectId) fallbackQuery.andWhere("liveExpense.project_id = :projectId", { projectId });
       if (description) fallbackQuery.andWhere("liveExpense.description ILIKE :description", { description: `%${description}%` });
+      if (search) fallbackQuery.andWhere("liveExpense.description ILIKE :search", { search: `%${search}%` });
       if (minAmount) fallbackQuery.andWhere("liveExpense.amount >= :minAmount", { minAmount });
       if (maxAmount) fallbackQuery.andWhere("liveExpense.amount <= :maxAmount", { maxAmount });
       if (userId) fallbackQuery.andWhere("liveExpense.user_id = :userId", { userId });

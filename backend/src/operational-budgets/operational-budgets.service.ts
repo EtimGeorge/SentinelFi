@@ -16,6 +16,7 @@ import {
   LessThanOrEqual,
   SelectQueryBuilder,
 } from "typeorm";
+import { InjectRepository } from "@nestjs/typeorm";
 import { TENANT_DATA_SOURCE } from "../database/constants";
 import { OperationalBudgetEntity } from "./operational-budget.entity";
 import { CreateOperationalBudgetDto } from "./dto/create-operational-budget.dto";
@@ -64,6 +65,7 @@ import {
 } from "../general-ledger/general-ledger.service";
 import { ChartOfAccountsService } from "../finance-core/chart-of-accounts.service";
 import { GLAccountEntity } from "../finance-core/entities/gl-account.entity";
+import { ApprovalLogEntity, ApprovalDocumentType, ApprovalStatus } from "../common/entities/approval-log.entity";
 import { JournalSourceType } from "@shared/types";
 import { SYSTEM_ACCOUNT_CODES } from "../finance-core/default-chart-of-accounts";
 
@@ -156,6 +158,8 @@ export class OperationalBudgetsService {
     private readonly auditService: AuditService,
     private readonly generalLedgerService: GeneralLedgerService,
     private readonly chartOfAccountsService: ChartOfAccountsService,
+    @InjectRepository(ApprovalLogEntity, TENANT_DATA_SOURCE)
+    private approvalLogRepo: Repository<ApprovalLogEntity>,
   ) {}
 
   // Centralized Governance Constants
@@ -1366,6 +1370,19 @@ export class OperationalBudgetsService {
       this.expenseSnapshot(approved),
     );
 
+    // PERSIST APPROVAL LOG — OPEX expense approval
+    await this.approvalLogRepo.save(
+      this.approvalLogRepo.create({
+        tenant_id: tenantId,
+        document_type: ApprovalDocumentType.OPEX_EXPENSE,
+        document_id: expenseId,
+        status: ApprovalStatus.APPROVED,
+        actor_id: approverUserId,
+        amount: Number(expense.amount || 0),
+        comments: `OPEX expense approved by ${actorRole || "unknown"}`,
+      }),
+    );
+
     // Update category + budget actual spend (same as logExpense)
     if (expense.operational_budget_category_id) {
       const category = await this.dataSource
@@ -1451,6 +1468,19 @@ export class OperationalBudgetsService {
       expenseId,
       beforeSnapshot,
       this.expenseSnapshot(rejected),
+    );
+
+    // PERSIST APPROVAL LOG — OPEX expense rejection
+    await this.approvalLogRepo.save(
+      this.approvalLogRepo.create({
+        tenant_id: tenantId,
+        document_type: ApprovalDocumentType.OPEX_EXPENSE,
+        document_id: expenseId,
+        status: ApprovalStatus.REJECTED,
+        actor_id: approverUserId,
+        amount: Number(expense.amount || 0),
+        comments: `OPEX expense rejected by ${actorRole || "unknown"}: ${reason || "No reason provided"}`,
+      }),
     );
 
     this.logger.warn(
@@ -2311,6 +2341,19 @@ export class OperationalBudgetsService {
         "warning",
       );
     }
+
+    // PERSIST APPROVAL LOG — OPEX budget submission to governance
+    await this.approvalLogRepo.save(
+      this.approvalLogRepo.create({
+        tenant_id: tenantId,
+        document_type: ApprovalDocumentType.OPEX_BUDGET_SUBMISSION,
+        document_id: budgetId,
+        status: ApprovalStatus.SUBMITTED,
+        actor_id: userId,
+        amount: summary.totalPendingAmount,
+        comments: `OPEX budget submitted to governance by ${actorRole || "unknown"}`,
+      }),
+    );
 
     return summary;
   }

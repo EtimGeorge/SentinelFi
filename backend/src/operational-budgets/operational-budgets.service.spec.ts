@@ -127,6 +127,7 @@ function buildService(overrides: {
     {} as any,
     {} as any,
     {} as any,
+    makeRepo([]) as any,
   );
 
   return { service, encBuilder };
