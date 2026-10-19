@@ -13,6 +13,10 @@ import {
 } from "./currency.entity";
 import { Cron, CronExpression } from "@nestjs/schedule";
 
+const
+
+FX_MAX_STALE_MS = Number(process.env.FX_MAX_STALE_HOURS ?? 24) * 60 * 60 * 1000;
+
 interface ExchangeRateResponse {
   result: string;
   conversion_rates: Record<string, number>;
@@ -45,6 +49,11 @@ export function convertWithMap(
   const toRate = to === "USD" ? 1 : rates[to];
   if (!fromRate || !toRate) return { value: amount, converted: false };
   return { value: (amount / fromRate) * toRate, converted: true };
+}
+
+function isFxRateStale(lastUpdated: Date | null, now: number = Date.now()): boolean {
+  if (!lastUpdated || isNaN(lastUpdated.getTime())) return true;
+  return now - lastUpdated.getTime() > FX_MAX_STALE_MS;
 }
 
 export interface NormalizedSum {
@@ -309,9 +318,9 @@ export class CurrencyService implements OnModuleInit {
         order: { lastUpdated: "DESC" },
       });
 
-      if (!rateEntity) {
+      if (!rateEntity || isFxRateStale(rateEntity.lastUpdated)) {
         throw new HttpException(
-          `Exchange rate not found for ${toCurrency}`,
+          `Exchange rate stale or missing for ${toCurrency}`,
           HttpStatus.NOT_FOUND,
         );
       }
@@ -356,9 +365,9 @@ export class CurrencyService implements OnModuleInit {
       }),
     ]);
 
-    if (!fromRateEntity || !toRateEntity) {
+    if (!fromRateEntity || isFxRateStale(fromRateEntity.lastUpdated) || !toRateEntity || isFxRateStale(toRateEntity.lastUpdated)) {
       throw new HttpException(
-        `Exchange rate not found for conversion between ${fromCurrency} and ${toCurrency}`,
+        `Exchange rate stale or missing for conversion between ${fromCurrency} and ${toCurrency}`,
         HttpStatus.NOT_FOUND,
       );
     }

@@ -54,6 +54,12 @@ export const envValidationSchema = Joi.object({
   THROTTLE_TTL_MS: Joi.number().integer().positive().optional().default(60000),
   THROTTLE_LIMIT: Joi.number().integer().positive().optional().default(10),
 
+  // Foreign exchange rates. When a cached/stored FX rate is older than
+  // FX_MAX_STALE_HOURS, we refuse to use it for approvals/commitments that
+  // could cross-currency boundaries (instead we fail closed and ask operators
+  // to refresh FX).
+  FX_MAX_STALE_HOURS: Joi.number().integer().min(1).max(720).optional().default(24),
+
   // Email delivery. Resend is the default provider; SMTP is the fallback.
   // EMAIL_FROM must be a sender verified with the chosen provider or the
   // provider will reject every send. EMAIL_PREVIEW_ONLY defaults to on outside
