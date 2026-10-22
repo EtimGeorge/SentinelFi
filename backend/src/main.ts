@@ -29,8 +29,56 @@ async function bootstrap() {
       configService.get<string>("FRONTEND_URL") || "http://localhost:3000";
     const nodeEnv = configService.get<string>("NODE_ENV") || "development";
 
+    // CORS: FRONTEND_URL is canonical; FRONTEND_ALLOWED_ORIGINS adds a
+    // comma-separated allowlist (e.g. a staging origin or the Socket.io
+    // origin). Previously `origin` was a single string, so a second legitimate
+    // frontend could never be allowed.
+    const allowedOrigins = Array.from(
+      new Set(
+        [
+          frontendUrl,
+          ...(configService.get<string>("FRONTEND_ALLOWED_ORIGINS") || "")
+            .split(",")
+            .map((o) => o.trim())
+            .filter(Boolean),
+        ].map((o) => o.replace(/\/+$/, "")),
+      ),
+    );
+
+    // Dev ergonomics: `localhost` and `127.0.0.1` are the same machine but
+    // different browser origins. Accepting both in non-production prevents a
+    // confusing CSRF/CORS rejection when a developer happens to open the app
+    // via the other hostname. Production stays strict to the configured list.
+    if (nodeEnv !== "production") {
+      for (const origin of [...allowedOrigins]) {
+        try {
+          const url = new URL(origin);
+          if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+            const aliasHost =
+              url.hostname === "localhost" ? "127.0.0.1" : "localhost";
+            allowedOrigins.push(
+              `${url.protocol}//${aliasHost}${url.port ? `:${url.port}` : ""}`,
+            );
+          }
+        } catch {
+          // A non-URL entry (e.g. a custom scheme) is used verbatim.
+        }
+      }
+    }
+
     app.enableCors({
-      origin: frontendUrl,
+      origin: (
+        origin: string | undefined,
+        callback: (err: Error | null, allow?: boolean) => void,
+      ) => {
+        // Non-browser clients send no Origin; allow them (they can't be
+        // exploited via a victim's cookies anyway).
+        if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ""))) {
+          return callback(null, true);
+        }
+        // Deny by omitting CORS headers (not by throwing — that would 500).
+        return callback(null, false);
+      },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Correlation-ID", "X-Request-ID"],
@@ -38,6 +86,47 @@ async function bootstrap() {
     });
 
     app.use(cookieParser());
+
+    // CSRF defense: SameSite=Lax on the access cookie is the primary control,
+    // but it is defense-in-depth to additionally verify Origin/Referer on
+    // state-changing requests that authenticate via *cookie*. Bearer-token
+    // clients (and webhooks, which carry no cookie) are unaffected, so this
+    // can't break mobile/API integrations. csurf is deprecated; origin
+    // validation is the recommended modern equivalent for same-origin SPAs.
+    const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (SAFE_METHODS.has(req.method)) return next();
+      const cookieAuth = Boolean((req as any).cookies?.access_token);
+      if (!cookieAuth) return next();
+
+      const origin = req.get("origin");
+      const referer = req.get("referer");
+      let source: string | null = null;
+      if (origin) {
+        source = origin;
+      } else if (referer) {
+        try {
+          source = new URL(referer).origin;
+        } catch {
+          source = null;
+        }
+      }
+      // Browsers attach Origin to cross-site state-changing requests. If it is
+      // absent this is not a cross-site browser request; SameSite still covers
+      // it. Reject only an explicitly disallowed source.
+      if (source && !allowedOrigins.includes(source.replace(/\/+$/, ""))) {
+        logger.warn(
+          `[CSRF] Blocked ${req.method} ${req.originalUrl} from origin ${source} (cookie auth)`,
+        );
+        res.status(403).json({
+          statusCode: 403,
+          code: "CSRF_ORIGIN_MISMATCH",
+          message: "Cross-site request blocked.",
+        });
+        return;
+      }
+      next();
+    });
 
     // Capture rawBody for webhook HMAC verification (Paystack needs raw string, PayPal needs raw + headers)
     app.use(
