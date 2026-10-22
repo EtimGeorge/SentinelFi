@@ -6,8 +6,9 @@ import { useSecuredApi } from '../../components/hooks/useSecuredApi';
 import { useAuth } from '../../components/context/AuthContext';
 import { useCurrency } from '../../components/context/CurrencyContext'; // Import Hook
 // No formatting required here anymore
-import WBSHierarchyTree from '../../components/dashboard/WBSHierarchyTree';
+import { WbsBudgetRollup as RollupData } from '@shared/types/wbs';
 import SpendingChart from '../../components/dashboard/SpendingChart';
+import WBSHierarchyTree from '../../components/dashboard/WBSHierarchyTree';
 import Card from '../../components/common/Card';
 import KpiCard from '../../components/common/KpiCard';
 import MetricHero from '../../components/dashboard/MetricHero';
@@ -30,18 +31,6 @@ const DatePicker = dynamic(() => import('react-datepicker'), {
 const toYYYYMMDD = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };
-
-// Interface for the data returned from the production-ready Recursive CTE endpoint
-interface RollupData {
-  wbs_id: string;
-  parent_wbs_id: string | null;
-  wbs_code: string;
-  description: string;
-  total_cost_budgeted: string; // From DB (NUMERIC)
-  total_paid_rollup: string;   // From DB (NUMERIC)
-  total_paid_self: string;     // From DB (NUMERIC)
-  total_committed_lpo: string;
-}
 
 const CEODashboard: React.FC = () => {
   const { user } = useAuth();
@@ -139,10 +128,10 @@ const CEODashboard: React.FC = () => {
             parent_wbs_id: null,
             wbs_code: String(b.type || 'OPEX').toUpperCase(),
             description: b.name,
-            total_cost_budgeted: b.totalBudget.toString(),
-            total_paid_rollup: b.totalSpend.toString(),
-            total_paid_self: '0',
-            total_committed_lpo: '0'
+            total_cost_budgeted: Number(b.totalBudget) || 0,
+            total_paid_rollup: Number(b.totalSpend) || 0,
+            total_paid_self: 0,
+            total_committed_lpo: 0
           });
           b.categories?.forEach((c: any) => {
             mappedData.push({
@@ -150,10 +139,10 @@ const CEODashboard: React.FC = () => {
               parent_wbs_id: b.id,
               wbs_code: 'CAT',
               description: c.name,
-              total_cost_budgeted: c.budgeted.toString(),
-              total_paid_rollup: c.actual.toString(),
-              total_paid_self: c.actual.toString(),
-              total_committed_lpo: '0'
+              total_cost_budgeted: Number(c.budgeted) || 0,
+              total_paid_rollup: Number(c.actual) || 0,
+              total_paid_self: Number(c.actual) || 0,
+              total_committed_lpo: 0
             });
           });
         });
