@@ -5,9 +5,7 @@ import api from '../../../lib/api';
 import Card from '../../common/Card';
 import Button from '../../common/Button';
 import { useCurrency } from '../../context/CurrencyContext';
-import {
-  Download, Printer, Layers, AlertCircle, TrendingDown, Zap, ShieldCheck, Plus,
-} from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { WbsBudget } from '@shared/types/wbs';
 import { LiveExpense } from '@shared/types/expense';
 import { ProjectStatus } from '@shared/types/project';
@@ -16,8 +14,14 @@ import {
   ProjectDetail, CashFlowPoint, DossierTab,
 } from './types';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, PieChart, Pie, Area, ComposedChart, Line,
-} from 'recharts';
+  ResponsiveChartContainer,
+  ChartPie,
+  ChartArea,
+  ChartLine,
+  ChartBar,
+  CHART_COLORS,
+} from '../../chart';
+import { Download, Printer, Layers, AlertCircle, TrendingDown, Zap, ShieldCheck, Plus, CircleAlert } from 'lucide-react';
 
 interface OverviewTabProps {
   project: ProjectDetail;
@@ -88,36 +92,36 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, budgets, expenses, c
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
         <div className="lg:col-span-2 space-y-6">
-          <Card title="Executive Summary" accent="primary" className="border border-gray-700 elev-lg">
+          <Card title="Executive Summary" accent="primary" className="border border-gray-700">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-gray-300">
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-bold text-gray-500 ">Project Name</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Project Name</label>
                   <p className="text-xl font-semibold text-white">{project.project_name}</p>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-500 ">Client</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Client</label>
                   <p className="text-sm font-semibold text-brand-secondary uppercase">{project.client?.name || 'Internal Project'}</p>
                   {project.client?.industry && <p className="text-xs text-gray-500 italic">{project.client.industry}</p>}
                 </div>
                 <div className="flex items-center space-x-6">
                   <div>
-                    <label className="text-xs font-bold text-gray-500 ">RFQ No.</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">RFQ No.</label>
                     <p className="text-sm text-brand-primary font-mono">{project.rfq_number || 'N/A'}</p>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 ">Status</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Status</label>
                     <p className="text-sm"><span className="px-2 py-0.5 rounded-full bg-green-900/30 text-green-400 border border-green-800 text-xs font-bold uppercase">{project.status}</span></p>
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-500 ">Scope of Work</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Scope of Work</label>
                   <p className="text-sm leading-relaxed">{project.sow_details || 'No SOW details provided.'}</p>
                 </div>
               </div>
               <div className="space-y-4 bg-brand-dark/30 p-4 rounded-xl border border-gray-800/50">
                 <div>
-                  <label className="text-xs font-bold text-gray-500 ">Financial Configuration</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Financial Configuration</label>
                   <div className="mt-2 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Currency</span>
@@ -171,32 +175,23 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, budgets, expenses, c
             </Card>
             <Card title="Budget Health Index" accent="primary" className="border border-gray-700 flex flex-col items-center justify-center">
               <div className="h-40 w-full relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { value: Math.min(project.total_budgeted_rollup, project.contract_value) },
-                        { value: Math.max(0, project.contract_value - project.total_budgeted_rollup) }
-                      ]}
-                      cx="50%"
-                      cy="80%"
-                      startAngle={180}
-                      endAngle={0}
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={0}
-                      dataKey="value"
-                    >
-                      <Cell fill={project.total_budgeted_rollup > project.contract_value ? '#EF4444' : '#10B981'} />
-                      <Cell fill="#1F2937" />
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
+                <ResponsiveChartContainer width="100%" height="100%">
+                  <ChartPie
+                    data={[
+                      { name: 'Budgeted', value: Math.min(project.total_budgeted_rollup, project.contract_value), fill: project.total_budgeted_rollup > project.contract_value ? '#EF4444' : '#10B981' },
+                      { name: 'Remaining', value: Math.max(0, project.contract_value - project.total_budgeted_rollup), fill: '#1F2937' },
+                    ]}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={60}
+                    outerRadius={80}
+                  />
+                </ResponsiveChartContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-end pb-4">
                   <p className="text-2xl font-black text-white">
                     {((project.total_budgeted_rollup / (project.contract_value || 1)) * 100).toFixed(0)}%
                   </p>
-                  <p className="text-xs text-gray-500 uppercase font-black">Capacity Used</p>
+                  <p className="text-xs text-gray-400 uppercase font-black">Capacity Used</p>
                 </div>
               </div>
               <p className="text-xs text-gray-400 mt-2 text-center">
@@ -213,14 +208,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, budgets, expenses, c
             <div className="space-y-6">
               <div className="flex justify-between items-end">
                 <div>
-                  <label className="text-xs font-bold text-gray-500 ">Projected Margin</label>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Projected Margin</label>
                   <p className={`text-3xl font-bold tracking-tight ${project.contract_value - project.total_budgeted_rollup >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {((project.contract_value - project.total_budgeted_rollup) / (project.contract_value || 1) * 100).toFixed(1)}%
                   </p>
                 </div>
                 <div className="text-right">
                   <label className="text-xs font-bold text-gray-400 ">Current Realized</label>
-                  <p className="text-lg font-bold text-white">
+                  <p className="text-3xl font-bold text-white">
                     {((project.contract_value - project.total_paid_rollup) / (project.contract_value || 1) * 100).toFixed(1)}%
                   </p>
                 </div>
@@ -247,7 +242,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, budgets, expenses, c
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <label className="text-xs font-bold text-gray-500 ">Invoiced/Received</label>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Invoiced/Received</label>
                   <p className="text-2xl font-bold text-white">{convertToDisplay(project.total_inflow_rollup, currency)}</p>
                 </div>
                 <Button variant="secondary" size="sm" onClick={() => onNavigate('inflows')}>
@@ -312,63 +307,48 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, budgets, expenses, c
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
         <Card title="Project Financial Trajectory (Burn-up)" accent="primary" className="border border-gray-700">
           <div className="h-[300px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={(() => {
-                let cumulativeOutflow = 0;
-                return cashflow.map(cf => {
-                  cumulativeOutflow += cf.outflow;
-                  return {
-                    name: MONTH_NAMES[cf.month - 1], budget: convertAmount(project?.total_budgeted_rollup || 0, project?.currency || 'NGN', userCurrency.code), actual: convertAmount(cumulativeOutflow, project?.currency || 'NGN', userCurrency.code)
-                  };
-                });
-              })()}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                <XAxis dataKey="name" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis
-                  stroke="#9CA3AF"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => `${userCurrency.symbol}${value / 1000}k`}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px' }}
-                  itemStyle={{ fontSize: '12px' }}
-                  formatter={(value: number) => [convertToDisplay(value), '']}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }} />
-                <Area type="monotone" dataKey="budget" name="Total Budgeted" fill="#1F2937" stroke="#374151" />
-                <Line type="monotone" dataKey="actual" name="Cumulative Spend" stroke="#EF4444" strokeWidth={3} dot={{ r: 4, fill: '#EF4444' }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <ResponsiveChartContainer width="100%" height="100%">
+              <ChartArea
+                data={(() => {
+                  let cumulativeOutflow = 0;
+                  return cashflow.map(cf => {
+                    cumulativeOutflow += cf.outflow;
+                    return {
+                      name: MONTH_NAMES[cf.month - 1],
+                      budget: convertAmount(project?.total_budgeted_rollup || 0, project?.currency || 'NGN', userCurrency.code),
+                      actual: convertAmount(cumulativeOutflow, project?.currency || 'NGN', userCurrency.code),
+                    };
+                  });
+                })()}
+                xDataKey="name"
+                yDataKeys={['budget', 'actual']}
+                yDataLabels={{ budget: 'Total Budgeted', actual: 'Cumulative Spend' }}
+                colors={[CHART_COLORS.muted, CHART_COLORS.critical]}
+                strokeWidth={2}
+                dot={{ r: 4, fill: CHART_COLORS.critical }}
+                height={300}
+              />
+            </ResponsiveChartContainer>
           </div>
         </Card>
 
         <Card title="Monthly Cash Flow Heatmap" accent="secondary" className="border border-gray-700">
           <div className="h-[300px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cashflow.map(cf => ({
-                ...cf, name: MONTH_NAMES[cf.month - 1], inflow: convertAmount(cf.inflow, project?.currency || 'NGN', userCurrency.code), outflow: convertAmount(cf.outflow, project?.currency || 'NGN', userCurrency.code)
-              }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                <XAxis dataKey="name" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis
-                  stroke="#9CA3AF"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => `${userCurrency.symbol}${value / 1000}k`}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px' }}
-                  itemStyle={{ fontSize: '12px' }}
-                  formatter={(value: number) => [convertToDisplay(value), '']}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }} />
-                <Bar dataKey="inflow" name="Cash In" fill="#10B981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="outflow" name="Cash Out" fill="#EF4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <ResponsiveChartContainer width="100%" height="100%">
+              <ChartBar
+                data={cashflow.map(cf => ({
+                  ...cf,
+                  name: MONTH_NAMES[cf.month - 1],
+                  inflow: convertAmount(cf.inflow, project?.currency || 'NGN', userCurrency.code),
+                  outflow: convertAmount(cf.outflow, project?.currency || 'NGN', userCurrency.code),
+                }))}
+                xDataKey="name"
+                yDataKeys={['inflow', 'outflow']}
+                yDataLabels={{ inflow: 'Cash In', outflow: 'Cash Out' }}
+                colors={[CHART_COLORS.success, CHART_COLORS.critical]}
+                height={300}
+              />
+            </ResponsiveChartContainer>
           </div>
         </Card>
       </div>

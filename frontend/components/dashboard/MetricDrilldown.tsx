@@ -1,7 +1,14 @@
 import React, { useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useCurrency } from '../../components/context/CurrencyContext';
+import {
+  ResponsiveChartContainer,
+  ChartXAxis,
+  ChartYAxis,
+  ChartTooltip,
+  ChartCartesianGrid,
+  ChartArea,
+} from '../chart';
+import { useCurrency } from '../context/CurrencyContext';
 
 export interface DrilldownPoint {
   date: string;
@@ -31,7 +38,8 @@ const MetricDrilldown: React.FC<MetricDrilldownProps> = ({
   const series = useMemo(() => {
     const src = sourceCurrency || 'NGN';
     return history.map((h) => ({
-      date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), value: convertAmount(h.amount, src, userCurrency.code),
+      date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      value: convertAmount(h.amount, src, userCurrency.code),
     }));
   }, [history, sourceCurrency, userCurrency.code, convertAmount]);
 
@@ -71,7 +79,7 @@ const MetricDrilldown: React.FC<MetricDrilldownProps> = ({
         className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-gray-700 bg-brand-dark elev-lg animate-in slide-in-from-right-full duration-300"
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-gray-700 bg-brand-dark/50 p-5">
+        <div className="flex items-center justify-between gap-3 border-b border-gray-700 bg-brand-dark/50 p-5">
           <div className="min-w-0">
             <p className="text-label text-gray-500">{title}</p>
             <h3 className="mt-0.5 truncate text-lg font-semibold text-white">{subtitle || '\u00a0'}</h3>
@@ -90,25 +98,18 @@ const MetricDrilldown: React.FC<MetricDrilldownProps> = ({
         {/* Chart */}
         <div className="h-56 w-full px-5 pt-5">
           {series.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={series}>
-                <defs>
-                  <linearGradient id="drilldownFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--chart-budget)" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="var(--chart-budget)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                <XAxis dataKey="date" stroke="var(--chart-axis)" fontSize={10} tickLine={false} axisLine={false} minTickGap={24} />
-                <YAxis stroke="var(--chart-axis)" fontSize={10} tickLine={false} axisLine={false} width={54} tickFormatter={(v) => `${userCurrency.symbol}${(Number(v) / 1000).toFixed(0)}k`} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: 'var(--chart-tooltip)', border: '1px solid var(--chart-axis)', borderRadius: '8px' }}
-                  itemStyle={{ fontSize: '12px' }}
-                  formatter={(value: any) => [convertToDisplay(Number(value)), 'Value']}
-                />
-                <Area type="monotone" dataKey="value" stroke="var(--chart-budget)" strokeWidth={2} fill="url(#drilldownFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <ResponsiveChartContainer width="100%" height="100%">
+              <ChartArea
+                data={series}
+                xDataKey="date"
+                yDataKeys={['value']}
+                stroke="#5e6ad2"
+                strokeWidth={2}
+                fill="var(--chart-fill)"
+                fillOpacity={0.28}
+                yTickFormatter={(v) => `${userCurrency.symbol}${(Number(v) / 1000).toFixed(0)}k`}
+              />
+            </ResponsiveChartContainer>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-gray-500">No history in this period.</div>
           )}

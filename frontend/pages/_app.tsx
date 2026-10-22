@@ -14,6 +14,7 @@ import PublicLayout from '../components/Layout/PublicLayout'; // New PublicLayou
 import AppLoadingFallback from '../components/common/AppLoadingFallback'; // New AppLoadingFallback
 import '../styles/globals.css';
 import '../styles/marketing.css';
+import '../components/chart/ChartTheme.css';
 import { Toaster } from 'react-hot-toast'; // For toast notifications
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Role } from '../components/context/AuthContext';

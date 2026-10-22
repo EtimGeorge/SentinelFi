@@ -1,0 +1,195 @@
+/* ============================================================
+   CHART DESIGN TOKENS & ANIMATIONS
+   Source of truth for all chart styling across the app.
+   Follows DESIGN.md: dark canvas, lavender-blue accent, hairline borders,
+   surface ladder, tabular-nums for figures, no decorative gradients.
+   ============================================================ */
+
+/* Chart color palette — derived from DESIGN.md semantic colors */
+:root {
+  /* Chart line colors (lavender-blue accent family per DESIGN.md) */
+  --chart-primary: #5e6ad2;        /* brand-primary lavender */
+  --chart-primary-hover: #828fff;  /* brand-primary-hover */
+  --chart-secondary: #0ea5e9;      /* opex-cyan */
+  --chart-success: #27a644;        /* semantic-success green */
+  --chart-warning: #f59e0b;        /* amber */
+  --chart-critical: #ef4444;       /* red */
+  --chart-muted: #94a3b8;          /* slate-400 */
+
+  /* Chart structural colors */
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-axis: rgba(255, 255, 255, 0.12);
+  --chart-tooltip: #1f2937;
+  --chart-fill: rgba(13, 148, 136, 0.08);
+
+  /* Semantic chart colors (status-based) */
+  --chart-ok: #22c55e;
+  --chart-warning-color: #f59e0b;
+  --chart-critical-color: #ef4444;
+
+  /* Surface colors for chart cards */
+  --chart-surface: #0f1011;        /* surface-1 */
+  --chart-surface-hover: #141516;  /* surface-2 */
+  --chart-border: #23252a;         /* hairline */
+  --chart-border-hover: #34343a;   /* hairline-strong */
+}
+
+/* Animation keyframes for chart entrances */
+@keyframes chartFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes chartBarGrow {
+  from { transform: scaleY(0); transform-origin: bottom; }
+  to { transform: scaleY(1); transform-origin: bottom; }
+}
+
+@keyframes chartLineDraw {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes chartPieFill {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Chart container animation */
+.chart-animate-in {
+  animation: chartFadeIn 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.chart-stagger-1 { animation-delay: 60ms; }
+.chart-stagger-2 { animation-delay: 120ms; }
+.chart-stagger-3 { animation-delay: 180ms; }
+.chart-stagger-4 { animation-delay: 240ms; }
+
+/* Bar grow animation */
+.chart-bar-animate {
+  animation: chartBarGrow 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Line draw animation */
+.chart-line-animate {
+  animation: chartLineDraw 1000ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Pie slice animation */
+.chart-pie-animate {
+  animation: chartPieFill 800ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Skeleton states for charts */
+.chart-skeleton-line {
+  height: 24px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%);
+  background-size: 200% 100%;
+  animation: skeleton 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+.chart-skeleton-bar {
+  height: 20px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%);
+  background-size: 200% 100%;
+  animation: skeleton 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+/* Chart card base styling */
+.chart-card {
+  background: var(--chart-surface);
+  border: 1px solid var(--chart-border);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.chart-card-hover {
+  @apply transition-colors duration-200;
+  border-color: var(--chart-border);
+}
+
+.chart-card-hover:hover {
+  border-color: var(--chart-border-hover);
+}
+
+.chart-title {
+  @apply text-label font-black text-white uppercase tracking-tighter;
+}
+
+.chart-subtitle {
+  @apply text-label-sm text-gray-500 mt-1;
+}
+
+.chart-empty-state {
+  @apply h-64 flex flex-col items-center justify-center text-center rounded-xl border border-dashed border-gray-700 bg-gray-900/30;
+}
+
+.chart-skeleton-container {
+  @apply h-64 flex items-center justify-center;
+}
+
+.chart-skeleton-bar-row {
+  animation: skeleton 1.5s ease-in-out infinite;
+  height: 20px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%);
+  background-size: 200% 100%;
+  border-radius: 4px;
+}
+
+/* Tooltip styling consistent with design system */
+.chart-tooltip {
+  @apply bg-gray-900 rounded-lg p-3 text-xs text-white shadow-2xl;
+  border: 1px solid var(--chart-border);
+}
+
+.chart-tooltip-label {
+  @apply text-gray-500 font-bold text-[10px] uppercase tracking-tighter mb-1;
+}
+
+.chart-tooltip-value {
+  @apply font-mono font-semibold text-white;
+}
+
+/* Axis label styling */
+.chart-axis-label {
+  @apply text-[10px] font-black text-gray-500 uppercase tracking-tighter;
+}
+
+/* Legend styling */
+.chart-legend {
+  @apply text-[11px] font-black text-gray-400;
+}
+
+/* Responsive chart wrapper */
+.chart-responsive {
+  @apply w-full h-full min-h-[300px];
+}
+
+/* Accessibility: reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .chart-animate-in,
+  .chart-bar-animate,
+  .chart-line-animate,
+  .chart-pie-animate,
+  .chart-stagger-1,
+  .chart-stagger-2,
+  .chart-stagger-3,
+  .chart-stagger-4 {
+    animation: none !important;
+  }
+}
+
+/* Focus visible for interactive chart elements */
+.chart-interactive:focus-visible {
+  outline: 2px solid var(--chart-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Scrollbar for chart containers */
+.chart-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--chart-border) transparent;
+}

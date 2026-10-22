@@ -1,7 +1,16 @@
 ﻿import React, { useMemo } from 'react';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend
-} from 'recharts';
+  ResponsiveChartContainer,
+  ChartXAxis,
+  ChartYAxis,
+  ChartTooltip,
+  ChartLegend,
+  ChartArea,
+  ChartLine,
+  ChartCartesianGrid,
+  CHART_COLORS,
+  BaseChartProps,
+} from '../chart';
 import { TrendingUp, Calendar, AlertTriangle, Zap } from 'lucide-react';
 import Card from '../common/Card';
 import { useCurrency } from '../../components/context/CurrencyContext';
@@ -32,7 +41,10 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
       const convertedAmt = convertAmount(h.amount, sourceCurrency, userCurrency.code);
       cumulative += convertedAmt;
       return {
-        date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), spend: convertedAmt, cumulative: cumulative, budget: convertAmount(totalBudgeted, sourceCurrency, userCurrency.code)
+        date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        spend: convertedAmt,
+        cumulative: cumulative,
+        budget: convertAmount(totalBudgeted, sourceCurrency, userCurrency.code),
       };
     });
   }, [history, totalBudgeted, currency, userCurrency.code, convertAmount]);
@@ -53,48 +65,20 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
           accent="primary"
         >
           <div className="h-[300px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={burnUpData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  stroke="var(--chart-axis)"
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="var(--chart-axis)"
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => `${currentCurrencySymbol}${(value / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: 'var(--chart-tooltip)', border: '1px solid var(--chart-axis)', borderRadius: '8px' }}
-                  itemStyle={{ fontSize: '12px' }}
-                  formatter={(value: any) => [convertToDisplay(Number(value)), 'Value']}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
-                <Area
-                  type="monotone"
-                  dataKey="cumulative"
-                  name="Cumulative Outflow"
-                  stroke="var(--chart-budget)"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="var(--chart-fill)"
-                />
-                <Line
-                  type="stepAfter"
-                  dataKey="budget"
-                  name="Total Approved Budget"
-                  stroke="var(--chart-axis)"
-                  strokeDasharray="5 5"
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <ResponsiveChartContainer width="100%" height="100%">
+              <ChartArea
+                data={burnUpData}
+                xDataKey="date"
+                yDataKeys={['cumulative', 'budget']}
+                yDataLabels={{ cumulative: 'Cumulative Outflow', budget: 'Total Approved Budget' }}
+                colors={[CHART_COLORS.primary, CHART_COLORS.axis]}
+                strokeWidth={2}
+                dot={false}
+                fillOpacity={0.28}
+                yTickFormatter={(value) => `${currentCurrencySymbol}${(Number(value) / 1000).toFixed(0)}k`}
+                height={200}
+              />
+            </ResponsiveChartContainer>
           </div>
         </Card>
       </div>
@@ -108,7 +92,7 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
                 <Calendar className={`w-4 h-4 ${isNearingExhaustion ? 'text-alert-critical' : 'text-brand-primary'}`} />
                 <span className="text-label text-gray-500">Projected fund exhaustion</span>
               </div>
-              <p className={`font-mono text-xl font-semibold whitespace-nowrap overflow-hidden text-ellipsis sm:text-2xl ${isNearingExhaustion ? 'text-alert-critical' : 'text-white'}`}>
+              <p className={`font-mono text-xl font-semibold whitespace-nowrap overflow-hidden text-ellipsis ${isNearingExhaustion ? 'text-alert-critical' : 'text-white'}`}>
                 {estimatedExhaustionDate ? new Date(estimatedExhaustionDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}
               </p>
               <p className="mt-0.5 text-caption">Based on 30-day velocity</p>
@@ -147,23 +131,22 @@ const PredictiveAnalytics: React.FC<PredictiveAnalyticsProps> = ({
 
         <Card title="Daily Spend Momentum" accent="secondary">
           <div className="h-[120px] w-full mt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={burnUpData}>
-                <Line
-                  type="monotone"
-                  dataKey="spend"
-                  stroke="var(--chart-positive)"
-                  strokeWidth={2}
-                  dot={false}
-                  animationDuration={1500}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: 'var(--chart-tooltip)', border: '1px solid var(--chart-axis)', borderRadius: '8px' }}
-                  itemStyle={{ fontSize: '10px' }}
-                  formatter={(value: any) => [convertToDisplay(Number(value)), 'Daily spend']}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <ResponsiveChartContainer width="100%" height="100%">
+              <ChartLine
+                data={burnUpData}
+                xDataKey="date"
+                yDataKeys={['spend']}
+                colors={[CHART_COLORS.primary]}
+                strokeWidth={2}
+                dot={false}
+                height={120}
+              />
+              <ChartTooltip
+                contentStyle={{ backgroundColor: 'var(--chart-tooltip)', border: '1px solid var(--chart-axis)', borderRadius: '8px' }}
+                itemStyle={{ fontSize: '10px' }}
+                formatter={(value: any) => [convertToDisplay(Number(value)), 'Daily spend']}
+              />
+            </ResponsiveChartContainer>
           </div>
           <p className="text-label-sm text-gray-500 mt-2 text-center">Daily spend volatility</p>
         </Card>

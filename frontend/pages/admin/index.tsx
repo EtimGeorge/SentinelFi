@@ -21,17 +21,15 @@ import Card from '../../components/common/Card';
 import { useAuth } from '../../components/context/AuthContext';
 import { useCurrency } from '../../components/context/CurrencyContext';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import { 
-  LineChart, 
-  Line, 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer 
-} from 'recharts';
+import {
+  ResponsiveChartContainer,
+  ChartXAxis,
+  ChartYAxis,
+  ChartTooltip,
+  ChartLegend,
+  ChartArea,
+  CHART_COLORS,
+} from '../../components/chart';
 
 interface DashboardStat {
   label: string;
@@ -148,26 +146,19 @@ const AdminDashboard: React.FC = () => {
                        <Loader2 className="w-8 h-8 animate-spin text-brand-primary/50" />
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={activityData}>
-                        <defs>
-                          <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#00E5FF" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#00E5FF" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                        <XAxis dataKey="name" stroke="#9CA3AF" tick={{fill: '#9CA3AF', fontSize: 10}} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#9CA3AF" tick={{fill: '#9CA3AF', fontSize: 10}} tickLine={false} axisLine={false} tickFormatter={(val) => `${userCurrency.symbol}${val > 1000 ? (val/1000).toFixed(1)+'k' : val}`} />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}
-                          itemStyle={{ color: '#00E5FF', fontWeight: 'bold' }}
-                          formatter={(value: number) => [convertToDisplay(value, userCurrency.code), 'Throughput']}
-                          labelStyle={{ color: '#9CA3AF', marginBottom: '4px' }}
-                        />
-                        <Area type="monotone" dataKey="value" stroke="#00E5FF" fillOpacity={1} fill="url(#colorValue)" strokeWidth={3} animationDuration={1500} />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    <ResponsiveChartContainer width="100%" height="100%" animate={true}>
+                      <ChartArea
+                        data={activityData}
+                        xDataKey="name"
+                        yDataKeys={['value']}
+                        stroke={CHART_COLORS.primary}
+                        strokeWidth={3}
+                        dot={false}
+                        fill={CHART_COLORS.primary}
+                        fillOpacity={0.1}
+                        yTickFormatter={(val) => `${userCurrency.symbol}${val > 1000 ? (val/1000).toFixed(1)+'k' : val}`}
+                      />
+                    </ResponsiveChartContainer>
                   )}
                 </div>
               </Card>
@@ -240,8 +231,6 @@ const AdminDashboard: React.FC = () => {
     </>
   );
 };
-
-// --- Sub-components ---
 
 const zapIcon = Zap; // Helper for mapping
 
