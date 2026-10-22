@@ -33,9 +33,9 @@ function makeService(overrides: {
   accountClassRepo?: Record<string, unknown>;
   accountGroupRepo?: Record<string, unknown>;
   glAccountRepo?: Record<string, unknown>;
-} = {}) {
+} = {}, tenantId: string | null = "tenant-1") {
   const dataSource = { transaction: jest.fn(), query: jest.fn() };
-  const cls = { get: jest.fn().mockReturnValue("tenant-1") };
+  const cls = { get: jest.fn().mockReturnValue(tenantId) };
   return new ChartOfAccountsService(
     dataSource as never,
     cls as never,
@@ -90,6 +90,11 @@ describe("ChartOfAccountsService — default chart seeding", () => {
 
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     expect(manager.save).toHaveBeenCalled();
+  });
+
+  it("rejects seeding when no tenant context is bound", async () => {
+    const service = makeService({}, null);
+    await expect(service.seedDefaults()).rejects.toThrow(/tenant context/i);
   });
 });
 

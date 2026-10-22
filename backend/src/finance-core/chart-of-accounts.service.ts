@@ -1,6 +1,7 @@
 import {
   Injectable,
   Logger,
+  BadRequestException,
   ConflictException,
   NotFoundException,
 } from "@nestjs/common";
@@ -323,6 +324,14 @@ export class ChartOfAccountsService {
   /** Seed the default chart for the current request's tenant. */
   async seedDefaults(): Promise<{ seeded: true }> {
     const tenantId = this.getTenantId();
+    if (!tenantId) {
+      // SuperAdmin direct access (no tenant scope) used to fall through and
+      // fail later with an opaque NOT NULL violation. Return an actionable
+      // error instead; impersonation supplies a tenant_id and works normally.
+      throw new BadRequestException(
+        "A tenant context is required to seed the chart of accounts. Use impersonation to act within a tenant.",
+      );
+    }
     await this.ensureDefaultChartOfAccounts(tenantId);
     return { seeded: true };
   }

@@ -10,6 +10,7 @@ import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import EmptyState from '../../../components/common/EmptyState';
 import { TableSkeleton } from '../../../components/common/LoadingSkeleton';
 import { useFinanceCore } from '../../../hooks/useFinanceCore';
+import { useAuth, Role } from '../../../components/context/AuthContext';
 import { AccountClassType, ACCOUNT_CLASS_NORMAL_BALANCE } from '@shared/types';
 import {
   BookOpen,
@@ -75,7 +76,22 @@ const baseTypeBadge: Record<AccountClassType, string> = {
   [AccountClassType.EXPENSE]: 'bg-orange-900/30 text-orange-400',
 };
 
+// Mirrors the backend RBAC in chart-of-accounts.controller.ts. Seeding is
+// additive/idempotent so the CEO (who can view this page) may bootstrap the
+// chart; destructive CRUD stays finance/admin only.
+const COA_MANAGE_ROLES: Role[] = [
+  Role.CFO,
+  Role.FinanceManager,
+  Role.AdminDirector,
+  Role.AdminManager,
+];
+const COA_SEED_ROLES: Role[] = [...COA_MANAGE_ROLES, Role.CEO];
+
 const ChartOfAccountsPage: React.FC = () => {
+  const { hasAnyRole } = useAuth();
+  const canManageCoa = hasAnyRole(COA_MANAGE_ROLES);
+  const canSeedCoa = hasAnyRole(COA_SEED_ROLES);
+
   const {
     fetchChartOfAccounts,
     seedDefaultChartOfAccounts,
@@ -92,6 +108,7 @@ const ChartOfAccountsPage: React.FC = () => {
 
   const [tree, setTree] = useState<AccountClass[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSeeding, setIsSeeding] = useState(false);
   const [search, setSearch] = useState('');
 
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
@@ -296,11 +313,15 @@ const ChartOfAccountsPage: React.FC = () => {
   };
 
   const handleSeed = async () => {
+    if (isSeeding || !canSeedCoa) return;
+    setIsSeeding(true);
     try {
       await seedDefaultChartOfAccounts();
-      load();
+      await load();
     } catch {
       // Hook already toasted the failure.
+    } finally {
+      setIsSeeding(false);
     }
   };
 
@@ -346,13 +367,22 @@ const ChartOfAccountsPage: React.FC = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
             <div className="md:col-span-3 flex flex-wrap items-end gap-2">
-              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={openCreateClass}>
-                New Class
-              </Button>
+              {canManageCoa && (
+                <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={openCreateClass}>
+                  New Class
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 icon={<Sparkles className="w-4 h-4" />}
                 onClick={handleSeed}
+                isLoading={isSeeding}
+                disabled={!canSeedCoa}
+                title={
+                  canSeedCoa
+                    ? 'Create the standard chart of accounts if it does not exist yet'
+                    : 'Your role can view the chart but not seed it'
+                }
               >
                 Seed Default Chart
               </Button>
@@ -360,11 +390,17 @@ const ChartOfAccountsPage: React.FC = () => {
                 Refresh
               </Button>
               <span className="ml-auto text-xs text-gray-400 self-end pb-1">
-                {tree.length} classes · {totalAccounts} GL accounts
+                {tree.length} classes A� {totalAccounts} GL accounts
               </span>
             </div>
           </div>
         </Card>
+
+        {!canManageCoa && (
+          <p className="mb-4 text-xs text-gray-400">
+            Read-only view — your role can review the chart of accounts but cannot modify it.
+          </p>
+        )}
 
         <Card title="Account Hierarchy" accent="secondary" className="border border-gray-700">
           {loading ? (
@@ -376,7 +412,9 @@ const ChartOfAccountsPage: React.FC = () => {
               subtitle={
                 search
                   ? 'Try a different name or code.'
-                  : 'Seed the default chart or create your first account class.'
+                  : canSeedCoa
+                    ? 'Seed the default chart to get started.'
+                    : 'No chart has been set up yet. Ask a finance administrator to seed it.'
               }
             />
           ) : (
@@ -408,38 +446,40 @@ const ChartOfAccountsPage: React.FC = () => {
                           {cls.base_type}
                         </span>
                       </button>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          icon={<Plus className="w-4 h-4" />}
-                          onClick={() => openCreateGroup(cls.id)}
-                        >
-                          Group
-                        </Button>
-                        <button
-                          type="button"
-                          onClick={() => openEditClass(cls)}
-                          className="p-2 text-gray-400 hover:text-brand-primary"
-                          title="Edit class"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setConfirm({
-                              kind: 'class',
-                              id: cls.id,
-                              title: 'Delete Account Class',
-                              message: `"${cls.name}" and all of its groups and accounts will be removed.`,
-                            })
-                          }
-                          className="p-2 text-gray-400 hover:text-red-400"
-                          title="Delete class"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      {canManageCoa && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            icon={<Plus className="w-4 h-4" />}
+                            onClick={() => openCreateGroup(cls.id)}
+                          >
+                            Group
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => openEditClass(cls)}
+                            className="p-2 text-gray-400 hover:text-brand-primary"
+                            title="Edit class"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setConfirm({
+                                kind: 'class',
+                                id: cls.id,
+                                title: 'Delete Account Class',
+                                message: `"${cls.name}" and all of its groups and accounts will be removed.`,
+                              })
+                            }
+                            className="p-2 text-gray-400 hover:text-red-400"
+                            title="Delete class"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {clsOpen && (
@@ -474,39 +514,41 @@ const ChartOfAccountsPage: React.FC = () => {
                                       {grp.glAccounts?.length ?? 0} accounts
                                     </span>
                                   </button>
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => openCreateAccount(grp.id)}
-                                      className="p-2 text-gray-500 hover:text-brand-primary"
-                                      title="Add GL account"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => openEditGroup(grp)}
-                                      className="p-2 text-gray-500 hover:text-brand-primary"
-                                      title="Edit group"
-                                    >
-                                      <Edit3 className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setConfirm({
-                                          kind: 'group',
-                                          id: grp.id,
-                                          title: 'Delete Account Group',
-                                          message: `"${grp.name}" and all of its GL accounts will be removed.`,
-                                        })
-                                      }
-                                      className="p-2 text-gray-500 hover:text-red-400"
-                                      title="Delete group"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
+                                  {canManageCoa && (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => openCreateAccount(grp.id)}
+                                        className="p-2 text-gray-500 hover:text-brand-primary"
+                                        title="Add GL account"
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditGroup(grp)}
+                                        className="p-2 text-gray-500 hover:text-brand-primary"
+                                        title="Edit group"
+                                      >
+                                        <Edit3 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setConfirm({
+                                            kind: 'group',
+                                            id: grp.id,
+                                            title: 'Delete Account Group',
+                                            message: `"${grp.name}" and all of its GL accounts will be removed.`,
+                                          })
+                                        }
+                                        className="p-2 text-gray-500 hover:text-red-400"
+                                        title="Delete group"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {grpOpen && (
@@ -545,29 +587,33 @@ const ChartOfAccountsPage: React.FC = () => {
                                             )}
                                             {acc.is_active ? 'Active' : 'Inactive'}
                                           </span>
-                                          <button
-                                            type="button"
-                                            onClick={() => openEditAccount(acc)}
-                                            className="p-1.5 text-gray-500 hover:text-brand-primary"
-                                            title="Edit account"
-                                          >
-                                            <Edit3 className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              setConfirm({
-                                                kind: 'account',
-                                                id: acc.id,
-                                                title: 'Delete GL Account',
-                                                message: `"${acc.name}" will be removed from the chart.`,
-                                              })
-                                            }
-                                            className="p-1.5 text-gray-500 hover:text-red-400"
-                                            title="Delete account"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
+                                          {canManageCoa && (
+                                            <>
+                                              <button
+                                                type="button"
+                                                onClick={() => openEditAccount(acc)}
+                                                className="p-1.5 text-gray-500 hover:text-brand-primary"
+                                                title="Edit account"
+                                              >
+                                                <Edit3 className="w-3.5 h-3.5" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setConfirm({
+                                                    kind: 'account',
+                                                    id: acc.id,
+                                                    title: 'Delete GL Account',
+                                                    message: `"${acc.name}" will be removed from the chart.`,
+                                                  })
+                                                }
+                                                className="p-1.5 text-gray-500 hover:text-red-400"
+                                                title="Delete account"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            </>
+                                          )}
                                         </div>
                                       ))
                                     )}

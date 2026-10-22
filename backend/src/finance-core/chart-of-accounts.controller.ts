@@ -42,6 +42,12 @@ const WRITE_ROLES = [
   Role.SuperAdmin,
 ];
 
+// Seeding is additive and idempotent (it never overwrites or deletes), so the
+// CEO — who can already view this page — may bootstrap the chart. Destructive
+// CRUD below stays restricted to WRITE_ROLES. Without this, the "Seed Default
+// Chart" button shown to a CEO failed with 403.
+const SEED_ROLES = [...WRITE_ROLES, Role.CEO];
+
 @Controller("finance-core/chart-of-accounts")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ChartOfAccountsController {
@@ -60,7 +66,7 @@ export class ChartOfAccountsController {
   }
 
   @Post("seed-defaults")
-  @Roles(...WRITE_ROLES)
+  @Roles(...SEED_ROLES)
   async seedDefaults() {
     return this.chartOfAccountsService.seedDefaults();
   }
