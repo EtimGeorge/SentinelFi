@@ -13,7 +13,7 @@ import {
 import DataTable from '../../../components/common/DataTable';
 import CategoryManager from '../../../components/budgets/CategoryManager';
 import CostCenterManager from '../../../components/budgets/CostCenterManager';
-import BudgetGrid from '../../../components/budgets/BudgetGrid';
+import BudgetGrid from '../../../components/budget/PlanningGrid';
 import Tabs from '../../../components/common/Tabs';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { ErrorBoundary } from '../../../components/common/ErrorBoundary';
@@ -321,7 +321,7 @@ const OperationalBudgetWorkspace: React.FC = () => {
               </div>
             ) : selectedBudgetId ? (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <BudgetGrid budgetId={selectedBudgetId} />
+                <BudgetGrid budgetId={selectedBudgetId} showScenarioToolbar={false} />
               </div>
             ) : (
               <EmptyState

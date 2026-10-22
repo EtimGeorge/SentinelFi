@@ -5,7 +5,7 @@ import PageContainer from '../../components/Layout/PageContainer';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { useSecuredApi } from '../../components/hooks/useSecuredApi';
-import BudgetGrid from '../../components/budgets/BudgetGrid';
+import BudgetGrid from '../../components/budget/PlanningGrid';
 import CategoryManager from '../../components/budgets/CategoryManager';
 import { ArrowLeft, Settings, Grid } from 'lucide-react';
 import Link from 'next/link';
