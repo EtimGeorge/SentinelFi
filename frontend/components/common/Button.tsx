@@ -14,10 +14,12 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   size?: ButtonSize;
   isLoading?: boolean;
   icon?: React.ReactNode;
+  disabled?: boolean;
 }
 
 const Button: React.FC<ButtonProps> = ({
   className, children, variant = "primary", size = "md", isLoading = false, icon,
+  disabled,
   ...props
 }) => {
   const baseStyles =
@@ -39,9 +41,9 @@ const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      className={appliedClassName}
-      disabled={isLoading || props.disabled}
       {...props}
+      className={appliedClassName}
+      disabled={isLoading || disabled}
     >
       {isLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
       {!isLoading && icon && <span className="mr-2">{icon}</span>}
