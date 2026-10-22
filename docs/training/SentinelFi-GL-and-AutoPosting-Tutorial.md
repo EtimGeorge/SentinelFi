@@ -362,9 +362,9 @@ with a clear error. The ledger can never become "lopsided."
 
 The ledger tables, enums, and indexes are created by **versioned database migrations**:
 
-- `20260204000000-CreateGeneralLedger` — creates the journal tables, status/source enums,
+- `1773050000003-CreateGeneralLedger` — creates the journal tables, status/source enums,
   and the idempotency index.
-- `20260205000000-GlVendorPaymentAndCategoryAccount` — adds the `VENDOR_PAYMENT` type and
+- `1773050000004-GlVendorPaymentAndCategoryAccount` — adds the `VENDOR_PAYMENT` type and
   the `gl_account_id` mapping column on budget categories.
 
 Each migration is:
