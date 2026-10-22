@@ -10,6 +10,25 @@ import {
   IsDateString,
   IsIn,
 } from "class-validator";
+import { Transform } from "class-transformer";
+
+/**
+ * Coerces numeric form fields: trims, maps "" -> undefined, and parses
+ * numeric strings to numbers so a form's empty/serialized input does not
+ * trip @IsNumber. Non-numeric values pass through untouched so @IsNumber
+ * still rejects them with a clear message.
+ */
+const toOptionalNumber = ({ value }: { value: unknown }): unknown => {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "") return undefined;
+    const parsed = Number(trimmed);
+    return Number.isNaN(parsed) ? value : parsed;
+  }
+  return value;
+};
 
 export class CreateBankAccountDto {
   @IsString()
@@ -34,6 +53,7 @@ export class CreateBankAccountDto {
   currency_code?: string;
 
   @IsOptional()
+  @Transform(toOptionalNumber)
   @IsNumber({ maxDecimalPlaces: 4 })
   @IsPositive()
   opening_balance?: number;
@@ -78,10 +98,12 @@ export class CreateBankStatementLineDto {
   @MaxLength(500)
   description!: string;
 
+  @Transform(toOptionalNumber)
   @IsNumber({ maxDecimalPlaces: 4 })
   amount!: number;
 
   @IsOptional()
+  @Transform(toOptionalNumber)
   @IsNumber({ maxDecimalPlaces: 4 })
   balance_after?: number;
 
@@ -99,10 +121,12 @@ export class CreateReconciliationDto {
   @IsDateString()
   reconciliation_date!: string;
 
+  @Transform(toOptionalNumber)
   @IsNumber({ maxDecimalPlaces: 4 })
   statement_balance!: number;
 
   @IsOptional()
+  @Transform(toOptionalNumber)
   @IsNumber({ maxDecimalPlaces: 4 })
   book_balance?: number;
 }
@@ -116,6 +140,7 @@ export class MatchReconciliationLineDto {
   @IsNotEmpty()
   bank_statement_line_id!: string;
 
+  @Transform(toOptionalNumber)
   @IsNumber({ maxDecimalPlaces: 4 })
   amount!: number;
 

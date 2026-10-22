@@ -64,6 +64,12 @@ import { MessageEntity } from "../../messaging/entities/message.entity";
 import { ConversationEntity } from "../../messaging/entities/conversation.entity";
 import { ConversationMemberEntity } from "../../messaging/entities/conversation-member.entity";
 import { NotificationEntity } from "../../notifications/entities/notification.entity";
+import { BankAccountEntity } from "../../bank-reconciliation/entities/index";
+import {
+  BankStatementLineEntity,
+  BankReconciliationEntity,
+  BankReconciliationLineEntity,
+} from "../../bank-reconciliation/entities/index";
 
 // Define a custom error interface for database errors that include a 'code' property
 interface DbError extends Error {
@@ -219,6 +225,10 @@ export class DatabaseConfig {
       EmailLogEntity,
       RefreshTokenEntity,
       AcademyProgressEntity,
+      BankAccountEntity,
+      BankStatementLineEntity,
+      BankReconciliationEntity,
+      BankReconciliationLineEntity,
     ];
   }
 
