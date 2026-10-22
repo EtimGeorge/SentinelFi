@@ -1,12 +1,21 @@
 import type { QueryRunner } from "typeorm";
 import { CreateVendorMaster1777000000005 } from "../1777000000005-CreateVendorMaster";
 
-function recordingRunner(schema = "tenant_alpha") {
+function recordingRunner(schema = "tenant_alpha", existingTables?: string[]) {
   const recorded: string[] = [];
   const runner = {
     connection: { options: { type: "postgres", schema } },
-    query: jest.fn(async (sql: string) => {
+    query: jest.fn(async (sql: string, params?: unknown[]) => {
       recorded.push(sql);
+      // Existence probes: report the tables this schema is assumed to have.
+      if (sql.includes("information_schema.tables")) {
+        const table = Array.isArray(params) ? String(params[0]) : undefined;
+        const present =
+          table === undefined
+            ? true
+            : existingTables === undefined || existingTables.includes(table);
+        return present ? [{ present: 1 }] : [];
+      }
       return [];
     }),
   } as unknown as QueryRunner;
@@ -45,6 +54,24 @@ describe("CreateVendorMaster1777000000005", () => {
       );
       expect(sql).toContain(`FK_${table}_vendor`);
     }
+  });
+
+  it("creates vendor even when a legacy schema lacks a P2P table, skipping only that link", async () => {
+    const { runner, recorded } = recordingRunner("tenant_alpha", [
+      "p2p_requisition",
+      "p2p_purchase_order",
+      // p2p_invoice absent
+    ]);
+    await new CreateVendorMaster1777000000005().up(runner);
+    const sql = recorded.join("\n");
+    // The migration's own DDL must still run — it is what creates vendor.
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS "vendor"');
+    expect(sql).toContain(
+      `ALTER TABLE "p2p_requisition" ADD COLUMN IF NOT EXISTS "vendor_id"`,
+    );
+    expect(sql).not.toContain(
+      `ALTER TABLE "p2p_invoice" ADD COLUMN IF NOT EXISTS "vendor_id"`,
+    );
   });
 
   // Regression: pg_type / pg_constraint are GLOBAL catalogs. An unscoped

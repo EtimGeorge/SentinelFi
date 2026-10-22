@@ -14,8 +14,8 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  * The chart-of-accounts tables (account_class/account_group/gl_account) are
  * created by 1773015288077-AddProjectSoftDelete and are not touched here.
  */
-export class CreateGeneralLedger20260204000000 implements MigrationInterface {
-  name = "CreateGeneralLedger20260204000000";
+export class CreateGeneralLedger1773050000003 implements MigrationInterface {
+  name = "CreateGeneralLedger1773050000003";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const schema = (queryRunner.connection.options as any).schema;

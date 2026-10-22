@@ -17,21 +17,23 @@ export class AddInvoiceRetentionWithholding1777000000004 implements MigrationInt
       await queryRunner.query(`SET search_path TO "${schema}", public`);
     }
 
-    await queryRunner.query(
-      `ALTER TABLE "p2p_invoice" ADD COLUMN IF NOT EXISTS "retention_pct" numeric(5,2) NOT NULL DEFAULT 0`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "p2p_invoice" ADD COLUMN IF NOT EXISTS "retention_amount" numeric(19,4) NOT NULL DEFAULT 0`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "p2p_invoice" ADD COLUMN IF NOT EXISTS "wht_pct" numeric(5,2) NOT NULL DEFAULT 0`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "p2p_invoice" ADD COLUMN IF NOT EXISTS "wht_amount" numeric(19,4) NOT NULL DEFAULT 0`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "p2p_invoice" ADD COLUMN IF NOT EXISTS "net_payable" numeric(19,4) NOT NULL DEFAULT 0`,
-    );
+    const adds = [
+      `ADD COLUMN IF NOT EXISTS "retention_pct" numeric(5,2) NOT NULL DEFAULT 0`,
+      `ADD COLUMN IF NOT EXISTS "retention_amount" numeric(19,4) NOT NULL DEFAULT 0`,
+      `ADD COLUMN IF NOT EXISTS "wht_pct" numeric(5,2) NOT NULL DEFAULT 0`,
+      `ADD COLUMN IF NOT EXISTS "wht_amount" numeric(19,4) NOT NULL DEFAULT 0`,
+      `ADD COLUMN IF NOT EXISTS "net_payable" numeric(19,4) NOT NULL DEFAULT 0`,
+    ];
+    for (const col of adds) {
+      await queryRunner.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'p2p_invoice') THEN
+            EXECUTE 'ALTER TABLE "p2p_invoice" ${col}';
+          END IF;
+        END $$;
+      `);
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

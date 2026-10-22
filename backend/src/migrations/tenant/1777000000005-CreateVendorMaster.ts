@@ -17,6 +17,13 @@ export class CreateVendorMaster1777000000005 implements MigrationInterface {
     }
 
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+    const has = async (t: string) => {
+      const r = await queryRunner.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1`,
+        [t],
+      );
+      return r.length > 0;
+    };
 
     // `pg_type` is a GLOBAL catalog: a bare `typname` probe matches the enum row
     // in EVERY schema, not just this tenant's, and ignores the search_path set
@@ -73,6 +80,14 @@ export class CreateVendorMaster1777000000005 implements MigrationInterface {
       "p2p_purchase_order",
       "p2p_invoice",
     ]) {
+      // 1773015288077-AddProjectSoftDelete (earlier timestamp) creates these.
+      // A legacy-partial schema may lack one; linking it would throw, so skip
+      // just that table rather than aborting the whole migration.
+      if (!(await has(table))) {
+        // eslint-disable-next-line no-console
+        console.log(`[CreateVendorMaster] ${table} missing; skipping link.`);
+        continue;
+      }
       await queryRunner.query(
         `ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "vendor_id" uuid`,
       );

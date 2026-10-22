@@ -7,7 +7,7 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  * SCHEMA HANDLING: this resolves the target schema from the DataSource `schema`
  * option and then works through `search_path` with UNQUALIFIED names, which is
  * the convention used by the other tenant migrations (see
- * 20260202000001-OpexEncumbranceAndReceiptTenant.ts). An earlier revision of
+ * 1773050000001-OpexEncumbranceAndReceiptTenant.ts). An earlier revision of
  * this file hardcoded the literal schema `solution_energy` in every statement,
  * which meant running it for any other tenant mutated solution_energy instead
  * of the tenant actually being migrated, and failed outright on a new tenant.

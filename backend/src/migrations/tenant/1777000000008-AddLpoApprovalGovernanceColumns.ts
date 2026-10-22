@@ -29,7 +29,10 @@ export class AddLpoApprovalGovernanceColumns1777000000008
   private async setSchema(queryRunner: QueryRunner): Promise<void> {
     const schema = (queryRunner.connection.options as any).schema;
     if (schema) {
-      await queryRunner.query(`SET search_path TO "${schema}"`);
+      // Include `public` so the shared pooled connection keeps access to
+      // extensions (e.g. uuid-ossp) installed there. A tenant-only path here
+      // leaks onto the connection and breaks later migrations in the same run.
+      await queryRunner.query(`SET search_path TO "${schema}", public`);
     }
   }
 

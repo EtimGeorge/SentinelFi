@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+﻿import { MigrationInterface, QueryRunner } from "typeorm";
 
 /**
  * Bank Reconciliation + Cash Management tables (tenant schema).
@@ -17,11 +17,32 @@ export class BankReconciliationCashManagement1781000000000 implements MigrationI
   name = "BankReconciliationCashManagement1781000000000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // TypeORM's `schema` DataSource option does NOT set the session
+    // `search_path`, so unqualified DDL below would otherwise land in the
+    // pooled session's default schema. Resolve the tenant schema and pin
+    // search_path explicitly, matching every other tenant migration.
+    const schema = (queryRunner.connection.options as { schema?: string }).schema;
+    if (schema) {
+      await queryRunner.query(`SET search_path TO "${schema}", public`);
+    }
+    // uuid_generate_v4() lives in the uuid-ossp extension. Ensure it exists and
+    // is visible on this session's search_path before any table DDL uses it.
+    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+
     // Reconciliation status enum
+    // NOTE: the existence check MUST be schema-scoped (pg_type is global and a
+    // same-named enum may exist in another tenant schema). A bare `typname`
+    // lookup would find solution_energy's enum and skip creation, then the
+    // CREATE TABLE below would fail with "type does not exist".
     await queryRunner.query(`
       DO $$
       BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'reconciliation_status_enum') THEN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_type t
+          JOIN pg_namespace n ON n.oid = t.typnamespace
+          WHERE t.typname = 'reconciliation_status_enum'
+            AND n.nspname = current_schema()
+        ) THEN
           CREATE TYPE "reconciliation_status_enum" AS ENUM ('OPEN', 'MATCHED', 'APPROVED', 'POSTED', 'CANCELLED');
         END IF;
       END $$;
@@ -31,7 +52,12 @@ export class BankReconciliationCashManagement1781000000000 implements MigrationI
     await queryRunner.query(`
       DO $$
       BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'reconciliation_match_type_enum') THEN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_type t
+          JOIN pg_namespace n ON n.oid = t.typnamespace
+          WHERE t.typname = 'reconciliation_match_type_enum'
+            AND n.nspname = current_schema()
+        ) THEN
           CREATE TYPE "reconciliation_match_type_enum" AS ENUM ('AUTO', 'MANUAL');
         END IF;
       END $$;

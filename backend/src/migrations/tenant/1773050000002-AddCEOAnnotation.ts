@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddCEOAnnotation20260131103709 implements MigrationInterface {
-  name = "AddCEOAnnotation20260131103709";
+export class AddCEOAnnotation1773050000002 implements MigrationInterface {
+  name = "AddCEOAnnotation1773050000002";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const schema = (queryRunner.connection.options as any).schema;
@@ -19,7 +19,7 @@ export class AddCEOAnnotation20260131103709 implements MigrationInterface {
     );
 
     await queryRunner.query(
-      `CREATE TABLE "ceo_annotation" (
+      `CREATE TABLE IF NOT EXISTS "ceo_annotation" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
                 "tenant_id" uuid NOT NULL, 
                 "target_type" "ceo_annotation_target_type_enum" NOT NULL, 
@@ -33,13 +33,18 @@ export class AddCEOAnnotation20260131103709 implements MigrationInterface {
     );
 
     await queryRunner.query(
-      `CREATE INDEX "IDX_ceo_annotation_tenant_target" ON "ceo_annotation" ("tenant_id", "target_type", "target_id")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_ceo_annotation_tenant_target" ON "ceo_annotation" ("tenant_id", "target_type", "target_id")`,
     );
 
     // Add foreign key constraint to user table (assumed to be in public schema or accessible via search_path)
-    await queryRunner.query(
-      `ALTER TABLE "ceo_annotation" ADD CONSTRAINT "FK_ceo_annotation_author" FOREIGN KEY ("author_id") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`,
-    );
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_ceo_annotation_author') THEN
+          ALTER TABLE "ceo_annotation" ADD CONSTRAINT "FK_ceo_annotation_author" FOREIGN KEY ("author_id") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+        END IF;
+      END $$;
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
@@ -47,11 +52,16 @@ export class AddCEOAnnotation20260131103709 implements MigrationInterface {
     if (schema) {
       await queryRunner.query(`SET search_path TO "${schema}", public`);
     }
-    await queryRunner.query(
-      `ALTER TABLE "ceo_annotation" DROP CONSTRAINT "FK_ceo_annotation_author"`,
-    );
-    await queryRunner.query(`DROP INDEX "IDX_ceo_annotation_tenant_target"`);
-    await queryRunner.query(`DROP TABLE "ceo_annotation"`);
-    await queryRunner.query(`DROP TYPE "ceo_annotation_target_type_enum"`);
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_ceo_annotation_author') THEN
+          ALTER TABLE "ceo_annotation" DROP CONSTRAINT "FK_ceo_annotation_author";
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_ceo_annotation_tenant_target"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "ceo_annotation"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "ceo_annotation_target_type_enum"`);
   }
 }

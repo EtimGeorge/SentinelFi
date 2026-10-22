@@ -1,5 +1,5 @@
 import type { QueryRunner } from "typeorm";
-import { CreateGeneralLedger20260204000000 } from "../20260204000000-CreateGeneralLedger";
+import { CreateGeneralLedger1773050000003 } from "../1773050000003-CreateGeneralLedger";
 
 function recordingRunner(schema = "tenant_alpha") {
   const recorded: string[] = [];
@@ -13,16 +13,16 @@ function recordingRunner(schema = "tenant_alpha") {
   return { runner, recorded };
 }
 
-describe("CreateGeneralLedger20260204000000", () => {
+describe("CreateGeneralLedger1773050000003", () => {
   it("scopes to the tenant schema before touching anything", async () => {
     const { runner, recorded } = recordingRunner("tenant_alpha");
-    await new CreateGeneralLedger20260204000000().up(runner);
+    await new CreateGeneralLedger1773050000003().up(runner);
     expect(recorded[0]).toContain('SET search_path TO "tenant_alpha"');
   });
 
   it("creates both GL enum types idempotently", async () => {
     const { runner, recorded } = recordingRunner();
-    await new CreateGeneralLedger20260204000000().up(runner);
+    await new CreateGeneralLedger1773050000003().up(runner);
     const sql = recorded.join("\n");
     expect(sql).toContain("gl_journal_entry_source_type_enum");
     expect(sql).toContain("gl_journal_entry_status_enum");
@@ -32,7 +32,7 @@ describe("CreateGeneralLedger20260204000000", () => {
 
   it("creates the journal entry + line tables", async () => {
     const { runner, recorded } = recordingRunner();
-    await new CreateGeneralLedger20260204000000().up(runner);
+    await new CreateGeneralLedger1773050000003().up(runner);
     const sql = recorded.join("\n");
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS "gl_journal_entry"');
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS "gl_journal_line"');
@@ -43,7 +43,7 @@ describe("CreateGeneralLedger20260204000000", () => {
 
   it("enforces source idempotency via a partial unique index", async () => {
     const { runner, recorded } = recordingRunner();
-    await new CreateGeneralLedger20260204000000().up(runner);
+    await new CreateGeneralLedger1773050000003().up(runner);
     const sql = recorded.join("\n");
     expect(sql).toContain('"UQ_gl_journal_entry_source_active"');
     expect(sql).toContain(
@@ -54,7 +54,7 @@ describe("CreateGeneralLedger20260204000000", () => {
 
   it("drops the tables and enums on rollback", async () => {
     const { runner, recorded } = recordingRunner();
-    await new CreateGeneralLedger20260204000000().down(runner);
+    await new CreateGeneralLedger1773050000003().down(runner);
     const sql = recorded.join("\n");
     expect(sql).toContain('DROP TABLE IF EXISTS "gl_journal_line"');
     expect(sql).toContain('DROP TABLE IF EXISTS "gl_journal_entry"');

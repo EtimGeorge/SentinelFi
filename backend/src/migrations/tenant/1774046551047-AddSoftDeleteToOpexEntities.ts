@@ -157,11 +157,26 @@ export class AddSoftDeleteToOpexEntities1774046551047 implements MigrationInterf
     await queryRunner.query(
       `ALTER TABLE "project" ALTER COLUMN "vat_rate" SET DEFAULT '7.5'`,
     );
+    // The P2P entities declare `exchange_rate`, but the tables that CREATE
+    // them (AddProjectSoftDelete1773015288077) never added the column — so a
+    // fresh tenant hits "column exchange_rate does not exist" here. Add it
+    // idempotently before setting the default so new provisioning succeeds;
+    // existing tenants already have the column (or the migration recorded) and
+    // skip this file entirely.
+    await queryRunner.query(
+      `ALTER TABLE "p2p_requisition" ADD COLUMN IF NOT EXISTS "exchange_rate" numeric(19,6) NOT NULL DEFAULT 1.0`,
+    );
     await queryRunner.query(
       `ALTER TABLE "p2p_requisition" ALTER COLUMN "exchange_rate" SET DEFAULT '1'`,
     );
     await queryRunner.query(
+      `ALTER TABLE "p2p_invoice" ADD COLUMN IF NOT EXISTS "exchange_rate" numeric(19,6) NOT NULL DEFAULT 1.0`,
+    );
+    await queryRunner.query(
       `ALTER TABLE "p2p_invoice" ALTER COLUMN "exchange_rate" SET DEFAULT '1'`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "p2p_purchase_order" ADD COLUMN IF NOT EXISTS "exchange_rate" numeric(19,6) NOT NULL DEFAULT 1.0`,
     );
     await queryRunner.query(
       `ALTER TABLE "p2p_purchase_order" ALTER COLUMN "exchange_rate" SET DEFAULT '1'`,

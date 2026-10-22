@@ -123,6 +123,18 @@ export class TenantMigrationService {
       url: sanitizedUrl,
       ssl: isNeon && !hasSslMode ? { rejectUnauthorized: false } : undefined,
       schema: schemaName, // CRITICAL: Dynamically set the schema name
+      // Pin `search_path` at CONNECTION level for every pooled connection.
+      // Some tenant migrations do `SET search_path TO "<schema>"` (tenant-only,
+      // no `public`), and that setting leaks onto the shared pooled connection
+      // for the rest of the run — a later migration that relies on
+      // `uuid_generate_v4()` (from the `uuid-ossp` extension in `public`) then
+      // fails with "function uuid_generate_v4() does not exist". Setting the
+      // path via the libpq `options` startup parameter makes it the baseline
+      // for each connection, so `public` is always reachable regardless of what
+      // an individual migration does mid-run.
+      extra: {
+        options: `-c search_path=${schemaName},public`,
+      },
       entities: [
         ProjectEntity,
         LpoEntity,
@@ -178,6 +190,16 @@ export class TenantMigrationService {
       await tenantDataSource.initialize();
       this.logger.log(
         `DataSource initialized for schema: "${schemaName}". Running migrations...`,
+      );
+
+      // SCHEMA PREREQUISITES: make sure the tenant schema exists before
+      // migrations run against it. The `uuid-ossp`/search_path issue that used
+      // to break brand-new provisioning is handled at the connection level via
+      // the `extra.options` startup parameter on the DataSource above, which
+      // guarantees `public` (where Neon installs `uuid-ossp`) is always on the
+      // search_path. (Idempotent.)
+      await tenantDataSource.query(
+        `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`,
       );
 
       // PRE-MIGRATION GUARD: if the glob resolves to zero files, TypeORM

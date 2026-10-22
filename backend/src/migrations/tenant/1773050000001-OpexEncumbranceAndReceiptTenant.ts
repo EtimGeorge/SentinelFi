@@ -11,10 +11,10 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  * Follows the tenant-migration convention: set search_path to the tenant
  * schema, use unqualified identifiers.
  */
-export class OpexEncumbranceAndReceiptTenant20260202000001
+export class OpexEncumbranceAndReceiptTenant1773050000001
   implements MigrationInterface
 {
-  name = "OpexEncumbranceAndReceiptTenant20260202000001";
+  name = "OpexEncumbranceAndReceiptTenant1773050000001";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const schema = (queryRunner.connection.options as any).schema;

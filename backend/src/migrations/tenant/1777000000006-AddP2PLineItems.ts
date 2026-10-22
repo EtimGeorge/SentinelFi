@@ -18,6 +18,19 @@ export class AddP2PLineItems1777000000006 implements MigrationInterface {
     if (schema) {
       await queryRunner.query(`SET search_path TO "${schema}", public`);
     }
+    // Legacy/partial schemas may not yet have base P2P tables
+    const has = async (t: string) => {
+      const r = await queryRunner.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1`,
+        [t],
+      );
+      return r.length > 0;
+    };
+    if (!(await has("p2p_requisition")) || !(await has("p2p_invoice")) || !(await has("p2p_purchase_order"))) {
+      // eslint-disable-next-line no-console
+      console.log("[AddP2PLineItems] Base P2P tables missing; skipping line-item tables.");
+      return;
+    }
 
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
 

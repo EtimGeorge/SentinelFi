@@ -9,12 +9,12 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  *  - Adds payroll_run.created_by_user_id (SoD approval provenance).
  *
  * Follows the current tenant-migration convention: set search_path to the
- * tenant schema, use unqualified identifiers (see 20260131103709-AddCEOAnnotation).
+ * tenant schema, use unqualified identifiers (see 1773050000002-AddCEOAnnotation).
  */
-export class OpexPayrollStatusEnumsAndRunCreatorTenant20260201000001
+export class OpexPayrollStatusEnumsAndRunCreatorTenant1773050000000
   implements MigrationInterface
 {
-  name = "OpexPayrollStatusEnumsAndRunCreatorTenant20260201000001";
+  name = "OpexPayrollStatusEnumsAndRunCreatorTenant1773050000000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const schema = (queryRunner.connection.options as any).schema;

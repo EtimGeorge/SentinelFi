@@ -33,10 +33,10 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  *  - Dropping an enum label requires PostgreSQL 17+, so `down()` leaves
  *    `VENDOR_PAYMENT` in place — it is inert and harmless.
  */
-export class GlVendorPaymentAndCategoryAccount20260205000000
+export class GlVendorPaymentAndCategoryAccount1773050000004
   implements MigrationInterface
 {
-  name = "GlVendorPaymentAndCategoryAccount20260205000000";
+  name = "GlVendorPaymentAndCategoryAccount1773050000004";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const schema = (queryRunner.connection.options as any).schema;
