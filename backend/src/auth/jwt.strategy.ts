@@ -100,7 +100,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const jti = (payload as any).jti as string | undefined;
-    if (jti && this.tokenBlacklist.isBlacklisted(jti)) {
+    if (jti && (await this.tokenBlacklist.isBlacklisted(jti))) {
       this.logger.warn(
         `[Validate] Blacklisted token JTI ${jti} rejected for user ${userId}`,
       );

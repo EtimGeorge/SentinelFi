@@ -66,8 +66,8 @@ export class RedisAuthCache implements IAuthCache {
     value: UserPayload,
     ttlSeconds: number,
   ): Promise<void> {
-    // TTL is in seconds for redis-store
-    await this.cacheManager.set(key, value, ttlSeconds);
+    // cache-manager v7 expects TTL in MILLISECONDS (it was seconds in v4).
+    await this.cacheManager.set(key, value, ttlSeconds * 1000);
   }
 
   async delete(key: string): Promise<void> {

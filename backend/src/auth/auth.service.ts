@@ -908,7 +908,10 @@ export class AuthService {
 
     // Blacklist the specific token so it is rejected by JwtStrategy even before expiry
     if (tokenPayload?.jti && tokenPayload?.exp) {
-      this.tokenBlacklist.blacklist(tokenPayload.jti, tokenPayload.exp);
+      await this.tokenBlacklist.blacklist(
+        tokenPayload.jti,
+        tokenPayload.exp,
+      );
       this.logger.debug(
         `[LOGOUT] Token JTI ${tokenPayload.jti} added to blacklist.`,
       );
