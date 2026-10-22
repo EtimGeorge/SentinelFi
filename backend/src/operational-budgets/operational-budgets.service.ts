@@ -209,7 +209,7 @@ export class OperationalBudgetsService {
   /**
    * Debit side of an OPEX posting: the category's mapped GL account when the
    * catalog has one (`budget_category.gl_account_id`, added by migration
-   * 20260205000000), otherwise the default "General and Sundry" account — so
+   * 1773050000004), otherwise the default "General and Sundry" account — so
    * categories that were never mapped still post instead of failing.
    *
    * The budget-category catalog is the shared taxonomy and joins to a budget's
