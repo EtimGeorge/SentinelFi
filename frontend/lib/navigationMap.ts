@@ -119,6 +119,15 @@ export const navigationMap: NavItem[] = [
             name: 'Chart of Accounts', icon: BookOpen, path: '/financials/operations/chart-of-accounts', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager, Role.AdminManager],
         },
         {
+            name: 'Bank Accounts', icon: Banknote, path: '/financials/operations/bank-accounts', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.FinanceManager],
+        },
+        {
+            name: 'Bank Reconciliation', icon: ShieldCheck, path: '/financials/operations/bank-reconciliation', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.FinanceManager],
+        },
+        {
+            name: 'Budget Virements', icon: TrendingUp, path: '/financials/operations/virement', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.AdminManager, Role.FinanceManager],
+        },
+        {
             name: 'Trial Balance', icon: Scale, path: '/financials/operations/trial-balance', roles: [Role.CEO, Role.CFO, Role.AdminDirector, Role.FinanceManager],
         },
         {
